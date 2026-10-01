@@ -28,6 +28,7 @@ from app.mail.models import (
 from app.mail.providers.base import RawMessage
 from app.mail.service import delete_mailbox, delete_messages, store_message
 from app.mail.storage import AttachmentStorage
+from tests.factories import make_user
 from tests.mail.conftest import load_fixture
 
 pytestmark = pytest.mark.db
@@ -38,9 +39,10 @@ async def make_mailbox(session: AsyncSession, **kwargs: object) -> Mailbox:
         "type": MailboxType.IMAP,
         "display_name": "Test",
         "address": "erika@example.org",
-        "owner_user_id": uuid.uuid4(),
     }
     values.update(kwargs)
+    if "owner_user_id" not in values:
+        values["owner_user_id"] = (await make_user(session)).id
     mailbox = Mailbox(**values)
     session.add(mailbox)
     await session.flush()
@@ -342,3 +344,18 @@ async def test_no_mail_content_in_logs(
     assert "mail_message_stored" in output
     for secret in ("Nordlicht", "erika@example.org", "Kostenübersicht", "Mustermann"):
         assert secret not in output
+
+
+async def test_deleting_the_owner_deletes_the_mailbox(db_session: AsyncSession) -> None:
+    owner = await make_user(db_session)
+    await make_mailbox(db_session, owner_user_id=owner.id)
+
+    await db_session.delete(owner)
+    await db_session.flush()
+
+    assert await count(db_session, Mailbox) == 0
+
+
+async def test_owner_must_be_an_existing_user(db_session: AsyncSession) -> None:
+    with pytest.raises(IntegrityError):
+        await make_mailbox(db_session, owner_user_id=uuid.uuid4())

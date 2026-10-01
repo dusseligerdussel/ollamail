@@ -27,7 +27,8 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
 | Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
 | Audit-Log | Login, Rollenänderung, IdP-Konfiguration, Postfach hinzugefügt/entfernt, Export, Löschung |
-| Sessions | Serverseitig, widerrufbar, Ablaufzeit konfigurierbar |
+| Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
+| Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. |
 
 ### Logging im Detail
@@ -79,6 +80,8 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
   Schritt) und `processing_mailbox_settings` (Opt-out je Postfach) hängen per `ON DELETE CASCADE`
   an Mail bzw. Postfach. Gespeichert werden nur Schrittname, Version, Status und ein
   Fehlercode (`StepError.code` oder Name der Exception-Klasse), nie Exception-Texte.
+- **Nutzer löschen:** `users` → `auth_identities`, `auth_sessions` und eigene Postfächer
+  (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).
   Ein periodischer Job setzt sie durch.
 - **Mails, die am Server gelöscht wurden**, werden beim nächsten Sync auch lokal gelöscht.

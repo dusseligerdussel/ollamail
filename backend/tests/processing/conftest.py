@@ -17,7 +17,9 @@ from app.core.ids import uuid7
 from app.mail.models import Mailbox, MailboxType, Message
 from app.processing.steps import ProcessingStep, StepContext, registry
 from app.processing.tasks import use_database
+from app.users.models import User
 from app.worker import app, build_connector
+from tests.factories import make_user
 
 # Retries without waiting, so tests stay fast.
 FAST_RETRY = RetryStrategy(max_attempts=2)
@@ -118,10 +120,10 @@ class Pipeline:
 async def pipeline(migrated_database: str) -> AsyncIterator[Pipeline]:
     settings = DatabaseSettings.model_validate({"url": migrated_database})
     database = Database(settings)
-    owner_id = uuid.uuid4()
     mailbox_id = uuid7()
     async with database.sessionmaker() as session:
         await session.execute(text("DELETE FROM procrastinate_jobs"))
+        owner_id = (await make_user(session)).id
         session.add(
             Mailbox(
                 id=mailbox_id,
@@ -137,7 +139,8 @@ async def pipeline(migrated_database: str) -> AsyncIterator[Pipeline]:
             yield Pipeline(database, settings, mailbox_id, owner_id)
     finally:
         async with database.sessionmaker() as session:
-            await session.execute(delete(Mailbox).where(Mailbox.id == mailbox_id))
+            # Cascades to the mailbox; committed users would mark the instance as set up.
+            await session.execute(delete(User).where(User.id == owner_id))
             await session.execute(text("DELETE FROM procrastinate_jobs"))
             await session.commit()
         await database.dispose()

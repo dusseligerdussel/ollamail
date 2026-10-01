@@ -117,9 +117,9 @@ bereinigt (Allow-List; keine Skripte, Formulare, Frames, Event-Handler, gefährl
 CSS nur ohne Ressourcen/Positionierung). Externe Bilder sind standardmäßig blockiert (Tracking-Schutz),
 `cid:`-Bilder werden auf Anhang-URLs umgeschrieben.
 
-**Besitz:** Ein Postfach gehört genau einem Nutzer (`owner_user_id`) oder ist shared
-(`is_shared`, per CHECK erzwungen). Der Fremdschlüssel auf `users` und die Zuweisungstabelle für
-Shared Mailboxes folgen mit dem Nutzermodell (#11).
+**Besitz:** Ein Postfach gehört genau einem Nutzer (`owner_user_id`, Fremdschlüssel auf `users`
+mit `ON DELETE CASCADE`) oder ist shared (`is_shared`, per CHECK erzwungen). Die Zuweisungstabelle
+für Shared Mailboxes folgt mit #34.
 
 | Provider | Phase | Auth | Sync | Hinweise |
 |---|---|---|---|---|
@@ -242,8 +242,8 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   API-Prozess hält eine `LISTEN`-Verbindung und verteilt an `GET /api/events` (SSE), gefiltert auf den
   angemeldeten Nutzer. Ein `Event` besteht nur aus `type`, `ids` und `status` (per Pattern validiert).
   Zustellung ist best effort: Nach einem Reconnect lädt der Client seine Daten neu.
-- **Aktueller Nutzer:** Dependency `app.core.current_user.get_current_user_id`. Bis zur Auth (#11)
-  liefert sie immer 401; Tests überschreiben sie.
+- **Aktueller Nutzer:** Dependency `app.core.current_user.get_current_user_id` (Session-Cookie,
+  siehe §5); ohne gültige Session 401. Tests überschreiben sie.
 
 ## 4. Feature-Pipelines
 
@@ -340,6 +340,63 @@ Jeder Schritt ist ein idempotenter Job. Fehler werden protokolliert und erneut v
 - **Sessions**: serverseitig in Postgres, `HttpOnly`/`Secure`/`SameSite=Lax`-Cookie, CSRF-Schutz.
   Keine JWTs im Browser-Storage.
 - Optional später: SCIM-Provisioning, TOTP/WebAuthn für lokale Accounts.
+
+### Umsetzung (`backend/app/auth/`, `backend/app/users/`)
+
+**Datenmodell:** `users` (E-Mail normalisiert und eindeutig, Anzeigename, Rolle `admin|user`,
+Sprache, Zeitzone, aktiv), `auth_identities` (`provider`, `subject`, `user_id`; ein Nutzer kann
+mehrere Identitäten haben; lokal: `provider=local`, `subject` = Nutzer-ID, Argon2id-Hash),
+`auth_sessions`, `auth_rate_limits`. Alles hängt per `ON DELETE CASCADE` am Nutzer.
+
+**Provider-Interface** (`app/auth/providers/base.py`): Ein Provider beweist nur, wer jemand ist,
+und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups)`.
+`PasswordAuthProvider.authenticate(login, password)` für lokale Konten und LDAP (#32),
+`RedirectAuthProvider.authorization_url(...)`/`complete(...)` für OIDC (#30) und GitHub (#31).
+Die Zuordnung Identität → Nutzer (`auth.service.user_for_identity`, später mit
+JIT-Provisioning), Sperre, Session und Rollenprüfung sind für alle Provider gleich. Konfigurierte
+externe Provider registrieren sich in `app.state.auth_providers`; `GET /api/auth/providers`
+listet sie für die Login-Seite.
+
+**Bootstrap:** `GET /api/setup/status` → `{"initialized": bool}`. `POST /api/setup` legt den ersten
+Admin an und meldet ihn an. Voraussetzung ist der Setup-Token (`OLLAMAIL_SETUP_TOKEN` oder per
+HKDF aus `OLLAMAIL_SECRET_KEY` abgeleitet, auf allen API-Instanzen gleich, beim Start geloggt
+und per `python -m app.cli setup-token` abrufbar). Ein transaktionaler Advisory Lock
+(`pg_advisory_xact_lock`) serialisiert parallele Requests: genau einer gewinnt, alle anderen und
+jeder spätere Versuch erhalten 409. Danach ist die Selbstregistrierung aus
+(`OLLAMAIL_AUTH_LOCAL_REGISTRATION`); Admins legen Konten über `POST /api/users` an.
+Notfallzugang: `python -m app.cli create-admin`.
+
+**Login** (`POST /api/auth/login`): Zuerst zählen zwei Fixed-Window-Zähler in Postgres
+(atomares Upsert, vor der Passwortprüfung committet): pro Client-IP (`OLLAMAIL_AUTH_IP_MAX_ATTEMPTS`)
+und pro Konto (`OLLAMAIL_AUTH_LOGIN_MAX_ATTEMPTS` je `OLLAMAIL_AUTH_LOGIN_WINDOW_MINUTES`). Darüber
+gibt es 429 (`retry_after` in Sekunden), auch bei richtigem Passwort; ein erfolgreicher Login setzt
+den Kontozähler zurück. Unbekannte Konten werden genauso gezählt und mit einem Dummy-Hash geprüft,
+damit Antwort und Laufzeit nichts verraten. Die Schlüssel sind HMACs von IP bzw. E-Mail-Adresse.
+Argon2id (RFC 9106, 64 MiB) läuft in einem Thread, höchstens vier Hashes gleichzeitig; veraltete
+Parameter werden beim Login aktualisiert. Hinter einem Reverse Proxy kommt die Client-IP aus
+`X-Forwarded-For` (uvicorn `--forwarded-allow-ips`).
+
+**Sessions:** Cookie `ollamail_session` (`HttpOnly`, `Secure`, `SameSite=Lax`, 256 Bit Zufall);
+in der DB steht nur der SHA-256. Gültig bis `expires_at` (Lebensdauer) und solange die letzte
+Anfrage weniger als das Idle-Timeout zurückliegt (`last_seen_at`, höchstens minütlich
+geschrieben). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort
+den Zugriff. Login ersetzt eine vorhandene Session (keine Session Fixation). Endpunkte:
+`GET /api/auth/me`, `PATCH /api/auth/me` (Name, Sprache, Zeitzone), `POST /api/auth/logout`,
+`GET /api/auth/sessions`, `DELETE /api/auth/sessions/{id}`, `DELETE /api/auth/sessions`
+(alle anderen; mit `?include_current=true` alle). Der Worker-Job `auth.cleanup` löscht stündlich
+abgelaufene Sessions und Zähler.
+
+**CSRF:** Signiertes Double-Submit-Cookie (`CSRFMiddleware`, gilt für die ganze App). Jede
+Anfrage außer `GET`/`HEAD`/`OPTIONS`/`TRACE` muss den Wert des Cookies `ollamail_csrf` im Header
+`X-CSRF-Token` senden. Der Token ist `<nonce>.<HMAC(nonce, Session-Cookie)>`: an die Session
+gebunden, bei Login/Logout neu ausgestellt und von einer Subdomain aus nicht fälschbar. Fehlt das
+Cookie oder passt es nicht zur Session, setzt jede Antwort ein neues. `Sec-Fetch-Site: cross-site`
+wird zusätzlich abgewiesen.
+
+**Dependencies:** `get_current_session` (401), `require_admin` (403), `get_current_user` (ORM-Objekt)
+in `app/auth/dependencies.py`; `get_current_user_id` in `app/core/current_user.py`. Die DB-Session
+der Auth-Prüfung ist nach der Prüfung wieder frei (`Depends(get_db, scope="function")`), damit
+SSE-Streams keine Pool-Verbindung halten.
 
 ### Shared Mailboxes
 

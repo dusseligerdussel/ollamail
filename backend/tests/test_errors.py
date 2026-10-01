@@ -2,13 +2,14 @@ import io
 import json
 
 from fastapi import FastAPI, HTTPException
-from httpx import ASGITransport, AsyncClient
+from httpx import AsyncClient
 from pydantic import BaseModel
 
 from app.core.config import LoggingSettings, Settings
 from app.core.errors import PROBLEM_MEDIA_TYPE, ProblemError
 from app.core.logging import configure_logging
 from app.main import create_app
+from tests.conftest import api_client
 
 PII = "alice@example.com"
 
@@ -36,8 +37,7 @@ def _app(settings: Settings) -> FastAPI:
 
 
 async def _client(app: FastAPI) -> AsyncClient:
-    transport = ASGITransport(app=app, raise_app_exceptions=False)
-    return AsyncClient(transport=transport, base_url="http://test")
+    return api_client(app)
 
 
 async def test_not_found_is_problem_details(client: AsyncClient) -> None:

@@ -5,10 +5,9 @@ mailbox removes all of its data in the database (docs/PRIVACY.md, Löschkonzept)
 Attachment files live outside the database; ``app.mail.service.delete_mailbox`` removes
 them together with the rows.
 
-Ownership: a mailbox belongs to exactly one user or is shared (``owner_user_id IS NULL``).
-TODO(#11): ``owner_user_id`` becomes a foreign key to ``users.id`` with ``ON DELETE
-CASCADE`` once the user model exists, and shared mailboxes get an assignment table
-(mailbox ↔ user/group). Until then the column is a plain UUID without a constraint.
+Ownership: a mailbox belongs to exactly one user (``owner_user_id``, deleted together with
+the user) or is shared (``owner_user_id IS NULL``). The assignment table for shared
+mailboxes (mailbox ↔ user/group) follows in #34.
 """
 
 import enum
@@ -89,8 +88,9 @@ class Mailbox(Base):
     type: Mapped[MailboxType] = mapped_column(_str_enum(MailboxType, "mailbox_type"))
     display_name: Mapped[str] = mapped_column(String(255))
     address: Mapped[str] = mapped_column(String(320))
-    # TODO(#11): foreign key to users.id (ON DELETE CASCADE), see module docstring.
-    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(index=True)
+    owner_user_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
     is_shared: Mapped[bool] = mapped_column(server_default=false())
     # Non-secret connection settings (host, port, TLS, tenant ID, ...).
     provider_settings: Mapped[dict[str, Any]] = mapped_column(

@@ -4,8 +4,8 @@ Handbuch für Admins, die ollamail selbst betreiben: Installation, Hardware, Rev
 Backup/Restore, Updates, Datenschutz und Fehlersuche.
 
 > **Projektstatus:** ollamail ist im frühen Aufbau. Lauffähig sind heute der Compose-Stack,
-> die Datenbank mit Migrationen, die API mit Health-Endpunkten und die UI-Shell. Mail-Sync,
-> KI-Funktionen, Anmeldung und Worker gibt es noch nicht. Was noch nicht existiert, ist in diesem
+> die Datenbank mit Migrationen, die API mit Health-Endpunkten, lokale Anmeldung (API) und die
+> UI-Shell. Mail-Sync, KI-Funktionen, externe Identity-Provider und Worker gibt es noch nicht. Was noch nicht existiert, ist in diesem
 > Dokument mit **geplant (#nr)** markiert und verweist auf das zugehörige Issue.
 
 Referenz für Dienste, Profile, Volumes und Entwicklungsmodus: [`deploy/README.md`](../deploy/README.md).
@@ -101,8 +101,25 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Heute wird nur `database` geprüft; Prüfungen für Queue und LLM kommen mit #7 und #17. |
 
-Die UI ist unter `http://<host>:8080` erreichbar. Ersteinrichtung und Anmeldung
-(Erst-Admin, OIDC, LDAP) sind **geplant (#11, #12, #30–#33)**.
+Die UI ist unter `http://<host>:8080` erreichbar. Der Setup-Assistent der UI ist **geplant (#12)**,
+externe Identity-Provider (OIDC, GitHub, LDAP) **geplant (#30–#33)**.
+
+**Erst-Admin:** Solange kein Nutzer existiert, legt `POST /api/setup` den ersten Admin an. Dafür
+ist ein Setup-Token nötig – `OLLAMAIL_SETUP_TOKEN` oder, falls leer, ein aus `OLLAMAIL_SECRET_KEY`
+abgeleiteter Wert. Die API schreibt ihn beim Start ins Log (Event `setup_pending`, Feld
+`setup_code`), solange die Instanz nicht eingerichtet ist:
+
+```sh
+docker compose -f deploy/compose.yaml logs api | grep setup_pending
+docker compose -f deploy/compose.yaml run --rm --no-deps api python -m app.cli setup-token
+```
+
+Nach dem Setup ist der Token wertlos. Notfallzugang ohne UI (z. B. ausgesperrt):
+`docker compose -f deploy/compose.yaml run --rm api python -m app.cli create-admin`.
+
+**Cookies nur über HTTPS:** Sitzungs-Cookies sind `Secure`. Browser speichern sie über
+`http://<ip>:8080` nicht (Ausnahme `http://localhost`); die Anmeldung schlägt dann fehl. Also TLS
+davorsetzen oder – nur für Testinstallationen – `OLLAMAIL_AUTH_COOKIE_SECURE=false`.
 
 Für den Betrieb im Netz unbedingt TLS davorsetzen: [Abschnitt 4](#4-reverse-proxy-und-tls).
 
@@ -489,8 +506,10 @@ verarbeitet.
 
 | Datenkategorie | Speicherort | Status |
 |---|---|---|
-| Nutzerkonten, Rollen, Gruppen | PostgreSQL (`postgres-data`) | geplant (#11) |
-| Sessions | PostgreSQL | geplant (#11) |
+| Nutzerkonten, Rollen | PostgreSQL (`postgres-data`): `users`, `auth_identities` (Passwörter als Argon2id-Hash) | aktiv |
+| Gruppen | PostgreSQL | geplant (#30–#33) |
+| Sessions | PostgreSQL: `auth_sessions` (nur SHA-256 des Cookie-Tokens, Browser-Kennung gekürzt); abgelaufene stündlich gelöscht | aktiv |
+| Login-Zähler (Rate-Limit, Sperre) | PostgreSQL: `auth_rate_limits` (nur HMAC von IP bzw. E-Mail-Adresse); stündlich bereinigt | aktiv |
 | Postfach-Zugangsdaten, OAuth-Tokens, IdP-Secrets | PostgreSQL, verschlüsselt mit `OLLAMAIL_SECRET_KEY` | geplant (#6, #15) |
 | E-Mails (Header, Inhalte, Metadaten) | PostgreSQL | geplant (#13, #14) |
 | Anhänge | Daten-Volume (`ollamail-data`) | geplant (#13) |
