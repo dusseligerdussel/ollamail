@@ -14,8 +14,10 @@ from app.core.crypto import CryptoError, RotationResult, configure_keyring, gene
 from app.core.crypto import rotate_keys as rotate_all
 from app.core.db import Database
 from app.core.logging import configure_logging
+from app.processing.cli import processing_cli
 
 cli = typer.Typer(name="ollamail", no_args_is_help=True, add_completion=False)
+cli.add_typer(processing_cli)
 
 
 @cli.callback()
