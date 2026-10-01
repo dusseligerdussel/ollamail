@@ -16,6 +16,7 @@ import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -52,6 +53,11 @@ const TasksRoute = TasksRouteImport.update({
   path: '/tasks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/admin_/audit',
+  path: '/admin/audit',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -61,6 +67,7 @@ export interface FileRoutesByFullPath {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
+  '/admin/audit': typeof AdminAuditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -70,6 +77,7 @@ export interface FileRoutesByTo {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
+  '/admin/audit': typeof AdminAuditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -80,13 +88,29 @@ export interface FileRoutesById {
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
   '/tasks': typeof TasksRoute
+  '/admin_/audit': typeof AdminAuditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/digest' | '/inbox' | '/search' | '/settings' | '/tasks'
+    | '/'
+    | '/admin'
+    | '/digest'
+    | '/inbox'
+    | '/search'
+    | '/settings'
+    | '/tasks'
+    | '/admin/audit'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/digest' | '/inbox' | '/search' | '/settings' | '/tasks'
+  to:
+    | '/'
+    | '/admin'
+    | '/digest'
+    | '/inbox'
+    | '/search'
+    | '/settings'
+    | '/tasks'
+    | '/admin/audit'
   id:
     | '__root__'
     | '/'
@@ -96,6 +120,7 @@ export interface FileRouteTypes {
     | '/search'
     | '/settings'
     | '/tasks'
+    | '/admin_/audit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -106,6 +131,7 @@ export interface RootRouteChildren {
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
   TasksRoute: typeof TasksRoute
+  AdminAuditRoute: typeof AdminAuditRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -159,6 +185,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TasksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/audit': {
+      id: '/admin_/audit'
+      path: '/admin/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -170,6 +203,7 @@ const rootRouteChildren: RootRouteChildren = {
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
   TasksRoute: TasksRoute,
+  AdminAuditRoute: AdminAuditRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

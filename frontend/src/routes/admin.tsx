@@ -1,11 +1,9 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { Shield } from "lucide-react";
+import { ChevronRight, ScrollText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
-import { EmptyState } from "@/components/empty-state";
 import { NotFound } from "@/components/not-found";
 import { PageHeader } from "@/components/page-header";
-import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 export const Route = createFileRoute("/admin")({
@@ -21,16 +19,31 @@ function AdminPage() {
   return (
     <>
       <PageHeader title={t("nav.admin")} />
-      <EmptyState
-        icon={Shield}
-        title={t("pages.admin.emptyTitle")}
-        description={t("pages.admin.emptyDescription")}
-        action={
-          <Button asChild size="sm" variant="outline">
-            <Link to="/settings">{t("pages.admin.emptyAction")}</Link>
-          </Button>
-        }
-      />
+      <div className="flex-1 overflow-y-auto">
+        <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
+          <section aria-labelledby="admin-security">
+            <h2 id="admin-security" className="mb-2 text-xs font-medium text-muted-foreground">
+              {t("pages.admin.security")}
+            </h2>
+            <div className="divide-y rounded-lg border">
+              <Link
+                to="/admin/audit"
+                className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <ScrollText aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-ui font-medium">{t("pages.audit.title")}</span>
+                  <span className="block text-ui text-muted-foreground">
+                    {t("pages.admin.auditDescription")}
+                  </span>
+                </span>
+                <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              </Link>
+            </div>
+          </section>
+          <p className="mt-6 text-ui text-muted-foreground">{t("pages.admin.more")}</p>
+        </div>
+      </div>
     </>
   );
 }

@@ -107,9 +107,87 @@
       "serverChecking": "Verbindung wird geprüft"
     },
     "admin": {
-      "emptyTitle": "Noch keine Verwaltungsfunktionen",
-      "emptyDescription": "Benutzer, Anmeldeverfahren, Mail-Provider und Sprachmodelle werden hier verwaltet, sobald diese Bereiche verfügbar sind.",
-      "emptyAction": "Eigene Einstellungen öffnen"
+      "security": "Sicherheit",
+      "auditDescription": "Anmeldungen, Rollenänderungen, Schlüsselrotation und weitere Sicherheitsereignisse.",
+      "more": "Benutzer, Anmeldeverfahren, Mail-Provider und Sprachmodelle werden hier verwaltet, sobald diese Bereiche verfügbar sind."
+    },
+    "audit": {
+      "title": "Audit-Log",
+      "back": "Zurück zur Verwaltung",
+      "export": "CSV exportieren",
+      "filters": "Filter",
+      "action": "Ereignis",
+      "allActions": "Alle Ereignisse",
+      "from": "Von",
+      "to": "Bis",
+      "reset": "Filter zurücksetzen",
+      "loadMore": "Ältere Einträge laden",
+      "loadingMore": "Wird geladen…",
+      "emptyTitle": "Keine Einträge",
+      "emptyDescription": "Sicherheitsereignisse wie Anmeldungen und Rollenänderungen werden hier protokolliert.",
+      "emptyFilteredDescription": "Keine Einträge passen zu den Filtern.",
+      "columns": {
+        "time": "Zeit",
+        "event": "Ereignis",
+        "actor": "Von",
+        "target": "Betrifft",
+        "details": "Details"
+      },
+      "actor": {
+        "system": "System",
+        "anonymous": "Nicht angemeldet",
+        "deleted": "Gelöschter Benutzer"
+      },
+      "targets": {
+        "user": "Benutzer",
+        "session": "Sitzung",
+        "mailbox": "Postfach",
+        "idp": "Anmeldeverfahren",
+        "settings": "Einstellungen"
+      },
+      "groups": {
+        "auth": "Anmeldung",
+        "users": "Benutzer",
+        "settings": "Einstellungen",
+        "mailboxes": "Postfächer",
+        "data": "Daten",
+        "operations": "Betrieb"
+      },
+      "actions": {
+        "auth": {
+          "setup_completed": "Instanz eingerichtet",
+          "login_succeeded": "Angemeldet",
+          "login_failed": "Anmeldung fehlgeschlagen",
+          "logout": "Abgemeldet",
+          "session_revoked": "Sitzungen beendet"
+        },
+        "user": {
+          "created": "Benutzer angelegt",
+          "role_changed": "Rolle geändert",
+          "deleted": "Benutzer gelöscht"
+        },
+        "idp": {
+          "config_changed": "Anmeldeverfahren geändert"
+        },
+        "ai": {
+          "settings_changed": "Sprachmodell-Einstellungen geändert"
+        },
+        "mailbox": {
+          "created": "Postfach hinzugefügt",
+          "shared": "Postfach freigegeben",
+          "deleted": "Postfach entfernt"
+        },
+        "data": {
+          "exported": "Daten exportiert",
+          "deleted": "Daten gelöscht"
+        },
+        "crypto": {
+          "keys_rotated": "Schlüssel rotiert"
+        },
+        "audit": {
+          "exported": "Audit-Log exportiert"
+        }
+      }
     }
   },
   "notFound": {
