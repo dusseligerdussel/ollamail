@@ -99,7 +99,12 @@
       "appearance": "Appearance",
       "themeDescription": "System follows your operating system.",
       "languageDescription": "Language of the interface.",
-      "more": "Mail accounts, language models and notifications will be configured here."
+      "more": "Mail accounts, language models and notifications will be configured here.",
+      "server": "Server",
+      "serverConnection": "Connection",
+      "serverDescription": "Status of the connection to the ollamail server.",
+      "serverOk": "Connected",
+      "serverChecking": "Checking connection"
     },
     "admin": {
       "emptyTitle": "Nothing to manage yet",
@@ -110,5 +115,20 @@
     "title": "Page not found",
     "description": "The address does not exist or is no longer available.",
     "action": "Go to inbox"
+  },
+  "errors": {
+    "network": "The server is not reachable. Check your connection.",
+    "badRequest": "The request could not be processed.",
+    "unauthorized": "Your session has expired. Please sign in again.",
+    "forbidden": "You do not have permission to do this.",
+    "notFound": "The requested item was not found.",
+    "conflict": "The item was changed in the meantime. Reload and try again.",
+    "tooLarge": "The upload is too large.",
+    "validation": "Some entries are invalid.",
+    "rateLimited": "Too many requests. Please wait a moment.",
+    "server": "A server error occurred. Please try again later.",
+    "unavailable": "The service is temporarily unavailable.",
+    "unknown": "Something went wrong.",
+    "requestId": "Request ID: {{id}}"
   }
 }

@@ -316,8 +316,15 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 ## 6. Frontend
 
 - React 19 + Vite + TypeScript strict, Tailwind v4, shadcn/ui (Radix), TanStack Router (file-based) + Query.
-- API-Client generiert aus OpenAPI (`openapi-typescript` + `openapi-fetch`).
-- Echtzeit über SSE.
+- API-Client generiert aus OpenAPI (`openapi-typescript` + `openapi-fetch`). Das Schema wird ohne
+  laufenden Server exportiert (`backend/scripts/export_openapi.py`) und liegt eingecheckt unter
+  `frontend/src/api/openapi.json`, die Typen unter `frontend/src/api/schema.gen.ts`. `pnpm gen:api`
+  erzeugt beides; die CI schlägt fehl, wenn es nicht zum Backend passt. `operationId` =
+  `<Tag>_<Funktionsname>`.
+- Fehler: Problem Details → übersetzte Meldung (Toast bei Mutationen, inline bei Queries), 401 →
+  Login-Seite. CSRF per Double-Submit (Cookie `ollamail_csrf`, Header `X-CSRF-Token`).
+- Echtzeit über SSE (`GET /api/events`): JSON-Events `{"type": "<ressource>.<aktion>", …IDs}`, die
+  das Frontend (`useEvents()`) in Query-Invalidierungen übersetzt. Details: `frontend/README.md`.
 - i18n (DE/EN), Dark/Light/System, PWA, Tastaturbedienung und Command Palette (⌘K).
 - Gestaltung: siehe `docs/DESIGN.md`.
 

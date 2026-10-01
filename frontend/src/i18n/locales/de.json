@@ -99,7 +99,12 @@
       "appearance": "Darstellung",
       "themeDescription": "System folgt der Einstellung des Betriebssystems.",
       "languageDescription": "Sprache der Oberfläche.",
-      "more": "Mail-Konten, Sprachmodelle und Benachrichtigungen werden hier eingerichtet."
+      "more": "Mail-Konten, Sprachmodelle und Benachrichtigungen werden hier eingerichtet.",
+      "server": "Server",
+      "serverConnection": "Verbindung",
+      "serverDescription": "Status der Verbindung zum ollamail-Server.",
+      "serverOk": "Verbunden",
+      "serverChecking": "Verbindung wird geprüft"
     },
     "admin": {
       "emptyTitle": "Noch nichts zu verwalten",
@@ -110,5 +115,20 @@
     "title": "Seite nicht gefunden",
     "description": "Die Adresse existiert nicht oder ist nicht mehr verfügbar.",
     "action": "Zum Posteingang"
+  },
+  "errors": {
+    "network": "Der Server ist nicht erreichbar. Prüfe deine Verbindung.",
+    "badRequest": "Die Anfrage konnte nicht verarbeitet werden.",
+    "unauthorized": "Deine Sitzung ist abgelaufen. Bitte melde dich erneut an.",
+    "forbidden": "Dafür fehlt dir die Berechtigung.",
+    "notFound": "Der angeforderte Eintrag wurde nicht gefunden.",
+    "conflict": "Der Eintrag wurde zwischenzeitlich geändert. Lade neu und versuche es noch einmal.",
+    "tooLarge": "Die Datei ist zu groß.",
+    "validation": "Einige Eingaben sind ungültig.",
+    "rateLimited": "Zu viele Anfragen. Bitte warte einen Moment.",
+    "server": "Auf dem Server ist ein Fehler aufgetreten. Bitte versuche es später erneut.",
+    "unavailable": "Der Dienst ist vorübergehend nicht verfügbar.",
+    "unknown": "Etwas ist schiefgelaufen.",
+    "requestId": "Anfrage-ID: {{id}}"
   }
 }

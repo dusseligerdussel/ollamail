@@ -23,6 +23,7 @@ jobs:
     outputs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
+      api-client: ${{ steps.filter.outputs.api-client }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -39,6 +40,15 @@ jobs:
               - '.github/workflows/ci.yml'
             frontend:
               - 'frontend/**'
+              - '.github/workflows/ci.yml'
+            # Any backend change can alter the OpenAPI schema; also the generated files and
+            # the generator itself (its version is pinned by the lockfile).
+            api-client:
+              - 'backend/**'
+              - 'frontend/src/api/**'
+              - 'frontend/package.json'
+              - 'frontend/pnpm-lock.yaml'
+              - 'frontend/.pnpmfile.cjs'
               - '.github/workflows/ci.yml'
 
   backend:
@@ -118,12 +128,55 @@ jobs:
       - name: Build
         run: pnpm build
 
+  # The committed OpenAPI schema and the generated client (frontend/src/api) must match the
+  # backend. Fix a failure with `pnpm gen:api` in frontend/ and commit the result.
+  api-client:
+    name: API client up to date
+    needs: changes
+    if: needs.changes.outputs.api-client == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --locked
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Generate schema and client
+        working-directory: frontend
+        run: pnpm gen:api
+      - name: Check for differences
+        run: |
+          if [ -n "$(git status --porcelain -- frontend/src/api)" ]; then
+            git status --short -- frontend/src/api
+            git --no-pager diff --stat -- frontend/src/api
+            echo "::error::The generated API client is out of date. Run 'pnpm gen:api' in frontend/ and commit the result."
+            exit 1
+          fi
+
   # Single required check: fails if any needed job failed or was cancelled,
   # passes if jobs were skipped by the path filter.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, backend, frontend]
+    needs: [changes, backend, frontend, api-client]
     runs-on: ubuntu-latest
     steps:
       - name: Check job results
@@ -133,6 +186,7 @@ jobs:
             changes=${{ needs.changes.result }}
             backend=${{ needs.backend.result }}
             frontend=${{ needs.frontend.result }}
+            api-client=${{ needs.api-client.result }}
         run: |
           echo "Job results: $RESULTS"
           if [ "$FAILED" = "true" ]; then

@@ -2,6 +2,7 @@ import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 
+import { mockFetch } from "./fetch";
 import { setPrefersDark, setViewportWidth } from "./media";
 
 // jsdom does not implement scrolling; the router's scroll restoration calls it.
@@ -20,12 +21,14 @@ Element.prototype.hasPointerCapture ??= () => false;
 Element.prototype.releasePointerCapture ??= () => {};
 
 beforeEach(() => {
+  mockFetch();
   setViewportWidth(1440);
   setPrefersDark(false);
 });
 
 afterEach(() => {
   cleanup();
+  vi.unstubAllGlobals();
   window.localStorage.clear();
   document.documentElement.className = "";
   document.documentElement.removeAttribute("style");
