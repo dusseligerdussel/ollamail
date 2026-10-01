@@ -435,6 +435,11 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
   `<Tag>_<Funktionsname>`.
 - Fehler: Problem Details → übersetzte Meldung (Toast bei Mutationen, inline bei Queries), 401 →
   Login-Seite. CSRF per Double-Submit (Cookie `ollamail_csrf`, Header `X-CSRF-Token`).
+- Anmeldung und Route-Guards: Der Root-Route-Guard lädt `GET /api/setup/status` und
+  `GET /api/auth/me`. Nicht eingerichtet → `/setup` (Erst-Admin), ohne Session →
+  `/login?redirect=…`; jede Route ist geschützt, außer sie ist ausdrücklich öffentlich (`/login`,
+  `/setup`). Admin-Seiten zeigen Nicht-Admins eine 403-Seite; durchgesetzt wird es in der API.
+  Externe Provider kommen dynamisch aus `GET /api/auth/providers`. Details: `frontend/README.md`.
 - Echtzeit über SSE (`GET /api/events`): JSON-Events `{"type": "<ressource>.<aktion>", …IDs}`, die
   das Frontend (`useEvents()`) in Query-Invalidierungen übersetzt. Details: `frontend/README.md`.
 - i18n (DE/EN), Dark/Light/System, PWA, Tastaturbedienung und Command Palette (⌘K).

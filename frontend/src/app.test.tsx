@@ -5,18 +5,14 @@ import { useMemo } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useCommands } from "@/components/command-palette/command-provider";
-import type { CurrentUser } from "@/hooks/use-current-user";
 import type { Command } from "@/lib/commands";
 
 import i18n from "./i18n";
+import { backend, mockFetch, testUser } from "./test/fetch";
 import { setCoarsePointer, setViewportWidth } from "./test/media";
 import { renderApp } from "./test/render-app";
 
-const currentUser = vi.hoisted(() => ({ value: { id: "test", isAdmin: true } as CurrentUser }));
-vi.mock("@/hooks/use-current-user", () => ({ useCurrentUser: () => currentUser.value }));
-
 beforeEach(async () => {
-  currentUser.value = { id: "test", isAdmin: true };
   await i18n.changeLanguage("en");
 });
 
@@ -38,9 +34,9 @@ describe("app shell", () => {
   });
 
   it("hides the admin area from non-admins", async () => {
-    currentUser.value = { id: "test", isAdmin: false };
+    mockFetch(backend({ user: testUser }));
     await renderApp("/admin");
-    expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "No access" })).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(nav).queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
   });

@@ -3,7 +3,7 @@ import { Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@/components/empty-state";
-import { NotFound } from "@/components/not-found";
+import { Forbidden } from "@/components/forbidden";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -16,7 +16,7 @@ function AdminPage() {
   const { t } = useTranslation();
   const { isAdmin } = useCurrentUser();
   // The API enforces permissions; this only avoids showing an empty admin area to other users.
-  if (!isAdmin) return <NotFound />;
+  if (!isAdmin) return <Forbidden />;
 
   return (
     <>
