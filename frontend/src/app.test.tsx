@@ -1,38 +1,160 @@
-import { QueryClientProvider } from "@tanstack/react-query";
-import { createMemoryHistory, RouterProvider } from "@tanstack/react-router";
-import { render, screen } from "@testing-library/react";
+import { act, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { Archive } from "lucide-react";
+import { useMemo } from "react";
+import { beforeEach, describe, expect, it, vi } from "vitest";
+
+import { useCommands } from "@/components/command-palette/command-provider";
+import type { CurrentUser } from "@/hooks/use-current-user";
+import type { Command } from "@/lib/commands";
 
 import i18n from "./i18n";
-import { createQueryClient } from "./query-client";
-import { createAppRouter } from "./router";
+import { setViewportWidth } from "./test/media";
+import { renderApp } from "./test/render-app";
 
-function renderApp(path = "/") {
-  const queryClient = createQueryClient();
-  const router = createAppRouter(queryClient, createMemoryHistory({ initialEntries: [path] }));
-  return render(
-    <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
-    </QueryClientProvider>,
-  );
-}
+const currentUser = vi.hoisted(() => ({ value: { id: "test", isAdmin: true } as CurrentUser }));
+vi.mock("@/hooks/use-current-user", () => ({ useCurrentUser: () => currentUser.value }));
 
-describe("placeholder page", () => {
-  beforeEach(async () => {
-    await i18n.changeLanguage("en");
+beforeEach(async () => {
+  currentUser.value = { id: "test", isAdmin: true };
+  await i18n.changeLanguage("en");
+});
+
+describe("app shell", () => {
+  it("redirects to the inbox and renders the navigation", async () => {
+    const { router } = await renderApp("/");
+    expect(router.state.location.pathname).toBe("/inbox");
+    expect(screen.getByRole("heading", { level: 1, name: "Inbox" })).toBeInTheDocument();
+
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    const links = within(nav)
+      .getAllByRole("link")
+      .map((link) => link.textContent);
+    expect(links).toEqual(["Inbox", "Tasks", "Digest", "Search", "Settings", "Admin"]);
+    expect(within(nav).getByRole("link", { name: "Inbox" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
   });
 
-  it("renders the translated placeholder", async () => {
-    renderApp();
-    expect(await screen.findByRole("heading", { name: "ollamail" })).toBeInTheDocument();
-    expect(screen.getByText(/interface is under construction/i)).toBeInTheDocument();
+  it("hides the admin area from non-admins", async () => {
+    currentUser.value = { id: "test", isAdmin: false };
+    await renderApp("/admin");
+    expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
+  });
+
+  it("navigates with g-sequences", async () => {
+    const user = userEvent.setup();
+    const { router } = await renderApp();
+    await user.keyboard("gt");
+    await screen.findByRole("heading", { level: 1, name: "Tasks" });
+    await user.keyboard("/");
+    await screen.findByRole("heading", { level: 1, name: "Search" });
+    expect(router.state.location.pathname).toBe("/search");
+  });
+
+  it("shows the shortcut overview with ?", async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.keyboard("?");
+    const sheet = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
+    expect(within(sheet).getByText("Next item")).toBeInTheDocument();
+    expect(within(sheet).getByText("Go to Tasks")).toBeInTheDocument();
+  });
+
+  it("uses a bottom bar and a sheet on narrow screens", async () => {
+    setViewportWidth(375);
+    const user = userEvent.setup();
+    await renderApp();
+    const nav = screen.getByRole("navigation", { name: "Main navigation" });
+    expect(within(nav).queryByRole("link", { name: "Settings" })).not.toBeInTheDocument();
+
+    await user.click(within(nav).getByRole("button", { name: "More" }));
+    const sheet = await screen.findByRole("dialog", { name: "More" });
+    await user.click(within(sheet).getByRole("link", { name: "Settings" }));
+    await screen.findByRole("heading", { level: 1, name: "Settings" });
   });
 
   it("switches the language", async () => {
-    renderApp();
-    await userEvent.click(await screen.findByRole("button", { name: "Deutsch" }));
-    expect(await screen.findByText(/Oberfläche befindet sich im Aufbau/)).toBeInTheDocument();
+    const user = userEvent.setup();
+    await renderApp("/settings");
+    await user.click(screen.getByRole("radio", { name: "Deutsch" }));
+    expect(
+      await screen.findByRole("heading", { level: 1, name: "Einstellungen" }),
+    ).toBeInTheDocument();
     expect(document.documentElement.lang).toBe("de");
+  });
+
+  it("switches the theme from the settings page", async () => {
+    const user = userEvent.setup();
+    await renderApp("/settings");
+    await user.click(screen.getByRole("radio", { name: "Dark" }));
+    expect(document.documentElement).toHaveClass("dark");
+  });
+});
+
+describe("command palette", () => {
+  it("opens with Ctrl+K and runs a navigation command", async () => {
+    const user = userEvent.setup();
+    const { router } = await renderApp();
+
+    await user.keyboard("{Control>}k{/Control}");
+    const dialog = await screen.findByRole("dialog", { name: "Command menu" });
+    const input = within(dialog).getByRole("combobox");
+    expect(input).toHaveFocus();
+
+    await user.type(input, "tasks");
+    expect(
+      within(dialog)
+        .getAllByRole("option")
+        .map((option) => option.textContent),
+    ).toEqual([expect.stringContaining("Go to Tasks")]);
+    await user.keyboard("{Enter}");
+
+    await screen.findByRole("heading", { level: 1, name: "Tasks" });
+    expect(router.state.location.pathname).toBe("/tasks");
+    expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  });
+
+  it("runs appearance commands", async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.keyboard("{Control>}k{/Control}");
+    await user.type(await screen.findByRole("combobox"), "dark theme");
+    await user.keyboard("{Enter}");
+    expect(document.documentElement).toHaveClass("dark");
+  });
+
+  it("lists commands registered by pages", async () => {
+    const run = vi.fn();
+    function ArchiveCommand() {
+      const commands = useMemo<Command[]>(
+        () => [{ id: "test.archive", label: "Archive all", group: "actions", icon: Archive, run }],
+        [],
+      );
+      useCommands(commands);
+      return null;
+    }
+
+    const user = userEvent.setup();
+    await renderApp("/inbox", { extra: <ArchiveCommand /> });
+    await user.keyboard("{Control>}k{/Control}");
+    const dialog = await screen.findByRole("dialog", { name: "Command menu" });
+    expect(within(dialog).getByRole("group", { name: "Actions" })).toBeInTheDocument();
+
+    await user.click(within(dialog).getByRole("option", { name: /Archive all/ }));
+    expect(run).toHaveBeenCalledOnce();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("toggles closed with Ctrl+K from inside the input", async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.keyboard("{Control>}k{/Control}");
+    await screen.findByRole("dialog", { name: "Command menu" });
+    await act(() => user.keyboard("{Control>}k{/Control}"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
   });
 });

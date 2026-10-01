@@ -1,7 +1,114 @@
 {
-  "placeholder": {
-    "title": "ollamail",
-    "description": "Self-hosted email analysis. The interface is under construction.",
-    "switchLanguage": "Deutsch"
+  "app": {
+    "name": "ollamail"
+  },
+  "common": {
+    "close": "Close",
+    "loading": "Loading…",
+    "navigateHint": "Use <0/> and <1/> to move through the list."
+  },
+  "shell": {
+    "skipToContent": "Skip to content",
+    "resizeNavigation": "Resize navigation"
+  },
+  "nav": {
+    "label": "Main navigation",
+    "inbox": "Inbox",
+    "tasks": "Tasks",
+    "digest": "Digest",
+    "search": "Search",
+    "settings": "Settings",
+    "admin": "Admin",
+    "more": "More",
+    "moreDescription": "Further pages and display settings"
+  },
+  "theme": {
+    "label": "Theme",
+    "light": "Light",
+    "dark": "Dark",
+    "system": "System"
+  },
+  "language": {
+    "label": "Language",
+    "de": "Deutsch",
+    "en": "English"
+  },
+  "commandPalette": {
+    "open": "Command menu",
+    "title": "Command menu",
+    "description": "Search for a page or action and press Enter to run it.",
+    "placeholder": "Type a command or page…",
+    "empty": "No matching commands."
+  },
+  "commands": {
+    "groups": {
+      "navigation": "Go to",
+      "actions": "Actions",
+      "appearance": "Appearance",
+      "language": "Language",
+      "help": "Help"
+    },
+    "goTo": "Go to {{page}}",
+    "theme": {
+      "light": "Use light theme",
+      "dark": "Use dark theme",
+      "system": "Use system theme"
+    }
+  },
+  "shortcuts": {
+    "title": "Keyboard shortcuts",
+    "description": "Shortcuts work everywhere except in text fields.",
+    "show": "Show keyboard shortcuts",
+    "then": "then",
+    "groups": {
+      "general": "General",
+      "navigation": "Navigation",
+      "list": "Lists"
+    },
+    "list": {
+      "next": "Next item",
+      "previous": "Previous item",
+      "open": "Open item"
+    }
+  },
+  "pages": {
+    "inbox": {
+      "emptyTitle": "No messages",
+      "emptyDescription": "Messages appear here once a mail account is connected.",
+      "emptyAction": "Open settings",
+      "noSelection": "No message selected"
+    },
+    "tasks": {
+      "emptyTitle": "No tasks",
+      "emptyDescription": "Tasks found in your messages are listed here.",
+      "emptyAction": "Go to inbox",
+      "noSelection": "No task selected"
+    },
+    "digest": {
+      "emptyTitle": "No digest yet",
+      "emptyDescription": "A daily summary of new messages is created after the first sync.",
+      "emptyAction": "Open settings",
+      "noSelection": "No digest selected"
+    },
+    "search": {
+      "emptyTitle": "Nothing to search yet",
+      "emptyDescription": "Search covers all synced messages and attachments.",
+      "emptyAction": "Go to inbox"
+    },
+    "settings": {
+      "appearance": "Appearance",
+      "themeDescription": "System follows your operating system.",
+      "languageDescription": "Language of the interface.",
+      "more": "Mail accounts, language models and notifications will be configured here."
+    },
+    "admin": {
+      "emptyTitle": "Nothing to manage yet",
+      "emptyDescription": "Users, mail providers and language models will be managed here."
+    }
+  },
+  "notFound": {
+    "title": "Page not found",
+    "description": "The address does not exist or is no longer available.",
+    "action": "Go to inbox"
   }
 }
