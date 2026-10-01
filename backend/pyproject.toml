@@ -9,6 +9,8 @@ dependencies = [
     "alembic>=1.13",
     "asyncpg>=0.29",
     "fastapi>=0.115",
+    "nh3>=0.3.7",
+    "py3langid>=0.4.0",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "sqlalchemy[asyncio]>=2.0.30",
@@ -39,6 +41,10 @@ select = ["E", "W", "F", "I", "B", "UP", "SIM", "ASYNC", "RUF"]
 python_version = "3.12"
 strict = true
 plugins = ["pydantic.mypy"]
+
+[[tool.mypy.overrides]]
+module = ["py3langid.*"]
+ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

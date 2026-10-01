@@ -54,9 +54,14 @@ backend/app/
   auth/          lokale Accounts, OIDC, LDAP, Rollen, Bootstrap des Erst-Admins
   users/         Nutzer, Gruppen, Rollen-Mapping
   mail/
-    providers/   base.py (Interface), imap.py, graph.py (später), gmail.py (später)
+    providers/   base.py (Interface), registry.py, fake.py (Tests), imap.py, graph.py (später), gmail.py (später)
     sync/        Initialimport, IDLE/Delta-Sync, Ordner-Mapping
-    models.py    Mailbox, Folder, Message, Attachment, Thread
+    models.py    Mailbox, Folder, Thread, Message, Attachment, SyncState
+    mime.py      MIME-Parsing, Zeichensätze, Normalisierung
+    sanitize.py  HTML-Sanitizing (nh3), HTML → Text
+    quotes.py    Zitate und Signaturen abtrennen
+    threads.py   Threading
+    service.py   Speichern/Löschen (DB + Dateien)
   ai/
     llm/         Provider-Interface, ollama.py, openai_compat.py, Modellprofile
     embeddings/  Chunking, Embedding-Jobs
@@ -75,14 +80,46 @@ backend/app/
 ### 3.1 Mail-Provider
 
 ```python
-class MailProvider(Protocol):
+class MailProvider(Protocol):  # app/mail/providers/base.py
+    capabilities: ProviderCapabilities  # labels, push, server_threads, keywords
     async def list_folders(self) -> list[RemoteFolder]: ...
-    async def fetch_since(self, folder: str, cursor: SyncCursor) -> AsyncIterator[RawMessage]: ...
-    async def watch(self, folder: str) -> AsyncIterator[ChangeEvent]: ...  # IMAP IDLE / Graph Webhooks / Gmail Push
-    async def move(self, message_ref: str, target_folder: str) -> None: ...
-    async def set_flags(self, message_ref: str, flags: set[str]) -> None: ...
-    async def apply_label(self, message_ref: str, label: str) -> None: ...  # IMAP: Keyword oder Ordner
+    def fetch_since(self, folder_id: str, cursor: SyncCursor | None, *, since: datetime | None = None
+                    ) -> AsyncIterator[SyncEvent]: ...  # MessageFetched | MessageUpdated | MessageDeleted | CursorAdvanced
+    def watch(self, folder_id: str | None = None) -> AsyncIterator[ChangeEvent]: ...  # IMAP IDLE / Graph Webhooks / Gmail Push
+    async def move(self, remote_ref: str, target_folder_id: str) -> str: ...  # neue Referenz (IMAP-UIDs ändern sich)
+    async def set_flags(self, remote_ref: str, flags: frozenset[str]) -> None: ...
+    async def apply_label(self, remote_ref: str, label: str) -> None: ...  # Gmail: Label, Graph: Kategorie, IMAP: Keyword oder Ordner
+    async def remove_label(self, remote_ref: str, label: str) -> None: ...
+    async def aclose(self) -> None: ...
 ```
+
+- **Ordner vs. Labels:** `RemoteFolder.kind` (`folder`/`label`); `RawMessage.folder_ids` listet alle
+  Ordner/Labels einer Mail. In der DB verbindet `mail_message_folders` Mails und Ordner (n:m).
+- **Cursor:** `SyncCursor.data` ist provider-spezifisch und JSON-serialisierbar (IMAP: UIDVALIDITY,
+  letzte UID, HIGHESTMODSEQ; Graph: `deltaLink`; Gmail: `historyId`) und liegt in `mail_sync_states`
+  – je Ordner oder (Gmail) postfachweit mit `folder_id IS NULL`. `fetch_since` endet immer mit
+  `CursorAdvanced`; der Cursor wird erst gespeichert, wenn die vorherigen Änderungen gespeichert sind.
+  Ungültige Cursor (`CursorInvalidError`) erzwingen einen Neuabgleich des Ordners.
+- **Inhalt:** Alle Provider liefern die RFC-5322-Quelle (IMAP `BODY[]`, Graph `/$value`, Gmail
+  `format=raw`), daher ist die Normalisierung (`app/mail/mime.py`) für alle gleich.
+- **Registry:** Provider registrieren sich mit `registry.register(MailboxType.X, Factory)`; Features
+  nutzen nur `registry.create(config)`. Für Tests anderer Module gibt es `FakeMailProvider`
+  (In-Memory-Server mit Änderungslog, IMAP- oder Gmail-Verhalten).
+
+**Normalisierung** (`normalize_message`): MIME-Parsing mit robustem Zeichensatz-Fallback (deklariert →
+UTF-8 → Windows-1252, nie Abbruch), HTML → Text (`<blockquote>` wird zu `> `), Abtrennen von Zitaten
+(„Am … schrieb“, „On … wrote“, Outlook-Kopfblöcke, `>`) und Signaturen (`-- `, mobile Signaturen),
+Spracherkennung offline (`py3langid`). **Threading** pro Postfach: Server-Thread-ID (Gmail/Graph) →
+`In-Reply-To`/`References` → Betreff-Fallback (nur für Antworten, 30-Tage-Fenster).
+
+**Anzeige von HTML:** Original-HTML wird gespeichert und erst bei der Anzeige serverseitig mit `nh3`
+bereinigt (Allow-List; keine Skripte, Formulare, Frames, Event-Handler, gefährlichen URL-Schemata,
+CSS nur ohne Ressourcen/Positionierung). Externe Bilder sind standardmäßig blockiert (Tracking-Schutz),
+`cid:`-Bilder werden auf Anhang-URLs umgeschrieben.
+
+**Besitz:** Ein Postfach gehört genau einem Nutzer (`owner_user_id`) oder ist shared
+(`is_shared`, per CHECK erzwungen). Der Fremdschlüssel auf `users` und die Zuweisungstabelle für
+Shared Mailboxes folgen mit dem Nutzermodell (#11).
 
 | Provider | Phase | Auth | Sync | Hinweise |
 |---|---|---|---|---|
@@ -90,7 +127,8 @@ class MailProvider(Protocol):
 | Microsoft 365 | v1 | OAuth2 (Entra ID App, delegiert oder App-only mit Admin-Consent) | Graph Delta Query + Change Notifications | Shared Mailboxes über App-Permissions + `ApplicationAccessPolicy` |
 | Gmail / Google Workspace | v1 | OAuth2, Workspace: Domain-wide Delegation | `history.list` + Pub/Sub Push (optional Polling) | Labels statt Ordner |
 
-Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`).
+Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`;
+Spalte `mail_mailboxes.credentials`, bis #6 gemergt ist, verweigert ein Platzhaltertyp jedes Schreiben).
 
 ### 3.2 LLM-Provider
 

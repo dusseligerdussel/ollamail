@@ -9,6 +9,7 @@ them in ``deploy/.env.example``.
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator
@@ -67,6 +68,15 @@ class SecuritySettings(BaseSettings):
     secret_key: SecretStr | None = None
 
 
+class StorageSettings(BaseSettings):
+    """``OLLAMAIL_*`` (file storage)"""
+
+    model_config = _config()
+
+    # Root directory for attachments, audio digests and other files.
+    data_dir: Path = Path("/data")
+
+
 class LLMSettings(BaseSettings):
     """``OLLAMAIL_LLM_*``"""
 
@@ -99,6 +109,7 @@ class Settings(BaseModel):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
+    storage: StorageSettings = Field(default_factory=StorageSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     mail: MailSettings = Field(default_factory=MailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)

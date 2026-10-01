@@ -1,0 +1,26 @@
+From: "Unclosed Quote <broken@example.com>
+To: undisclosed-recipients:;
+Subject: Contract draft
+Date: 31 Februar 2026 25:61:00 +9999
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="b12"
+
+--b12
+Content-Type: text/plain; charset=utf-8
+
+Please review the contract draft before our call next week.
+
+--b12
+Content-Type: application/pdf
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename*=utf-8''Vertrag%20%C3%9Cbersicht%20%E2%80%93%20Entwurf.pdf
+
+JVBERi0xLjQKJSBzeW50aGV0aWMgdGVzdCBkb2N1bWVudAoxIDAgb2JqIDw8Pj4gZW5kb2JqCnRy
+YWlsZXIgPDw+PgolJUVPRgo=
+--b12
+Content-Type: application/octet-stream; name="../../etc/passwd"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="../../etc/passwd"
+
+this is not valid base64 !!!
+--b12--

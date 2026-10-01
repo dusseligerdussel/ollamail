@@ -1,0 +1,33 @@
+From: Max Mustermann <max.mustermann@example.com>
+To: Erika Mustermann <erika@example.org>
+Subject: Fwd: Offer for the new printers
+Date: Tue, 08 Sep 2026 08:00:00 +0200
+Message-ID: <fwd-0011@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="fwd-b"
+
+--fwd-b
+Content-Type: text/plain; charset=utf-8
+
+Erika, please have a look at the attached offer and tell me what you think
+about the price and the delivery date.
+
+--fwd-b
+Content-Type: message/rfc822
+Content-Disposition: attachment
+
+From: Alex Beispiel <alex.beispiel@example.net>
+To: Max Mustermann <max.mustermann@example.com>
+Subject: Offer for the new printers
+Date: Mon, 07 Sep 2026 12:00:00 +0000
+Message-ID: <inner-0011@example.net>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8
+
+Dear Max,
+
+as discussed, here is our offer for the new printers.
+
+Alex
+
+--fwd-b--

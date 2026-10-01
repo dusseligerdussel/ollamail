@@ -1,0 +1,54 @@
+From: Jordan Example <jordan@example.com>
+To: team@example.com
+Subject: Quarterly report Q3
+Date: Thu, 03 Sep 2026 14:30:00 -0400
+Message-ID: <nested-0005@example.com>
+MIME-Version: 1.0
+Content-Type: multipart/mixed; boundary="mixed-b"
+
+This is a multi-part message in MIME format.
+
+--mixed-b
+Content-Type: multipart/alternative; boundary="alt-b"
+
+--alt-b
+Content-Type: text/plain; charset=utf-8
+
+Hello team,
+
+please find the quarterly report attached.
+Our logo is shown below.
+
+Best regards
+Jordan
+
+--alt-b
+Content-Type: multipart/related; boundary="rel-b"; type="text/html"
+
+--rel-b
+Content-Type: text/html; charset=utf-8
+
+<html><body><p>Hello team,</p><p>please find the quarterly report attached.
+Our logo is shown below.</p><p><img src="cid:logo-0001@example.com" alt="Logo"></p>
+<p>Best regards<br>Jordan</p></body></html>
+
+--rel-b
+Content-Type: image/png; name="logo.png"
+Content-Transfer-Encoding: base64
+Content-ID: <logo-0001@example.com>
+Content-Disposition: inline; filename="logo.png"
+
+iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNkYPhfDwAChwGA60e6
+kgAAAABJRU5ErkJggg==
+--rel-b--
+
+--alt-b--
+
+--mixed-b
+Content-Type: application/pdf; name="report-q3.pdf"
+Content-Transfer-Encoding: base64
+Content-Disposition: attachment; filename="report-q3.pdf"
+
+JVBERi0xLjQKJSBzeW50aGV0aWMgdGVzdCBkb2N1bWVudAoxIDAgb2JqIDw8Pj4gZW5kb2JqCnRy
+YWlsZXIgPDw+PgolJUVPRgo=
+--mixed-b--
