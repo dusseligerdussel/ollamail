@@ -26,7 +26,7 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 |---|---|---|
 | `frontend` | `ollamail-frontend` (`frontend/Dockerfile`, Caddy) | Statische UI, Reverse Proxy `/api/*` → `api:8000` (Präfix wird entfernt), einziger veröffentlichter Port |
 | `api` | `ollamail-api` (`backend/Dockerfile`) | FastAPI (uvicorn) |
-| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`) – vorerst Profil `worker` |
+| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `default` |
 | `migrate` | `ollamail-api` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
 | `postgres` | `pgvector/pgvector:pg16` | Datenbank, Volume `postgres-data` |
 | `ollama-cpu` / `ollama-gpu` | `ollama/ollama` | Optionaler LLM-Server, im Netz als `ollama` erreichbar |
@@ -99,8 +99,13 @@ docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull <modell>
 
 Ohne Profil nutzt ollamail einen externen Server: `OLLAMAIL_LLM_BASE_URL` anpassen.
 
-Übergangsweise, bis der Worker (#7) existiert, startet `worker` nur mit `--profile worker`.
-Danach entfällt das Profil und der Worker startet immer.
+## Worker skalieren
+
+Der `worker` startet immer mit. Welche Queues er abarbeitet und wie parallel, steuern
+`OLLAMAIL_WORKER_QUEUES`, `OLLAMAIL_WORKER_CONCURRENCY` und `OLLAMAIL_LLM_CONCURRENCY`
+(siehe `.env.example`). Mehr Instanzen: `docker compose -f deploy/compose.yaml up -d --scale worker=2`.
+Beim Stoppen bekommen laufende Jobs `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` Sekunden (Standard 30),
+Compose wartet 45 s, bevor es den Container hart beendet.
 
 ## Entwicklung (Hot Reload)
 

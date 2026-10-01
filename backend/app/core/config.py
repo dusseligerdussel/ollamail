@@ -17,6 +17,8 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 ENV_PREFIX = "OLLAMAIL_"
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+# Job queues, see app/worker.py.
+QueueName = Literal["sync", "llm", "tts", "default"]
 
 
 def _config(group: str = "") -> SettingsConfigDict:
@@ -108,6 +110,8 @@ class LLMSettings(BaseSettings):
 
     # Global admin switch: cloud LLM endpoints are opt-in (local first).
     cloud_enabled: bool = False
+    # Parallel jobs on the ``llm`` queue per worker process. Keep low on CPU-only hosts.
+    concurrency: int = Field(default=1, ge=1)
 
     provider: LLMProviderKind = "ollama"
     base_url: str = "http://ollama:11434"
@@ -172,6 +176,29 @@ class TTSSettings(BaseSettings):
     engine: str = "piper"
 
 
+class WorkerSettings(BaseSettings):
+    """``OLLAMAIL_WORKER_*``"""
+
+    model_config = _config("WORKER_")
+
+    # Queues this worker process consumes, comma-separated in the environment
+    # (e.g. ``OLLAMAIL_WORKER_QUEUES=llm`` for a dedicated LLM worker).
+    queues: Annotated[list[QueueName], NoDecode] = Field(
+        default=["sync", "llm", "tts", "default"], min_length=1
+    )
+    # Parallel jobs for all consumed queues except ``llm`` (see ``LLMSettings.concurrency``).
+    concurrency: int = Field(default=4, ge=1)
+    # Seconds running jobs get to finish after SIGTERM before they are cancelled.
+    shutdown_timeout: float = Field(default=30.0, ge=0)
+
+    @field_validator("queues", mode="before")
+    @classmethod
+    def _split(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
+
+
 class Settings(BaseModel):
     """All settings, grouped by concern."""
 
@@ -181,6 +208,7 @@ class Settings(BaseModel):
     llm: LLMSettings = Field(default_factory=LLMSettings)
     mail: MailSettings = Field(default_factory=MailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
+    worker: WorkerSettings = Field(default_factory=WorkerSettings)
 
 
 @lru_cache
