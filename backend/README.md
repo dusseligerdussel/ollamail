@@ -1,6 +1,6 @@
 # ollamail backend
 
-FastAPI-API und (später) Procrastinate-Worker. Architektur: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md),
+FastAPI-API und Procrastinate-Worker (`python -m app.worker`). Architektur: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md),
 Arbeitsregeln: [`CLAUDE.md`](../CLAUDE.md).
 
 ## Voraussetzungen
@@ -65,6 +65,11 @@ Tests mit Marker `db` brauchen PostgreSQL mit pgvector unter `OLLAMAIL_TEST_DATA
 (Standard: `postgresql+asyncpg://ollamail:ollamail@localhost:5432/ollamail_test`, wie in der CI).
 Ist die DB nicht erreichbar, werden sie mit Hinweis übersprungen; `OLLAMAIL_TEST_REQUIRE_DB=1`
 lässt den Lauf stattdessen fehlschlagen. Nur Unit-Tests: `uv run pytest -m "not db"`.
+
+Tests mit Marker `ollama` laufen gegen ein echtes Ollama (`OLLAMAIL_TEST_OLLAMA_URL`, Standard
+`http://localhost:11434`) mit einem sehr kleinen Modell (`OLLAMAIL_TEST_OLLAMA_MODEL`, Standard
+`qwen2.5:0.5b`, vorher `ollama pull`). Ohne erreichbares Ollama oder Modell werden sie übersprungen.
+Die übrigen LLM-Tests nutzen einen Fake-Provider bzw. gemocktes HTTP (`respx`).
 
 Fixtures (`tests/conftest.py`): `db_session` (Transaktion je Test, wird zurückgerollt),
 `client` (App ohne DB-Override), `db_client` (`get_db` nutzt `db_session`).

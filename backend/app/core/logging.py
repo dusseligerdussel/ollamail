@@ -70,6 +70,32 @@ _REROUTED_LOGGERS = ("uvicorn", "uvicorn.error", "uvicorn.access")
 _URL_LOGGERS = ("uvicorn.access", "httpx", "httpcore")
 
 
+# Loggers whose messages are free text with interpolated data (Procrastinate renders job
+# arguments into them). Their message is replaced by the static ``action`` they attach.
+_FREE_TEXT_LOGGERS = ("procrastinate",)
+# Job fields kept from Procrastinate's ``job`` log context; arguments are dropped.
+_JOB_LOG_FIELDS = ("id", "task_name", "queue", "status", "attempts", "priority", "lock")
+
+
+class FreeTextLoggerFilter(logging.Filter):
+    """Replace free-text messages of library loggers by static event names."""
+
+    def filter(self, record: logging.LogRecord) -> bool:
+        if not record.name.startswith(_FREE_TEXT_LOGGERS):
+            return True
+        action = getattr(record, "action", None)
+        record.msg = action if isinstance(action, str) else f"{record.name}.log"
+        record.args = None
+        job = getattr(record, "job", None)
+        if isinstance(job, Mapping):
+            record.job = {k: job[k] for k in _JOB_LOG_FIELDS if k in job}
+        # ``result`` is the return value of a task, which may be anything.
+        for key in ("call_string", "task_kwargs", "result"):
+            if hasattr(record, key):
+                delattr(record, key)
+        return True
+
+
 def _normalize(key: str) -> str:
     return key.lower().replace("-", "_")
 
@@ -153,6 +179,7 @@ def configure_logging(settings: LoggingSettings, stream: TextIO | None = None) -
     """Route structlog and stdlib logging through one filtered JSON pipeline."""
     handler = logging.StreamHandler(stream or sys.stdout)
     handler.setFormatter(build_formatter(settings))
+    handler.addFilter(FreeTextLoggerFilter())
 
     root = logging.getLogger()
     root.handlers = [handler]

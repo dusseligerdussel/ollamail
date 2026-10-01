@@ -1,17 +1,19 @@
 """Database tests for the mail model: cascades, constraints, storing and threading."""
 
+import base64
 import io
+import os
 import uuid
 from datetime import UTC, datetime
 
 import pytest
-from sqlalchemy import func, select
+from sqlalchemy import func, select, text
 from sqlalchemy.exc import IntegrityError, StatementError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import LoggingSettings
+from app.core.crypto import KeyRing, decode_key, set_keyring
 from app.core.logging import configure_logging
-from app.mail.credentials import CredentialsEncryptionUnavailableError
 from app.mail.models import (
     Attachment,
     Folder,
@@ -89,11 +91,23 @@ async def test_mailbox_type_is_checked(db_session: AsyncSession) -> None:
         await make_mailbox(db_session, type="pop3")
 
 
-async def test_credentials_cannot_be_stored_unencrypted(db_session: AsyncSession) -> None:
-    with pytest.raises(StatementError) as info:
-        await make_mailbox(db_session, credentials={"password": "secret"})
+async def test_credentials_are_stored_encrypted(db_session: AsyncSession) -> None:
+    set_keyring(KeyRing(decode_key(base64.b64encode(os.urandom(32)).decode())))
+    try:
+        mailbox = await make_mailbox(db_session, credentials={"password": "s3cret-pw"})
+        await db_session.commit()
 
-    assert isinstance(info.value.orig, CredentialsEncryptionUnavailableError)
+        stored = await db_session.scalar(
+            text("SELECT credentials FROM mail_mailboxes WHERE id = :id"), {"id": mailbox.id}
+        )
+        assert stored is not None
+        assert "s3cret-pw" not in stored
+        db_session.expunge_all()
+        loaded = await db_session.get(Mailbox, mailbox.id)
+        assert loaded is not None
+        assert loaded.credentials == {"password": "s3cret-pw"}
+    finally:
+        set_keyring(None)
 
 
 async def test_store_message_persists_normalised_data(

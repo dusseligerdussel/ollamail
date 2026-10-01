@@ -1,10 +1,13 @@
 # Deployment mit Docker Compose
 
+Referenz für den Compose-Stack. Schritt-für-Schritt-Installation, Reverse-Proxy-Beispiele,
+Backup/Restore, Updates und Fehlersuche: [`docs/OPERATIONS.md`](../docs/OPERATIONS.md).
+
 ## Schnellstart
 
 ```sh
 cp deploy/.env.example deploy/.env
-# deploy/.env anpassen: mindestens OLLAMAIL_SECRET_KEY und POSTGRES_PASSWORD
+# deploy/.env anpassen: mindestens OLLAMAIL_SECRET_KEY (openssl rand -base64 32) und POSTGRES_PASSWORD
 docker compose -f deploy/compose.yaml up -d
 ```
 
@@ -26,7 +29,7 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 |---|---|---|
 | `frontend` | `ollamail-frontend` (`frontend/Dockerfile`, Caddy) | Statische UI, Reverse Proxy `/api/*` → `api:8000` (Präfix wird entfernt), einziger veröffentlichter Port |
 | `api` | `ollamail-api` (`backend/Dockerfile`) | FastAPI (uvicorn) |
-| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`) – vorerst Profil `worker` |
+| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `default` |
 | `migrate` | `ollamail-api` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
 | `postgres` | `pgvector/pgvector:pg16` | Datenbank, Volume `postgres-data` |
 | `ollama-cpu` / `ollama-gpu` | `ollama/ollama` | Optionaler LLM-Server, im Netz als `ollama` erreichbar |
@@ -99,8 +102,13 @@ docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull <modell>
 
 Ohne Profil nutzt ollamail einen externen Server: `OLLAMAIL_LLM_BASE_URL` anpassen.
 
-Übergangsweise, bis der Worker (#7) existiert, startet `worker` nur mit `--profile worker`.
-Danach entfällt das Profil und der Worker startet immer.
+## Worker skalieren
+
+Der `worker` startet immer mit. Welche Queues er abarbeitet und wie parallel, steuern
+`OLLAMAIL_WORKER_QUEUES`, `OLLAMAIL_WORKER_CONCURRENCY` und `OLLAMAIL_LLM_CONCURRENCY`
+(siehe `.env.example`). Mehr Instanzen: `docker compose -f deploy/compose.yaml up -d --scale worker=2`.
+Beim Stoppen bekommen laufende Jobs `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` Sekunden (Standard 30),
+Compose wartet 45 s, bevor es den Container hart beendet.
 
 ## Entwicklung (Hot Reload)
 
@@ -112,10 +120,27 @@ docker compose -f deploy/compose.yaml -f deploy/compose.dev.yaml up --build
 - <http://localhost:8000> – API direkt (`uvicorn --reload`, `backend/` ist eingebunden)
 - `localhost:5432` – PostgreSQL
 
+## Master-Key und Key-Rotation
+
+`OLLAMAIL_SECRET_KEY` verschlüsselt alle gespeicherten Zugangsdaten (Envelope-Encryption,
+AES-256-GCM, siehe `docs/PRIVACY.md`). Ohne gültigen Key (Base64, mindestens 32 zufällige Bytes)
+startet `api` nicht. Den Key sicher aufbewahren – ohne ihn sind gespeicherte
+Zugangsdaten verloren.
+
+Key wechseln:
+
+1. Bisherigen Key nach `OLLAMAIL_SECRET_KEYS_OLD` verschieben (kommagetrennt), neuen Key als
+   `OLLAMAIL_SECRET_KEY` setzen (`openssl rand -base64 32`).
+2. Stack neu starten – alte Werte bleiben lesbar, neue werden mit dem neuen Key verschlüsselt.
+3. `docker compose -f deploy/compose.yaml run --rm api python -m app.cli rotate-keys`
+   verschlüsselt alle gespeicherten Secrets mit dem neuen Key (in einer Transaktion).
+4. `OLLAMAIL_SECRET_KEYS_OLD` leeren und neu starten.
+
 ## TLS / Reverse Proxy
 
 Der `frontend`-Container spricht nur HTTP. Für den Betrieb im Netz einen TLS-terminierenden
 Reverse Proxy (z. B. Caddy, Traefik, nginx) davorsetzen und `OLLAMAIL_HTTP_BIND=127.0.0.1` setzen.
+Konfigurationsbeispiele: [`docs/OPERATIONS.md`](../docs/OPERATIONS.md#4-reverse-proxy-und-tls).
 `X-Forwarded-*`-Header werden nur von privaten Netzen akzeptiert.
 
 ## Sicherheits-Header

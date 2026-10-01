@@ -6,7 +6,7 @@ from datetime import datetime
 from typing import Any, ClassVar
 
 from fastapi import Request
-from sqlalchemy import DateTime, MetaData, func, text
+from sqlalchemy import DateTime, MetaData, func, make_url, text
 from sqlalchemy.ext.asyncio import (
     AsyncEngine,
     AsyncSession,
@@ -41,6 +41,12 @@ class Base(DeclarativeBase):
     id: Mapped[uuid.UUID] = mapped_column(primary_key=True, default=uuid7)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+
+def libpq_url(settings: DatabaseSettings) -> str:
+    """Database URL without the SQLAlchemy driver suffix, for raw asyncpg/psycopg clients."""
+    url = make_url(settings.url.get_secret_value()).set(drivername="postgresql")
+    return url.render_as_string(hide_password=False)
 
 
 def create_engine(settings: DatabaseSettings) -> AsyncEngine:

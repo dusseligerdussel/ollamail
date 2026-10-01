@@ -1,7 +1,7 @@
 """add mail tables
 
 Revision ID: d5a9c83a40d8
-Revises: 0001
+Revises: 0002
 Create Date: 2026-10-01 19:34:20.346962+00:00
 """
 
@@ -12,14 +12,14 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "d5a9c83a40d8"
-down_revision: str | Sequence[str] | None = "0001"
+down_revision: str | Sequence[str] | None = "0002"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
 
 def upgrade() -> None:
     # Enum checks are explicit CheckConstraints below (named by the naming convention).
-    # credentials: bytea, see app/mail/credentials.py (TODO #6).
+    # credentials: app.core.crypto.EncryptedJSON (encrypted token stored as TEXT).
     op.create_table(
         "mail_mailboxes",
         sa.Column(
@@ -45,7 +45,7 @@ def upgrade() -> None:
             server_default="{}",
             nullable=False,
         ),
-        sa.Column("credentials", sa.LargeBinary(), nullable=True),
+        sa.Column("credentials", sa.Text(), nullable=True),
         sa.Column("sync_enabled", sa.Boolean(), server_default=sa.text("true"), nullable=False),
         sa.Column(
             "sync_settings",

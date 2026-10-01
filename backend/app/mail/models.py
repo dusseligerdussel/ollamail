@@ -34,8 +34,8 @@ from sqlalchemy import (
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from app.core.crypto import EncryptedJSON
 from app.core.db import Base
-from app.mail.credentials import PendingEncryptedJSON
 
 
 class MailboxType(enum.StrEnum):
@@ -97,7 +97,7 @@ class Mailbox(Base):
         JSONB, default=dict, server_default="{}"
     )
     # Passwords and OAuth tokens, envelope-encrypted (docs/PRIVACY.md).
-    credentials: Mapped[dict[str, Any] | None] = mapped_column(PendingEncryptedJSON)
+    credentials: Mapped[dict[str, Any] | None] = mapped_column(EncryptedJSON)
     sync_enabled: Mapped[bool] = mapped_column(server_default=true())
     # See ``app.mail.schemas.SyncSettings``.
     sync_settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")

@@ -5,6 +5,7 @@ code (tests), otherwise from ``OLLAMAIL_DATABASE_URL``.
 """
 
 import asyncio
+from collections.abc import Mapping
 from logging.config import fileConfig
 
 from alembic import context
@@ -22,6 +23,13 @@ if config.config_file_name is not None and config.attributes.get("configure_logg
 
 target_metadata = Base.metadata
 
+# Tables managed outside the ORM (vendored SQL migrations), ignored by autogenerate.
+EXTERNAL_TABLE_PREFIXES = ("procrastinate_",)
+
+
+def include_name(name: str | None, type_: str, _parents: Mapping[str, str | None]) -> bool:
+    return not (type_ == "table" and name is not None and name.startswith(EXTERNAL_TABLE_PREFIXES))
+
 
 def _database_url() -> str:
     url = config.attributes.get("database_url")
@@ -34,6 +42,7 @@ def run_migrations_offline() -> None:
     context.configure(
         url=_database_url(),
         target_metadata=target_metadata,
+        include_name=include_name,
         literal_binds=True,
         dialect_opts={"paramstyle": "named"},
     )
@@ -42,7 +51,9 @@ def run_migrations_offline() -> None:
 
 
 def _run_migrations(connection: Connection) -> None:
-    context.configure(connection=connection, target_metadata=target_metadata)
+    context.configure(
+        connection=connection, target_metadata=target_metadata, include_name=include_name
+    )
     with context.begin_transaction():
         context.run_migrations()
 

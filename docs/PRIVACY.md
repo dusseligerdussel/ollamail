@@ -24,6 +24,8 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | At rest | Empfehlung: verschlüsseltes Volume/Dateisystem. Optional: Verschlüsselung von Mail-Bodies/Anhängen auf Anwendungsebene (Feature-Flag) |
 | In transit | TLS für IMAP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting), HTTPS hinter Reverse Proxy |
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
+| Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
+| Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
 | Audit-Log | Login, Rollenänderung, IdP-Konfiguration, Postfach hinzugefügt/entfernt, Export, Löschung |
 | Sessions | Serverseitig, widerrufbar, Ablaufzeit konfigurierbar |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. |
@@ -46,6 +48,24 @@ Umgesetzt in `backend/app/core/logging.py`, abgesichert durch `backend/tests/tes
 - Der Filter sieht nur Feldnamen, keinen Freitext. Event-Texte sind deshalb statisch
   (`log.info("message_synced", message_id=...)`); Inhalte werden nie hineinformatiert.
 
+### Verschlüsselung von Secrets im Detail
+
+Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test_crypto.py`:
+
+- **Envelope-Encryption:** Jedes Secret erhält einen eigenen zufälligen 256-Bit-Data-Key; der Wert
+  wird damit per AES-256-GCM verschlüsselt. Der Data-Key wird mit einem aus `OLLAMAIL_SECRET_KEY`
+  (HKDF-SHA256) abgeleiteten Key-Encryption-Key verschlüsselt. Bibliothek: `cryptography`.
+- **Manipulationsschutz:** GCM-Tags sichern Wert, Data-Key, Version und Key-ID; jede Änderung
+  führt zu einem Fehler statt zu falschen Daten.
+- **Key-ID im Ciphertext:** Mehrere Master-Keys können parallel gültig sein
+  (`OLLAMAIL_SECRET_KEYS_OLD`). `python -m app.cli rotate-keys` verschlüsselt die Data-Keys aller
+  Secrets mit dem aktuellen Key neu.
+- **Nutzung in Modellen:** Spaltentypen `EncryptedStr` und `EncryptedJSON` ver- und entschlüsseln
+  transparent. Neue Secrets **müssen** diese Typen verwenden.
+- **Startprüfung:** Ohne oder mit zu schwachem Master-Key (kein Base64, < 32 Bytes, offensichtlich
+  nicht zufällig) startet die API nicht. Keys und Klartexte erscheinen nie in Logs oder
+  Fehlermeldungen; geloggt wird nur eine nicht umkehrbare Key-ID.
+
 ## Betroffenenrechte & Löschkonzept
 
 - **Auskunft/Export (Art. 15/20):** Nutzer kann eigene Daten (Triage, Todos, Digests, Chat-Verläufe) exportieren.
@@ -62,7 +82,7 @@ Umgesetzt in `backend/app/core/logging.py`, abgesichert durch `backend/tests/tes
 ## Dokumentation für Betreiber
 
 Betreiber (Unternehmen) benötigen für ihr Verarbeitungsverzeichnis/ihre DSFA:
-- Liste der Datenkategorien und Speicherorte (wird in `docs/OPERATIONS.md` gepflegt)
+- Liste der Datenkategorien und Speicherorte (gepflegt in [`OPERATIONS.md`](OPERATIONS.md#9-datenschutz-hinweise-für-betreiber))
 - Beschreibung der Datenflüsse inkl. optionaler Cloud-LLMs
 - Hinweis zu Betriebsrat/Mitarbeiterüberwachung: ollamail bietet keine Funktionen zur Leistungs- oder
   Verhaltenskontrolle; Admin-Statistiken sind aggregiert und nicht personenbezogen auswertbar.

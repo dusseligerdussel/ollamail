@@ -128,7 +128,7 @@ Shared Mailboxes folgen mit dem Nutzermodell (#11).
 | Gmail / Google Workspace | v1 | OAuth2, Workspace: Domain-wide Delegation | `history.list` + Pub/Sub Push (optional Polling) | Labels statt Ordner |
 
 Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`;
-Spalte `mail_mailboxes.credentials`, bis #6 gemergt ist, verweigert ein Platzhaltertyp jedes Schreiben).
+Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto.py`).
 
 ### 3.2 LLM-Provider
 
@@ -154,12 +154,96 @@ class LLMProvider(Protocol):
 - Throttling: Die `llm`-Queue hat eine konfigurierbare Parallelität, damit CPU-Instanzen nicht überlaufen.
 - Jeder LLM-Aufruf speichert Modell, Prompt-Version und Dauer (ohne Inhalte) für die Nachvollziehbarkeit.
 
+#### Umsetzung (`backend/app/ai/`)
+
+```
+ai/llm/
+  base.py           LLMProvider-Protocol (complete, stream, embed, list_models)
+  ollama.py         native Ollama-API (/api/chat, /api/embed, /api/tags, /api/pull)
+  openai_compat.py  Chat-Completions-API (base_url inkl. /v1)
+  config.py         LLMConfigResolver (Protocol) + EnvConfigResolver
+  profiles.py       Hardware-Profile cpu / gpu-consumer / gpu-server
+  structured.py     Pydantic → JSON-Schema, Validierung, Retry, Prompt-Fallback
+  context.py        Token-Schätzung, Kürzen langer Mails
+  metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call`)
+  gateway.py        LLMGateway – einziger Einstiegspunkt für Features
+ai/prompts/         versionierte, sprachabhängige Prompt-Templates (`name@version`)
+```
+
+Features nutzen ausschließlich das `LLMGateway` (`app.state.llm`, FastAPI-Dependency `get_llm`):
+
+```python
+triage = await llm.complete_structured(
+    LLMTask.TRIAGE, prompt.render(mail_language, mail=text), TriageResult,
+    prompt_version=prompt.id, language=mail_language,
+)
+```
+
+Das Gateway erledigt pro Aufruf:
+
+1. **Auflösung** Task → Endpunkt + Modell über einen `LLMConfigResolver`. In diesem Stand liest
+   `EnvConfigResolver` Umgebungsvariablen und Code-Defaults. Die Admin-Einstellungen in der DB (#18)
+   ersetzen nur den Resolver; Gateway und Features bleiben unverändert.
+   Reihenfolge: `OLLAMAIL_LLM_TASK_<TASK>_MODEL` → `OLLAMAIL_LLM_DEFAULT_{CHAT,EMBEDDING}_MODEL` → Profil.
+2. **Cloud-Sperre:** Endpunkte mit `is_cloud` werden nur genutzt, wenn `OLLAMAIL_LLM_CLOUD_ENABLED`
+   aktiv ist. Sonst `CloudLLMDisabledError`, bevor ein HTTP-Client entsteht.
+3. **Kontextlänge:** Die Prompts werden auf das Kontextfenster des Profils gekürzt
+   (konservative Schätzung ≈ 3 Zeichen/Token, Platz für die Antwort wird reserviert). Gekürzt wird die
+   längste Nicht-System-Nachricht vom Ende her, weil neue Inhalte in Mails oben stehen.
+   Bei Ollama wird `num_ctx` gesetzt, weil Ollama sonst stillschweigend auf ein kleines Fenster kürzt.
+4. **Structured Output:** Das JSON-Schema geht nativ an den Server (Ollama `format`, OpenAI
+   `response_format`) und zusätzlich in den System-Prompt. Ungültige Antworten werden mit einem
+   Korrekturhinweis erneut angefragt (`OLLAMAIL_LLM_STRUCTURED_OUTPUT_RETRIES`, Standard 2). Danach
+   folgt `LLMOutputError`. Lehnt ein Server den Schema-Parameter ab (HTTP 400/422), fällt das
+   Gateway für dieses Modell dauerhaft auf reines Prompting zurück. Das lässt sich pro Endpunkt
+   auch fest einstellen (`structured_output=prompt`).
+5. **Metriken:** Task, Endpunkt, Modell, Prompt-Version, Dauer, Token-Zahlen, Versuche und
+   Fehlertyp. Prompts und Antworten werden **nie** erfasst. Fehlermeldungen enthalten keine
+   Response-Bodies, weil manche Server die Anfrage darin zurückspiegeln.
+
+Readiness: Mit `OLLAMAIL_LLM_READINESS_CHECK=true` prüft `/readyz` (Check `llm`), ob alle zugewiesenen
+Modelle auf ihren Endpunkten verfügbar sind. Der Check ist standardmäßig aus, weil die API auch ohne
+LLM nutzbar bleibt (Postfächer, Todos, Einstellungen). Mit `OLLAMAIL_LLM_PULL_MISSING_MODELS=true`
+lädt die API fehlende Modelle beim Start im Hintergrund aus Ollama.
+
+**Profil-Defaults** (`profiles.py`). Die Modellnamen sind **Beispiele** und lassen sich per Env
+überschreiben:
+
+| Profil | Chat-Modell (Beispiel) | Embeddings (Beispiel) | Kontext |
+|---|---|---|---|
+| `cpu` (Standard) | `qwen2.5:3b` | `bge-m3` | 8192 |
+| `gpu-consumer` | `qwen2.5:14b` | `bge-m3` | 16384 |
+| `gpu-server` | `qwen2.5:32b` | `bge-m3` | 32768 |
+
 ### 3.3 TTS
 
 - Interface `TTSEngine.synthesize(text, voice, lang) -> AudioFile`.
 - Standard **Piper**: sehr schnell auf CPU (auch ARM), gute deutsche und englische Stimmen, kleine Modelle.
   Weitere Engines (z. B. Kokoro, XTTS) sind als Plugins möglich, falls GPU vorhanden.
 - Ausgabe: Opus/MP3, gespeichert im Daten-Volume, Aufbewahrung konfigurierbar.
+
+### 3.4 Hintergrundjobs & Echtzeit-Events
+
+Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
+
+- **Procrastinate** mit Postgres als Queue. Das Schema ist eine Alembic-Migration (vendored SQL in
+  `backend/migrations/sql/`); Autogenerate ignoriert die `procrastinate_*`-Tabellen.
+  Ein Procrastinate-Update mit Schemaänderung braucht eine neue Migration – ein Test schlägt sonst an.
+- **Queues** `sync`, `llm`, `tts`, `default`. `OLLAMAIL_WORKER_QUEUES` wählt die Queues eines
+  Worker-Prozesses; `llm` hat eine eigene Parallelität (`OLLAMAIL_LLM_CONCURRENCY`), alle anderen
+  teilen sich `OLLAMAIL_WORKER_CONCURRENCY`.
+- **Task-Konventionen:** idempotent; Argumente nur IDs; Retry mit exponentiellem Backoff
+  (`DEFAULT_RETRY`); Lock-Keys pro Ressource (`resource_lock("mailbox", id)` als `lock`/`queueing_lock`);
+  Periodic Tasks per `@app.periodic(cron=...)`. Task-Module werden in `TASK_MODULES` eingetragen.
+- **Housekeeping:** täglicher Job `worker.remove_old_jobs` löscht abgeschlossene Jobs nach 7 Tagen.
+- **Shutdown:** Bei SIGTERM nimmt der Worker keine neuen Jobs an; laufende Jobs haben
+  `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` Sekunden, dann endet der Prozess mit Exit-Code 0.
+- **Events:** `publish(session, user_id, Event(...))` sendet per `pg_notify` beim Commit. Jeder
+  API-Prozess hält eine `LISTEN`-Verbindung und verteilt an `GET /api/events` (SSE), gefiltert auf den
+  angemeldeten Nutzer. Ein `Event` besteht nur aus `type`, `ids` und `status` (per Pattern validiert).
+  Zustellung ist best effort: Nach einem Reconnect lädt der Client seine Daten neu.
+- **Aktueller Nutzer:** Dependency `app.core.current_user.get_current_user_id`. Bis zur Auth (#11)
+  liefert sie immer 401; Tests überschreiben sie.
 
 ## 4. Feature-Pipelines
 
@@ -242,7 +326,7 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 - Konfiguration per Env (`OLLAMAIL_*`), dokumentiert in `deploy/.env.example`. Start mit Docker Compose: `deploy/README.md`.
 - Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar).
 - Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional OpenTelemetry-Metriken.
-- Backups: `pg_dump` + Daten-Volume; Doku in `docs/OPERATIONS.md` (wird erstellt).
+- Backups: `pg_dump` + Daten-Volume; Doku in [`OPERATIONS.md`](OPERATIONS.md#5-backup-und-restore).
 - Images: `ghcr.io/<owner>/ollamail-{api,frontend}` für `linux/amd64` und `linux/arm64`.
 
 ## 8. Architekturentscheidungen (Kurz-ADRs)
