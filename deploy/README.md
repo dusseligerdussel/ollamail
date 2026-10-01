@@ -20,7 +20,7 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 | `frontend` | `frontend/Dockerfile` (Caddy) | Statische UI, Reverse Proxy `/api/*` → `api:8000` (Präfix wird entfernt), einziger veröffentlichter Port |
 | `api` | `backend/Dockerfile` | FastAPI (uvicorn) |
 | `worker` | `backend/Dockerfile` | Hintergrundjobs (`python -m app.worker`) – vorerst Profil `worker` |
-| `migrate` | `backend/Dockerfile` | One-Shot `alembic upgrade head` vor `api`/`worker` – vorerst Profil `migrations` |
+| `migrate` | `backend/Dockerfile` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
 | `postgres` | `pgvector/pgvector:pg16` | Datenbank, Volume `postgres-data` |
 | `ollama-cpu` / `ollama-gpu` | `ollama/ollama` | Optionaler LLM-Server, im Netz als `ollama` erreichbar |
 
@@ -43,12 +43,8 @@ docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull <modell>
 
 Ohne Profil nutzt ollamail einen externen Server: `OLLAMAIL_LLM_BASE_URL` anpassen.
 
-Übergangsweise, bis Alembic (#5) und der Worker (#7) existieren:
-
-- `--profile migrations` – führt `migrate` vor `api`/`worker` aus
-- `--profile worker` – startet den Worker
-
-Danach entfallen beide Profile und die Dienste starten immer.
+Übergangsweise, bis der Worker (#7) existiert, startet `worker` nur mit `--profile worker`.
+Danach entfällt das Profil und der Worker startet immer.
 
 ## Entwicklung (Hot Reload)
 

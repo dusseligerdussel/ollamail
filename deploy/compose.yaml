@@ -6,7 +6,6 @@
 # Optional profiles:
 #   --profile ollama-cpu    bundled Ollama (CPU only)
 #   --profile ollama-gpu    bundled Ollama with NVIDIA GPU (needs nvidia-container-toolkit)
-#   --profile migrations    run `alembic upgrade head` before api/worker start (temporary, see #5)
 #   --profile worker        background worker (temporary, see #7)
 #
 # Details: deploy/README.md
@@ -35,8 +34,6 @@ x-backend: &backend
       condition: service_healthy
     migrate:
       condition: service_completed_successfully
-      # Skipped while the `migrations` profile is inactive.
-      required: false
 
 x-ollama: &ollama
   image: ${OLLAMA_IMAGE:-ollama/ollama:0.35.0}
@@ -74,11 +71,9 @@ services:
       retries: 10
       start_period: 10s
 
-  # One-shot: applies database migrations, then exits.
-  # TODO(#5): drop the profile once Alembic is set up, so migrations always run on start.
+  # One-shot: applies database migrations before api/worker start, then exits.
   migrate:
     <<: *backend
-    profiles: [migrations]
     restart: "no"
     command: ["alembic", "upgrade", "head"]
     depends_on:
