@@ -78,7 +78,7 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
 ## Dokumentation für Betreiber
 
 Betreiber (Unternehmen) benötigen für ihr Verarbeitungsverzeichnis/ihre DSFA:
-- Liste der Datenkategorien und Speicherorte (wird in `docs/OPERATIONS.md` gepflegt)
+- Liste der Datenkategorien und Speicherorte (gepflegt in [`OPERATIONS.md`](OPERATIONS.md#9-datenschutz-hinweise-für-betreiber))
 - Beschreibung der Datenflüsse inkl. optionaler Cloud-LLMs
 - Hinweis zu Betriebsrat/Mitarbeiterüberwachung: ollamail bietet keine Funktionen zur Leistungs- oder
   Verhaltenskontrolle; Admin-Statistiken sind aggregiert und nicht personenbezogen auswertbar.
