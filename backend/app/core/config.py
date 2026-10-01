@@ -213,6 +213,36 @@ class TTSSettings(BaseSettings):
     length_scale: float | None = Field(default=None, gt=0.25, le=4)
 
 
+OIDCPresetName = Literal["generic", "entra", "google", "keycloak", "authentik"]
+
+
+class OIDCProviderSettings(BaseModel):
+    """An OIDC provider configured via ``OLLAMAIL_AUTH_OIDC_PROVIDERS`` (GitOps).
+
+    Same fields as the admin API (``app/auth/providers/oidc``); see docs/auth/oidc.md.
+    """
+
+    display_name: str = Field(min_length=1, max_length=255)
+    preset: OIDCPresetName = "generic"
+    issuer: str
+    client_id: str = Field(min_length=1, max_length=255)
+    client_secret: SecretStr | None = None
+    scopes: list[str] = Field(default_factory=lambda: ["openid", "email", "profile"])
+    enabled: bool = True
+    # Just-in-time provisioning: create unknown users on their first login.
+    auto_provision: bool = True
+    # Link to an existing user with the same e-mail address (verified e-mail only).
+    link_by_email: bool = False
+    # E-mail domains allowed to sign in (empty: all).
+    allowed_domains: list[str] = Field(default_factory=list)
+    # Claim with group names/IDs, stored for the role mapping (empty: none).
+    groups_claim: str | None = "groups"
+    # Entra ID: allowed tenant IDs (``tid``), required for multi-tenant issuers.
+    allowed_tenants: list[str] = Field(default_factory=list)
+    # Google Workspace: allowed hosted domains (``hd``).
+    hosted_domains: list[str] = Field(default_factory=list)
+
+
 class AuthSettings(BaseSettings):
     """``OLLAMAIL_AUTH_*``"""
 
@@ -233,6 +263,27 @@ class AuthSettings(BaseSettings):
     # Login/registration attempts per client IP and window. Behind a reverse proxy the client
     # IP comes from X-Forwarded-For (uvicorn --forwarded-allow-ips).
     ip_max_attempts: int = Field(default=50, ge=1)
+    # Public URL of the web UI (e.g. https://mail.example.org), used for OIDC redirect URIs.
+    # Unset: derived from the request (Host / X-Forwarded-Proto).
+    public_url: str | None = None
+    # OIDC providers from the environment (JSON object {"<name>": {...}}); read-only in the
+    # admin API. More can be added in the admin API (stored in the database).
+    oidc_providers: dict[str, OIDCProviderSettings] = Field(default_factory=dict)
+    # Allow http:// issuers (local test IdPs only; TLS is mandatory otherwise).
+    oidc_allow_insecure_http: bool = False
+    # Seconds discovery documents and signing keys (JWKS) are cached.
+    oidc_metadata_cache_seconds: int = Field(default=3600, ge=0)
+
+    @field_validator("public_url")
+    @classmethod
+    def _check_public_url(cls, value: str | None) -> str | None:
+        if not value or not value.strip():
+            return None
+        value = value.strip().rstrip("/")
+        scheme, _, rest = value.partition("://")
+        if scheme not in {"https", "http"} or not rest or any(c in rest for c in "?#@"):
+            raise ValueError("must be an http(s) URL like https://mail.example.org")
+        return value
 
     @model_validator(mode="after")
     def _idle_within_lifetime(self) -> "AuthSettings":

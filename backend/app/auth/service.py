@@ -70,9 +70,10 @@ async def reset_account_throttle(db: AsyncSession, settings: Settings, login: st
 
 
 async def user_for_identity(db: AsyncSession, identity: VerifiedIdentity) -> User | None:
-    """The active user linked to a verified identity.
+    """The active user linked to a verified identity (no provisioning).
 
-    Just-in-time provisioning for external providers (#30) hooks in here.
+    External providers use ``app.auth.provisioning.provision_user`` instead, which also
+    creates or links users.
     """
     user = await db.scalar(
         select(User)

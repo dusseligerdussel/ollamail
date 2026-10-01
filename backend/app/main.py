@@ -8,7 +8,7 @@ from fastapi import FastAPI
 
 from app.ai.llm import EnvConfigResolver, LLMGateway
 from app.auth.csrf import CSRFMiddleware
-from app.auth.providers import AuthProviderRegistry
+from app.auth.providers import AuthProviderRegistry, oidc
 from app.auth.router import router as auth_router
 from app.auth.router import setup_router
 from app.auth.setup import log_setup_status
@@ -76,6 +76,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(setup_router)
     app.include_router(auth_router)
     app.include_router(users_router)
+    oidc.install(app, settings)
     return app
 
 
