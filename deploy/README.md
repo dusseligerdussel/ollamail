@@ -5,7 +5,14 @@
 ```sh
 cp deploy/.env.example deploy/.env
 # deploy/.env anpassen: mindestens OLLAMAIL_SECRET_KEY und POSTGRES_PASSWORD
-docker compose -f deploy/compose.yaml up -d --build
+docker compose -f deploy/compose.yaml up -d
+```
+
+Standardmäßig werden die fertigen Images aus GHCR gezogen (siehe [Images](#images)). Solange das
+Repository privat ist, ist dafür ein `docker login ghcr.io` nötig. Alternativ lokal bauen:
+
+```sh
+docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml up -d --build
 ```
 
 Die UI ist danach unter <http://localhost:8080> erreichbar, die API unter `/api`
@@ -17,10 +24,10 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 
 | Dienst | Image | Aufgabe |
 |---|---|---|
-| `frontend` | `frontend/Dockerfile` (Caddy) | Statische UI, Reverse Proxy `/api/*` → `api:8000` (Präfix wird entfernt), einziger veröffentlichter Port |
-| `api` | `backend/Dockerfile` | FastAPI (uvicorn) |
-| `worker` | `backend/Dockerfile` | Hintergrundjobs (`python -m app.worker`) – vorerst Profil `worker` |
-| `migrate` | `backend/Dockerfile` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
+| `frontend` | `ollamail-frontend` (`frontend/Dockerfile`, Caddy) | Statische UI, Reverse Proxy `/api/*` → `api:8000` (Präfix wird entfernt), einziger veröffentlichter Port |
+| `api` | `ollamail-api` (`backend/Dockerfile`) | FastAPI (uvicorn) |
+| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`) – vorerst Profil `worker` |
+| `migrate` | `ollamail-api` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
 | `postgres` | `pgvector/pgvector:pg16` | Datenbank, Volume `postgres-data` |
 | `ollama-cpu` / `ollama-gpu` | `ollama/ollama` | Optionaler LLM-Server, im Netz als `ollama` erreichbar |
 
@@ -29,6 +36,55 @@ Volumes: `postgres-data` (Datenbank), `ollamail-data` (Anhänge, Audio; `/data` 
 
 `api`, `worker` und `frontend` laufen als unprivilegierter Nutzer (UID 10001), mit schreibgeschütztem
 Dateisystem (nur `/tmp` und `/data` beschreibbar), ohne Linux-Capabilities und mit `no-new-privileges`.
+
+## Images
+
+Die Release-Pipeline ([`.github/workflows/release.yml`](../.github/workflows/release.yml)) baut beide
+Images für `linux/amd64` und `linux/arm64` (z. B. Raspberry Pi 4/5, Apple Silicon, Ampere) und
+veröffentlicht sie in der GitHub Container Registry:
+
+- `ghcr.io/dusseligerdussel/ollamail-api` – Backend (`api`, `worker`, `migrate`)
+- `ghcr.io/dusseligerdussel/ollamail-frontend` – UI und Reverse Proxy
+
+| Tag | Quelle |
+|---|---|
+| `1.2.3`, `1.2`, `1` | Git-Tag `v1.2.3` (`1` erst ab Version 1.0) |
+| `latest` | Neuestes stabiles Release (nicht bei Pre-Releases wie `v1.0.0-rc.1`) |
+| `0.0.1-test` | Pre-Release-Tag `v0.0.1-test` (nur dieser Tag) |
+| `edge` | Aktueller Stand von `main` – ungetestet, nicht für den Produktivbetrieb |
+| `sha-<commit>` | Jeder Build, unveränderlich |
+
+Die Version wählt `OLLAMAIL_VERSION` in `deploy/.env` (Standard `latest`). Für reproduzierbare
+Installationen eine feste Version eintragen, z. B. `OLLAMAIL_VERSION=1.2.3`. Update:
+
+```sh
+docker compose -f deploy/compose.yaml pull
+docker compose -f deploy/compose.yaml up -d
+```
+
+Jedes Image enthält eine SBOM und eine SLSA-Provenance-Attestation (BuildKit) und wird vor dem
+Veröffentlichen mit Trivy geprüft; behebbare kritische CVEs brechen den Build ab. Anzeigen z. B. mit
+`docker buildx imagetools inspect ghcr.io/dusseligerdussel/ollamail-api:<tag> --format '{{ json .SBOM }}'`.
+
+### Zugriff (privates Repository)
+
+Das Repository ist derzeit **privat**. GHCR-Pakete erben diese Sichtbarkeit, die Images sind also
+ebenfalls privat. Zum Ziehen ist ein Login mit einem Personal Access Token (classic) mit dem Scope
+`read:packages` nötig:
+
+```sh
+echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-benutzer> --password-stdin
+```
+
+Ohne Zugriff auf die Pakete die Images lokal bauen (`compose.build.yaml`, siehe Schnellstart).
+Ob die Pakete öffentlich werden, entscheidet der Repository-Owner (Paket-Einstellungen in GHCR).
+
+### Lokaler Build
+
+[`compose.build.yaml`](compose.build.yaml) ergänzt die Build-Kontexte und taggt die Images lokal
+als `ollamail-api:local` bzw. `ollamail-frontend:local`; `OLLAMAIL_VERSION` und
+`OLLAMAIL_*_IMAGE` werden dann ignoriert. Die Entwicklungsumgebung (`compose.dev.yaml`) baut
+ebenfalls immer lokal.
 
 ## Profile
 
