@@ -1,0 +1,25 @@
+{
+  "hooks": {
+    "SessionStart": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "git config core.hooksPath .githooks"
+          }
+        ]
+      }
+    ]
+  },
+  "permissions": {
+    "deny": [
+      "Bash(git push origin main)",
+      "Bash(git push origin main:*)",
+      "Bash(git push origin HEAD:main)",
+      "Bash(git push origin HEAD:main:*)",
+      "Bash(git push --no-verify:*)",
+      "Bash(git push -f origin main:*)",
+      "Bash(git push --force origin main:*)"
+    ]
+  }
+}

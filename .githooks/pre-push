@@ -1,0 +1,13 @@
+#!/bin/sh
+# Blocks any push that targets main (see CLAUDE.md, section 1).
+# Branch protection is not enforced for this private repository, so this hook replaces it.
+protected="refs/heads/main"
+
+while read -r local_ref local_sha remote_ref remote_sha; do
+  if [ "$remote_ref" = "$protected" ]; then
+    echo "pre-push: pushing to 'main' is not allowed. Push your feature branch and open a pull request." >&2
+    exit 1
+  fi
+done
+
+exit 0
