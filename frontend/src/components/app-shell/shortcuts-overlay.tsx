@@ -1,4 +1,4 @@
-import { createContext, type ReactNode, useContext, useMemo, useState } from "react";
+import { createContext, type ReactNode, useContext, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { KeyHint } from "@/components/key-hint";
@@ -37,6 +37,7 @@ export function ShortcutsOverlay() {
   const { t } = useTranslation();
   const { open, setOpen } = useShortcutsOverlay();
   const shortcuts = useRegisteredShortcuts();
+  const listRef = useRef<HTMLDivElement>(null);
 
   const groups = shortcutGroups
     .map((group) => ({
@@ -47,12 +48,22 @@ export function ShortcutsOverlay() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side="right" closeLabel={t("common.close")} className="gap-0 sm:max-w-sm">
+      <SheetContent
+        side="right"
+        closeLabel={t("common.close")}
+        className="gap-0 sm:max-w-sm"
+        // Start on the list rather than the close button: no focus ring right away, and the arrow
+        // keys scroll the list. Tab still reaches the close button.
+        onOpenAutoFocus={(event) => {
+          event.preventDefault();
+          listRef.current?.focus();
+        }}
+      >
         <SheetHeader className="border-b px-5 py-4">
           <SheetTitle className="text-sm">{t("shortcuts.title")}</SheetTitle>
           <SheetDescription className="text-ui">{t("shortcuts.description")}</SheetDescription>
         </SheetHeader>
-        <div className="flex-1 overflow-y-auto px-5 py-4">
+        <div ref={listRef} tabIndex={-1} className="flex-1 overflow-y-auto px-5 py-4 outline-none">
           {groups.map(({ group, items }) => (
             <section key={group} className="mb-6 last:mb-0" aria-labelledby={`shortcuts-${group}`}>
               <h3
