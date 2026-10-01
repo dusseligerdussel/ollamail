@@ -103,6 +103,37 @@ Ein Issue ist erst fertig, wenn:
 - [ ] Datenschutz-Check aus `docs/PRIVACY.md` bedacht (keine Mail-Inhalte in Logs, Verschlüsselung von Secrets, Löschbarkeit).
 - [ ] Relevante Doku in `docs/` aktualisiert.
 - [ ] PR-Template vollständig ausgefüllt.
+- [ ] Bei UI-Änderungen: Screenshots im PR (siehe 4a).
+
+### 4a. Screenshots bei UI-Änderungen (Pflicht)
+
+Jeder PR, der sichtbar etwas an der UI ändert – neue Seiten, neue oder geänderte Komponenten,
+Layout, Farben, Texte, Zustände –, **muss Screenshots in der PR-Beschreibung enthalten**.
+Ohne Screenshots ist ein UI-PR nicht fertig.
+
+**Was:**
+- Jede neue oder geänderte Seite/Ansicht, jeweils in **Light und Dark**.
+- **Desktop (1440 × 900)** und **Mobil (390 × 844)**.
+- Relevante Zustände: leer, mit Daten, Laden (Skeleton), Fehler, geöffnete Dialoge/Command Palette.
+- Bei Änderungen an Bestehendem: **Vorher / Nachher** (Vorher-Screenshots vom aktuellen `main`).
+- Nur Testdaten verwenden – **keine echten E-Mails, Namen oder Adressen** (`docs/PRIVACY.md`).
+- Dateinamen sprechend: `inbox-desktop-dark.png`, `settings-mobile-light-before.png`.
+
+**Wie:**
+1. App starten (`pnpm build && pnpm preview` bzw. Docker Compose) und Screenshots mit Playwright
+   erzeugen – in ein temporäres Verzeichnis **außerhalb des Repos**. Falls Playwright keinen Browser
+   findet: `chromium.launch({ executablePath: process.env.CHROMIUM_PATH ?? '/opt/pw-browsers/chromium' })`
+   (kein `playwright install` in Agent-Umgebungen).
+2. Screenshots selbst ansehen und kritisch gegen `docs/DESIGN.md` prüfen, bevor sie in den PR kommen.
+3. Hochladen: `scripts/pr-screenshots.sh <verzeichnis>`. Das Skript legt die Bilder auf dem
+   Orphan-Branch `pr-screenshots` ab (Ordner = Name deines Branches) und gibt fertiges Markdown aus.
+4. Dieses Markdown in den Abschnitt „Screenshots“ der PR-Beschreibung einfügen. Nach weiteren
+   UI-Änderungen im selben PR: Skript erneut ausführen und den Abschnitt ersetzen.
+
+**Regeln:**
+- Screenshots **nie** in den Feature-Branch oder nach `main` committen.
+- Der Branch `pr-screenshots` ist die einzige Ausnahme von „nur den eigenen Branch pushen“ – und
+  nur über das Skript. Er wird nie gemergt und nicht gelöscht (sonst brechen die Bildlinks).
 
 ## 5. Nicht verhandelbare Prinzipien
 
