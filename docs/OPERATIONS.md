@@ -30,7 +30,7 @@ Alle Einstellungen: [`deploy/.env.example`](../deploy/.env.example).
 |---|---|
 | Betriebssystem | Linux-Host mit Docker Engine (amd64 oder arm64) |
 | Docker | Docker Engine mit **Compose v2.24 oder neuer** (`env_file` mit `required` wird verwendet) |
-| Netzwerk | Beim Bauen Zugriff auf Docker Hub, PyPI und npm. Zur Laufzeit keiner nötig, außer zu Mailservern und – falls genutzt – zu einem externen LLM-Server |
+| Netzwerk | Beim Bauen Zugriff auf Docker Hub, Debian-Paketquellen, PyPI und npm. Zur Laufzeit keiner nötig, außer zu Mailservern, – falls genutzt – zu einem externen LLM-Server und einmalig zu `huggingface.co` für die TTS-Stimmen (abschaltbar, siehe [3.6](#36-sprachausgabe-tts)) |
 | Ports | Ein freier Port für die UI, Standard `8080` (`OLLAMAIL_HTTP_PORT`) |
 | Werkzeuge | `git`, `openssl` (zum Erzeugen von Secrets) |
 
@@ -144,7 +144,8 @@ ollamail läuft auch ohne GPU. Eine GPU beschleunigt nur, sie ist keine Vorausse
 ### 3.1 Profile im Überblick
 
 Richtwerte aus [`ARCHITECTURE.md`](ARCHITECTURE.md#32-llm-provider). Konkrete Modellempfehlungen
-und gemessene Durchsätze folgen mit den Benchmarks aus Triage (#20) und TTS (#27).
+und gemessene Durchsätze folgen mit den Benchmarks aus Triage (#20); TTS siehe
+[3.6](#36-sprachausgabe-tts).
 
 | Profil | Zielhardware | Chat/Klassifikation | Betrieb |
 |---|---|---|---|
@@ -205,6 +206,36 @@ Ohne Ollama-Profil kann ein vorhandener Ollama-Server genutzt werden (wirksam ab
 
 Cloud-LLMs sind standardmäßig gesperrt (`OLLAMAIL_LLM_CLOUD_ENABLED=false`), siehe
 [Abschnitt 9](#9-datenschutz-hinweise-für-betreiber).
+
+### 3.6 Sprachausgabe (TTS)
+
+Standard ist **Piper** (ADR 4), Teil des Backend-Images; ffmpeg kodiert nach Opus und MP3. Die
+Stimmen sind nicht im Image: Der Worker lädt fehlende Standardstimmen beim ersten Bedarf und
+täglich per Job `tts.ensure_voices` (Queue `tts`) ins Daten-Volume nach
+`/data/tts/voices/piper/` (je Stimme `<id>.onnx` und `<id>.onnx.json`, 60–120 MB).
+
+| Sprache | Standardstimme | Datensatz / Lizenz |
+|---|---|---|
+| Deutsch | `de_DE-thorsten-medium` (`OLLAMAIL_TTS_VOICE_DE`) | Thorsten-Voice, CC0-1.0 |
+| Englisch | `en_US-ljspeech-medium` (`OLLAMAIL_TTS_VOICE_EN`) | LJ Speech, Public Domain |
+
+Andere Stimmen aus [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) lassen
+sich über die Variablen einstellen. Vorher die Lizenz im `MODEL_CARD` der Stimme prüfen: Einige
+Trainingsdatensätze haben Nutzungsbeschränkungen (z. B. nur nicht-kommerziell).
+
+**Ohne Internetzugang:** `OLLAMAIL_TTS_DOWNLOAD_VOICES=false` setzen und beide Dateien je Stimme
+manuell ins Volume kopieren:
+
+```sh
+docker compose -f deploy/compose.yaml cp de_DE-thorsten-medium.onnx worker:/data/tts/voices/piper/
+docker compose -f deploy/compose.yaml cp de_DE-thorsten-medium.onnx.json worker:/data/tts/voices/piper/
+```
+
+**Durchsatz** (gemessen in #27, Intel Xeon 2,1 GHz, 4 Kerne, CPU-only, englische Stimme der
+Qualität `medium`; die Standardstimmen haben dieselbe Modellgröße):
+2.000 Zeichen Text ergeben rund 160 s Audio und brauchen inklusive Normalisierung und
+Kodierung nach Opus und MP3 etwa 9–10 s, also rund 6 % der Echtzeit. Die Synthese läuft pro
+Worker-Prozess nacheinander und nutzt dabei alle Kerne.
 
 ## 4. Reverse Proxy und TLS
 
@@ -521,6 +552,7 @@ verarbeitet.
 | Job-Queue | PostgreSQL | geplant (#7) |
 | Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
+| TTS-Stimmen (keine personenbezogenen Daten) | Daten-Volume, `tts/voices/<engine>/` | vorhanden (#27) |
 | Instanz-Secrets und Konfiguration | `deploy/.env` auf dem Host | vorhanden |
 | Betriebslogs (ohne Mail-Inhalte, siehe 9.3) | Docker-Logging des Hosts | vorhanden |
 
@@ -535,6 +567,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                          │
                          ├──▶ Mailserver: IMAP / Microsoft Graph / Gmail API  (geplant #14, #37, #38)
                          ├──▶ LLM: Ollama im Compose-Netz oder eigener Server (geplant #17)
+                         ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
 
 api ──▶ Identity-Provider: OIDC / LDAP (geplant #30–#32)

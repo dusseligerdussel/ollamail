@@ -217,10 +217,32 @@ lädt die API fehlende Modelle beim Start im Hintergrund aus Ollama.
 
 ### 3.3 TTS
 
-- Interface `TTSEngine.synthesize(text, voice, lang) -> AudioFile`.
-- Standard **Piper**: sehr schnell auf CPU (auch ARM), gute deutsche und englische Stimmen, kleine Modelle.
-  Weitere Engines (z. B. Kokoro, XTTS) sind als Plugins möglich, falls GPU vorhanden.
-- Ausgabe: Opus/MP3, gespeichert im Daten-Volume, Aufbewahrung konfigurierbar.
+Umgesetzt in `backend/app/ai/tts/`.
+
+- Einstieg für Features: `TTSService.synthesize(text, lang=..., voice=..., target=..., formats=...)
+  -> list[AudioFile]` (`get_tts()`), aufgerufen aus Jobs der Queue `tts`, nie im Request.
+  Der Service wählt die Stimme (Nutzerwahl, falls sie zur Sprache passt, sonst Standard je Sprache),
+  normalisiert und segmentiert den Text, lässt ihn stückweise sprechen, fügt Pausen ein und streamt
+  das PCM in ffmpeg.
+- Interface `TTSEngine.synthesize(text, voice, lang) -> PCMAudio` für **ein** kurzes, bereits
+  normalisiertes Stück, dazu Stimmenverwaltung (`ensure_voice`, `installed_voices`). Normalisierung,
+  Pausen und Encoding bekommen neue Engines dadurch geschenkt.
+- **Registry** (`registry.py`): `OLLAMAIL_TTS_ENGINE` wählt die Engine. Weitere Engines (z. B. Kokoro,
+  XTTS bei vorhandener GPU) per `register_engine` oder als Plugin-Paket mit Entry Point
+  `ollamail.tts_engines`.
+- Standard **Piper** (`piper-tts`, ONNX Runtime, in-process): sehr schnell auf CPU (auch ARM), gute
+  deutsche und englische Stimmen, kleine Modelle. Synthese pro Prozess serialisiert (espeak-ng ist
+  nicht threadsicher, ONNX Runtime nutzt ohnehin alle Kerne).
+- **Stimmen** liegen im Daten-Volume (`<data_dir>/tts/voices/piper/`), nicht im Image. Fehlende werden
+  von `OLLAMAIL_TTS_VOICE_BASE_URL` geladen (abschaltbar, dann manuell kopieren). Stimmen-IDs werden
+  per Muster validiert (`de_DE-thorsten-medium`), die Sprache ist Teil der ID.
+- **Text-Normalisierung** (`normalize.py`, DE/EN): Datumsangaben, Uhrzeiten, Beträge, Prozente,
+  Zahlen (Jahre, Dezimal-/Tausendertrennzeichen je Sprache, Telefonnummern ziffernweise),
+  Abkürzungen, Links, E-Mail-Adressen, Markdown und Emojis; danach Satz- und Absatzsegmentierung und
+  Aufteilung langer Sätze an Satzteilgrenzen (`OLLAMAIL_TTS_MAX_CHUNK_CHARS`).
+- Ausgabe: Opus (Standard) und MP3 (Podcast-Apps) in einem ffmpeg-Lauf, atomar geschrieben
+  (`.part` → Umbenennung). Gespeichert im Daten-Volume, Aufbewahrung konfigurierbar (#28/#36).
+- Logs enthalten nur Stimme, Sprache, Längen und Zeiten, nie den Text.
 
 ### 3.4 Hintergrundjobs & Echtzeit-Events
 
