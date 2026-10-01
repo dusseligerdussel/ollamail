@@ -1,0 +1,41 @@
+MIME-Version: 1.0
+Date: Tue, 1 Sep 2026 07:45:03 +0200
+References: <workshop-0001@example.com>
+In-Reply-To: <workshop-0001@example.com>
+Message-ID: <CAgmail-0003@mail.example.net>
+Subject: Re: Workshop am Donnerstag
+From: Alex Beispiel <alex.beispiel@example.net>
+To: Max Mustermann <max.mustermann@example.com>
+Cc: team@example.com
+Content-Type: multipart/alternative; boundary="000000000000gmailbound"
+
+--000000000000gmailbound
+Content-Type: text/plain; charset="UTF-8"
+Content-Transfer-Encoding: base64
+
+SGkgTWF4LAoKa2xpbmd0IGd1dCwgaWNoIGJpbiBhbSBEb25uZXJzdGFnIGRhYmVpLiBLw7ZubmVu
+IHdpciB1bnMgdW0gMTAgVWhyIGltCkJlc3ByZWNodW5nc3JhdW0gdHJlZmZlbj8KCkxpZWJlIEdy
+w7zDn2UKQWxleAoKQW0gTW8uLCAzMS4gQXVnLiAyMDI2IHVtIDE4OjIwIFVociBzY2hyaWViIE1h
+eCBNdXN0ZXJtYW5uIDwKbWF4Lm11c3Rlcm1hbm5AZXhhbXBsZS5jb20+OgoKPiBIYWxsbyB6dXNh
+bW1lbiwKPgo+IHdlciBoYXQgWmVpdCBmw7xyIGVpbmVuIFdvcmtzaG9wIGFtIERvbm5lcnN0YWc/
+Cj4KPiBNYXgK
+
+--000000000000gmailbound
+Content-Type: text/html; charset="UTF-8"
+Content-Transfer-Encoding: base64
+
+PGRpdiBkaXI9Imx0ciI+SGkgTWF4LDxkaXY+PGJyPjwvZGl2PjxkaXY+a2xpbmd0IGd1dCwgaWNo
+IGJpbiBhbSBEb25uZXJzdGFnIGRhYmVpLiBLw7ZubmVuIHdpciB1bnMgdW0gMTAgVWhyIGltIEJl
+c3ByZWNodW5nc3JhdW0gdHJlZmZlbj88L2Rpdj48ZGl2Pjxicj48L2Rpdj48ZGl2PkxpZWJlIEdy
+w7zDn2U8L2Rpdj48ZGl2PkFsZXg8L2Rpdj48L2Rpdj48YnI+PGRpdiBjbGFzcz0iZ21haWxfcXVv
+dGUiPjxkaXYgZGlyPSJsdHIiIGNsYXNzPSJnbWFpbF9hdHRyIj5BbSBNby4sIDMxLiBBdWcuIDIw
+MjYgdW0gMTg6MjAgVWhyIHNjaHJpZWIgTWF4IE11c3Rlcm1hbm4gJmx0OzxhIGhyZWY9Im1haWx0
+bzptYXgubXVzdGVybWFubkBleGFtcGxlLmNvbSI+bWF4Lm11c3Rlcm1hbm5AZXhhbXBsZS5jb208
+L2E+Jmd0Ozo8YnI+PC9kaXY+PGJsb2NrcXVvdGUgY2xhc3M9ImdtYWlsX3F1b3RlIiBzdHlsZT0i
+bWFyZ2luOjBweCAwcHggMHB4IDAuOGV4O2JvcmRlci1sZWZ0OjFweCBzb2xpZCByZ2IoMjA0LDIw
+NCwyMDQpO3BhZGRpbmctbGVmdDoxZXgiPjxkaXYgZGlyPSJsdHIiPkhhbGxvIHp1c2FtbWVuLDxk
+aXY+PGJyPjwvZGl2PjxkaXY+d2VyIGhhdCBaZWl0IGbDvHIgZWluZW4gV29ya3Nob3AgYW0gRG9u
+bmVyc3RhZz88L2Rpdj48ZGl2Pjxicj48L2Rpdj48ZGl2Pk1heDwvZGl2PjwvZGl2PjwvYmxvY2tx
+dW90ZT48L2Rpdj4K
+
+--000000000000gmailbound--

@@ -71,6 +71,10 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
 - **Auskunft/Export (Art. 15/20):** Nutzer kann eigene Daten (Triage, Todos, Digests, Chat-Verläufe) exportieren.
 - **Löschung (Art. 17):** Postfach entfernen → alle zugehörigen Mails, Anhänge, Embeddings, Todos, Digests
   werden gelöscht (Hard Delete, inkl. Dateien). Nutzer löschen → kaskadierend.
+  Umsetzung Mail (`backend/app/mail/service.py`): Alle `mail_*`-Tabellen hängen per
+  `ON DELETE CASCADE` am Postfach. Anhänge liegen unter `<OLLAMAIL_DATA_DIR>/attachments/<mailbox_id>/<attachment_id>`
+  (Dateinamen ohne Originalnamen); `delete_mailbox` löscht nach dem Commit das ganze Verzeichnis,
+  `delete_messages` die Dateien der gelöschten Mails.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).
   Ein periodischer Job setzt sie durch.
 - **Mails, die am Server gelöscht wurden**, werden beim nächsten Sync auch lokal gelöscht.

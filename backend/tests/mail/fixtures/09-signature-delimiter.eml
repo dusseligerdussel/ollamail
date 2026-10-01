@@ -1,0 +1,21 @@
+From: Sam Sample <sam@example.org>
+To: Max Mustermann <max.mustermann@example.com>
+Subject: Server maintenance on Saturday
+Date: Tue, 08 Sep 2026 17:45:00 +0000
+Message-ID: <sig-0009@example.org>
+MIME-Version: 1.0
+Content-Type: text/plain; charset=utf-8; format=flowed
+Content-Transfer-Encoding: 8bit
+
+Hello Max,
+
+the database servers will be updated this Saturday between 8 and 10 am.
+Please make sure that all batch jobs are paused during that window.
+
+Cheers,
+Sam
+
+-- 
+Sam Sample
+Operations Team
+Example Org, Sample Street 1, 12345 Sample City

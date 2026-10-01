@@ -9,6 +9,7 @@ them in ``deploy/.env.example``.
 """
 
 from functools import lru_cache
+from pathlib import Path
 from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
@@ -96,6 +97,15 @@ class LLMEndpointSettings(BaseModel):
     # "prompt" for servers without JSON-schema support in the API.
     structured_output: StructuredOutputMode = "native"
     timeout: float | None = Field(default=None, gt=0)
+
+
+class StorageSettings(BaseSettings):
+    """``OLLAMAIL_*`` (file storage)"""
+
+    model_config = _config()
+
+    # Root directory for attachments, audio digests and other files.
+    data_dir: Path = Path("/data")
 
 
 class LLMSettings(BaseSettings):
@@ -205,6 +215,7 @@ class Settings(BaseModel):
     logging: LoggingSettings = Field(default_factory=LoggingSettings)
     database: DatabaseSettings = Field(default_factory=DatabaseSettings)
     security: SecuritySettings = Field(default_factory=SecuritySettings)
+    storage: StorageSettings = Field(default_factory=StorageSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     mail: MailSettings = Field(default_factory=MailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
