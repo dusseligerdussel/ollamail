@@ -2,6 +2,7 @@
 the queues. The worker and the jobs commit, so the fixtures clean up after themselves.
 All data is synthetic."""
 
+import importlib
 import uuid
 from collections.abc import AsyncIterator, Iterator
 from dataclasses import dataclass, field
@@ -18,12 +19,17 @@ from app.mail.models import Mailbox, MailboxType, Message
 from app.processing.steps import ProcessingStep, StepContext, registry
 from app.processing.tasks import use_database
 from app.users.models import User
-from app.worker import app, build_connector
+from app.worker import TASK_MODULES, app, build_connector
 from tests.factories import make_user
 
 # Retries without waiting, so tests stay fast.
 FAST_RETRY = RetryStrategy(max_attempts=2)
 QUEUES = ["default", "llm", "sync"]
+
+# Feature modules register their steps on import. Import them now: the worker imports
+# them lazily, which would register them in a test's isolated registry instead.
+for _module in TASK_MODULES:
+    importlib.import_module(_module)
 
 
 @dataclass

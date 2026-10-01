@@ -187,7 +187,9 @@ async def _record_failure(
         or StepRetry().get_retry_decision(exception=exc, job=context.job) is None
     )
     async with database.sessionmaker() as session:
-        await service.fail_step(session, message_id, mailbox_id, step, code, final=final)
+        ready = await service.fail_step(
+            session, message_id, mailbox_id, step, code, final=final, steps=registry.ordered()
+        )
         await session.commit()
     log.warning(
         "processing_step_failed",
@@ -196,6 +198,8 @@ async def _record_failure(
         error_code=code,
         final=final,
     )
+    # Steps that only wait for this one via ``after`` run without its result.
+    await _defer_steps(str(message_id), ready, _priority(context))
 
 
 async def requeue_messages(message_ids: Sequence[UUID], priority: Priority) -> None:
