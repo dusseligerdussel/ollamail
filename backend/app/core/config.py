@@ -196,6 +196,30 @@ class TTSSettings(BaseSettings):
 
     engine: str = "piper"
 
+    # Default voice per language (engine-specific ID). Users may pick another installed
+    # voice of the same language; see app/ai/tts/voices.py.
+    voice_de: str = "de_DE-thorsten-medium"
+    voice_en: str = "en_US-ljspeech-medium"
+    # Download missing voices into <data_dir>/tts/voices/<engine>/. Disable on hosts
+    # without internet access and copy the voice files there manually.
+    download_voices: bool = True
+    voice_base_url: str = "https://huggingface.co/rhasspy/piper-voices/resolve/main"
+    # Seconds per voice download (models are 20-120 MB).
+    download_timeout: float = Field(default=600.0, gt=0)
+
+    # Encoding (ffmpeg): Opus is the default format, MP3 for podcast apps.
+    ffmpeg_path: str = "ffmpeg"
+    opus_bitrate_kbps: int = Field(default=32, ge=6, le=256)
+    mp3_bitrate_kbps: int = Field(default=64, ge=32, le=320)
+
+    # Long texts are synthesised piece by piece; a piece holds at most this many characters.
+    max_chunk_chars: int = Field(default=400, ge=50, le=5000)
+    # Silence in seconds after a sentence and after a paragraph.
+    sentence_pause: float = Field(default=0.35, ge=0, le=5)
+    paragraph_pause: float = Field(default=0.8, ge=0, le=5)
+    # Speaking rate: values above 1 speak slower (Piper ``length_scale``); unset = voice default.
+    length_scale: float | None = Field(default=None, gt=0.25, le=4)
+
 
 class AuthSettings(BaseSettings):
     """``OLLAMAIL_AUTH_*``"""
