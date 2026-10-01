@@ -11,18 +11,30 @@ Each ``db_session`` runs inside a transaction that is rolled back after the test
 import asyncio
 import os
 from collections.abc import AsyncIterator, Callable, Iterator
+from http.cookies import SimpleCookie
 from pathlib import Path
 from typing import Any
 
+import httpx
 import pytest
 from alembic import command
 from alembic.config import Config
+from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import make_url
 from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.core.config import DatabaseSettings, LoggingSettings, Settings
+from app.auth.csrf import (
+    CSRF_COOKIE,
+    CSRF_HEADER,
+    SAFE_METHODS,
+    csrf_token_valid,
+    issue_csrf_token,
+)
+from app.auth.sessions import SESSION_COOKIE
+from app.core.config import DatabaseSettings, LoggingSettings, SecuritySettings, Settings
+from app.core.crypto import generate_key
 from app.core.db import get_db
 from app.core.logging import configure_logging
 from app.main import create_app
@@ -113,17 +125,48 @@ def extra_routes() -> list[ExtraRoute]:
     return []
 
 
+def api_client(app: FastAPI) -> AsyncClient:
+    """HTTPS client that behaves like the frontend: keeps cookies and sends the CSRF
+    token (``X-CSRF-Token``) on state-changing requests. Requests that set the header
+    themselves are left alone, so CSRF tests can send wrong or missing tokens."""
+    settings: Settings = app.state.settings
+
+    async def add_csrf(request: httpx.Request) -> None:
+        if request.method in SAFE_METHODS or CSRF_HEADER in request.headers:
+            return
+        cookies = {
+            name: morsel.value
+            for name, morsel in SimpleCookie(request.headers.get("cookie", "")).items()
+        }
+        session_token = cookies.get(SESSION_COOKIE)
+        token = cookies.get(CSRF_COOKIE)
+        if not csrf_token_valid(settings, token, session_token):
+            # What the first GET of the frontend would have received.
+            token = issue_csrf_token(settings, session_token)
+            cookies[CSRF_COOKIE] = token
+            request.headers["cookie"] = "; ".join(f"{k}={v}" for k, v in cookies.items())
+        assert token is not None
+        request.headers[CSRF_HEADER] = token
+
+    transport = ASGITransport(app=app, raise_app_exceptions=False)
+    return AsyncClient(
+        transport=transport, base_url="https://test", event_hooks={"request": [add_csrf]}
+    )
+
+
 @pytest.fixture
 def settings() -> Settings:
-    return Settings(database=DatabaseSettings.model_validate({"url": TEST_DATABASE_URL}))
+    return Settings(
+        database=DatabaseSettings.model_validate({"url": TEST_DATABASE_URL}),
+        security=SecuritySettings.model_validate({"secret_key": generate_key()}),
+    )
 
 
 @pytest.fixture
 async def client(settings: Settings) -> AsyncIterator[AsyncClient]:
     """Client for an app without database overrides (unit-level API tests)."""
     app = create_app(settings)
-    transport = ASGITransport(app=app, raise_app_exceptions=False)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with api_client(app) as http:
         yield http
     await app.state.database.dispose()
 
@@ -141,8 +184,7 @@ async def db_client(
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
-    transport = ASGITransport(app=app, raise_app_exceptions=False)
-    async with AsyncClient(transport=transport, base_url="http://test") as http:
+    async with api_client(app) as http:
         yield http
     await app.state.database.dispose()
 

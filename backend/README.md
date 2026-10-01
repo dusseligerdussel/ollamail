@@ -85,7 +85,9 @@ Tests mit Marker `ollama` laufen gegen ein echtes Ollama (`OLLAMAIL_TEST_OLLAMA_
 Die übrigen LLM-Tests nutzen einen Fake-Provider bzw. gemocktes HTTP (`respx`).
 
 Fixtures (`tests/conftest.py`): `db_session` (Transaktion je Test, wird zurückgerollt),
-`client` (App ohne DB-Override), `db_client` (`get_db` nutzt `db_session`).
+`client` (App ohne DB-Override), `db_client` (`get_db` nutzt `db_session`). Beide Clients
+laufen über HTTPS und senden wie das Frontend den CSRF-Header (`api_client(app)` für eigene Apps).
+Nutzer für Besitzverhältnisse: `tests.factories.make_user`; Login-Helfer: `tests/auth/conftest.py`.
 
 Alles zusammen (Definition of Done):
 

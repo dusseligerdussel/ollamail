@@ -71,6 +71,9 @@ class SecuritySettings(BaseSettings):
     # Previous master keys, comma-separated. Still accepted for decryption until
     # `python -m app.cli rotate-keys` has re-encrypted everything with ``secret_key``.
     secret_keys_old: Annotated[list[SecretStr], NoDecode] = Field(default_factory=list)
+    # Token required by ``POST /api/setup`` to create the first admin. If unset, one is
+    # derived from ``secret_key`` and logged at start-up while no user exists.
+    setup_token: SecretStr | None = None
 
     @field_validator("secret_keys_old", mode="before")
     @classmethod
@@ -186,6 +189,34 @@ class TTSSettings(BaseSettings):
     engine: str = "piper"
 
 
+class AuthSettings(BaseSettings):
+    """``OLLAMAIL_AUTH_*``"""
+
+    model_config = _config("AUTH_")
+
+    # Absolute session lifetime and idle timeout (no request in that time) in minutes.
+    session_lifetime_minutes: int = Field(default=14 * 24 * 60, ge=5)
+    session_idle_timeout_minutes: int = Field(default=3 * 24 * 60, ge=5)
+    # Send cookies only over HTTPS. Disable only for plain-HTTP setups without TLS.
+    cookie_secure: bool = True
+    # Self-service registration of local accounts (role "user"). Admins can always add users.
+    local_registration: bool = False
+    password_min_length: int = Field(default=12, ge=8, le=128)
+    # Lockout: after this many login attempts for one account within the window, further
+    # attempts are rejected until the window ends (counted per account, existing or not).
+    login_max_attempts: int = Field(default=5, ge=1)
+    login_window_minutes: int = Field(default=15, ge=1)
+    # Login/registration attempts per client IP and window. Behind a reverse proxy the client
+    # IP comes from X-Forwarded-For (uvicorn --forwarded-allow-ips).
+    ip_max_attempts: int = Field(default=50, ge=1)
+
+    @model_validator(mode="after")
+    def _idle_within_lifetime(self) -> "AuthSettings":
+        if self.session_idle_timeout_minutes > self.session_lifetime_minutes:
+            raise ValueError("session_idle_timeout_minutes exceeds session_lifetime_minutes")
+        return self
+
+
 class WorkerSettings(BaseSettings):
     """``OLLAMAIL_WORKER_*``"""
 
@@ -220,6 +251,7 @@ class Settings(BaseModel):
     mail: MailSettings = Field(default_factory=MailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
+    auth: AuthSettings = Field(default_factory=AuthSettings)
 
 
 @lru_cache

@@ -6,8 +6,10 @@ Modules add their commands to ``cli`` with ``@cli.command()``. In the containers
 """
 
 import asyncio
+from typing import Annotated
 
 import typer
+from pydantic import ValidationError
 
 from app.core.config import get_settings
 from app.core.crypto import CryptoError, RotationResult, configure_keyring, generate_key
@@ -59,6 +61,70 @@ def rotate_keys_command() -> None:
     typer.echo(
         f"Checked {result.checked} values in {result.tables} tables, re-encrypted {result.rotated}."
     )
+
+
+@cli.command("setup-token")
+def setup_token_command() -> None:
+    """Print the token for creating the first admin (POST /api/setup)."""
+    from app.auth.setup import setup_token
+
+    settings = get_settings()
+    try:
+        configure_keyring(settings.security)
+    except CryptoError as exc:
+        typer.echo(f"Cannot derive the setup token: {exc}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo(setup_token(settings))
+
+
+async def _create_admin(email: str, display_name: str, password: str) -> None:
+    from app.auth.passwords import hash_password
+    from app.users.models import UserRole
+    from app.users.service import add_local_user
+
+    settings = get_settings()
+    database = Database(settings.database)
+    try:
+        async with database.sessionmaker() as db:
+            await add_local_user(
+                db,
+                email=email,
+                display_name=display_name,
+                password_hash=await hash_password(password),
+                role=UserRole.ADMIN,
+            )
+            await db.commit()
+    finally:
+        await database.dispose()
+
+
+@cli.command("create-admin")
+def create_admin_command(
+    email: Annotated[str, typer.Option(prompt=True, help="E-mail address (login name).")],
+    display_name: Annotated[str, typer.Option(prompt=True, help="Display name.")],
+    password: Annotated[str, typer.Option(prompt=True, hide_input=True, confirmation_prompt=True)],
+) -> None:
+    """Create a local admin account, also when users exist (emergency access).
+
+    Prefer the setup wizard for the first admin. The password is read from a prompt;
+    passing it as option puts it into the shell history.
+    """
+    from app.core.errors import ProblemError
+    from app.users.schemas import UserCreate
+    from app.users.service import check_password_policy
+
+    try:
+        data = UserCreate(email=email, display_name=display_name, password=password)
+        check_password_policy(get_settings().auth, data.password)
+        asyncio.run(_create_admin(data.email, data.display_name, data.password))
+    except ValidationError as exc:
+        fields = ", ".join(str(error["loc"][0]) for error in exc.errors())
+        typer.echo(f"Invalid input: {fields}", err=True)
+        raise typer.Exit(code=1) from None
+    except ProblemError as exc:
+        typer.echo(f"Could not create the admin: {exc.detail}", err=True)
+        raise typer.Exit(code=1) from None
+    typer.echo("Admin created.")
 
 
 if __name__ == "__main__":
