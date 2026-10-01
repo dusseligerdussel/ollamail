@@ -8,6 +8,7 @@ import { themeIcons } from "@/components/preference-controls";
 import { useShortcut } from "@/components/shortcuts/shortcut-provider";
 import { useTheme } from "@/components/theme-provider";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
 import { supportedLanguages } from "@/i18n";
 import type { Command } from "@/lib/commands";
 import { themes } from "@/lib/theme";
@@ -38,6 +39,7 @@ export function GlobalKeyboard() {
   const { theme, setTheme } = useTheme();
   const palette = useCommandPalette();
   const overlay = useShortcutsOverlay();
+  const hasKeyboard = useMediaQuery(mediaQueries.keyboard);
   const items = useMemo(() => visibleNavItems(isAdmin), [isAdmin]);
 
   useShortcut(
@@ -84,16 +86,21 @@ export function GlobalKeyboard() {
         active: language === option,
         run: () => void i18n.changeLanguage(option),
       })),
-      {
-        id: "help.shortcuts",
-        label: t("shortcuts.show"),
-        group: "help",
-        icon: Keyboard,
-        shortcut: "?",
-        run: () => overlay.setOpen(true),
-      },
+      // The shortcut overview is of no use without a keyboard.
+      ...(hasKeyboard
+        ? [
+            {
+              id: "help.shortcuts",
+              label: t("shortcuts.show"),
+              group: "help" as const,
+              icon: Keyboard,
+              shortcut: "?",
+              run: () => overlay.setOpen(true),
+            },
+          ]
+        : []),
     ],
-    [items, t, i18n, language, navigate, theme, setTheme, overlay.setOpen],
+    [items, t, i18n, language, navigate, theme, setTheme, overlay.setOpen, hasKeyboard],
   );
   useCommands(commands);
 

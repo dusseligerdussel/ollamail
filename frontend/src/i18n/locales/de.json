@@ -107,8 +107,9 @@
       "serverChecking": "Verbindung wird geprüft"
     },
     "admin": {
-      "emptyTitle": "Noch nichts zu verwalten",
-      "emptyDescription": "Benutzer, Mail-Provider und Sprachmodelle werden hier verwaltet."
+      "emptyTitle": "Noch keine Verwaltungsfunktionen",
+      "emptyDescription": "Benutzer, Anmeldeverfahren, Mail-Provider und Sprachmodelle werden hier verwaltet, sobald diese Bereiche verfügbar sind.",
+      "emptyAction": "Eigene Einstellungen öffnen"
     }
   },
   "notFound": {

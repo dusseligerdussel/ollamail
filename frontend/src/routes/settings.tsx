@@ -13,6 +13,9 @@ export const Route = createFileRoute("/settings")({
   component: SettingsPage,
 });
 
+// Full width when stacked on narrow screens (as in the "More" sheet), one shared width otherwise.
+const toggleGroupClass = "w-full sm:w-72";
+
 function SettingRow({
   label,
   description,
@@ -67,13 +70,13 @@ function SettingsPage() {
                 label={t("theme.label")}
                 description={t("pages.settings.themeDescription")}
               >
-                <ThemeToggleGroup />
+                <ThemeToggleGroup className={toggleGroupClass} />
               </SettingRow>
               <SettingRow
                 label={t("language.label")}
                 description={t("pages.settings.languageDescription")}
               >
-                <LanguageToggleGroup />
+                <LanguageToggleGroup className={toggleGroupClass} />
               </SettingRow>
             </div>
           </section>

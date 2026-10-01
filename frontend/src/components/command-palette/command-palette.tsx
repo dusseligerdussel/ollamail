@@ -1,4 +1,5 @@
 import { Check } from "lucide-react";
+import { useCallback, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { KeyHint } from "@/components/key-hint";
@@ -11,15 +12,50 @@ import {
   CommandList,
 } from "@/components/ui/command";
 import { Dialog, DialogContent, DialogDescription, DialogTitle } from "@/components/ui/dialog";
+import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
 import { groupCommands } from "@/lib/commands";
 
 import { useCommandPalette, useRegisteredCommands } from "./command-provider";
+
+/**
+ * Tracks whether a scroll container has content hidden above or below its visible area, so the
+ * edges can hint at it (`data-overflow` = `top`, `bottom` or `both`).
+ */
+function useScrollOverflow<T extends HTMLElement>() {
+  const [element, setElement] = useState<T | null>(null);
+  const [overflow, setOverflow] = useState<"top" | "bottom" | "both" | undefined>();
+
+  const update = useCallback(() => {
+    if (!element) return;
+    const top = element.scrollTop > 1;
+    const bottom = element.scrollTop + element.clientHeight < element.scrollHeight - 1;
+    setOverflow(top && bottom ? "both" : top ? "top" : bottom ? "bottom" : undefined);
+  }, [element]);
+
+  useEffect(() => {
+    if (!element) return;
+    update();
+    element.addEventListener("scroll", update, { passive: true });
+    // Filtering changes the content height without scrolling.
+    const observer = new ResizeObserver(update);
+    observer.observe(element);
+    for (const child of element.children) observer.observe(child);
+    return () => {
+      element.removeEventListener("scroll", update);
+      observer.disconnect();
+    };
+  }, [element, update]);
+
+  return { ref: setElement, overflow };
+}
 
 /** ⌘K / Ctrl+K palette listing all registered commands. */
 export function CommandPalette() {
   const { t } = useTranslation();
   const { open, setOpen } = useCommandPalette();
   const commands = useRegisteredCommands();
+  const hasKeyboard = useMediaQuery(mediaQueries.keyboard);
+  const list = useScrollOverflow<HTMLDivElement>();
 
   return (
     <Dialog open={open} onOpenChange={setOpen}>
@@ -40,7 +76,11 @@ export function CommandPalette() {
             aria-label={t("commandPalette.placeholder")}
             className="h-12"
           />
-          <CommandList className="max-h-[min(360px,60vh)] p-1">
+          <CommandList
+            ref={list.ref}
+            data-overflow={list.overflow}
+            className="scroll-fade max-h-[min(380px,60vh)] p-1"
+          >
             <CommandEmpty className="py-10 text-center text-ui text-muted-foreground">
               {t("commandPalette.empty")}
             </CommandEmpty>
@@ -65,7 +105,7 @@ export function CommandPalette() {
                         {command.active && (
                           <Check className="size-4 text-brand" aria-hidden="true" />
                         )}
-                        {command.shortcut && <KeyHint keys={command.shortcut} />}
+                        {hasKeyboard && command.shortcut && <KeyHint keys={command.shortcut} />}
                       </span>
                     </CommandItem>
                   );

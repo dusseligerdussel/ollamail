@@ -18,4 +18,9 @@ export const mediaQueries = {
   sidebar: "(min-width: 768px)",
   /** List and detail are shown side by side instead of stacked. */
   split: "(min-width: 1024px)",
+  /**
+   * A keyboard is likely: wide viewport and a precise pointer. Elsewhere (phones, touch tablets)
+   * shortcut hints and the shortcut overview are not shown.
+   */
+  keyboard: "(min-width: 768px) and (any-pointer: fine)",
 } as const;

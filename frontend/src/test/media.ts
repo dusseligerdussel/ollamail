@@ -1,11 +1,13 @@
 /**
  * Test double for `window.matchMedia` that evaluates `min-width` / `max-width` against a
- * configurable viewport width and `prefers-color-scheme` against a configurable preference.
+ * configurable viewport width, `prefers-color-scheme` against a configurable preference and
+ * `pointer` / `any-pointer` against a configurable input device (fine by default).
  */
 type Listener = (event: MediaQueryListEvent) => void;
 
 let viewportWidth = 1440;
 let prefersDark = false;
+let coarsePointer = false;
 const lists = new Set<{ query: string; listeners: Set<Listener>; matches: boolean }>();
 
 function evaluate(query: string): boolean {
@@ -16,6 +18,8 @@ function evaluate(query: string): boolean {
     if (max) return viewportWidth <= Number(max[1]);
     const scheme = /prefers-color-scheme:\s*(dark|light)/.exec(part);
     if (scheme) return (scheme[1] === "dark") === prefersDark;
+    const pointer = /pointer:\s*(fine|coarse)/.exec(part);
+    if (pointer) return (pointer[1] === "coarse") === coarsePointer;
     return false;
   });
 }
@@ -55,5 +59,10 @@ export function setViewportWidth(width: number) {
 
 export function setPrefersDark(value: boolean) {
   prefersDark = value;
+  notify();
+}
+
+export function setCoarsePointer(value: boolean) {
+  coarsePointer = value;
   notify();
 }
