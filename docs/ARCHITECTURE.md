@@ -123,12 +123,73 @@ Shared Mailboxes folgen mit dem Nutzermodell (#11).
 
 | Provider | Phase | Auth | Sync | Hinweise |
 |---|---|---|---|---|
-| IMAP/SMTP | MVP | Passwort/App-Passwort, später XOAUTH2 | UIDVALIDITY/UID + `IDLE`, optional CONDSTORE | Funktioniert mit jedem Server |
+| IMAP/SMTP | MVP | Passwort/App-Passwort, XOAUTH2 vorbereitet | UIDVALIDITY/UID + `IDLE`, CONDSTORE/QRESYNC falls verfügbar | Funktioniert mit jedem Server |
 | Microsoft 365 | v1 | OAuth2 (Entra ID App, delegiert oder App-only mit Admin-Consent) | Graph Delta Query + Change Notifications | Shared Mailboxes über App-Permissions + `ApplicationAccessPolicy` |
 | Gmail / Google Workspace | v1 | OAuth2, Workspace: Domain-wide Delegation | `history.list` + Pub/Sub Push (optional Polling) | Labels statt Ordner |
 
 Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`;
 Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto.py`).
+
+#### IMAP-Provider (`backend/app/mail/providers/imap*.py`)
+
+- **Client:** eigener schlanker asyncio-Client (`imap_client.py`, Parser in `imap_protocol.py`)
+  statt `aioimaplib`: Diese Bibliothek kann kein STARTTLS, loggt Rohdaten (Mail-Inhalte) auf
+  DEBUG und überlässt das Parsen dem Aufrufer. Fehler und Logs enthalten nie Server-Texte, nur
+  Befehl, Status und Response-Code.
+- **Einstellungen** (`provider_settings`, Modell `ImapSettings`): `host`, `port`,
+  `security` (`tls` Standard, `starttls`, `none`), `verify_certificate`, `auth`
+  (`password` oder `xoauth2`), `username` (Standard: Adresse). Zugangsdaten in `credentials`:
+  `password` bzw. `access_token`; für XOAUTH2 kann ein `token_provider` (Token-Refresh, #37/#38)
+  übergeben werden. Unverschlüsselte Verbindungen und ungeprüfte Zertifikate lehnt der Provider
+  ab, solange der Admin `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS` nicht setzt.
+- **Ordner:** `LIST` (mit `RETURN (SPECIAL-USE)`, falls verfügbar). Rollen aus Special-Use-Attributen,
+  sonst aus gängigen Namen (DE/EN, nur oberste Ebene). `remote_id` ist der Ordnername wie vom
+  Server (modified UTF-7), `name` dekodiert.
+- **Referenzen:** `remote_ref = "<UIDVALIDITY>:<UID>:<Ordner>"`.
+- **Cursor** pro Ordner: `uidvalidity`, `high` (höchste gesehene UID), `modseq`
+  (HIGHESTMODSEQ), `known` (gespeicherte UIDs als kompaktes Sequence-Set) und `import`
+  (offener Initialimport: `since`, `below`).
+- **Ablauf von `fetch_since`:** (1) Änderungen bekannter Mails – mit QRESYNC ein
+  `UID FETCH … (CHANGEDSINCE m VANISHED)`, mit CONDSTORE `CHANGEDSINCE` plus UID-Suche für
+  Löschungen, sonst die Flags des bekannten Bereichs; (2) neue Mails (UID > `high`);
+  (3) Initialimport: `SINCE` = Zeitraum (Standard 90 Tage), **neueste zuerst**, in Batches
+  (`OLLAMAIL_MAIL_SYNC_BATCH_SIZE`), Abruf zusätzlich nach Größe gestückelt (max. 16 MB je
+  Roundtrip). Nach jedem Batch kommt `CursorAdvanced`, daher setzt ein abgebrochener Import
+  beim letzten Batch fort. Abrufe nutzen `EXAMINE` und `BODY.PEEK[]`, ändern also keine Flags.
+- **Push:** `watch()` hält `IDLE` auf einer eigenen Verbindung und erneuert es alle 10 Minuten
+  (erkennt auch Verbindungen, die ein NAT-Gateway still getrennt hat).
+- **Aktionen:** `set_flags` (`UID STORE FLAGS.SILENT`), `move` (`UID MOVE`, sonst `UID COPY` +
+  `UID EXPUNGE`; neue Referenz aus `COPYUID`), `apply_label`/`remove_label` als Keyword
+  (Label → gültiges IMAP-Atom: Leerzeichen → `_`, Nicht-ASCII wie Ordnernamen kodiert) oder,
+  wenn der Ordner keine Keywords erlaubt (`PERMANENTFLAGS` ohne `\*`), als Kopie in einen Ordner
+  mit dem Label-Namen.
+
+#### Sync (`backend/app/mail/sync/`)
+
+- **`engine.sync_mailbox`** (providerunabhängig): Ordnerliste spiegeln (neue Ordner, auf dem
+  Server gelöschte Ordner samt Mails löschen; Ordner mit ausgeschlossener Rolle aus
+  `SyncSettings.excluded_roles` – Standard Papierkorb und Spam – werden angelegt, aber nicht
+  synchronisiert), dann je Ordner (INBOX zuerst) `fetch_since` anwenden: `MessageFetched` →
+  `store_message`, `MessageUpdated` → Flags, `MessageDeleted` → `delete_messages`. Bei jedem
+  `CursorAdvanced` werden Mails, Änderungen und Cursor **in einer Transaktion** committet.
+  Ungültiger Cursor → Mails des Ordners löschen und neu importieren.
+- **Status:** `SyncState.last_error` (nur Fehlercodes) und `last_synced_at` je Ordner; Fehler, die
+  das ganze Postfach betreffen (Anmeldung, Verbindung, Konfiguration), und der letzte vollständige
+  Sync stehen in der Zeile mit `folder_id IS NULL`. Der Besitzer erhält Events `mailbox.sync`
+  (`progress`, `done`, `failed`).
+- **Job** `mail.sync_mailbox` (Queue `sync`, `lock` und `queueing_lock` pro Postfach); anstoßen mit
+  `app.mail.sync.tasks.request_sync(mailbox_id)`. Verbindungsfehler lösen Retries aus,
+  Anmelde- und Konfigurationsfehler nicht.
+- **Watcher** (`watcher.py`): läuft im Worker-Prozess neben den Job-Workern (kein Job, damit er
+  keinen Worker-Slot dauerhaft belegt). Pro Postfach eine `IDLE`-Verbindung; jedes Push-Event
+  stößt einen Sync an, zusätzlich alle `poll_interval_seconds` (andere Ordner, Server ohne
+  `IDLE`). Reconnect mit Backoff. Mehrere Worker teilen sich die Postfächer über
+  PostgreSQL-Advisory-Locks; stirbt ein Worker, übernimmt ein anderer. Abschaltbar mit
+  `OLLAMAIL_MAIL_WATCH_ENABLED=false` (dann gibt es keine automatischen Syncs).
+- **Hook für neue Mails** (`app/mail/hooks.py`): Nach dem Commit ruft der Sync für jede *neue*
+  Mail `message_stored(mailbox_id, message_id)` auf. Handler registrieren sich mit
+  `@on_message_stored` (siehe 4.1); ein fehlschlagender Handler wird geloggt und stoppt den Sync
+  nicht.
 
 ### 3.2 LLM-Provider
 
@@ -261,6 +322,16 @@ sync job ─▶ Message gespeichert ─▶ enqueue(process_message)
 ```
 
 Jeder Schritt ist ein idempotenter Job. Fehler werden protokolliert und erneut versucht (Backoff).
+
+Schnittstelle zum Sync: `app.mail.hooks.message_stored` wird nach dem Commit einmal pro neuer Mail
+aufgerufen (nicht bei Flag-Änderungen oder erneutem Abruf). Die Pipeline hängt sich so ein und
+muss im Worker importiert sein (`TASK_MODULES`):
+
+```python
+@on_message_stored
+async def enqueue_processing(event: MessageStored) -> None:  # event.mailbox_id, event.message_id
+    await process_message.defer_async(message_id=str(event.message_id))
+```
 
 ### 4.2 Triage
 
