@@ -13,6 +13,7 @@ Selbst gehostetes, „local first“ E-Mail-Analyse-Tool – für Einzelpersonen
 
 ## Dokumentation
 
+- [Betrieb: Installation, Backup, Updates](docs/OPERATIONS.md)
 - [Architektur](docs/ARCHITECTURE.md)
 - [Datenschutz & Sicherheit](docs/PRIVACY.md)
 - [Design-Richtlinien](docs/DESIGN.md)

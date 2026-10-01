@@ -204,7 +204,7 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 - Konfiguration per Env (`OLLAMAIL_*`), dokumentiert in `deploy/.env.example`. Start mit Docker Compose: `deploy/README.md`.
 - Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar).
 - Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional OpenTelemetry-Metriken.
-- Backups: `pg_dump` + Daten-Volume; Doku in `docs/OPERATIONS.md` (wird erstellt).
+- Backups: `pg_dump` + Daten-Volume; Doku in [`OPERATIONS.md`](OPERATIONS.md#5-backup-und-restore).
 - Images: `ghcr.io/<owner>/ollamail-{api,frontend}` für `linux/amd64` und `linux/arm64`.
 
 ## 8. Architekturentscheidungen (Kurz-ADRs)
