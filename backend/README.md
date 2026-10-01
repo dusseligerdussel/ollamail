@@ -47,6 +47,19 @@ uv run uvicorn app.main:app --reload
 Konfiguration ausschließlich über `OLLAMAIL_*`-Umgebungsvariablen, siehe
 [`deploy/.env.example`](../deploy/.env.example). Für lesbare Logs lokal: `OLLAMAIL_LOG_FORMAT=console`.
 
+## OpenAPI-Schema
+
+Das Frontend erzeugt seinen typisierten Client aus dem Schema (siehe `frontend/README.md`):
+
+```sh
+uv run python -m scripts.export_openapi ../frontend/src/api/openapi.json   # oder "-" für stdout
+```
+
+Der Export braucht weder Server noch Datenbank. `operationId`s sind stabil:
+`<erstes Tag>_<Funktionsname>` (z. B. `health_healthz`), also Router mit `tags=[...]` anlegen und
+Endpunkt-Funktionen eindeutig benennen; doppelte IDs lassen den Export fehlschlagen. Nach
+Änderungen an Endpunkten im Frontend `pnpm gen:api` ausführen und das Ergebnis committen (CI prüft das).
+
 ## Lint, Format, Typecheck
 
 ```sh
@@ -82,7 +95,8 @@ app/
   main.py   App-Factory (create_app)
   models.py Import aller ORM-Modelle (für Alembic)
   core/     config, db, logging (PII-Filter), errors (Problem Details),
-            middleware (Request-ID), health (/healthz, /readyz), ids (UUIDv7)
+            middleware (Request-ID), health (/healthz, /readyz), ids (UUIDv7),
+            openapi (stabile operationIds, Schema-Export)
   auth/     lokale Accounts, OIDC, LDAP
   users/    Nutzer, Gruppen, Rollen
   mail/     Mail-Provider und Sync
@@ -94,6 +108,7 @@ app/
   admin/    Instanz-Einstellungen
   audit/    Audit-Events
 migrations/ Alembic-Revisionen
+scripts/    CLI-Hilfen (export_openapi)
 tests/      pytest-Tests
 ```
 

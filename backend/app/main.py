@@ -12,6 +12,7 @@ from app.core.health import ReadinessRegistry, register_readiness_check
 from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
+from app.core.openapi import generate_operation_id
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -25,7 +26,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         yield
         await database.dispose()
 
-    app = FastAPI(title="ollamail", lifespan=lifespan)
+    app = FastAPI(
+        title="ollamail",
+        lifespan=lifespan,
+        generate_unique_id_function=generate_operation_id,
+    )
     app.state.settings = settings
     app.state.database = database
     app.state.readiness = ReadinessRegistry()
