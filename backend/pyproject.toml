@@ -12,6 +12,7 @@ dependencies = [
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
     "sqlalchemy[asyncio]>=2.0.30",
+    "structlog>=26.1.0",
     "uvicorn[standard]>=0.30",
 ]
 
@@ -44,3 +45,6 @@ asyncio_mode = "auto"
 asyncio_default_fixture_loop_scope = "function"
 testpaths = ["tests"]
 pythonpath = ["."]
+markers = [
+    "db: needs PostgreSQL with pgvector (skipped if unreachable, see tests/conftest.py)",
+]

@@ -28,6 +28,24 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Sessions | Serverseitig, widerrufbar, Ablaufzeit konfigurierbar |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. |
 
+### Logging im Detail
+
+Umgesetzt in `backend/app/core/logging.py`, abgesichert durch `backend/tests/test_logging.py`:
+
+- Alle Logs (eigene, uvicorn, Bibliotheken) laufen durch eine Pipeline und werden als JSON ausgegeben.
+- **PII-Filter:** Felder mit sensiblen Namen werden verworfen, auch verschachtelt – u. a. `subject`,
+  `body`, `text`, `content`, `from`, `to`, `cc`, `bcc`, `sender`, `recipient(s)`, `email`, `address`,
+  `filename`, `prompt`, `completion`, `messages`, `password`, `token`, `secret`, `cookie`. Ein Feld
+  trifft auch, wenn es auf `_<name>` endet (`sender_email`, `refresh_token`, `body_text`).
+- **Exceptions:** Typ und Stack-Frames werden geloggt, Exception-Texte und lokale Variablen nie.
+- **URLs:** Zugriffslogs enthalten nur das Routen-Template (`/api/messages/{message_id}`), keine
+  Query-Strings. URL-Logs von `uvicorn.access`, `httpx` und `httpcore` sind unterdrückt.
+- **SQL:** Bind-Parameter werden nie gerendert (`hide_parameters`).
+- **API-Fehler:** Validierungsfehler (422) geben die abgelehnten Eingabewerte nicht zurück; 500er
+  enthalten nur die Request-ID.
+- Der Filter sieht nur Feldnamen, keinen Freitext. Event-Texte sind deshalb statisch
+  (`log.info("message_synced", message_id=...)`); Inhalte werden nie hineinformatiert.
+
 ## Betroffenenrechte & Löschkonzept
 
 - **Auskunft/Export (Art. 15/20):** Nutzer kann eigene Daten (Triage, Todos, Digests, Chat-Verläufe) exportieren.
