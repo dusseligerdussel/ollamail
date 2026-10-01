@@ -134,9 +134,28 @@ class ProviderError(Exception):
 
     code = "provider_error"
 
+    def __init__(self, *args: object, code: str | None = None) -> None:
+        super().__init__(*args)
+        if code is not None:
+            self.code = code
+
 
 class AuthenticationError(ProviderError):
     code = "authentication_failed"
+
+
+class ConnectionFailedError(ProviderError):
+    """The server could not be reached or the connection broke (DNS, TCP, TLS, timeout).
+    Usually transient, so callers retry."""
+
+    code = "connection_failed"
+
+
+class ConfigurationError(ProviderError):
+    """The mailbox settings are invalid or not allowed by the instance settings (e.g. an
+    unencrypted connection without the admin flag). Retrying does not help."""
+
+    code = "invalid_configuration"
 
 
 class CursorInvalidError(ProviderError):

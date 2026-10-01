@@ -176,6 +176,14 @@ class MailSettings(BaseSettings):
 
     # Default time window for the initial import of a mailbox (data minimisation).
     initial_sync_days: int = Field(default=90, ge=1)
+    # Admin flag: allow unencrypted IMAP connections and unverified TLS certificates.
+    allow_insecure_connections: bool = False
+    # Seconds to wait for a mail server response before the connection is dropped.
+    imap_timeout: float = Field(default=60.0, gt=0)
+    # Messages fetched (and committed) per batch; an interrupted sync resumes per batch.
+    sync_batch_size: int = Field(default=50, ge=1, le=1000)
+    # Keep one push connection (IMAP IDLE) per mailbox in the worker; otherwise poll only.
+    watch_enabled: bool = True
 
 
 class TTSSettings(BaseSettings):
