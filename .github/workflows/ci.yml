@@ -87,6 +87,15 @@ jobs:
           cache-dependency-glob: backend/uv.lock
       - name: Install dependencies
         run: uv sync --locked
+      # LDAP integration tests start their own slapd (tests/auth/ldap/slapd.py). The package
+      # also starts a system server and confines slapd to /etc/ldap and /var/lib/ldap.
+      - name: Install OpenLDAP server
+        working-directory: .
+        run: |
+          sudo apt-get update -q
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends slapd
+          sudo systemctl disable --now slapd
+          sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.slapd || true
       - name: Lint
         run: uv run ruff check .
       - name: Format check
@@ -95,6 +104,8 @@ jobs:
         run: uv run mypy app
       - name: Test
         run: uv run pytest
+        env:
+          OLLAMAIL_TEST_REQUIRE_LDAP: "1"
 
   frontend:
     name: Frontend
