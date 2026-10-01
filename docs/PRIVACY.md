@@ -30,6 +30,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. Die eingebaute Telemetrie von ONNX Runtime (von Piper genutzt) ist per `ORT_DISABLE_TELEMETRY=1` abgeschaltet, im Code und im Image (Test: `tests/ai/tts/test_piper.py`) |
+| LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename und die Verzeichnis-ID (`objectGUID`/`entryUUID`); Gruppen werden bei jedem Login gelesen, nicht gespeichert. Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
 
 ### Logging im Detail

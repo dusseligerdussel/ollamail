@@ -102,7 +102,8 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Heute wird nur `database` geprüft; Prüfungen für Queue und LLM kommen mit #7 und #17. |
 
 Die UI ist unter `http://<host>:8080` erreichbar. Der Setup-Assistent der UI ist **geplant (#12)**,
-externe Identity-Provider (OIDC, GitHub, LDAP) **geplant (#30–#33)**.
+LDAP/Active Directory ist per API konfigurierbar ([`auth/ldap.md`](auth/ldap.md)), OIDC und GitHub
+sowie die Admin-UI dafür sind **geplant (#30, #31, #33)**.
 
 **Erst-Admin:** Solange kein Nutzer existiert, legt `POST /api/setup` den ersten Admin an. Dafür
 ist ein Setup-Token nötig – `OLLAMAIL_SETUP_TOKEN` oder, falls leer, ein aus `OLLAMAIL_SECRET_KEY`
@@ -570,7 +571,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
 
-api ──▶ Identity-Provider: OIDC / LDAP (geplant #30–#32)
+api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (geplant #30, #31)
 ```
 
 - **Standardmäßig verlassen keine Daten die Instanz.** Externe Verbindungen entstehen nur zu den
