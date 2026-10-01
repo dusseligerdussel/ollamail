@@ -30,6 +30,7 @@ from procrastinate.jobs import Job
 from app.core.config import get_settings
 from app.core.db import Database
 from app.core.logging import get_logger
+from app.mail.hooks import MessageStored, on_message_stored
 from app.processing import service
 from app.processing.steps import ProcessingStep, StepContext, StepError, registry
 from app.worker import DEFAULT_RETRY, app, resource_lock
@@ -114,6 +115,14 @@ async def enqueue_processing(message_id: UUID, *, priority: Priority = Priority.
         await plan_message.configure(
             priority=int(priority), lock=lock, queueing_lock=lock
         ).defer_async(message_id=str(message_id))
+
+
+@on_message_stored
+async def process_stored_message(event: MessageStored) -> None:
+    """Hook into the mail sync (``app.mail.hooks``): process every newly stored message,
+    newly arrived mail before the initial import."""
+    priority = Priority.BACKFILL if event.backfill else Priority.NEW
+    await enqueue_processing(event.message_id, priority=priority)
 
 
 async def _defer_steps(message_id: str, names: Sequence[str], priority: int) -> None:

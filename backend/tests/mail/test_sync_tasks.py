@@ -10,6 +10,7 @@ from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
 from app.core.config import DatabaseSettings, MailSettings, Settings, WorkerSettings
+from app.mail import hooks
 from app.mail.sync.tasks import request_sync
 from app.worker import app, background_services, build_connector
 
@@ -60,3 +61,23 @@ async def test_watcher_runs_only_in_sync_workers() -> None:
     for task in services:
         task.cancel()
     await asyncio.gather(*services, return_exceptions=True)
+
+
+async def test_processing_pipeline_handles_stored_messages(
+    isolated_hooks: list[hooks.MessageStoredHandler], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.processing import tasks as processing
+
+    assert processing.process_stored_message in isolated_hooks
+    calls: list[tuple[uuid.UUID, int]] = []
+
+    async def enqueue(message_id: uuid.UUID, *, priority: int) -> None:
+        calls.append((message_id, priority))
+
+    monkeypatch.setattr(processing, "enqueue_processing", enqueue)
+    new, old = uuid.uuid4(), uuid.uuid4()
+    hooks.on_message_stored(processing.process_stored_message)
+    await hooks.message_stored(uuid.uuid4(), new)
+    await hooks.message_stored(uuid.uuid4(), old, backfill=True)
+
+    assert calls == [(new, processing.Priority.NEW), (old, processing.Priority.BACKFILL)]

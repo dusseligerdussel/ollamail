@@ -29,6 +29,7 @@ from app.mail.providers.fake import FakeMailProvider
 from app.mail.storage import AttachmentStorage
 from app.mail.sync import engine
 from app.mail.sync.engine import sync_mailbox
+from tests.factories import make_user
 from tests.mail.conftest import load_fixture
 
 pytestmark = pytest.mark.db
@@ -75,7 +76,7 @@ async def mailbox(db_session: AsyncSession) -> Mailbox:
         type=MailboxType.IMAP,
         display_name="Test",
         address="erika@example.org",
-        owner_user_id=uuid.uuid4(),
+        owner_user_id=(await make_user(db_session)).id,
     )
     db_session.add(mailbox)
     # Committed like a real mailbox: a rollback in the engine must not remove it.
@@ -165,6 +166,8 @@ async def test_initial_sync_stores_new_messages_and_notifies_once(
     message_ids = set(await db_session.scalars(select(Message.id)))
     assert {call.message_id for call in stored} == message_ids
     assert len(stored) == 2 and all(call.mailbox_id == mailbox.id for call in stored)
+    # The initial import is backfill: processing gives newly arrived mail priority.
+    assert all(call.backfill for call in stored)
     assert [event.status for _, event in published] == ["progress", "progress", "done"]
     assert {user for user, _ in published} == {mailbox.owner_user_id}
 
@@ -204,6 +207,7 @@ async def test_incremental_changes(
     assert [call.message_id for call in stored] == list(
         await db_session.scalars(select(Message.id).where(Message.remote_ref == new))
     )
+    assert not stored[0].backfill
 
 
 async def test_invalid_cursor_reimports_the_folder(
@@ -254,7 +258,7 @@ async def test_excluded_folders_from_settings(
         type=MailboxType.IMAP,
         display_name="Test",
         address="erika@example.org",
-        owner_user_id=uuid.uuid4(),
+        owner_user_id=(await make_user(db_session)).id,
         sync_settings={"excluded_roles": [], "excluded_folders": ["Archive"]},
     )
     db_session.add(mailbox)

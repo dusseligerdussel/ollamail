@@ -2,15 +2,17 @@
 
 ``message_stored`` is called once for every *new* message, after the transaction that
 stored it has been committed (so a job deferred from a handler sees the row). Messages
-that were already stored (flag updates, re-fetches) do not trigger it.
+that were already stored (flag updates, re-fetches) do not trigger it. ``backfill`` is true
+for messages of the initial import, so handlers can give newly arrived mail priority.
 
-The processing pipeline (#19) hooks in like this::
+The processing pipeline hooks in like this (``app/processing/tasks.py``)::
 
     from app.mail.hooks import MessageStored, on_message_stored
 
     @on_message_stored
-    async def enqueue_processing(event: MessageStored) -> None:
-        await process_message.defer_async(message_id=str(event.message_id))
+    async def process_stored_message(event: MessageStored) -> None:
+        priority = Priority.BACKFILL if event.backfill else Priority.NEW
+        await enqueue_processing(event.message_id, priority=priority)
 
 Handlers run in the worker process that syncs the mailbox, so the module registering
 them must be imported there (``TASK_MODULES`` in ``app/worker.py``). Handlers should be
@@ -31,6 +33,8 @@ log = get_logger(__name__)
 class MessageStored:
     mailbox_id: uuid.UUID
     message_id: uuid.UUID
+    # Stored by the initial import of a folder, not newly arrived.
+    backfill: bool = False
 
 
 MessageStoredHandler = Callable[[MessageStored], Awaitable[None]]
@@ -50,9 +54,11 @@ def remove_message_stored_handler(handler: MessageStoredHandler) -> None:
         _handlers.remove(handler)
 
 
-async def message_stored(mailbox_id: uuid.UUID, message_id: uuid.UUID) -> None:
+async def message_stored(
+    mailbox_id: uuid.UUID, message_id: uuid.UUID, *, backfill: bool = False
+) -> None:
     """Notify all handlers that ``message_id`` was stored and committed."""
-    event = MessageStored(mailbox_id=mailbox_id, message_id=message_id)
+    event = MessageStored(mailbox_id=mailbox_id, message_id=message_id, backfill=backfill)
     for handler in list(_handlers):
         try:
             await handler(event)

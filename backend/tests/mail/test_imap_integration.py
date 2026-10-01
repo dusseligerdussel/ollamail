@@ -124,6 +124,7 @@ async def test_initial_import_newest_first_in_batches(
         "CursorAdvanced",
         "CursorAdvanced",
     ]
+    assert all(e.initial for e in events if isinstance(e, MessageFetched))
     first = next(e.message for e in events if isinstance(e, MessageFetched))
     assert first.folder_ids == ("INBOX",)
     assert first.flags == {"seen"}
@@ -161,6 +162,12 @@ async def test_interrupted_import_resumes(imap_account: TestAccount) -> None:
         await provider.aclose()
     # New message first, then the rest of the import; nothing twice.
     assert fetched_uids(events) == [6, 3, 2, 1]
+    assert [e.initial for e in events if isinstance(e, MessageFetched)] == [
+        False,
+        True,
+        True,
+        True,
+    ]
     assert last_cursor(events).data["known"] == "1:6"
 
 

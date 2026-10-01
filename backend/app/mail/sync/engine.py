@@ -221,7 +221,7 @@ class MailboxSync:
         cursor = SyncCursor(dict(state.cursor)) if state.cursor else None
         since = None if cursor else self.now() - timedelta(days=self.initial_days)
 
-        new_ids: list[uuid.UUID] = []
+        new_ids: list[tuple[uuid.UUID, bool]] = []
         updates: dict[str, MessageUpdated] = {}
         deletes: list[str] = []
         async for event in self.provider.fetch_since(remote_id, cursor, since=since):
@@ -238,7 +238,7 @@ class MailboxSync:
                 )
                 self.stats.fetched += 1
                 if known is None:
-                    new_ids.append(message.id)
+                    new_ids.append((message.id, event.initial))
             elif isinstance(event, MessageUpdated):
                 updates[event.remote_ref] = event
             elif isinstance(event, MessageDeleted):
@@ -259,8 +259,8 @@ class MailboxSync:
                 else:
                     await self.session.commit()
                 self.stats.stored += len(new_ids)
-                for message_id in new_ids:
-                    await message_stored(self.mailbox_id, message_id)
+                for message_id, initial in new_ids:
+                    await message_stored(self.mailbox_id, message_id, backfill=initial)
                 new_ids, deletes = [], []
                 updates.clear()
                 self._release_messages()

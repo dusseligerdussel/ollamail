@@ -2,7 +2,7 @@
 
 import asyncio
 import uuid
-from collections.abc import AsyncIterator, Callable
+from collections.abc import AsyncIterator, Callable, Iterator
 from pathlib import Path
 from typing import Any
 
@@ -13,8 +13,11 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import DatabaseSettings
 from app.core.db import libpq_url
+from app.mail import hooks
 from app.mail.models import Mailbox, MailboxType
 from app.mail.storage import AttachmentStorage
+from app.users.models import User
+from tests.factories import make_user
 from tests.mail import imap_server
 
 FIXTURES = Path(__file__).parent / "fixtures"
@@ -31,6 +34,16 @@ def fixture_names() -> list[str]:
 @pytest.fixture
 def storage(tmp_path: Path) -> AttachmentStorage:
     return AttachmentStorage(tmp_path)
+
+
+@pytest.fixture(autouse=True)
+def isolated_hooks() -> Iterator[list[hooks.MessageStoredHandler]]:
+    """Mail tests run without the handlers other modules registered (e.g. the processing
+    pipeline, which would queue jobs); yields the registered handlers."""
+    registered = list(hooks._handlers)
+    hooks._handlers.clear()
+    yield registered
+    hooks._handlers[:] = registered
 
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
@@ -63,30 +76,32 @@ async def imap_account() -> AsyncIterator[imap_server.TestAccount]:
 @pytest.fixture
 async def sessionmaker(migrated_database: str) -> AsyncIterator[async_sessionmaker[AsyncSession]]:
     """Sessions on committed data (for code that opens its own sessions). Mailboxes created
-    with ``add_mailbox`` are deleted afterwards, with everything that cascades from them."""
+    with ``add_mailbox`` and their owners are deleted afterwards, with everything that
+    cascades from them."""
     engine = create_async_engine(migrated_database, poolclass=NullPool)
     factory = async_sessionmaker(engine, expire_on_commit=False)
-    created: list[uuid.UUID] = []
-    factory.created = created  # type: ignore[attr-defined]
+    owners: list[uuid.UUID] = []
+    factory.owners = owners  # type: ignore[attr-defined]
     yield factory
     async with factory() as session:
-        await session.execute(delete(Mailbox).where(Mailbox.id.in_(created)))
+        await session.execute(delete(User).where(User.id.in_(owners)))
         await session.commit()
     await engine.dispose()
 
 
 async def add_mailbox(factory: async_sessionmaker[AsyncSession], **values: Any) -> uuid.UUID:
     async with factory() as session:
+        owner = await make_user(session)
+        factory.owners.append(owner.id)  # type: ignore[attr-defined]
         defaults: dict[str, Any] = {
             "type": MailboxType.IMAP,
             "display_name": "Watched",
             "address": "erika@example.org",
-            "owner_user_id": uuid.uuid4(),
+            "owner_user_id": owner.id,
         }
         mailbox = Mailbox(**{**defaults, **values})
         session.add(mailbox)
         await session.commit()
-        factory.created.append(mailbox.id)  # type: ignore[attr-defined]
         return mailbox.id
 
 

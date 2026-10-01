@@ -97,6 +97,8 @@ class RawMessage:
 @dataclass(frozen=True, slots=True)
 class MessageFetched:
     message: RawMessage
+    # Part of the initial import (backfill) rather than a newly arrived message.
+    initial: bool = False
 
 
 @dataclass(frozen=True, slots=True)

@@ -503,7 +503,7 @@ class ImapProvider:
         for batch in _batched(uids, self._batch_size):
             conn = await self._reselect(folder, info.uidvalidity)
             async for message in self._fetch(conn, folder, info.uidvalidity, batch):
-                yield MessageFetched(message)
+                yield MessageFetched(message, initial=True)
             state.known = state.known.union(batch)
             state.import_below = batch[-1]
             yield CursorAdvanced(state.dump())
