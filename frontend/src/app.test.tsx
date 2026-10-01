@@ -1,4 +1,4 @@
-import { act, screen, waitFor, within } from "@testing-library/react";
+import { act, fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { Archive } from "lucide-react";
 import { useMemo } from "react";
@@ -9,7 +9,7 @@ import type { CurrentUser } from "@/hooks/use-current-user";
 import type { Command } from "@/lib/commands";
 
 import i18n from "./i18n";
-import { setViewportWidth } from "./test/media";
+import { setCoarsePointer, setViewportWidth } from "./test/media";
 import { renderApp } from "./test/render-app";
 
 const currentUser = vi.hoisted(() => ({ value: { id: "test", isAdmin: true } as CurrentUser }));
@@ -62,6 +62,25 @@ describe("app shell", () => {
     const sheet = await screen.findByRole("dialog", { name: "Keyboard shortcuts" });
     expect(within(sheet).getByText("Next item")).toBeInTheDocument();
     expect(within(sheet).getByText("Go to Tasks")).toBeInTheDocument();
+    // Initial focus is on the list, not on the close button (no focus ring right away).
+    await waitFor(() => expect(sheet).toContainElement(document.activeElement as HTMLElement));
+    expect(within(sheet).getByRole("button", { name: "Close" })).not.toHaveFocus();
+  });
+
+  it("hides keyboard hints in the sidebar on touch devices", async () => {
+    setCoarsePointer(true);
+    await renderApp();
+    expect(screen.getByRole("button", { name: "Command menu" })).toHaveTextContent(
+      /^Command menu$/,
+    );
+    expect(screen.queryByRole("button", { name: /Keyboard shortcuts/ })).not.toBeInTheDocument();
+  });
+
+  it("links from the empty admin area to the settings", async () => {
+    const user = userEvent.setup();
+    await renderApp("/admin");
+    await user.click(screen.getByRole("link", { name: "Open your settings" }));
+    await screen.findByRole("heading", { level: 1, name: "Settings" });
   });
 
   it("uses a bottom bar and a sheet on narrow screens", async () => {
@@ -147,6 +166,62 @@ describe("command palette", () => {
     await user.click(within(dialog).getByRole("option", { name: /Archive all/ }));
     expect(run).toHaveBeenCalledOnce();
     await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+  });
+
+  it("shows shortcut hints and the shortcut overview only where a keyboard is likely", async () => {
+    const user = userEvent.setup();
+    await renderApp();
+    await user.keyboard("{Control>}k{/Control}");
+    let dialog = await screen.findByRole("dialog", { name: "Command menu" });
+    expect(within(dialog).getByRole("option", { name: /Go to Tasks/ })).toHaveTextContent("then");
+    expect(
+      within(dialog).getByRole("option", { name: /Show keyboard shortcuts/ }),
+    ).toBeInTheDocument();
+    await act(() => user.keyboard("{Escape}"));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+
+    act(() => setViewportWidth(390));
+    await user.keyboard("{Control>}k{/Control}");
+    dialog = await screen.findByRole("dialog", { name: "Command menu" });
+    expect(within(dialog).getByRole("option", { name: /Go to Tasks/ })).not.toHaveTextContent(
+      "then",
+    );
+    expect(
+      within(dialog).queryByRole("option", { name: /Show keyboard shortcuts/ }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("marks the list edge when more commands are hidden below or above", async () => {
+    const isList = (element: HTMLElement) => element.dataset.slot === "command-list";
+    const scrollHeight = vi
+      .spyOn(HTMLElement.prototype, "scrollHeight", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return isList(this) ? 1000 : 0;
+      });
+    const clientHeight = vi
+      .spyOn(HTMLElement.prototype, "clientHeight", "get")
+      .mockImplementation(function (this: HTMLElement) {
+        return isList(this) ? 360 : 0;
+      });
+    try {
+      const user = userEvent.setup();
+      await renderApp();
+      await user.keyboard("{Control>}k{/Control}");
+      const dialog = await screen.findByRole("dialog", { name: "Command menu" });
+      const list = within(dialog).getByRole("listbox");
+      await waitFor(() => expect(list).toHaveAttribute("data-overflow", "bottom"));
+
+      list.scrollTop = 300;
+      fireEvent.scroll(list);
+      expect(list).toHaveAttribute("data-overflow", "both");
+
+      list.scrollTop = 640;
+      fireEvent.scroll(list);
+      expect(list).toHaveAttribute("data-overflow", "top");
+    } finally {
+      scrollHeight.mockRestore();
+      clientHeight.mockRestore();
+    }
   });
 
   it("toggles closed with Ctrl+K from inside the input", async () => {

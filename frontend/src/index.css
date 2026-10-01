@@ -48,6 +48,9 @@
   --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
   --sidebar-border: oklch(0.92 0.004 286.32);
   --sidebar-ring: var(--brand);
+
+  /* Backdrop behind dialogs and sheets: light enough that the page stays readable. */
+  --overlay: oklch(0.21 0.006 285.885 / 12%);
 }
 
 .dark {
@@ -88,6 +91,8 @@
   --sidebar-accent-foreground: oklch(0.95 0.002 286.32);
   --sidebar-border: oklch(0.25 0.005 286.033);
   --sidebar-ring: var(--brand);
+
+  --overlay: oklch(0 0 0 / 50%);
 }
 
 @theme inline {
@@ -109,6 +114,7 @@
   --radius-md: calc(var(--radius) - 2px);
   --radius-lg: var(--radius);
   --radius-xl: calc(var(--radius) + 4px);
+  --color-overlay: var(--overlay);
   --color-brand: var(--brand);
   --color-brand-foreground: var(--brand-foreground);
   --color-background: var(--background);
@@ -163,6 +169,29 @@
   /* One stroke width for all Lucide icons. */
   svg.lucide {
     stroke-width: 1.75;
+  }
+}
+
+/*
+ * Fades the edge of a scroll container where more content is hidden, as a quiet scroll hint.
+ * `data-overflow` (top, bottom, both) is set by the component that owns the container.
+ */
+@utility scroll-fade {
+  --scroll-fade-top: 0px;
+  --scroll-fade-bottom: 0px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent,
+    #000 var(--scroll-fade-top),
+    #000 calc(100% - var(--scroll-fade-bottom)),
+    transparent
+  );
+
+  &:is([data-overflow="top"], [data-overflow="both"]) {
+    --scroll-fade-top: 1.5rem;
+  }
+  &:is([data-overflow="bottom"], [data-overflow="both"]) {
+    --scroll-fade-bottom: 2rem;
   }
 }
 
