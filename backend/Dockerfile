@@ -42,14 +42,22 @@ RUN --mount=type=cache,target=/root/.cache/uv \
 # ---------------------------------------------------------------------------
 FROM base AS runtime-base
 
+# ffmpeg encodes speech to Opus/MP3 (app/ai/tts/encode.py). Piper itself comes from uv.lock
+# (piper-tts wheels for amd64 and arm64); voices are downloaded into /data at runtime.
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends ffmpeg \
+    && rm -rf /var/lib/apt/lists/*
+
 RUN groupadd --system --gid 10001 ollamail \
     && useradd --system --uid 10001 --gid ollamail --home-dir /app --no-create-home \
        --shell /usr/sbin/nologin ollamail \
     && mkdir -p /data \
     && chown ollamail:ollamail /data
 
+# ORT_DISABLE_TELEMETRY: ONNX Runtime (used by Piper) would otherwise collect usage events.
 ENV PATH="/opt/venv/bin:${PATH}" \
-    OLLAMAIL_DATA_DIR=/data
+    OLLAMAIL_DATA_DIR=/data \
+    ORT_DISABLE_TELEMETRY=1
 
 EXPOSE 8000
 VOLUME ["/data"]
