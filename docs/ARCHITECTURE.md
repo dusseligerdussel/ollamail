@@ -40,7 +40,7 @@ Todos, erzeugt eine tägliche Audio-Zusammenfassung und erlaubt Fragen an die ei
 | `worker` | Hintergrundjobs; mehrere Instanzen möglich; Queues getrennt nach Jobtyp (`sync`, `llm`, `tts`) |
 | `scheduler` | Periodische Jobs (Procrastinate periodic tasks; kann im Worker laufen) |
 | `postgres` | PostgreSQL 16 mit pgvector |
-| `ollama` | Optional im Compose-Profil `ollama` (CPU- oder GPU-Variante) |
+| `ollama` | Optional über die Compose-Profile `ollama-cpu` bzw. `ollama-gpu` (NVIDIA) |
 
 **Bewusst kein Redis:** Job-Queue (Procrastinate), Sessions, Rate-Limits und Pub/Sub
 (`LISTEN/NOTIFY`) laufen über Postgres. Ein Container weniger, transaktionales Enqueue,
@@ -201,7 +201,7 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 
 ## 7. Betrieb
 
-- Konfiguration per Env (`OLLAMAIL_*`), dokumentiert in `deploy/.env.example`.
+- Konfiguration per Env (`OLLAMAIL_*`), dokumentiert in `deploy/.env.example`. Start mit Docker Compose: `deploy/README.md`.
 - Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar).
 - Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional OpenTelemetry-Metriken.
 - Backups: `pg_dump` + Daten-Volume; Doku in `docs/OPERATIONS.md` (wird erstellt).
