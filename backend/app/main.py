@@ -8,6 +8,7 @@ from fastapi import FastAPI
 
 from app.ai.llm import EnvConfigResolver, LLMGateway
 from app.core.config import Settings, get_settings
+from app.core.crypto import configure_keyring
 from app.core.db import Database
 from app.core.errors import install_error_handlers
 from app.core.health import ReadinessRegistry, register_readiness_check
@@ -25,6 +26,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
+        # Refuse to start without a valid OLLAMAIL_SECRET_KEY.
+        configure_keyring(settings.security)
         pull = None
         if settings.llm.pull_missing_models:
             pull = asyncio.create_task(llm.pull_missing_models())

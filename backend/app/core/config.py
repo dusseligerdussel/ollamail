@@ -9,10 +9,10 @@ them in ``deploy/.env.example``.
 """
 
 from functools import lru_cache
-from typing import Literal
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
 ENV_PREFIX = "OLLAMAIL_"
 
@@ -62,9 +62,19 @@ class SecuritySettings(BaseSettings):
 
     model_config = _config()
 
-    # Master key for encrypting stored secrets (see docs/PRIVACY.md). Required once
-    # secret storage is implemented.
+    # Master key for encrypting stored secrets (see docs/PRIVACY.md and app/core/crypto.py):
+    # base64 of at least 32 random bytes. The app refuses to start without a valid key.
     secret_key: SecretStr | None = None
+    # Previous master keys, comma-separated. Still accepted for decryption until
+    # `python -m app.cli rotate-keys` has re-encrypted everything with ``secret_key``.
+    secret_keys_old: Annotated[list[SecretStr], NoDecode] = Field(default_factory=list)
+
+    @field_validator("secret_keys_old", mode="before")
+    @classmethod
+    def _split_keys(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
 
 
 LLMProviderKind = Literal["ollama", "openai_compatible"]
