@@ -4,6 +4,27 @@
  */
 
 export interface paths {
+    "/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Stream Events
+         * @description Stream the current user's events. Each SSE ``event`` is the event type, ``data``
+         *     the JSON-encoded event.
+         */
+        get: operations["events_stream_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/healthz": {
         parameters: {
             query?: never;
@@ -77,6 +98,42 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    events_stream_events: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Server-Sent Events stream of `Event` objects for the current user */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": {
+                        /** Ids */
+                        ids?: {
+                            [key: string]: string | number;
+                        };
+                        /** Status */
+                        status?: string | null;
+                        /** Type */
+                        type: string;
+                    };
+                };
+            };
+            /** @description The event listener is unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     health_healthz: {
         parameters: {
             query?: never;
