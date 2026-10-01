@@ -307,7 +307,8 @@ async def test_sender_rules_and_suggestions(
     assert unknown.status_code == 404
 
     rules = (await db_client.get("/triage/sender-rules")).json()
-    assert [r["sender"] for r in rules] == ["@example.net", "digest@example.org"]
+    # Ordered by the database collation, which differs between installations.
+    assert sorted(r["sender"] for r in rules) == ["@example.net", "digest@example.org"]
     assert (await db_client.delete(f"/triage/sender-rules/{rules[0]['id']}")).status_code == 204
     assert (await db_client.delete(f"/triage/sender-rules/{rules[0]['id']}")).status_code == 404
 
