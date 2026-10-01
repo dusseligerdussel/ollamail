@@ -3,7 +3,7 @@ import { cleanup } from "@testing-library/react";
 import { afterEach, beforeEach, vi } from "vitest";
 
 import { mockFetch } from "./fetch";
-import { setPrefersDark, setViewportWidth } from "./media";
+import { setCoarsePointer, setPrefersDark, setViewportWidth } from "./media";
 
 // jsdom does not implement scrolling; the router's scroll restoration calls it.
 window.scrollTo = vi.fn() as typeof window.scrollTo;
@@ -24,6 +24,7 @@ beforeEach(() => {
   mockFetch();
   setViewportWidth(1440);
   setPrefersDark(false);
+  setCoarsePointer(false);
 });
 
 afterEach(() => {

@@ -1,10 +1,11 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, Link } from "@tanstack/react-router";
 import { Shield } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { EmptyState } from "@/components/empty-state";
 import { NotFound } from "@/components/not-found";
 import { PageHeader } from "@/components/page-header";
+import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
 
 export const Route = createFileRoute("/admin")({
@@ -24,6 +25,11 @@ function AdminPage() {
         icon={Shield}
         title={t("pages.admin.emptyTitle")}
         description={t("pages.admin.emptyDescription")}
+        action={
+          <Button asChild size="sm" variant="outline">
+            <Link to="/settings">{t("pages.admin.emptyAction")}</Link>
+          </Button>
+        }
       />
     </>
   );
