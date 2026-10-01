@@ -30,6 +30,8 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. Die eingebaute Telemetrie von ONNX Runtime (von Piper genutzt) ist per `ORT_DISABLE_TELEMETRY=1` abgeschaltet, im Code und im Image (Test: `tests/ai/tts/test_piper.py`) |
+| Anhänge lesen | Textextraktion (PDF, DOCX, TXT, HTML) in einem eigenen Prozess ohne Umgebungsvariablen (keine Secrets), mit Grenzen für Dateigröße, Laufzeit, Speicher und ohne Schreibrechte; Fehler nur als Statuscode |
+| Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/search/access.py`), getestet in `tests/search/test_service.py` |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
 
 ### Logging im Detail
@@ -81,6 +83,10 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
   Schritt) und `processing_mailbox_settings` (Opt-out je Postfach) hängen per `ON DELETE CASCADE`
   an Mail bzw. Postfach. Gespeichert werden nur Schrittname, Version, Status und ein
   Fehlercode (`StepError.code` oder Name der Exception-Klasse), nie Exception-Texte.
+  Umsetzung Suchindex (`backend/app/search/`): `search_chunks` (Textabschnitte aus Mails und
+  Anhängen) hängen per `ON DELETE CASCADE` an Mail, Anhang und Postfach, `search_embeddings` an
+  den Chunks. Mail oder Postfach löschen löscht ihren Index mit. Der Index enthält Mail-Inhalte;
+  geloggt werden nur IDs, Anzahlen und Statuscodes.
 - **Nutzer löschen:** `users` → `auth_identities`, `auth_sessions` und eigene Postfächer
   (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).

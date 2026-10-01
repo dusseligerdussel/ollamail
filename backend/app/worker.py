@@ -59,6 +59,7 @@ TASK_MODULES: list[str] = [
     "app.ai.tts.tasks",
     "app.auth.tasks",
     "app.processing.tasks",
+    "app.search.tasks",
 ]
 
 # Waits 2, 4, 8, ... 128 seconds between attempts (8 attempts, ~4 minutes in total).
