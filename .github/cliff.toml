@@ -1,0 +1,38 @@
+# git-cliff configuration for the release notes (.github/workflows/release.yml).
+# Notes are generated from Conventional Commits; PR merge commits and other
+# non-conventional commits are skipped.
+
+[changelog]
+header = ""
+body = """
+{% for group, commits in commits | group_by(attribute="group") %}
+### {{ group | striptags | trim | upper_first }}
+{% for commit in commits %}
+- {% if commit.scope %}**{{ commit.scope }}:** {% endif %}\
+{% if commit.breaking %}[**breaking**] {% endif %}\
+{{ commit.message | upper_first }} ({{ commit.id | truncate(length=7, end="") }})\
+{% endfor %}
+{% endfor %}
+"""
+footer = ""
+trim = true
+
+[git]
+conventional_commits = true
+filter_unconventional = true
+split_commits = false
+protect_breaking_commits = true
+filter_commits = false
+tag_pattern = "v[0-9].*"
+sort_commits = "oldest"
+commit_parsers = [
+  { message = "^feat", group = "<!-- 0 -->Features" },
+  { message = "^fix", group = "<!-- 1 -->Bug Fixes" },
+  { message = "^perf", group = "<!-- 2 -->Performance" },
+  { message = "^refactor", group = "<!-- 3 -->Refactoring" },
+  { message = "^docs", group = "<!-- 4 -->Documentation" },
+  { message = "^test", group = "<!-- 5 -->Tests" },
+  { message = "^(ci|build)", group = "<!-- 6 -->CI / Build" },
+  { message = "^chore", group = "<!-- 7 -->Chores" },
+  { message = "^revert", group = "<!-- 8 -->Reverts" },
+]
