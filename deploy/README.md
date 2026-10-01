@@ -4,7 +4,7 @@
 
 ```sh
 cp deploy/.env.example deploy/.env
-# deploy/.env anpassen: mindestens OLLAMAIL_SECRET_KEY und POSTGRES_PASSWORD
+# deploy/.env anpassen: mindestens OLLAMAIL_SECRET_KEY (openssl rand -base64 32) und POSTGRES_PASSWORD
 docker compose -f deploy/compose.yaml up -d --build
 ```
 
@@ -55,6 +55,22 @@ docker compose -f deploy/compose.yaml -f deploy/compose.dev.yaml up --build
 - <http://localhost:8080> – UI über den Vite-Dev-Server (HMR), gleiches `/api`-Routing wie in Produktion
 - <http://localhost:8000> – API direkt (`uvicorn --reload`, `backend/` ist eingebunden)
 - `localhost:5432` – PostgreSQL
+
+## Master-Key und Key-Rotation
+
+`OLLAMAIL_SECRET_KEY` verschlüsselt alle gespeicherten Zugangsdaten (Envelope-Encryption,
+AES-256-GCM, siehe `docs/PRIVACY.md`). Ohne gültigen Key (Base64, mindestens 32 zufällige Bytes)
+startet `api` nicht. Den Key sicher aufbewahren – ohne ihn sind gespeicherte
+Zugangsdaten verloren.
+
+Key wechseln:
+
+1. Bisherigen Key nach `OLLAMAIL_SECRET_KEYS_OLD` verschieben (kommagetrennt), neuen Key als
+   `OLLAMAIL_SECRET_KEY` setzen (`openssl rand -base64 32`).
+2. Stack neu starten – alte Werte bleiben lesbar, neue werden mit dem neuen Key verschlüsselt.
+3. `docker compose -f deploy/compose.yaml run --rm api python -m app.cli rotate-keys`
+   verschlüsselt alle gespeicherten Secrets mit dem neuen Key (in einer Transaktion).
+4. `OLLAMAIL_SECRET_KEYS_OLD` leeren und neu starten.
 
 ## TLS / Reverse Proxy
 
