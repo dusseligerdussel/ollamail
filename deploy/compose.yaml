@@ -6,7 +6,6 @@
 # Optional profiles:
 #   --profile ollama-cpu    bundled Ollama (CPU only)
 #   --profile ollama-gpu    bundled Ollama with NVIDIA GPU (needs nvidia-container-toolkit)
-#   --profile worker        background worker (temporary, see #7)
 #
 # Details: deploy/README.md
 
@@ -93,11 +92,12 @@ services:
       retries: 5
       start_period: 10s
 
-  # TODO(#7): drop the profile once the worker (app/worker.py) exists.
+  # Background jobs (app/worker.py). Scale with `--scale worker=N`; on SIGTERM running jobs
+  # get OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT seconds to finish, so the grace period is longer.
   worker:
     <<: *backend
-    profiles: [worker]
     command: ["python", "-m", "app.worker"]
+    stop_grace_period: 45s
 
   frontend:
     build:

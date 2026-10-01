@@ -24,6 +24,8 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | At rest | Empfehlung: verschlüsseltes Volume/Dateisystem. Optional: Verschlüsselung von Mail-Bodies/Anhängen auf Anwendungsebene (Feature-Flag) |
 | In transit | TLS für IMAP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting), HTTPS hinter Reverse Proxy |
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
+| Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
+| Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
 | Audit-Log | Login, Rollenänderung, IdP-Konfiguration, Postfach hinzugefügt/entfernt, Export, Löschung |
 | Sessions | Serverseitig, widerrufbar, Ablaufzeit konfigurierbar |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. |

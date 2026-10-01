@@ -1,6 +1,6 @@
 # ollamail backend
 
-FastAPI-API und (später) Procrastinate-Worker. Architektur: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md),
+FastAPI-API und Procrastinate-Worker (`python -m app.worker`). Architektur: [`docs/ARCHITECTURE.md`](../docs/ARCHITECTURE.md),
 Arbeitsregeln: [`CLAUDE.md`](../CLAUDE.md).
 
 ## Voraussetzungen

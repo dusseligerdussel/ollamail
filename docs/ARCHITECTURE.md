@@ -123,6 +123,29 @@ class LLMProvider(Protocol):
   Weitere Engines (z. B. Kokoro, XTTS) sind als Plugins möglich, falls GPU vorhanden.
 - Ausgabe: Opus/MP3, gespeichert im Daten-Volume, Aufbewahrung konfigurierbar.
 
+### 3.4 Hintergrundjobs & Echtzeit-Events
+
+Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
+
+- **Procrastinate** mit Postgres als Queue. Das Schema ist eine Alembic-Migration (vendored SQL in
+  `backend/migrations/sql/`); Autogenerate ignoriert die `procrastinate_*`-Tabellen.
+  Ein Procrastinate-Update mit Schemaänderung braucht eine neue Migration – ein Test schlägt sonst an.
+- **Queues** `sync`, `llm`, `tts`, `default`. `OLLAMAIL_WORKER_QUEUES` wählt die Queues eines
+  Worker-Prozesses; `llm` hat eine eigene Parallelität (`OLLAMAIL_LLM_CONCURRENCY`), alle anderen
+  teilen sich `OLLAMAIL_WORKER_CONCURRENCY`.
+- **Task-Konventionen:** idempotent; Argumente nur IDs; Retry mit exponentiellem Backoff
+  (`DEFAULT_RETRY`); Lock-Keys pro Ressource (`resource_lock("mailbox", id)` als `lock`/`queueing_lock`);
+  Periodic Tasks per `@app.periodic(cron=...)`. Task-Module werden in `TASK_MODULES` eingetragen.
+- **Housekeeping:** täglicher Job `worker.remove_old_jobs` löscht abgeschlossene Jobs nach 7 Tagen.
+- **Shutdown:** Bei SIGTERM nimmt der Worker keine neuen Jobs an; laufende Jobs haben
+  `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` Sekunden, dann endet der Prozess mit Exit-Code 0.
+- **Events:** `publish(session, user_id, Event(...))` sendet per `pg_notify` beim Commit. Jeder
+  API-Prozess hält eine `LISTEN`-Verbindung und verteilt an `GET /api/events` (SSE), gefiltert auf den
+  angemeldeten Nutzer. Ein `Event` besteht nur aus `type`, `ids` und `status` (per Pattern validiert).
+  Zustellung ist best effort: Nach einem Reconnect lädt der Client seine Daten neu.
+- **Aktueller Nutzer:** Dependency `app.core.current_user.get_current_user_id`. Bis zur Auth (#11)
+  liefert sie immer 401; Tests überschreiben sie.
+
 ## 4. Feature-Pipelines
 
 ### 4.1 Eingang einer Mail
