@@ -6,11 +6,27 @@ und – bei UI-Arbeit – `docs/DESIGN.md`.
 
 ## 1. Git-Workflow (verbindlich)
 
-- **Niemals direkt auf `main` committen oder pushen.** `main` ist geschützt.
+> **Wichtig:** Das Repository ist privat. GitHub setzt Branch-Rulesets für private Repos im
+> Free-Plan **nicht** durch. `main` ist also technisch **nicht** geschützt. Die folgenden Regeln
+> gelten trotzdem uneingeschränkt und müssen von jedem Agenten selbst eingehalten werden.
+
+- **Niemals direkt auf `main` committen oder pushen** – auch nicht „nur kurz“, auch nicht für Doku.
+- Vor jedem Commit prüfen: `git branch --show-current` darf **nicht** `main` sein.
 - Jede Änderung – auch Doku, Tippfehler, Konfiguration – passiert auf einem **eigenen Branch**.
 - Änderungen gelangen **ausschließlich über einen Pull Request** nach `main`.
 - Ein PR wird erst gemerged, wenn die **CI grün** ist und ein Review erfolgt ist.
-- Kein Force-Push auf `main`. Kein Umschreiben fremder Branch-Historie.
+- **Agenten mergen keine PRs** (weder eigene noch fremde) – das Mergen macht der Repository-Owner,
+  außer er beauftragt einen Agenten ausdrücklich damit.
+- Kein Force-Push auf `main`, kein Löschen von `main`. Kein Umschreiben fremder Branch-Historie.
+- Pushen nur den eigenen Branch: `git push -u origin <eigener-branch>` – nie `git push origin main`,
+  nie `git push origin HEAD:main`, nie `git push --all`.
+
+### Technische Absicherung (Ersatz für Branch-Protection)
+
+- `.githooks/pre-push` blockiert jeden Push auf `main` (Löschen und Force-Push eingeschlossen).
+- `.claude/settings.json` aktiviert diesen Hook bei jedem Session-Start automatisch
+  (`git config core.hooksPath .githooks`). Menschen führen den Befehl einmalig selbst aus.
+- Den Hook **niemals** umgehen (`--no-verify`, `core.hooksPath` ändern, Hook löschen/editieren).
 
 ### Branch-Namen
 
