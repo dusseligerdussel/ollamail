@@ -64,7 +64,6 @@ def test_empty_password_never_contacts_the_directory(monkeypatch: pytest.MonkeyP
     assert client.authenticate("erika", "\x00secret") is None
 
 
-
 def test_active_directory_resolves_nested_groups_in_one_search(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
@@ -85,6 +84,7 @@ def test_active_directory_resolves_nested_groups_in_one_search(
         "CN\\3dErika \\28HR\\29\\2cOU\\3dStaff\\2cDC\\3dexample\\2cDC\\3dorg))"
     ]
     assert groups == {"cn=ollamail admins,ou=groups,dc=example,dc=org"}
+
 
 # -- integration (real slapd) ------------------------------------------------------------
 
