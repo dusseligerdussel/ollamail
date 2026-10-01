@@ -275,6 +275,15 @@ class WorkerSettings(BaseSettings):
         return value
 
 
+class AuditSettings(BaseSettings):
+    """``OLLAMAIL_AUDIT_*`` (audit log, app/audit/)"""
+
+    model_config = _config("AUDIT_")
+
+    # Days audit events are kept; 0 keeps them forever. Enforced by the retention job (#36).
+    retention_days: int = Field(default=365, ge=0)
+
+
 class Settings(BaseModel):
     """All settings, grouped by concern."""
 
@@ -288,6 +297,7 @@ class Settings(BaseModel):
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
+    audit: AuditSettings = Field(default_factory=AuditSettings)
 
 
 @lru_cache
