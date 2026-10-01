@@ -371,13 +371,30 @@ mehrere Identitäten haben; lokal: `provider=local`, `subject` = Nutzer-ID, Argo
 `auth_sessions`, `auth_rate_limits`. Alles hängt per `ON DELETE CASCADE` am Nutzer.
 
 **Provider-Interface** (`app/auth/providers/base.py`): Ein Provider beweist nur, wer jemand ist,
-und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups)`.
-`PasswordAuthProvider.authenticate(login, password)` für lokale Konten und LDAP (#32),
-`RedirectAuthProvider.authorization_url(...)`/`complete(...)` für OIDC (#30) und GitHub (#31).
-Die Zuordnung Identität → Nutzer (`auth.service.user_for_identity`, später mit
-JIT-Provisioning), Sperre, Session und Rollenprüfung sind für alle Provider gleich. Konfigurierte
-externe Provider registrieren sich in `app.state.auth_providers`; `GET /api/auth/providers`
-listet sie für die Login-Seite.
+und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups,
+email_verified)`. `PasswordAuthProvider.authenticate(login, password)` für lokale Konten und
+LDAP (#32), `RedirectAuthProvider.authorization_url(...)`/`complete(...)` (mit `state`, `nonce`
+und PKCE-`code_verifier`) für OIDC (#30) und GitHub (#31). Sperre, Session und Rollenprüfung
+sind für alle Provider gleich. Externe Provider stehen in `app.state.auth_providers`: fest per
+`register` oder als *Quelle* per `add_source` (z. B. OIDC-Provider aus der Datenbank, pro Anfrage
+gelesen, damit Änderungen sofort auf allen API-Instanzen gelten). `GET /api/auth/providers`
+listet sie für die Login-Seite, Redirect-Provider mit `login_path`.
+
+**Externe Logins** (`app/auth/redirect_flow.py`, `app/auth/provisioning.py`): Der Browser-Flow
+für Redirect-Provider (verschlüsseltes Einmal-Cookie mit `state`, `nonce`, PKCE-Verifier;
+Fehler als Redirect auf `/login?error=<code>`) und das Just-in-Time-Provisioning sind
+providerunabhängig. `provision_user` meldet bekannte Identitäten an und aktualisiert ihre Gruppen
+(`auth_identities.groups`), verknüpft vorhandene Nutzer nur über eine **verifizierte** E-Mail-Adresse
+und nur bei aktivierter Provider-Einstellung, legt sonst Nutzer mit Rolle `user` an und prüft die
+Domain-Allowlist. GitHub (#31) und LDAP (#32) nutzen dieselben Bausteine.
+
+**OIDC** (`app/auth/providers/oidc/`, Anleitung: [`auth/oidc.md`](auth/oidc.md)): Provider aus der
+Datenbank (`auth_oidc_providers`, Client-Secret als `EncryptedStr`, Admin-API unter
+`/api/admin/auth/oidc`) und aus `OLLAMAIL_AUTH_OIDC_PROVIDERS` (read-only). Discovery und JWKS
+werden je Issuer gecacht; ID-Token-Prüfung mit `joserfc`, PKCE-/Client-Auth-Helfer aus Authlib.
+Presets für Entra ID (`tid`-Prüfung, Multi-Tenant nur mit Tenant-Allowlist), Google Workspace
+(`hd`), Keycloak, Authentik und generisch. `POST /api/auth/oidc/logout` liefert zusätzlich die
+URL für das RP-initiated Logout.
 
 **Bootstrap:** `GET /api/setup/status` → `{"initialized": bool}`. `POST /api/setup` legt den ersten
 Admin an und meldet ihn an. Voraussetzung ist der Setup-Token (`OLLAMAIL_SETUP_TOKEN` oder per

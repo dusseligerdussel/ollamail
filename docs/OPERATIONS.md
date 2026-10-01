@@ -538,7 +538,8 @@ verarbeitet.
 | Datenkategorie | Speicherort | Status |
 |---|---|---|
 | Nutzerkonten, Rollen | PostgreSQL (`postgres-data`): `users`, `auth_identities` (Passwörter als Argon2id-Hash) | aktiv |
-| Gruppen | PostgreSQL | geplant (#30–#33) |
+| Gruppen | PostgreSQL: `auth_identities.groups` (Gruppen-Claims des IdP beim letzten Login, z. B. Entra-Gruppen-IDs) | aktiv (OIDC); LDAP/GitHub geplant (#31, #32) |
+| IdP-Konfiguration (OIDC) | PostgreSQL: `auth_oidc_providers` (Client-Secret verschlüsselt mit `OLLAMAIL_SECRET_KEY`) oder Umgebung (`OLLAMAIL_AUTH_OIDC_PROVIDERS`) | aktiv |
 | Sessions | PostgreSQL: `auth_sessions` (nur SHA-256 des Cookie-Tokens, Browser-Kennung gekürzt); abgelaufene stündlich gelöscht | aktiv |
 | Login-Zähler (Rate-Limit, Sperre) | PostgreSQL: `auth_rate_limits` (nur HMAC von IP bzw. E-Mail-Adresse); stündlich bereinigt | aktiv |
 | Postfach-Zugangsdaten, OAuth-Tokens, IdP-Secrets | PostgreSQL, verschlüsselt mit `OLLAMAIL_SECRET_KEY` | geplant (#6, #15) |
