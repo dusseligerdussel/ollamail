@@ -23,6 +23,7 @@ from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
+from app.triage.router import router as triage_router
 from app.users.router import router as users_router
 
 
@@ -76,6 +77,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(setup_router)
     app.include_router(auth_router)
     app.include_router(users_router)
+    app.include_router(triage_router)
     return app
 
 

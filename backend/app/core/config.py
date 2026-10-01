@@ -252,6 +252,31 @@ class ProcessingSettings(BaseSettings):
     requeue_batch_size: int = Field(default=500, ge=1)
 
 
+class TriageSettings(BaseSettings):
+    """``OLLAMAIL_TRIAGE_*`` (mail triage, app/triage/)"""
+
+    model_config = _config("TRIAGE_")
+
+    # Rule-based pre-filter (List-Unsubscribe, Precedence, Auto-Submitted, sender rules)
+    # before the LLM; saves inference time on CPU-only hosts.
+    prefilter_enabled: bool = True
+    # Characters of the mail body sent to the model (the rest is cut off).
+    max_body_chars: int = Field(default=2000, ge=200, le=50000)
+    # Few-shot examples from the user's own corrections per classification (0 = none).
+    few_shot_examples: int = Field(default=4, ge=0, le=20)
+    # Characters of each example mail's body in the prompt.
+    few_shot_body_chars: int = Field(default=400, ge=50, le=5000)
+    # Most recent corrections considered when picking the most similar examples.
+    few_shot_pool: int = Field(default=200, ge=1, le=2000)
+    # Pick the most similar examples via embeddings (if an embedding model is available);
+    # otherwise the most recent corrections are used.
+    few_shot_embeddings: bool = True
+    # Corrections of one sender to the same category before a sender rule is suggested.
+    rule_suggestion_min_corrections: int = Field(default=3, ge=1)
+    # Prefix of the keyword/label/folder written back to the server, e.g. "ollamail/info".
+    label_prefix: str = Field(default="ollamail/", pattern=r"^[A-Za-z0-9_./-]{0,32}$")
+
+
 class WorkerSettings(BaseSettings):
     """``OLLAMAIL_WORKER_*``"""
 
@@ -288,6 +313,7 @@ class Settings(BaseModel):
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
+    triage: TriageSettings = Field(default_factory=TriageSettings)
 
 
 @lru_cache

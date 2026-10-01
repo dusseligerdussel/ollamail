@@ -251,6 +251,10 @@ class LLMGateway:
         self._record(assignment, "embed", None, started, usage=usage)
         return vectors
 
+    async def assigned_model(self, task: LLMTask) -> str:
+        """Model currently assigned to ``task`` (e.g. to tag stored embeddings)."""
+        return (await self._resolver.resolve(task)).model
+
     async def _assignments(self) -> list[ModelAssignment]:
         return [await self._resolver.resolve(task) for task in LLMTask]
 
