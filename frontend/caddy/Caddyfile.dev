@@ -1,0 +1,29 @@
+# Development web server (deploy/compose.dev.yaml): same routing as production, but the UI
+# comes from the Vite dev server (hot reload via WebSocket) instead of the static bundle.
+{
+	admin off
+	auto_https off
+	persist_config off
+}
+
+:8080 {
+	header {
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "no-referrer"
+		-Server
+	}
+
+	handle_path /api/* {
+		reverse_proxy {$OLLAMAIL_API_UPSTREAM:api:8000} {
+			flush_interval -1
+			transport http {
+				read_timeout 1h
+				write_timeout 1h
+			}
+		}
+	}
+
+	handle {
+		reverse_proxy {$OLLAMAIL_WEB_DEV_UPSTREAM:frontend-dev:5173}
+	}
+}

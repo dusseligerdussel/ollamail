@@ -1,0 +1,145 @@
+# ollamail – production stack.
+#
+#   cp deploy/.env.example deploy/.env      # then set the secrets
+#   docker compose -f deploy/compose.yaml up -d --build
+#
+# Optional profiles:
+#   --profile ollama-cpu    bundled Ollama (CPU only)
+#   --profile ollama-gpu    bundled Ollama with NVIDIA GPU (needs nvidia-container-toolkit)
+#   --profile worker        background worker (temporary, see #7)
+#
+# Details: deploy/README.md
+
+name: ollamail
+
+x-backend: &backend
+  build:
+    context: ../backend
+  image: ${OLLAMAIL_API_IMAGE:-ollamail-api:local}
+  env_file:
+    - path: .env
+      required: true
+  restart: unless-stopped
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  volumes:
+    - ollamail-data:/data
+  depends_on: &backend-depends-on
+    postgres:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+
+x-ollama: &ollama
+  image: ${OLLAMA_IMAGE:-ollama/ollama:0.35.0}
+  restart: unless-stopped
+  environment:
+    OLLAMA_HOST: 0.0.0.0:11434
+  volumes:
+    - ollama-models:/root/.ollama
+  networks:
+    default:
+      # api/worker reach either variant as http://ollama:11434
+      aliases:
+        - ollama
+  healthcheck:
+    test: ["CMD", "ollama", "list"]
+    interval: 10s
+    timeout: 5s
+    retries: 5
+    start_period: 10s
+
+services:
+  postgres:
+    image: ${POSTGRES_IMAGE:-pgvector/pgvector:pg16}
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-ollamail}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
+      POSTGRES_DB: ${POSTGRES_DB:-ollamail}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # One-shot: applies database migrations before api/worker start, then exits.
+  migrate:
+    <<: *backend
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *backend
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  # TODO(#7): drop the profile once the worker (app/worker.py) exists.
+  worker:
+    <<: *backend
+    profiles: [worker]
+    command: ["python", "-m", "app.worker"]
+
+  frontend:
+    build:
+      context: ../frontend
+    image: ${OLLAMAIL_FRONTEND_IMAGE:-ollamail-frontend:local}
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    ports:
+      - "${OLLAMAIL_HTTP_BIND:-0.0.0.0}:${OLLAMAIL_HTTP_PORT:-8080}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  ollama-cpu:
+    <<: *ollama
+    profiles: [ollama-cpu]
+
+  ollama-gpu:
+    <<: *ollama
+    profiles: [ollama-gpu]
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+volumes:
+  postgres-data:
+  # Attachments, audio digests and other files (OLLAMAIL_DATA_DIR).
+  ollamail-data:
+  ollama-models:
