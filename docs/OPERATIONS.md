@@ -500,6 +500,7 @@ verarbeitet.
 | Daily Digest: Text und Audio | PostgreSQL bzw. Daten-Volume | geplant (#28) |
 | Audit-Log | PostgreSQL | geplant (#35) |
 | Job-Queue | PostgreSQL | geplant (#7) |
+| Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
 | Instanz-Secrets und Konfiguration | `deploy/.env` auf dem Host | vorhanden |
 | Betriebslogs (ohne Mail-Inhalte, siehe 9.3) | Docker-Logging des Hosts | vorhanden |

@@ -52,6 +52,79 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/events": {
+      "get": {
+        "description": "Stream the current user's events. Each SSE ``event`` is the event type, ``data``\nthe JSON-encoded event.",
+        "operationId": "events_stream_events",
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "additionalProperties": false,
+                  "description": "A change notification: what happened to which resources. No content.",
+                  "properties": {
+                    "ids": {
+                      "maxProperties": 8,
+                      "patternProperties": {
+                        "^[a-z][a-z0-9_]*_id$": {
+                          "anyOf": [
+                            {
+                              "format": "uuid",
+                              "type": "string"
+                            },
+                            {
+                              "type": "integer"
+                            }
+                          ]
+                        }
+                      },
+                      "propertyNames": {
+                        "maxLength": 64
+                      },
+                      "title": "Ids",
+                      "type": "object"
+                    },
+                    "status": {
+                      "anyOf": [
+                        {
+                          "maxLength": 32,
+                          "pattern": "^[a-z][a-z0-9_]*$",
+                          "type": "string"
+                        },
+                        {
+                          "type": "null"
+                        }
+                      ],
+                      "title": "Status"
+                    },
+                    "type": {
+                      "maxLength": 64,
+                      "pattern": "^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)*$",
+                      "title": "Type",
+                      "type": "string"
+                    }
+                  },
+                  "required": [
+                    "type"
+                  ],
+                  "title": "Event",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Server-Sent Events stream of `Event` objects for the current user"
+          },
+          "503": {
+            "description": "The event listener is unavailable"
+          }
+        },
+        "summary": "Stream Events",
+        "tags": [
+          "events"
+        ]
+      }
+    },
     "/healthz": {
       "get": {
         "description": "Liveness probe: reports that the process is up.",
