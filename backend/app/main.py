@@ -7,6 +7,11 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 
 from app.ai.llm import EnvConfigResolver, LLMGateway
+from app.auth.csrf import CSRFMiddleware
+from app.auth.providers import AuthProviderRegistry
+from app.auth.router import router as auth_router
+from app.auth.router import setup_router
+from app.auth.setup import log_setup_status
 from app.core.config import Settings, get_settings
 from app.core.crypto import configure_keyring
 from app.core.db import Database
@@ -18,6 +23,7 @@ from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
+from app.users.router import router as users_router
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
@@ -32,6 +38,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
         # Refuse to start without a valid OLLAMAIL_SECRET_KEY.
         configure_keyring(settings.security)
+        await log_setup_status(database, settings)
         pull = None
         if settings.llm.pull_missing_models:
             pull = asyncio.create_task(llm.pull_missing_models())
@@ -58,10 +65,17 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     if settings.llm.readiness_check:
         register_readiness_check(app, "llm", llm.check_ready)
 
+    app.state.auth_providers = AuthProviderRegistry()
+
     install_error_handlers(app)
+    # Added first, so it runs inside RequestContextMiddleware (403s carry a request ID).
+    app.add_middleware(CSRFMiddleware, settings=settings)
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router)
     app.include_router(events_router)
+    app.include_router(setup_router)
+    app.include_router(auth_router)
+    app.include_router(users_router)
     return app
 
 

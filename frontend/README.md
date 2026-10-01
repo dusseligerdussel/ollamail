@@ -111,7 +111,9 @@ Grundlage ist `docs/DESIGN.md`.
 - **Design-Tokens** stehen als CSS-Variablen in `src/index.css`: neutrale Zinc-Grautöne, genau eine
   Akzentfarbe (`--brand`, ein gedecktes Blau; `--primary` und `--ring` leiten sich davon ab), Radius
   (`--radius`), Layout-Maße (`h-header`, `h-row`, `h-bottom-bar`) und die UI-Schriftgröße `text-ui`
-  (13 px). Optik über diese Tokens ändern, nicht über Ad-hoc-Klassen.
+  (13 px), der Hintergrund hinter Dialogen und Sheets (`bg-overlay`) und `scroll-fade` (blendet die
+  Kante eines Scrollbereichs aus, solange `data-overflow` gesetzt ist). Optik über diese Tokens ändern,
+  nicht über Ad-hoc-Klassen.
 - **Theme:** Hell, Dunkel oder System (`useTheme()`). Die Wahl liegt in `localStorage`
   (`ollamail.theme`). `public/theme-init.js` setzt die Klasse `dark` blockierend vor dem ersten
   Rendern, damit beim Laden nichts flackert. Logik in beiden Dateien synchron halten.
@@ -135,6 +137,9 @@ useShortcut(
 
 - `keys`: Kombination (`mod+k`, `shift+e`) oder Sequenz (`g i`). `mod` ist ⌘ auf macOS, sonst Strg.
 - In Textfeldern und Dialogen greifen nur Shortcuts mit `allowInInput: true`.
+- Tastenhinweise (`KeyHint`) und die Shortcut-Übersicht werden nur angeboten, wenn eine Tastatur
+  wahrscheinlich ist (`mediaQueries.keyboard`: ab 768 px und mit feinem Zeiger). Auf Handys und
+  Touch-Tablets fehlen sie; die Shortcuts selbst funktionieren weiterhin.
 - Listen nutzen `useListNavigation({ count, onOpen })` für `j`/`k`/`o`.
 - Neue Gruppen in `shortcutGroups` (`src/lib/shortcuts.ts`) und in den Übersetzungen ergänzen.
 

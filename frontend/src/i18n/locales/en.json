@@ -107,8 +107,9 @@
       "serverChecking": "Checking connection"
     },
     "admin": {
-      "emptyTitle": "Nothing to manage yet",
-      "emptyDescription": "Users, mail providers and language models will be managed here."
+      "emptyTitle": "No admin settings yet",
+      "emptyDescription": "Users, sign-in methods, mail providers and language models will be managed here once these areas are available.",
+      "emptyAction": "Open your settings"
     }
   },
   "notFound": {

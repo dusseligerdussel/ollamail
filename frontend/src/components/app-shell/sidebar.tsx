@@ -15,6 +15,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
 import { isTheme, themes } from "@/lib/theme";
 
 import { AppMark } from "./app-mark";
@@ -78,6 +79,8 @@ export function Sidebar() {
   const { isAdmin } = useCurrentUser();
   const palette = useCommandPalette();
   const shortcuts = useShortcutsOverlay();
+  // Touch tablets get the sidebar too, but no keyboard hints.
+  const hasKeyboard = useMediaQuery(mediaQueries.keyboard);
   const items = visibleNavItems(isAdmin);
   const main = items.filter((item) => item.primary);
   const secondary = items.filter((item) => !item.primary);
@@ -97,7 +100,7 @@ export function Sidebar() {
         >
           <Command className="size-4 shrink-0" aria-hidden="true" />
           <span className="truncate">{t("commandPalette.open")}</span>
-          <KeyHint keys="mod+k" className="ml-auto" />
+          {hasKeyboard && <KeyHint keys="mod+k" className="ml-auto" />}
         </button>
       </div>
 
@@ -123,11 +126,13 @@ export function Sidebar() {
 
       <div className="flex flex-col gap-px border-t border-sidebar-border p-2">
         <ThemeMenu />
-        <button type="button" onClick={() => shortcuts.setOpen(true)} className={rowClass}>
-          <Keyboard className="size-4 shrink-0" aria-hidden="true" />
-          <span className="truncate">{t("shortcuts.title")}</span>
-          <KeyHint keys="?" className="ml-auto" />
-        </button>
+        {hasKeyboard && (
+          <button type="button" onClick={() => shortcuts.setOpen(true)} className={rowClass}>
+            <Keyboard className="size-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">{t("shortcuts.title")}</span>
+            <KeyHint keys="?" className="ml-auto" />
+          </button>
+        )}
       </div>
     </div>
   );
