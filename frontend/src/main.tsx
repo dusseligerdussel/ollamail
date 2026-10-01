@@ -7,7 +7,9 @@ import { RouterProvider } from "@tanstack/react-router";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 
+import { AppProviders } from "./components/app-providers";
 import { createQueryClient } from "./query-client";
+import { registerServiceWorker } from "./register-service-worker";
 import { createAppRouter } from "./router";
 
 const queryClient = createQueryClient();
@@ -21,7 +23,13 @@ if (!rootElement) {
 createRoot(rootElement).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-      <RouterProvider router={router} />
+      <AppProviders>
+        <RouterProvider router={router} />
+      </AppProviders>
     </QueryClientProvider>
   </StrictMode>,
 );
+
+if (import.meta.env.PROD) {
+  registerServiceWorker();
+}

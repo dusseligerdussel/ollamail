@@ -1,7 +1,114 @@
 {
-  "placeholder": {
-    "title": "ollamail",
-    "description": "Selbst gehostete E-Mail-Analyse. Die Oberfläche befindet sich im Aufbau.",
-    "switchLanguage": "English"
+  "app": {
+    "name": "ollamail"
+  },
+  "common": {
+    "close": "Schließen",
+    "loading": "Wird geladen…",
+    "navigateHint": "Mit <0/> und <1/> durch die Liste bewegen."
+  },
+  "shell": {
+    "skipToContent": "Zum Inhalt springen",
+    "resizeNavigation": "Navigationsbreite ändern"
+  },
+  "nav": {
+    "label": "Hauptnavigation",
+    "inbox": "Posteingang",
+    "tasks": "Aufgaben",
+    "digest": "Digest",
+    "search": "Suche",
+    "settings": "Einstellungen",
+    "admin": "Admin",
+    "more": "Mehr",
+    "moreDescription": "Weitere Seiten und Darstellung"
+  },
+  "theme": {
+    "label": "Darstellung",
+    "light": "Hell",
+    "dark": "Dunkel",
+    "system": "System"
+  },
+  "language": {
+    "label": "Sprache",
+    "de": "Deutsch",
+    "en": "English"
+  },
+  "commandPalette": {
+    "open": "Befehlsmenü",
+    "title": "Befehlsmenü",
+    "description": "Seite oder Aktion suchen und mit Enter ausführen.",
+    "placeholder": "Befehl oder Seite eingeben…",
+    "empty": "Keine passenden Befehle."
+  },
+  "commands": {
+    "groups": {
+      "navigation": "Gehe zu",
+      "actions": "Aktionen",
+      "appearance": "Darstellung",
+      "language": "Sprache",
+      "help": "Hilfe"
+    },
+    "goTo": "Gehe zu {{page}}",
+    "theme": {
+      "light": "Helles Design verwenden",
+      "dark": "Dunkles Design verwenden",
+      "system": "Systemeinstellung verwenden"
+    }
+  },
+  "shortcuts": {
+    "title": "Tastenkürzel",
+    "description": "Tastenkürzel funktionieren überall außer in Textfeldern.",
+    "show": "Tastenkürzel anzeigen",
+    "then": "dann",
+    "groups": {
+      "general": "Allgemein",
+      "navigation": "Navigation",
+      "list": "Listen"
+    },
+    "list": {
+      "next": "Nächster Eintrag",
+      "previous": "Vorheriger Eintrag",
+      "open": "Eintrag öffnen"
+    }
+  },
+  "pages": {
+    "inbox": {
+      "emptyTitle": "Keine Nachrichten",
+      "emptyDescription": "Nachrichten erscheinen hier, sobald ein Mail-Konto verbunden ist.",
+      "emptyAction": "Einstellungen öffnen",
+      "noSelection": "Keine Nachricht ausgewählt"
+    },
+    "tasks": {
+      "emptyTitle": "Keine Aufgaben",
+      "emptyDescription": "Aufgaben aus deinen Nachrichten werden hier aufgelistet.",
+      "emptyAction": "Zum Posteingang",
+      "noSelection": "Keine Aufgabe ausgewählt"
+    },
+    "digest": {
+      "emptyTitle": "Noch kein Digest",
+      "emptyDescription": "Nach der ersten Synchronisierung entsteht täglich eine Zusammenfassung neuer Nachrichten.",
+      "emptyAction": "Einstellungen öffnen",
+      "noSelection": "Kein Digest ausgewählt"
+    },
+    "search": {
+      "emptyTitle": "Noch nichts zu durchsuchen",
+      "emptyDescription": "Die Suche umfasst alle synchronisierten Nachrichten und Anhänge.",
+      "emptyAction": "Zum Posteingang"
+    },
+    "settings": {
+      "appearance": "Darstellung",
+      "themeDescription": "System folgt der Einstellung des Betriebssystems.",
+      "languageDescription": "Sprache der Oberfläche.",
+      "more": "Mail-Konten, Sprachmodelle und Benachrichtigungen werden hier eingerichtet."
+    },
+    "admin": {
+      "emptyTitle": "Noch nichts zu verwalten",
+      "emptyDescription": "Benutzer, Mail-Provider und Sprachmodelle werden hier verwaltet."
+    }
+  },
+  "notFound": {
+    "title": "Seite nicht gefunden",
+    "description": "Die Adresse existiert nicht oder ist nicht mehr verfügbar.",
+    "action": "Zum Posteingang"
   }
 }
