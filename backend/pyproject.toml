@@ -60,4 +60,5 @@ pythonpath = ["."]
 markers = [
     "db: needs PostgreSQL with pgvector (skipped if unreachable, see tests/conftest.py)",
     "ollama: needs a running Ollama with a small model (skipped if unreachable)",
+    "imap: needs an IMAP test server (Dovecot, skipped if unreachable, see tests/mail/imap_server.py)",
 ]
