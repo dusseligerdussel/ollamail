@@ -22,6 +22,8 @@ export default defineConfig({
       "/api": {
         target: "http://localhost:8000",
         changeOrigin: true,
+        // Same as Caddy in production: the backend serves its routes without the prefix.
+        rewrite: (path) => path.replace(/^\/api/, ""),
       },
     },
   },

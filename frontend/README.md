@@ -18,6 +18,8 @@ TanStack Query, i18next (de/en). Tooling: pnpm, Biome, Vitest + Testing Library,
 | `pnpm typecheck` | TypeScript ohne Emit |
 | `pnpm test` | Unit-Tests (Vitest, jsdom) |
 | `pnpm e2e` | Playwright-Tests (startet den Dev-Server selbst) |
+| `pnpm gen:api` | OpenAPI-Schema aus dem Backend exportieren und API-Typen erzeugen (braucht `uv`) |
+| `pnpm gen:api:types` | Nur die Typen aus dem eingecheckten `src/api/openapi.json` erzeugen |
 
 Für `pnpm e2e` wird ein Chromium benötigt (`pnpm exec playwright install chromium`). Ein bereits
 installierter Browser kann über `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` genutzt werden.
@@ -26,13 +28,14 @@ installierter Browser kann über `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` genutzt w
 
 ```
 src/
+  api/                         API-Client, Fehler, Queries; openapi.json + schema.gen.ts werden generiert
   routes/                      Datei-basierte Routen (TanStack Router); routeTree.gen.ts wird generiert
   components/ui/               shadcn/ui-Komponenten (nur über die shadcn-CLI hinzufügen)
   components/app-shell/        Navigation (Sidebar / Bottom-Bar), Layout, globale Shortcuts
   components/command-palette/  Command Palette und Command-Registry
   components/shortcuts/        Shortcut-Registry (Provider + Hooks)
   components/                  Basiskomponenten: EmptyState, ListSkeleton, PageHeader, SplitView, …
-  hooks/                       useCurrentUser (Platzhalter), useListNavigation, useMediaQuery
+  hooks/                       useCurrentUser (Platzhalter), useEvents, useListNavigation, useMediaQuery
   i18n/                        i18next-Setup und Übersetzungen (locales/de.json, locales/en.json)
   lib/                         Theme, Registry, Shortcut-Parser, Hilfsfunktionen
 public/                        theme-init.js, sw.js, manifest.webmanifest, Icons
@@ -48,6 +51,58 @@ public/                        theme-init.js, sw.js, manifest.webmanifest, Icons
 - **Datenschutz:** Keine externen Requests (CDNs, Fonts, Telemetrie). Die Schrift (Inter Variable)
   wird über `@fontsource-variable/inter` mitgebündelt. Der Playwright-Test prüft, dass beim Laden
   keine Anfragen an fremde Origins entstehen.
+
+## API-Client
+
+Das Backend ist die Quelle der Wahrheit. Der Client wird nie von Hand geschrieben:
+
+1. `backend/scripts/export_openapi.py` exportiert das Schema ohne laufenden Server nach
+   `src/api/openapi.json` (eingecheckt, Schlüssel sortiert).
+2. `openapi-typescript` erzeugt daraus `src/api/schema.gen.ts` (eingecheckt, nicht bearbeiten).
+
+`pnpm gen:api` macht beides. Nach jeder Änderung an Backend-Endpunkten ausführen und das Ergebnis mit
+committen; der CI-Job „API client up to date“ schlägt sonst fehl. `openapi-typescript` braucht die
+Compiler-API von TypeScript 5, die TypeScript 7 nicht mehr mitliefert; `.pnpmfile.cjs` gibt ihm
+deshalb ein eigenes TypeScript 5.
+
+```ts
+import { useQuery } from "@tanstack/react-query";
+import { api, unwrap } from "@/api/client";
+
+const health = useQuery({
+  queryKey: ["health"],
+  queryFn: ({ signal }) => unwrap(api.GET("/healthz", { signal })), // Pfade und Typen aus dem Schema
+});
+```
+
+- **Basis-URL** `/api` (gleicher Origin, Cookies via `credentials: "include"`). Caddy und der
+  Vite-Dev-Proxy entfernen das Präfix, das Backend kennt nur `/healthz` usw.
+- **CSRF:** Bei `POST`/`PUT`/`PATCH`/`DELETE` wird der Wert des Cookies `ollamail_csrf` im Header
+  `X-CSRF-Token` mitgeschickt (Double-Submit; das Backend setzt das Cookie mit der Auth, #11).
+- **Fehler:** `unwrap()` wirft `ApiError` (`status`, `problem` = RFC 9457 Problem Details,
+  `requestId`; `status` 0 = Server nicht erreichbar). `describeApiError(error, t)` liefert den
+  übersetzten Text. Server-Texte (`detail`) sind englisch und werden nicht angezeigt.
+- **Anzeige** (zentral in `src/query-client.ts`): Mutationen → Toast. Queries → inline über
+  `<InlineError error={query.error} />`; Toast nur, wenn schon Daten angezeigt werden (fehlgeschlagene
+  Aktualisierung). Abweichungen über `meta: { errorToast: true | false }`. 4xx werden nicht wiederholt.
+- **401** → Weiterleitung auf `/login?redirect=<aktuelle Seite>` (ganze Seite neu laden), kein Toast.
+
+### Echtzeit-Events
+
+`useEvents()` (in der App-Shell gemountet) abonniert `GET /api/events` per `EventSource` und
+übersetzt Events in TanStack-Query-Invalidierungen. Vertrag mit dem Backend (#7):
+
+```
+data: {"type":"message.synced","message_id":"…","mailbox_id":"…"}
+```
+
+- `data` ist JSON mit `type` (`<ressource>.<aktion>`) und nur IDs/Status, nie Inhalte.
+  Alternativ darf der Typ als SSE-`event:`-Name kommen; solche benannten Events empfängt der Browser
+  aber nur für Typen, die in `invalidationRules` eingetragen sind. Unbenannte Events bevorzugen.
+- Standard: `message.synced` invalidiert alle Queries mit Schlüssel `["message", …]`. Abweichende
+  Regeln in `invalidationRules` (`src/hooks/use-events.ts`) nach Event-Typ eintragen.
+- Nach einem Verbindungsabbruch verbindet sich der Browser selbst neu; danach werden alle Queries neu
+  geladen, weil verpasste Events nicht nachgeliefert werden.
 
 ## Design-System und App-Shell
 
@@ -104,7 +159,11 @@ Browser-Cache. Nach Änderungen an der Cache-Strategie `CACHE` in `sw.js` hochz�
 
 ### Tests
 
-- Unit-Tests (Vitest): Theme-Umschaltung inkl. `theme-init.js`, Shortcut-Parser/-Dispatcher,
+`fetch` ist in allen Tests gemockt (`src/test/fetch.ts`): `/api/healthz` antwortet `ok`, alles
+andere 404. Eigene Antworten mit `mockFetch((request) => json(...))`.
+
+- Unit-Tests (Vitest): API-Client (CSRF, 401, Problem Details), Fehleranzeige, `useEvents` mit
+  Mock-`EventSource`, Theme-Umschaltung inkl. `theme-init.js`, Shortcut-Parser/-Dispatcher,
   Registries, Command Palette, Navigation, mobile Variante.
 - E2E (Playwright): axe-Check (WCAG 2.2 AA) aller Seiten in Hell/Dunkel bei 1440 px und 360 px, keine
   horizontale Überbreite, Tastaturbedienung, Theme vor dem App-Bundle, keine externen Requests.

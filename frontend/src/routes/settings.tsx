@@ -1,9 +1,13 @@
+import { useQuery } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 
+import { healthQueryOptions } from "@/api/health";
+import { InlineError } from "@/components/inline-error";
 import { PageHeader } from "@/components/page-header";
 import { LanguageToggleGroup, ThemeToggleGroup } from "@/components/preference-controls";
+import { Skeleton } from "@/components/ui/skeleton";
 
 export const Route = createFileRoute("/settings")({
   component: SettingsPage,
@@ -29,6 +33,24 @@ function SettingRow({
   );
 }
 
+function ServerStatus() {
+  const { t } = useTranslation();
+  const health = useQuery(healthQueryOptions);
+  if (health.isPending) {
+    return (
+      <Skeleton
+        role="status"
+        className="h-4 w-24"
+        aria-label={t("pages.settings.serverChecking")}
+      />
+    );
+  }
+  if (health.isError) {
+    return <InlineError error={health.error} />;
+  }
+  return <span className="text-ui text-muted-foreground">{t("pages.settings.serverOk")}</span>;
+}
+
 function SettingsPage() {
   const { t } = useTranslation();
   return (
@@ -52,6 +74,19 @@ function SettingsPage() {
                 description={t("pages.settings.languageDescription")}
               >
                 <LanguageToggleGroup />
+              </SettingRow>
+            </div>
+          </section>
+          <section aria-labelledby="settings-server" className="mt-8">
+            <h2 id="settings-server" className="mb-2 text-xs font-medium text-muted-foreground">
+              {t("pages.settings.server")}
+            </h2>
+            <div className="divide-y rounded-lg border">
+              <SettingRow
+                label={t("pages.settings.serverConnection")}
+                description={t("pages.settings.serverDescription")}
+              >
+                <ServerStatus />
               </SettingRow>
             </div>
           </section>

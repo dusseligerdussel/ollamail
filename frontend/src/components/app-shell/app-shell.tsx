@@ -5,6 +5,7 @@ import { useDefaultLayout } from "react-resizable-panels";
 import { CommandPalette } from "@/components/command-palette/command-palette";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Toaster } from "@/components/ui/sonner";
+import { EventsListener } from "@/hooks/use-events";
 import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
 
 import { BottomBar } from "./bottom-bar";
@@ -76,6 +77,7 @@ export function AppShell() {
       <GlobalKeyboard />
       <CommandPalette />
       <ShortcutsOverlay />
+      <EventsListener />
       <Toaster position={wide ? "bottom-right" : "top-center"} />
     </ShortcutsOverlayProvider>
   );
