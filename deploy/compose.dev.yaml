@@ -1,0 +1,68 @@
+# ollamail – development overrides with hot reload.
+#
+#   docker compose -f deploy/compose.yaml -f deploy/compose.dev.yaml up --build
+#
+# - UI with Vite hot reload: http://localhost:8080 (same /api routing as production)
+# - API directly: http://localhost:8000 (uvicorn --reload on bind-mounted backend/app)
+# - PostgreSQL: localhost:5432
+#
+# Source code is bind-mounted; the containers run as unprivileged users, so the checkout must
+# be readable by them (and frontend/src writable by UID 1000 if routes change).
+
+services:
+  postgres:
+    ports:
+      - "127.0.0.1:5432:5432"
+
+  migrate:
+    build:
+      target: dev
+    image: ollamail-api:dev
+    volumes:
+      - ollamail-data:/data
+      - ../backend:/app:ro
+
+  api:
+    build:
+      target: dev
+    image: ollamail-api:dev
+    ports:
+      - "127.0.0.1:8000:8000"
+    volumes:
+      - ollamail-data:/data
+      - ../backend:/app:ro
+
+  worker:
+    build:
+      target: dev
+    image: ollamail-api:dev
+    volumes:
+      - ollamail-data:/data
+      - ../backend:/app:ro
+
+  frontend-dev:
+    build:
+      context: ../frontend
+      target: dev
+    image: ollamail-frontend:dev
+    restart: unless-stopped
+    environment:
+      # Polling makes file watching reliable on bind mounts (Docker Desktop, WSL).
+      CHOKIDAR_USEPOLLING: "true"
+    volumes:
+      - ../frontend:/src
+      # Keep the container's node_modules instead of the host's.
+      - frontend-node-modules:/src/node_modules
+
+  frontend:
+    build:
+      target: proxy
+    image: ollamail-frontend-proxy:dev
+    volumes:
+      - ../frontend/caddy/Caddyfile.dev:/etc/caddy/Caddyfile:ro
+    depends_on:
+      frontend-dev:
+        condition: service_started
+
+volumes:
+  frontend-node-modules:

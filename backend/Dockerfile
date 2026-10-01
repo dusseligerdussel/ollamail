@@ -1,0 +1,83 @@
+# syntax=docker/dockerfile:1
+
+# One image for every backend role: `api` (default command), `worker` and `migrate`
+# only differ in the command they run (see deploy/compose.yaml).
+
+ARG PYTHON_IMAGE=python:3.12-slim-trixie
+
+# ---------------------------------------------------------------------------
+# base: shared Python settings
+# ---------------------------------------------------------------------------
+FROM ${PYTHON_IMAGE} AS base
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
+WORKDIR /app
+
+# ---------------------------------------------------------------------------
+# builder: resolve dependencies into /opt/venv with uv (from uv.lock)
+# ---------------------------------------------------------------------------
+FROM base AS builder
+
+ARG UV_VERSION=0.12.21
+RUN pip install --no-cache-dir "uv==${UV_VERSION}"
+
+ENV UV_COMPILE_BYTECODE=1 \
+    UV_LINK_MODE=copy \
+    UV_PYTHON_DOWNLOADS=never \
+    UV_PROJECT_ENVIRONMENT=/opt/venv
+
+COPY pyproject.toml uv.lock .python-version ./
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-dev --no-install-project
+
+# dev-builder: same environment plus the dev dependency group (pytest, ruff, mypy)
+FROM builder AS dev-builder
+RUN --mount=type=cache,target=/root/.cache/uv \
+    uv sync --frozen --no-install-project
+
+# ---------------------------------------------------------------------------
+# runtime-base: unprivileged user and data directory
+# ---------------------------------------------------------------------------
+FROM base AS runtime-base
+
+RUN groupadd --system --gid 10001 ollamail \
+    && useradd --system --uid 10001 --gid ollamail --home-dir /app --no-create-home \
+       --shell /usr/sbin/nologin ollamail \
+    && mkdir -p /data \
+    && chown ollamail:ollamail /data
+
+ENV PATH="/opt/venv/bin:${PATH}" \
+    OLLAMAIL_DATA_DIR=/data
+
+EXPOSE 8000
+VOLUME ["/data"]
+
+# ---------------------------------------------------------------------------
+# dev: hot reload, source is bind-mounted by deploy/compose.dev.yaml
+# ---------------------------------------------------------------------------
+FROM runtime-base AS dev
+
+COPY --from=dev-builder /opt/venv /opt/venv
+COPY . .
+
+USER 10001:10001
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/api", \
+     "--forwarded-allow-ips", "*", "--reload", "--reload-dir", "app"]
+
+# ---------------------------------------------------------------------------
+# runtime (default target): production image
+# ---------------------------------------------------------------------------
+FROM runtime-base AS runtime
+
+COPY --from=builder /opt/venv /opt/venv
+# Source stays owned by root, so the app user cannot modify it.
+COPY . .
+
+USER 10001:10001
+
+# The frontend proxy serves the API under /api and strips the prefix; --root-path keeps
+# generated URLs (OpenAPI docs) correct. Only the proxy can reach this port.
+CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/api", \
+     "--forwarded-allow-ips", "*"]
