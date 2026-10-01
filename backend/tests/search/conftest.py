@@ -13,6 +13,7 @@ from pathlib import Path
 from typing import Any
 
 import pytest
+from sqlalchemy import delete
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import LLMUnavailableError
@@ -20,6 +21,7 @@ from app.core.config import SearchSettings
 from app.core.ids import uuid7
 from app.mail.models import Attachment, Folder, Mailbox, MailboxType, Message
 from app.mail.storage import AttachmentStorage
+from app.search.models import SearchIndexState
 from tests.factories import make_user
 from tests.processing.conftest import pipeline  # noqa: F401  (fixture re-export)
 
@@ -158,5 +160,8 @@ class MailData:
 
 
 @pytest.fixture
-def mail(db_session: AsyncSession, storage: AttachmentStorage) -> MailData:
+async def mail(db_session: AsyncSession, storage: AttachmentStorage) -> MailData:
+    # Jobs of other tests' workers (``search.fill_embeddings``) may have committed an index
+    # state; start from none (rolled back with the test transaction).
+    await db_session.execute(delete(SearchIndexState))
     return MailData(db_session, storage)
