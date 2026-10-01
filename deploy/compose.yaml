@@ -1,7 +1,10 @@
 # ollamail – production stack.
 #
 #   cp deploy/.env.example deploy/.env      # then set the secrets
-#   docker compose -f deploy/compose.yaml up -d --build
+#   docker compose -f deploy/compose.yaml up -d
+#
+# Uses the prebuilt images from GHCR (OLLAMAIL_VERSION, default latest). To build locally:
+#   docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml up -d --build
 #
 # Optional profiles:
 #   --profile ollama-cpu    bundled Ollama (CPU only)
@@ -12,9 +15,7 @@
 name: ollamail
 
 x-backend: &backend
-  build:
-    context: ../backend
-  image: ${OLLAMAIL_API_IMAGE:-ollamail-api:local}
+  image: ${OLLAMAIL_API_IMAGE:-ghcr.io/dusseligerdussel/ollamail-api:${OLLAMAIL_VERSION:-latest}}
   env_file:
     - path: .env
       required: true
@@ -100,9 +101,7 @@ services:
     stop_grace_period: 45s
 
   frontend:
-    build:
-      context: ../frontend
-    image: ${OLLAMAIL_FRONTEND_IMAGE:-ollamail-frontend:local}
+    image: ${OLLAMAIL_FRONTEND_IMAGE:-ghcr.io/dusseligerdussel/ollamail-frontend:${OLLAMAIL_VERSION:-latest}}
     restart: unless-stopped
     read_only: true
     tmpfs:

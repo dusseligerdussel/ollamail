@@ -2,6 +2,8 @@
 #
 #   docker compose -f deploy/compose.yaml -f deploy/compose.dev.yaml up --build
 #
+# Builds everything locally (dev targets); no GHCR images are pulled.
+#
 # - UI with Vite hot reload: http://localhost:8080 (same /api routing as production)
 # - API directly: http://localhost:8000 (uvicorn --reload on bind-mounted backend/app)
 # - PostgreSQL: localhost:5432
@@ -16,6 +18,7 @@ services:
 
   migrate:
     build:
+      context: ../backend
       target: dev
     image: ollamail-api:dev
     volumes:
@@ -24,6 +27,7 @@ services:
 
   api:
     build:
+      context: ../backend
       target: dev
     image: ollamail-api:dev
     ports:
@@ -34,6 +38,7 @@ services:
 
   worker:
     build:
+      context: ../backend
       target: dev
     image: ollamail-api:dev
     volumes:
@@ -56,6 +61,7 @@ services:
 
   frontend:
     build:
+      context: ../frontend
       target: proxy
     image: ollamail-frontend-proxy:dev
     volumes:

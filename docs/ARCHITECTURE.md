@@ -116,6 +116,67 @@ class LLMProvider(Protocol):
 - Throttling: Die `llm`-Queue hat eine konfigurierbare Parallelität, damit CPU-Instanzen nicht überlaufen.
 - Jeder LLM-Aufruf speichert Modell, Prompt-Version und Dauer (ohne Inhalte) für die Nachvollziehbarkeit.
 
+#### Umsetzung (`backend/app/ai/`)
+
+```
+ai/llm/
+  base.py           LLMProvider-Protocol (complete, stream, embed, list_models)
+  ollama.py         native Ollama-API (/api/chat, /api/embed, /api/tags, /api/pull)
+  openai_compat.py  Chat-Completions-API (base_url inkl. /v1)
+  config.py         LLMConfigResolver (Protocol) + EnvConfigResolver
+  profiles.py       Hardware-Profile cpu / gpu-consumer / gpu-server
+  structured.py     Pydantic → JSON-Schema, Validierung, Retry, Prompt-Fallback
+  context.py        Token-Schätzung, Kürzen langer Mails
+  metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call`)
+  gateway.py        LLMGateway – einziger Einstiegspunkt für Features
+ai/prompts/         versionierte, sprachabhängige Prompt-Templates (`name@version`)
+```
+
+Features nutzen ausschließlich das `LLMGateway` (`app.state.llm`, FastAPI-Dependency `get_llm`):
+
+```python
+triage = await llm.complete_structured(
+    LLMTask.TRIAGE, prompt.render(mail_language, mail=text), TriageResult,
+    prompt_version=prompt.id, language=mail_language,
+)
+```
+
+Das Gateway erledigt pro Aufruf:
+
+1. **Auflösung** Task → Endpunkt + Modell über einen `LLMConfigResolver`. In diesem Stand liest
+   `EnvConfigResolver` Umgebungsvariablen und Code-Defaults. Die Admin-Einstellungen in der DB (#18)
+   ersetzen nur den Resolver; Gateway und Features bleiben unverändert.
+   Reihenfolge: `OLLAMAIL_LLM_TASK_<TASK>_MODEL` → `OLLAMAIL_LLM_DEFAULT_{CHAT,EMBEDDING}_MODEL` → Profil.
+2. **Cloud-Sperre:** Endpunkte mit `is_cloud` werden nur genutzt, wenn `OLLAMAIL_LLM_CLOUD_ENABLED`
+   aktiv ist. Sonst `CloudLLMDisabledError`, bevor ein HTTP-Client entsteht.
+3. **Kontextlänge:** Die Prompts werden auf das Kontextfenster des Profils gekürzt
+   (konservative Schätzung ≈ 3 Zeichen/Token, Platz für die Antwort wird reserviert). Gekürzt wird die
+   längste Nicht-System-Nachricht vom Ende her, weil neue Inhalte in Mails oben stehen.
+   Bei Ollama wird `num_ctx` gesetzt, weil Ollama sonst stillschweigend auf ein kleines Fenster kürzt.
+4. **Structured Output:** Das JSON-Schema geht nativ an den Server (Ollama `format`, OpenAI
+   `response_format`) und zusätzlich in den System-Prompt. Ungültige Antworten werden mit einem
+   Korrekturhinweis erneut angefragt (`OLLAMAIL_LLM_STRUCTURED_OUTPUT_RETRIES`, Standard 2). Danach
+   folgt `LLMOutputError`. Lehnt ein Server den Schema-Parameter ab (HTTP 400/422), fällt das
+   Gateway für dieses Modell dauerhaft auf reines Prompting zurück. Das lässt sich pro Endpunkt
+   auch fest einstellen (`structured_output=prompt`).
+5. **Metriken:** Task, Endpunkt, Modell, Prompt-Version, Dauer, Token-Zahlen, Versuche und
+   Fehlertyp. Prompts und Antworten werden **nie** erfasst. Fehlermeldungen enthalten keine
+   Response-Bodies, weil manche Server die Anfrage darin zurückspiegeln.
+
+Readiness: Mit `OLLAMAIL_LLM_READINESS_CHECK=true` prüft `/readyz` (Check `llm`), ob alle zugewiesenen
+Modelle auf ihren Endpunkten verfügbar sind. Der Check ist standardmäßig aus, weil die API auch ohne
+LLM nutzbar bleibt (Postfächer, Todos, Einstellungen). Mit `OLLAMAIL_LLM_PULL_MISSING_MODELS=true`
+lädt die API fehlende Modelle beim Start im Hintergrund aus Ollama.
+
+**Profil-Defaults** (`profiles.py`). Die Modellnamen sind **Beispiele** und lassen sich per Env
+überschreiben:
+
+| Profil | Chat-Modell (Beispiel) | Embeddings (Beispiel) | Kontext |
+|---|---|---|---|
+| `cpu` (Standard) | `qwen2.5:3b` | `bge-m3` | 8192 |
+| `gpu-consumer` | `qwen2.5:14b` | `bge-m3` | 16384 |
+| `gpu-server` | `qwen2.5:32b` | `bge-m3` | 32768 |
+
 ### 3.3 TTS
 
 - Interface `TTSEngine.synthesize(text, voice, lang) -> AudioFile`.

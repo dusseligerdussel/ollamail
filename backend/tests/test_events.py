@@ -10,11 +10,12 @@ import pytest
 import uvicorn
 from fastapi import FastAPI, Header
 from httpx import AsyncClient
-from pydantic import ValidationError
+from pydantic import SecretStr, ValidationError
 from sqlalchemy.ext.asyncio import create_async_engine
 from sqlalchemy.pool import NullPool
 
-from app.core.config import DatabaseSettings, Settings
+from app.core.config import DatabaseSettings, SecuritySettings, Settings
+from app.core.crypto import generate_key
 from app.core.current_user import get_current_user_id
 from app.core.events import Event, EventBroker, EventEnvelope, publish
 from app.main import create_app
@@ -104,7 +105,9 @@ async def _test_user(x_test_user: Annotated[UUID, Header()]) -> UUID:
 @pytest.fixture
 async def server(settings: Settings, migrated_database: str) -> AsyncIterator[str]:
     """The app served by a real uvicorn on a free port (ASGITransport cannot stream)."""
-    app: FastAPI = create_app(settings)
+    # The real lifespan runs here, and it refuses to start without a master key.
+    security = SecuritySettings(secret_key=SecretStr(generate_key()))
+    app: FastAPI = create_app(settings.model_copy(update={"security": security}))
     app.dependency_overrides[get_current_user_id] = _test_user
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
