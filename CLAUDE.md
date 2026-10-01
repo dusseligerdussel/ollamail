@@ -15,6 +15,8 @@ und – bei UI-Arbeit – `docs/DESIGN.md`.
 - Jede Änderung – auch Doku, Tippfehler, Konfiguration – passiert auf einem **eigenen Branch**.
 - Änderungen gelangen **ausschließlich über einen Pull Request** nach `main`.
 - Ein PR wird erst gemerged, wenn die **CI grün** ist und ein Review erfolgt ist.
+  Maßgeblich ist der Check **`ci-ok`** (`.github/workflows/ci.yml`); er ist der einzige Required Check
+  für eine spätere Branch-Protection.
 - **Agenten mergen keine PRs** (weder eigene noch fremde) – das Mergen macht der Repository-Owner,
   außer er beauftragt einen Agenten ausdrücklich damit.
 - Kein Force-Push auf `main`, kein Löschen von `main`. Kein Umschreiben fremder Branch-Historie.
