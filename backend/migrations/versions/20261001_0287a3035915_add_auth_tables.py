@@ -1,7 +1,7 @@
 """add auth tables
 
 Revision ID: 0287a3035915
-Revises: d5a9c83a40d8
+Revises: 6c2961141b94
 Create Date: 2026-10-01 20:05:29.594656+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "0287a3035915"
-down_revision: str | Sequence[str] | None = "d5a9c83a40d8"
+down_revision: str | Sequence[str] | None = "6c2961141b94"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

@@ -262,6 +262,39 @@ sync job ─▶ Message gespeichert ─▶ enqueue(process_message)
 
 Jeder Schritt ist ein idempotenter Job. Fehler werden protokolliert und erneut versucht (Backoff).
 
+**Umsetzung (`backend/app/processing/`, #19):**
+
+- **Einstieg:** `await enqueue_processing(message_id, priority=Priority.NEW)` aus
+  `app.processing.tasks` – vom Mail-Sync **nach dem Commit** der Mail aufzurufen; beim Erstimport
+  mit `Priority.BACKFILL`. Mehrfache Aufrufe sind unschädlich.
+- **Schritte** registrieren sich in ihrem Feature-Modul (das in `TASK_MODULES` steht):
+  `@registry.step("triage", version=1, queue="llm", depends_on=("normalize",))`. Ein Handler
+  bekommt `StepContext(session, message_id, mailbox_id)`, schreibt über die Session und committet
+  nicht – Ergebnis und Status werden gemeinsam committet. Handler müssen idempotent sein.
+- **Ablauf:** `processing.plan_message` (Queue `default`) legt je Schritt eine Zeile in
+  `message_processing` an (`pending`) und reiht die Schritte ohne offene Abhängigkeiten als
+  `processing.run_step` in der Queue des Schritts ein. Ist ein Schritt `done`, werden seine
+  Nachfolger eingereiht, sobald alle ihre Abhängigkeiten `done` sind. Locks je Mail und Schritt
+  verhindern doppelte Jobs; ein bereits erledigter Schritt wird übersprungen.
+- **Status:** `pending` → `running` → `done` bzw. `failed`. Ein fehlgeschlagener Versuch, der
+  wiederholt wird, steht wieder auf `pending` (mit Fehlercode); `failed` heißt „aufgegeben“
+  (Retries erschöpft oder `StepError(code, permanent=True)`). Gespeichert werden nur Fehlercodes.
+- **Versionen:** Erhöht ein Schritt seine `version` (z. B. neuer Prompt), reiht der periodische Job
+  `processing.requeue_outdated` (alle 10 Minuten, `OLLAMAIL_PROCESSING_REQUEUE_BATCH_SIZE` Mails,
+  neueste zuerst) die betroffenen Mails ein; nur dieser Schritt läuft erneut. Derselbe Job holt Mails
+  nach, die nie verarbeitet wurden.
+- **Priorität:** Alle Jobs einer Mail erben die Priorität. Worker nehmen immer den Job mit der
+  höchsten Priorität: `NEW` (10) vor `BACKFILL` (0) vor `REPROCESS` (−10). Ein Erstimport blockiert
+  neue Mails also höchstens für die Dauer eines laufenden Jobs.
+- **Events:** `message.processed` mit `message_id`, `mailbox_id` und Status `done` (alle Schritte
+  erledigt) bzw. `failed`, an den Besitzer des Postfachs.
+- **Abschalten:** global `OLLAMAIL_PROCESSING_ENABLED=false`, je Postfach
+  `python -m app.cli processing disable|enable <mailbox-id>` (Tabelle `processing_mailbox_settings`).
+- **Neu verarbeiten:** `python -m app.cli processing reprocess [--mailbox ID] [--since …] [--until …]
+  [--step NAME …]` setzt die gewählten Schritte auf `pending` und reiht die Mails mit `REPROCESS` ein,
+  auch wenn sie schon `done` oder `failed` waren. Abhängige Schritte laufen dabei nicht automatisch
+  mit. Der Befehl hilft auch, falls Jobs verloren gingen (z. B. Absturz zwischen Commit und Einreihen).
+
 ### 4.2 Triage
 
 - Standardkategorien: **Wichtig**, **Handlungsbedarf**, **Warten auf**, **Info**, **Newsletter**, **Benachrichtigung**, **Spam/Werbung**.

@@ -217,6 +217,17 @@ class AuthSettings(BaseSettings):
         return self
 
 
+class ProcessingSettings(BaseSettings):
+    """``OLLAMAIL_PROCESSING_*`` (mail processing pipeline, app/processing/)"""
+
+    model_config = _config("PROCESSING_")
+
+    # Global switch: off = new mails are stored but not triaged, indexed etc.
+    enabled: bool = True
+    # Messages queued per run of the periodic job that re-processes outdated messages.
+    requeue_batch_size: int = Field(default=500, ge=1)
+
+
 class WorkerSettings(BaseSettings):
     """``OLLAMAIL_WORKER_*``"""
 
@@ -250,6 +261,7 @@ class Settings(BaseModel):
     llm: LLMSettings = Field(default_factory=LLMSettings)
     mail: MailSettings = Field(default_factory=MailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
+    processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
 

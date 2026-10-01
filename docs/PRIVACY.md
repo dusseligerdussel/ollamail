@@ -76,6 +76,10 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
   `ON DELETE CASCADE` am Postfach. Anhänge liegen unter `<OLLAMAIL_DATA_DIR>/attachments/<mailbox_id>/<attachment_id>`
   (Dateinamen ohne Originalnamen); `delete_mailbox` löscht nach dem Commit das ganze Verzeichnis,
   `delete_messages` die Dateien der gelöschten Mails.
+  Umsetzung Verarbeitung (`backend/app/processing/`): `message_processing` (Status je Mail und
+  Schritt) und `processing_mailbox_settings` (Opt-out je Postfach) hängen per `ON DELETE CASCADE`
+  an Mail bzw. Postfach. Gespeichert werden nur Schrittname, Version, Status und ein
+  Fehlercode (`StepError.code` oder Name der Exception-Klasse), nie Exception-Texte.
 - **Nutzer löschen:** `users` → `auth_identities`, `auth_sessions` und eigene Postfächer
   (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).
