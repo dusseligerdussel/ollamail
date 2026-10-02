@@ -35,7 +35,13 @@ export function useCategories() {
   return { ...query, visible };
 }
 
-/** Triage result of a message with its category (`undefined` while loading or untriaged). */
+/**
+ * Triage result of a message with its category (`undefined` while loading or untriaged), and
+ * the categories query. Pass `categories` on to child components instead of calling
+ * `useCategories()` in children that mount conditionally: a component mounting while the query
+ * failed starts a new request, and if that request hides it again (it is pending meanwhile),
+ * the two keep each other going (#86).
+ */
 export function useMessageTriage(messageId: string | undefined) {
   const triage = useQuery({ ...triageQueryOptions(messageId ?? ""), enabled: !!messageId });
   const categories = useCategories();
@@ -43,6 +49,7 @@ export function useMessageTriage(messageId: string | undefined) {
   return {
     triage: triage.data ?? undefined,
     category,
+    categories,
     isPending: triage.isPending || categories.isPending,
   };
 }

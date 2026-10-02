@@ -15,7 +15,7 @@ from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, BeforeValidator, Field
-from sqlalchemy import delete, select
+from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm.gateway import LLMGateway
@@ -149,10 +149,11 @@ def is_outgoing(message: Message, mailbox: Mailbox) -> bool:
 def build_prompt(
     message: Message,
     mailbox: Mailbox,
-    user: User,
+    user: User | None,
     reference: date,
     open_todos: Sequence[Todo],
 ) -> list[ChatMessage]:
+    """``user`` is the owner; ``None`` for a shared mailbox (addressed by its name)."""
     language = TODOS_EXTRACT.language_for(message.language)
     yes, no = _YES_NO[language]
     listed = "\n".join(
@@ -163,7 +164,7 @@ def build_prompt(
     recipients = ", ".join(_address(entry) for entry in [*message.to, *message.cc])
     return TODOS_EXTRACT.render(
         message.language,
-        user=f"{user.display_name} <{mailbox.address}>",
+        user=f"{user.display_name if user else mailbox.display_name} <{mailbox.address}>",
         sent_on=f"{WEEKDAY_NAMES[language][reference.weekday()]}, {reference.isoformat()}",
         outgoing=yes if is_outgoing(message, mailbox) else no,
         open_todos=listed or _NONE[language],
@@ -174,13 +175,21 @@ def build_prompt(
     )
 
 
-async def _thread_todos(session: AsyncSession, user_id: uuid.UUID, message: Message) -> list[Todo]:
+async def _thread_todos(
+    session: AsyncSession, user_id: uuid.UUID | None, message: Message
+) -> list[Todo]:
+    """Open todos of the thread: the owner's, or the team todos of a shared mailbox."""
     if message.thread_id is None:
         return []
+    owner = (
+        Todo.user_id == user_id
+        if user_id is not None
+        else and_(Todo.user_id.is_(None), Todo.mailbox_id == message.mailbox_id)
+    )
     rows = await session.scalars(
         select(Todo)
         .where(
-            Todo.user_id == user_id,
+            owner,
             Todo.thread_id == message.thread_id,
             Todo.status == TodoStatus.OPEN,
         )
@@ -276,7 +285,7 @@ def apply_plan(
     plan: ExtractionPlan,
     *,
     message: Message,
-    user_id: uuid.UUID,
+    user_id: uuid.UUID | None,
     open_todos: Sequence[Todo],
 ) -> list[Todo]:
     """Create, update and flag todos; returns the new ones."""
@@ -315,12 +324,15 @@ async def extract_todos(
     if message is None:
         return []
     mailbox = await session.get(Mailbox, message.mailbox_id)
-    # TODO(#34): shared mailboxes assign todos to their users.
-    if mailbox is None or mailbox.owner_user_id is None:
+    if mailbox is None:
         return []
-    user = await session.get(User, mailbox.owner_user_id)
-    if user is None:
-        return []
+    # Shared mailboxes (no owner) get unassigned team todos; their readers assign them.
+    user = None
+    if mailbox.owner_user_id is not None:
+        user = await session.get(User, mailbox.owner_user_id)
+        if user is None:
+            return []
+    user_id = user.id if user is not None else None
 
     if not settings.extraction_enabled:
         return []
@@ -332,8 +344,8 @@ async def extract_todos(
     if not (message.body_main or message.body_text or message.subject).strip():
         return []
 
-    open_todos = await _thread_todos(session, user.id, message)
-    reference = reference_date(message, user.timezone)
+    open_todos = await _thread_todos(session, user_id, message)
+    reference = reference_date(message, user.timezone if user is not None else "UTC")
     result = await llm.complete_structured(
         LLMTask.TODOS,
         build_prompt(message, mailbox, user, reference, open_todos),
@@ -348,6 +360,6 @@ async def extract_todos(
         min_confidence=settings.min_confidence,
         outgoing=is_outgoing(message, mailbox),
     )
-    created = apply_plan(session, plan, message=message, user_id=user.id, open_todos=open_todos)
+    created = apply_plan(session, plan, message=message, user_id=user_id, open_todos=open_todos)
     await session.flush()
     return created

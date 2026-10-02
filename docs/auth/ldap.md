@@ -156,7 +156,9 @@ Felder ohne Angabe übernehmen den Wert des Presets von `directory_type`.
   steuern (Admin → Rollen-Zuordnung, [`admin.md`](admin.md#3-rollen-zuordnung-gruppen--rollen));
   Regeln verwenden dort die Gruppen-DNs. Ist sie aktiv, zählt `admin_groups` wie eine passende
   Admin-Regel. Der letzte aktive Admin wird beim Login nie herabgestuft.
-- Gruppen werden nicht gespeichert, nur bei der Anmeldung ausgewertet.
+- Die Gruppen-DNs werden bei jedem Login gelesen und an der Identität gespeichert
+  (`auth_identities.groups`), damit Shared Mailboxes Gruppen zugewiesen werden können (#34).
+  Ändert sich die Mitgliedschaft im Verzeichnis, wirkt das mit dem nächsten Login.
 - Die primäre AD-Gruppe (`primaryGroupID`, meist „Domain Users“) taucht in `member` nicht auf
   und kann deshalb nicht in `allowed_groups`/`admin_groups` verwendet werden.
 

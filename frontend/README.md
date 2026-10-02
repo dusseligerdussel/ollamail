@@ -118,6 +118,11 @@ stehen in `src/api/auth.ts`.
 - **Deine Daten** (`/settings`, `src/components/account/`): Datenexport anfordern (Status live über
   das Event `privacy.export`, Download-Link bis zum Ablauf) und Konto löschen (Dialog, Bestätigung
   durch Eingabe der eigenen E-Mail-Adresse; danach Login-Seite). API: `src/api/privacy.ts`.
+- **Admin → Nutzer → „Nutzer löschen …“** (`/admin/users`, `src/components/admin/delete-user-dialog.tsx`):
+  `DELETE /api/admin/privacy/users/{id}`. Der Dialog zählt auf, was gelöscht wird (eigene
+  Postfächer, Mails, Aufgaben, Digests, …; Team-Postfächer bleiben), und verlangt die E-Mail-Adresse
+  des Nutzers. `last-admin` und `admin-lockout` (409) erscheinen als eigener Hinweis im Dialog.
+  Danach Toast mit der Zahl gelöschter Postfächer; beim eigenen Konto Warnung und danach Login-Seite.
 - **Admin → Aufbewahrung** (`/admin/retention`): Fristen je Datenkategorie mit Standardwert aus der
   Umgebung, „Standard verwenden“, Hinweis bei Mail-Frist unter dem Erstimport, letzter Lauf.
 
@@ -231,6 +236,9 @@ API und Query-Keys in `src/api/triage.ts`, Komponenten in `src/components/triage
 - **Begründung im Detail** (`TriageReason`): eine Zeile über dem Thread, z. B. „Eingeordnet als
   Handlungsbedarf. <Begründung>“, bei Regeln „…, weil die Nachricht einen Abmeldelink enthält“.
   Rechts daneben öffnet „Kategorie ändern“ ein Menü zum Korrigieren.
+  Können die Kategorien nicht geladen werden, steht dort ein Hinweis mit „Erneut versuchen“;
+  die Mail bleibt lesbar. Bedingt gemountete Kinder bekommen die Kategorien als Prop statt eines
+  eigenen `useCategories()` (jeder Mount auf eine fehlgeschlagene Query startet eine neue Anfrage, #86).
 - **Korrektur:** Klick (Menü), Command Palette („Einordnen als …“) oder `c` → Kategorieauswahl, dort
   wählen die Ziffern `1`–`9` direkt (zwei Tastendrücke). Die Priorität bleibt erhalten.
 - **Inbox nach Kategorie:** Auswahl „Ansicht“ im Seitenkopf bzw. Suchparameter `category`

@@ -1,8 +1,9 @@
 """Mailbox API: users add, test, configure, monitor and remove their own mailboxes.
 
-Access goes through ``app.mail.api.access`` (owner only until shared mailboxes, #34);
-another user's mailbox answers 404. Connection tests use the provider registry, syncing
-the existing sync job (``app.mail.sync``), removal ``app.mail.service.delete_mailbox``.
+Access goes through ``app.mail.access``: owners hold every permission, users assigned to
+a shared mailbox may only read it; any other mailbox answers 404. Connection tests use the
+provider registry, syncing the existing sync job (``app.mail.sync``), removal
+``app.mail.service.delete_mailbox``.
 Progress arrives as SSE events: ``mailbox.sync`` from the sync (``progress``, ``done``,
 ``failed``) and ``mailbox.changed`` from this API (``created``, ``updated``, ``deleted``).
 """
@@ -21,9 +22,10 @@ from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.jobs import JobQueue
 from app.core.logging import get_logger
+from app.mail import access
 from app.mail import service as mail_service
-from app.mail.api import access, autodiscovery, service
-from app.mail.api.access import MailboxPermission
+from app.mail.access import MailboxPermission
+from app.mail.api import autodiscovery, service
 from app.mail.api.schemas import (
     AutodiscoverRequest,
     AutodiscoverResult,
@@ -34,6 +36,7 @@ from app.mail.api.schemas import (
     MailboxConnection,
     MailboxCreate,
     MailboxDeleted,
+    MailboxMember,
     MailboxRead,
     MailboxSyncStatus,
     MailboxUpdate,
@@ -43,6 +46,7 @@ from app.mail.models import Mailbox, MailboxType
 from app.mail.providers.registry import ProviderRegistry, registry
 from app.mail.storage import AttachmentStorage
 from app.mail.sync.tasks import request_sync
+from app.users.models import User
 
 log = get_logger(__name__)
 
@@ -94,6 +98,10 @@ async def _mailbox(
     return mailbox
 
 
+async def _read_for(db: AsyncSession, mailbox: Mailbox, user_id: uuid.UUID) -> MailboxRead:
+    return (await service.mailbox_reads(db, [mailbox], user_id))[0]
+
+
 def _require_type(providers: ProviderRegistry, type: MailboxType) -> None:
     if not providers.is_registered(type):
         raise ProblemError(
@@ -115,9 +123,9 @@ async def _request_sync(requester: SyncRequester, mailbox_id: uuid.UUID) -> None
         )
 
 
-async def _read(db: AsyncSession, mailbox: Mailbox) -> MailboxRead:
+async def _read(db: AsyncSession, mailbox: Mailbox, user_id: uuid.UUID) -> MailboxRead:
     await db.refresh(mailbox)
-    return (await service.mailbox_reads(db, [mailbox]))[0]
+    return await _read_for(db, mailbox, user_id)
 
 
 @router.post("/autodiscover")
@@ -153,7 +161,7 @@ async def test_mailbox_connection(
 
 @router.get("")
 async def list_mailboxes(current: CurrentSessionDep, db: DbDep) -> list[MailboxRead]:
-    """The user's mailboxes with their sync status."""
+    """The user's mailboxes (own and assigned shared ones) with their sync status."""
     mailboxes = list(
         await db.scalars(
             select(Mailbox)
@@ -161,7 +169,7 @@ async def list_mailboxes(current: CurrentSessionDep, db: DbDep) -> list[MailboxR
             .order_by(Mailbox.display_name, Mailbox.id)
         )
     )
-    return await service.mailbox_reads(db, mailboxes)
+    return await service.mailbox_reads(db, mailboxes, current.user_id)
 
 
 @router.post(
@@ -198,13 +206,13 @@ async def create_mailbox(
     log.info("mail_mailbox_created", mailbox_id=str(mailbox.id), type=mailbox.type.value)
     if mailbox.sync_enabled:
         await _request_sync(requester, mailbox.id)
-    return await _read(db, mailbox)
+    return await _read(db, mailbox, current.user_id)
 
 
 @router.get("/{mailbox_id}", responses=NOT_FOUND)
 async def get_mailbox(mailbox_id: uuid.UUID, current: CurrentSessionDep, db: DbDep) -> MailboxRead:
     mailbox = await _mailbox(db, current.user_id, mailbox_id, MailboxPermission.READ)
-    return (await service.mailbox_reads(db, [mailbox]))[0]
+    return await _read_for(db, mailbox, current.user_id)
 
 
 @router.patch("/{mailbox_id}", responses={**NOT_FOUND, **CONNECTION_FAILED})
@@ -234,7 +242,7 @@ async def update_mailbox(
     resumed = mailbox.sync_enabled and not was_enabled
     if resumed or (mailbox.sync_enabled and (config is not None or body.sync_settings)):
         await _request_sync(requester, mailbox.id)
-    return await _read(db, mailbox)
+    return await _read(db, mailbox, current.user_id)
 
 
 @router.delete("/{mailbox_id}", responses=NOT_FOUND)
@@ -309,3 +317,18 @@ async def select_folders(
     if mailbox.sync_enabled and any(selection.values()):
         await _request_sync(requester, mailbox.id)
     return await service.folder_reads(db, mailbox)
+
+
+@router.get("/{mailbox_id}/members", responses=NOT_FOUND)
+async def list_members(
+    mailbox_id: uuid.UUID, current: CurrentSessionDep, db: DbDep
+) -> list[MailboxMember]:
+    """Everybody who may read the mailbox (the owner, or the users assigned to a shared
+    mailbox directly or through a group): the people team todos can be assigned to."""
+    await _mailbox(db, current.user_id, mailbox_id, MailboxPermission.READ)
+    users = await db.execute(
+        select(User.id, User.display_name)
+        .where(User.id.in_(access.readers(mailbox_id)))
+        .order_by(User.display_name, User.id)
+    )
+    return [MailboxMember(id=user_id, display_name=name) for user_id, name in users]

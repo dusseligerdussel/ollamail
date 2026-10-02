@@ -1,6 +1,6 @@
 """Read API for mails: inbox list, thread, sanitised body, attachments, read/unread.
 
-Access goes through the mailbox access rules (``app.mail.api.access.visible_to``): a
+Access goes through the mailbox access rules (``app.mail.access.visible_to``): a
 message of a mailbox the user cannot read answers 404, like a missing one. HTML is
 sanitised server-side (``app.mail.sanitize``) with external images removed; the client
 asks for them explicitly (``/body?external_images=true``). Read/unread is stored at once
@@ -28,7 +28,9 @@ from app.core.errors import ProblemError
 from app.core.events import Event, publish
 from app.core.jobs import JobQueue
 from app.core.logging import get_logger
-from app.mail.api import access, providers
+from app.mail import access
+from app.mail.access import MailboxPermission
+from app.mail.api import providers
 from app.mail.api.message_schemas import (
     AddressRead,
     AttachmentRead,
@@ -318,7 +320,7 @@ async def get_message_body(
     return _body(message, external_images=external_images)
 
 
-@router.patch("/{message_id}", responses=NOT_FOUND)
+@router.patch("/{message_id}", responses={**NOT_FOUND, 403: {"description": "Read-only mailbox"}})
 async def update_message(
     message_id: uuid.UUID,
     body: MessageUpdate,
@@ -326,8 +328,14 @@ async def update_message(
     db: DbDep,
     write_flags: FlagWriterDep,
 ) -> MessageSummary:
-    """Mark read or unread. Stored at once, written back to the server by a job."""
+    """Mark read or unread. Stored at once, written back to the server by a job. Users of
+    a shared mailbox may only read it (403 ``read_only``): the flag is the mailbox's."""
     message = await _message(db, current.user_id, message_id)
+    if (
+        await access.get_mailbox(db, current.user_id, message.mailbox_id, MailboxPermission.ACT)
+        is None
+    ):
+        raise ProblemError(403, detail="This mailbox is read-only for you.", error_code="read_only")
     flags = [flag for flag in message.flags or [] if flag != Flag.SEEN.value]
     if body.seen:
         flags.append(Flag.SEEN.value)

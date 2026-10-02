@@ -6,6 +6,9 @@ import type { MessageSummary, Thread } from "@/api/mail";
 import { backend, json, mockFetch } from "@/test/fetch";
 import { messageId, testMailbox, testMessage, testThread } from "@/test/mail";
 import { setViewportWidth } from "@/test/media";
+
+const SHARED_ID = "0199b000-0000-7000-8000-000000000002";
+
 import { renderApp } from "@/test/render-app";
 
 interface MailBackend {
@@ -194,5 +197,58 @@ describe("inbox", () => {
     await userEvent.click(screen.getByRole("button", { name: "Back to the list" }));
     expect(await screen.findByRole("list", { name: "Messages" })).toBeInTheDocument();
     expect(router.state.location.search).not.toHaveProperty("message");
+  });
+
+  it("lists shared mailboxes separately and keeps them read only", async () => {
+    const shared = testMailbox({
+      id: SHARED_ID,
+      display_name: "Support",
+      address: "support@example.org",
+      is_shared: true,
+      permissions: ["read"],
+    });
+    const id = messageId(7);
+    const { patches } = mockMailApi({
+      mailboxes: [testMailbox(), shared],
+      messages: [testMessage(7, { unread: true, mailbox_id: SHARED_ID })],
+      threads: {
+        [id]: {
+          ...testThread(7, {
+            unread: true,
+            text: "Customer question",
+            mailbox_id: SHARED_ID,
+          }),
+          mailbox_id: SHARED_ID,
+        },
+      },
+    });
+    await renderApp(`/inbox?mailbox=${SHARED_ID}&message=${id}`);
+
+    // Own section in the navigation, the inbox titled with the mailbox.
+    const section = await screen.findByRole("region", { name: "Shared mailboxes" });
+    expect(within(section).getByRole("link", { name: "Support" })).toHaveAttribute(
+      "href",
+      `/inbox?mailbox=${SHARED_ID}`,
+    );
+    expect(screen.getByRole("heading", { level: 1, name: "Support" })).toBeInTheDocument();
+    // Only the shared mailbox is the current page, not the inbox as a whole.
+    expect(within(section).getByRole("link", { name: "Support" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getAllByRole("link", { name: "Inbox" })[0]).not.toHaveAttribute("aria-current");
+    expect(
+      within(screen.getByRole("combobox", { name: "Mailbox" })).getByRole("group", {
+        name: "Shared mailboxes",
+      }),
+    ).toBeInTheDocument();
+
+    // Opening does not mark it read; the read state cannot be toggled.
+    expect(await screen.findByText("Customer question")).toBeInTheDocument();
+    expect(screen.getByText("Shared mailbox, read only")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Mark as read" })).not.toBeInTheDocument();
+    fireEvent.keyDown(document.body, { key: "u" });
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(patches).toEqual([]);
   });
 });

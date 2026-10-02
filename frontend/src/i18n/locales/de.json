@@ -24,7 +24,8 @@
     "settings": "Einstellungen",
     "admin": "Admin",
     "more": "Mehr",
-    "moreDescription": "Weitere Seiten und Darstellung"
+    "moreDescription": "Weitere Seiten und Darstellung",
+    "shared": "Geteilte Postfächer"
   },
   "theme": {
     "label": "Darstellung",
@@ -112,14 +113,15 @@
     "admin": {
       "security": "Sicherheit",
       "auditDescription": "Anmeldungen, Rollenänderungen, Schlüsselrotation und weitere Sicherheitsereignisse.",
-      "more": "Mail-Provider werden hier verwaltet, sobald dieser Bereich verfügbar ist.",
       "ai": "Sprachmodelle",
       "aiDescription": "Provider, Modelle je Aufgabe, Hardware-Profil und Cloud-Freigabe.",
       "access": "Anmeldung und Nutzer",
       "signInDescription": "Identity-Provider, LDAP-Verzeichnisse und lokale Konten.",
       "roleMappingDescription": "Rollen aus den Gruppen deines Identity-Providers ableiten.",
       "usersDescription": "Rollen, Deaktivierung, Sitzungen und Einladungen.",
-      "retentionDescription": "Wie lange Mails, Anhänge, Suchindex, Fragen-Verläufe, Digests und Audit-Log aufbewahrt werden."
+      "retentionDescription": "Wie lange Mails, Anhänge, Suchindex, Fragen-Verläufe, Digests und Audit-Log aufbewahrt werden.",
+      "mail": "Mail",
+      "sharedMailboxesDescription": "Team-Postfächer wie info@ oder support@: einmal anbinden, Personen und Gruppen zuweisen."
     },
     "audit": {
       "title": "Audit-Log",
@@ -189,7 +191,8 @@
         "mailbox": {
           "created": "Postfach hinzugefügt",
           "shared": "Postfach freigegeben",
-          "deleted": "Postfach entfernt"
+          "deleted": "Postfach entfernt",
+          "unshared": "Postfachfreigabe entzogen"
         },
         "data": {
           "exported": "Daten exportiert",
@@ -546,6 +549,29 @@
         "linkDescription": "Gültig bis {{date}}. Er wird nur einmal angezeigt; du kannst jederzeit einen neuen erstellen.",
         "done": "Fertig",
         "localDisabled": "Die lokale Anmeldung ist deaktiviert; eingeladene Nutzer könnten sich nicht anmelden."
+      },
+      "delete": {
+        "open": "Nutzer löschen …",
+        "title": "Nutzer endgültig löschen?",
+        "selfTitle": "Dein eigenes Konto endgültig löschen?",
+        "description": "{{name}} ({{email}}) wird mit allen eigenen Daten sofort gelöscht. Das lässt sich nicht rückgängig machen.",
+        "items": {
+          "mailboxes": "Eigene Postfächer mit ihren Ordnern und Einstellungen",
+          "mails": "Alle Mails und Anhänge aus diesen Postfächern, inklusive Suchindex",
+          "todos": "Aufgaben",
+          "digests": "Digests mit Audiodateien und Podcast-Feed",
+          "history": "Fragen-Verläufe, eigene Kategorien und Einstellungen",
+          "exports": "Datenexporte und Sitzungen"
+        },
+        "kept": "Team-Postfächer bleiben erhalten; nur die Zuweisung an diesen Nutzer entfällt. Die Mails bleiben in den Mail-Konten beim Anbieter erhalten. Das Audit-Log behält einen Eintrag ohne Namen und Adresse.",
+        "selfWarning": "Das ist dein eigenes Konto. Du wirst sofort abgemeldet und kannst dich danach nicht mehr anmelden. Möchtest du vorher deine Daten exportieren, nutze Einstellungen → Deine Daten.",
+        "confirmLabel": "Gib zur Bestätigung die E-Mail-Adresse {{email}} ein",
+        "cancel": "Abbrechen",
+        "confirm": "Endgültig löschen",
+        "done_one": "Nutzer gelöscht ({{count}} Postfach entfernt)",
+        "done_other": "Nutzer gelöscht ({{count}} Postfächer entfernt)",
+        "lastAdmin": "Nicht gelöscht: Das ist der letzte aktive Administrator. Mache zuerst einen anderen Nutzer zum Administrator.",
+        "lockout": "Nicht gelöscht: Danach könnte sich kein Administrator mehr anmelden. Mache zuerst einen anderen Nutzer mit funktionierender Anmeldung zum Administrator."
       }
     },
     "retention": {
@@ -592,6 +618,51 @@
           "description": "Sicherheitsereignisse. Die Hash-Kette bleibt ab dem ältesten verbleibenden Eintrag prüfbar."
         }
       }
+    },
+    "sharedMailboxes": {
+      "title": "Geteilte Postfächer",
+      "back": "Zurück zur Administration",
+      "add": "Geteiltes Postfach hinzufügen",
+      "addTitle": "Geteiltes Postfach hinzufügen",
+      "backToList": "Zurück zu den geteilten Postfächern",
+      "formDescription": "Zugangsdaten werden verschlüsselt gespeichert. Das Postfach wird einmal synchronisiert, egal wie viele Personen es lesen.",
+      "emptyTitle": "Keine geteilten Postfächer",
+      "emptyDescription": "Binde ein Team-Postfach einmal an und weise es Personen oder Gruppen zu.",
+      "privacy": "Als Administrator verwaltest du geteilte Postfächer, siehst aber keine Mails. Um eines zu lesen, weise es dir selbst zu; das Audit-Log protokolliert jede Zuweisung.",
+      "readers_one": "{{count}} Person hat Zugriff",
+      "readers_other": "{{count}} Personen haben Zugriff",
+      "notAssigned": "Noch niemandem zugewiesen",
+      "created": "„{{name}}“ hinzugefügt. Lege jetzt fest, wer es lesen darf.",
+      "access": "Zugriff",
+      "accessDescription": "Alle hier Aufgeführten sehen das Postfach samt Triage, Aufgaben, Suchtreffern und Digests. Wer entfernt wird, verliert den Zugriff mit der nächsten Anfrage.",
+      "users": "Personen",
+      "searchUsers": "Personen filtern",
+      "noUsers": "Keine Person passt zum Filter.",
+      "groups": "Gruppen",
+      "groupsDescription": "Mitglieder einer Gruppe erhalten Zugriff bei ihrer nächsten Anmeldung, so wie der Identity-Provider die Gruppe meldet: Entra-Gruppen-Objekt-ID, LDAP-Gruppen-DN oder GitHub-Team (org/team).",
+      "groupName": "Gruppe",
+      "provider": "Anbieter",
+      "anyProvider": "Jeder Anbieter",
+      "addGroup": "Gruppe hinzufügen",
+      "removeGroup": "Gruppe {{group}} entfernen",
+      "noGroups": "Keine Gruppen zugewiesen.",
+      "save": "Zugriff speichern",
+      "saving": "Speichern …",
+      "saved": "Zugriff gespeichert",
+      "unknownUser": "Eine der ausgewählten Personen gibt es nicht mehr. Lade die Seite neu.",
+      "unsaved": "Ungespeicherte Änderungen",
+      "status": "Status",
+      "syncNow": "Jetzt synchronisieren",
+      "syncRequested": "Synchronisierung angestoßen",
+      "pause": "Synchronisierung pausieren",
+      "resume": "Synchronisierung fortsetzen",
+      "remove": "Geteiltes Postfach entfernen",
+      "removeTitle": "Geteiltes Postfach entfernen?",
+      "removeDescription_one": "„{{name}}“ und seine {{formatted}} Mail werden für alle gelöscht, samt Triage, Aufgaben, Suchindex und Zugriffen. Die Mails auf dem Server bleiben erhalten.",
+      "removeDescription_other": "„{{name}}“ und seine {{formatted}} Mails werden für alle gelöscht, samt Triage, Aufgaben, Suchindex und Zugriffen. Die Mails auf dem Server bleiben erhalten.",
+      "removed": "Geteiltes Postfach entfernt",
+      "cancel": "Abbrechen",
+      "notFound": "Dieses geteilte Postfach gibt es nicht (mehr)."
     }
   },
   "digest": {
@@ -878,6 +949,10 @@
       "close": "Nachricht schließen",
       "toggleUnread": "Als gelesen oder ungelesen markieren"
     },
+    "ownMailboxes": "Meine Postfächer",
+    "sharedMailboxes": "Geteilte Postfächer",
+    "readOnly": "Geteiltes Postfach, nur lesen",
+    "readOnlyHint": "Gelesen/ungelesen gilt für das ganze Postfach; in geteilten Postfächern kann das nur der Administrator ändern.",
     "foundInAttachment": "Fundstelle im Anhang"
   },
   "mailboxes": {
@@ -1026,7 +1101,10 @@
       "not_configured": "Dieser Anbieter ist auf diesem Server nicht eingerichtet.",
       "token_exchange_failed": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
       "offline_access_missing": "Dauerhafter Zugriff wurde nicht erlaubt. Bitte versuche es erneut und erlaube ihn."
-    }
+    },
+    "sharedTitle": "Mit dir geteilt",
+    "sharedDescription": "Diese Postfächer bindet dein Administrator an und verwaltet sie. Du kannst sie lesen, samt Triage, Aufgaben, Suche und Digest.",
+    "sharedBadge": "Geteilt"
   },
   "copy": {
     "copy": "Kopieren",
@@ -1074,6 +1152,8 @@
     "label": "Kategorie: {{category}}",
     "labelHighPriority": "Kategorie: {{category}}, hohe Priorität",
     "highPriority": "Hohe Priorität",
+    "categoriesError": "Kategorien konnten nicht geladen werden.",
+    "retry": "Erneut versuchen",
     "reason": {
       "llm": "Eingeordnet als <0>{{category}}</0>. {{reason}}",
       "llmNoReason": "Eingeordnet als <0>{{category}}</0>.",

@@ -2,7 +2,9 @@
 
 Isolation (docs/PRIVACY.md, Zweckbindung): every query here filters on the user *and* on
 mailboxes owned by that user. Examples of one user never reach another user's prompt;
-``tests/triage/test_isolation.py`` checks this.
+``tests/triage/test_isolation.py`` checks this. Shared mailboxes (#34) are the exception
+by design: corrections there apply to the whole mailbox, so its examples are the
+corrections of all its users, taken only from mails of that same mailbox.
 """
 
 import math
@@ -12,7 +14,7 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 from typing import Protocol
 
-from sqlalchemy import select
+from sqlalchemy import and_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import LLMError, LLMTask
@@ -56,21 +58,24 @@ def cosine(a: Sequence[float], b: Sequence[float]) -> float:
 
 async def _candidates(
     session: AsyncSession,
-    user_id: uuid.UUID,
+    user_id: uuid.UUID | None,
     categories: Sequence[EffectiveCategory],
     exclude_message_id: uuid.UUID | None,
     settings: TriageSettings,
+    shared_mailbox_id: uuid.UUID | None,
 ) -> list[_Candidate]:
     keys = {category.id: category.key for category in categories}
+    if shared_mailbox_id is not None:
+        scope = and_(Mailbox.id == shared_mailbox_id, Mailbox.is_shared)
+    elif user_id is not None:
+        scope = and_(TriageFeedback.user_id == user_id, Mailbox.owner_user_id == user_id)
+    else:
+        return []
     statement = (
         select(TriageFeedback, Message, Mailbox.address)
         .join(Message, Message.id == TriageFeedback.message_id)
         .join(Mailbox, Mailbox.id == Message.mailbox_id)
-        .where(
-            TriageFeedback.user_id == user_id,
-            Mailbox.owner_user_id == user_id,
-            TriageFeedback.category_id.in_(list(keys)),
-        )
+        .where(scope, TriageFeedback.category_id.in_(list(keys)))
         .order_by(TriageFeedback.updated_at.desc(), TriageFeedback.id.desc())
         .limit(settings.few_shot_pool)
     )
@@ -117,20 +122,24 @@ async def _rank_by_similarity(
 
 async def select_examples(
     session: AsyncSession,
-    user_id: uuid.UUID,
+    user_id: uuid.UUID | None,
     query: MailView,
     categories: Sequence[EffectiveCategory],
     settings: TriageSettings,
     *,
     llm: EmbeddingLLM | None = None,
     exclude_message_id: uuid.UUID | None = None,
+    shared_mailbox_id: uuid.UUID | None = None,
 ) -> list[Example]:
-    """Up to ``few_shot_examples`` corrections of ``user_id`` for the prompt: the most
-    similar ones if embeddings are available, otherwise the most recent ones."""
+    """Up to ``few_shot_examples`` corrections of ``user_id`` (or, with
+    ``shared_mailbox_id``, of the shared mailbox) for the prompt: the most similar ones if
+    embeddings are available, otherwise the most recent ones."""
     limit = settings.few_shot_examples
     if limit == 0:
         return []
-    candidates = await _candidates(session, user_id, categories, exclude_message_id, settings)
+    candidates = await _candidates(
+        session, user_id, categories, exclude_message_id, settings, shared_mailbox_id
+    )
     if len(candidates) > limit and settings.few_shot_embeddings and llm is not None:
         try:
             candidates = await _rank_by_similarity(candidates, query, llm)

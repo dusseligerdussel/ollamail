@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ImageOff, Mail, MailOpen, Paperclip } from "lucide-react";
+import { ArrowLeft, Eye, ImageOff, Mail, MailOpen, Paperclip } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -39,7 +39,8 @@ interface ThreadViewProps {
   /** The message opened from the list; its read state is toggled in the header. */
   messageId: string;
   unread: boolean;
-  onToggleUnread: () => void;
+  /** Missing for read-only (shared) mailboxes: read state cannot be changed there. */
+  onToggleUnread?: () => void;
   /** Back to the list (stacked mobile layout only). */
   onBack?: () => void;
   /** Mark and scroll to this place of the opened message. */
@@ -71,15 +72,25 @@ export function ThreadView({
           )
         }
         actions={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onToggleUnread}
-            aria-label={unread ? t("mail.markRead") : t("mail.markUnread")}
-            title={unread ? t("mail.markRead") : t("mail.markUnread")}
-          >
-            {unread ? <MailOpen /> : <Mail />}
-          </Button>
+          onToggleUnread ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onToggleUnread}
+              aria-label={unread ? t("mail.markRead") : t("mail.markUnread")}
+              title={unread ? t("mail.markRead") : t("mail.markUnread")}
+            >
+              {unread ? <MailOpen /> : <Mail />}
+            </Button>
+          ) : (
+            <span
+              className="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground"
+              title={t("mail.readOnlyHint")}
+            >
+              <Eye aria-hidden className="size-3.5" />
+              <span className="max-md:sr-only">{t("mail.readOnly")}</span>
+            </span>
+          )
         }
       />
       <div className="flex-1 overflow-y-auto">

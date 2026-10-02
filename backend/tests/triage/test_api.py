@@ -8,8 +8,8 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.events import Event
+from app.mail import access as mail_access
 from app.mail.providers.base import Flag
-from app.triage import service
 from app.triage.models import TriageFeedback, TriageMailboxSettings, TriageSource
 from app.triage.service import Decision, save_result
 from app.users.models import UserRole
@@ -459,7 +459,8 @@ async def test_correction_notifies_the_ui(
     async def record(_: object, user_id: uuid.UUID, event: Event) -> None:
         published.append((user_id, event))
 
-    monkeypatch.setattr(service, "publish", record)
+    # Events reach the mailbox's readers through the central access module.
+    monkeypatch.setattr(mail_access, "publish", record)
 
     response = await db_client.put(
         f"/triage/messages/{message.id}", json={"category_id": info, "priority": 1}

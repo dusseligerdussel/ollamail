@@ -1,6 +1,6 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type {
   AdminUser,
@@ -9,6 +9,7 @@ import type {
   OidcProvider,
   RoleMapping,
 } from "@/api/admin-auth";
+import { pageNavigation } from "@/api/auth";
 import i18n from "@/i18n";
 import { backend, json, mockFetch, problem, testAdmin, testUser } from "@/test/fetch";
 import { renderApp } from "@/test/render-app";
@@ -382,6 +383,118 @@ describe("admin: users", () => {
       display_name: "Max Muster",
       role: "user",
     });
+  });
+});
+
+describe("admin: delete user", () => {
+  afterEach(() => {
+    vi.restoreAllMocks();
+  });
+
+  const deleteUrl = (id: string) => `DELETE /api/admin/privacy/users/${id}`;
+
+  async function openDeleteDialog(user: ReturnType<typeof userEvent.setup>, name: string) {
+    await openMenu(user, name);
+    await user.click(await screen.findByRole("menuitem", { name: "Delete user…" }));
+    return screen.findByRole("dialog", { name: /Permanently delete/ });
+  }
+
+  it("explains what is deleted and needs the user's address", async () => {
+    const user = userEvent.setup();
+    const calls = mockAdminApi();
+    await renderApp("/admin/users");
+
+    const dialog = await openDeleteDialog(user, testUser.display_name);
+    expect(within(dialog).getByText(/Test User \(user@example.org\)/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Own mailboxes/)).toBeInTheDocument();
+    expect(within(dialog).getByText(/Team mailboxes are kept/)).toBeInTheDocument();
+    expect(within(dialog).queryByText(/This is your own account/)).not.toBeInTheDocument();
+
+    const confirm = within(dialog).getByRole("button", { name: "Delete permanently" });
+    expect(confirm).toBeDisabled();
+    const input = within(dialog).getByLabelText(/enter the e-mail address user@example.org/);
+    await user.type(input, "admin@example.org");
+    expect(confirm).toBeDisabled();
+    await user.clear(input);
+    await user.type(input, " User@Example.org ");
+    expect(confirm).toBeEnabled();
+
+    await user.click(within(dialog).getByRole("button", { name: "Cancel" }));
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(calls.some((c) => c.method === "DELETE")).toBe(false);
+  });
+
+  it("deletes another user and reloads the list", async () => {
+    const user = userEvent.setup();
+    let deleted = false;
+    const calls = mockAdminApi({
+      [deleteUrl(testUser.id)]: () => {
+        deleted = true;
+        return json({ user_id: testUser.id, deleted: true, mailboxes: 2 });
+      },
+      "GET /api/users": () => json(deleted ? users.slice(0, 1) : users),
+    });
+    await renderApp("/admin/users");
+
+    const dialog = await openDeleteDialog(user, testUser.display_name);
+    await user.type(within(dialog).getByRole("textbox"), testUser.email);
+    await user.click(within(dialog).getByRole("button", { name: "Delete permanently" }));
+
+    expect(await screen.findByText("User deleted (2 mailboxes removed)")).toBeInTheDocument();
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    const table = await screen.findByRole("table", { name: "Users" });
+    await waitFor(() => expect(within(table).getAllByRole("row")).toHaveLength(2));
+    expect(within(table).queryByText(testUser.display_name)).not.toBeInTheDocument();
+    expect(calls.filter((c) => c.method === "DELETE").map((c) => c.path)).toEqual([
+      `/api/admin/privacy/users/${testUser.id}`,
+    ]);
+  });
+
+  it("shows the last-admin refusal in the dialog", async () => {
+    const user = userEvent.setup();
+    const assign = vi.spyOn(pageNavigation, "assign").mockImplementation(() => {});
+    mockAdminApi({
+      [deleteUrl(testAdmin.id)]: () => problem(409, { type: "urn:ollamail:problem:last-admin" }),
+    });
+    await renderApp("/admin/users");
+
+    const dialog = await openDeleteDialog(user, testAdmin.display_name);
+    expect(within(dialog).getByText(/This is your own account/)).toBeInTheDocument();
+    await user.type(within(dialog).getByRole("textbox"), testAdmin.email);
+    await user.click(within(dialog).getByRole("button", { name: "Delete permanently" }));
+
+    expect(
+      await within(dialog).findByText(/this is the last active administrator/),
+    ).toBeInTheDocument();
+    expect(assign).not.toHaveBeenCalled();
+    expect(within(dialog).getByRole("button", { name: "Delete permanently" })).toBeEnabled();
+  });
+
+  it("shows the admin-lockout refusal in the dialog", async () => {
+    const user = userEvent.setup();
+    mockAdminApi({ [deleteUrl(testUser.id)]: () => problem(409, LOCKOUT) });
+    await renderApp("/admin/users");
+
+    const dialog = await openDeleteDialog(user, testUser.display_name);
+    await user.type(within(dialog).getByRole("textbox"), testUser.email);
+    await user.click(within(dialog).getByRole("button", { name: "Delete permanently" }));
+
+    expect(await within(dialog).findByText(/no administrator could sign in/)).toBeInTheDocument();
+  });
+
+  it("goes to the sign-in page after deleting the own account", async () => {
+    const user = userEvent.setup();
+    const assign = vi.spyOn(pageNavigation, "assign").mockImplementation(() => {});
+    mockAdminApi({
+      [deleteUrl(testAdmin.id)]: () => json({ user_id: testAdmin.id, deleted: true, mailboxes: 0 }),
+    });
+    await renderApp("/admin/users");
+
+    const dialog = await openDeleteDialog(user, testAdmin.display_name);
+    await user.type(within(dialog).getByRole("textbox"), testAdmin.email);
+    await user.click(within(dialog).getByRole("button", { name: "Delete permanently" }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("/login"));
   });
 });
 

@@ -15,7 +15,9 @@ Feature, sondern eine Randbedingung für jede Änderung.
 4. **Admin ≠ Leser** – Admins verwalten die Instanz, sehen aber **keine fremden Mail-Inhalte**,
    nur Metadaten (Anzahl, Sync-Status, Fehler) und aggregierte Statistiken. Die Nutzerverwaltung
    (Admin → Nutzer) zeigt nur Kontodaten: Name, Adresse, Rolle, Anmeldeverfahren, Status, letzte
-   Anmeldung und Zahl der Sitzungen.
+   Anmeldung und Zahl der Sitzungen. Auch Shared Mailboxes verwaltet der Admin nur (Verbindung,
+   Ordner, Zuweisungen, Sync-Status); lesen kann er sie nur, wenn er sich selbst zuweist, und
+   das steht im Audit-Log.
 5. **Transparenz** – Jede KI-Bewertung (Triage, Todo) ist für den Nutzer erklärbar und korrigierbar.
 
 ## Technische Maßnahmen
@@ -33,11 +35,12 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. Die eingebaute Telemetrie von ONNX Runtime (von Piper genutzt) ist per `ORT_DISABLE_TELEMETRY=1` abgeschaltet, im Code und im Image (Test: `tests/ai/tts/test_piper.py`) |
-| Triage | Few-Shot-Beispiele nur aus Korrekturen desselben Nutzers in eigenen Postfächern (doppelt gefiltert, Test `tests/triage/test_isolation.py`); Kategorien anderer Nutzer werden nie angeboten. Prompts, Antworten und Begründungen nie in Logs, Fehlercodes statt Exception-Texten. Zurückschreiben aufs Postfach nur nach Opt-in je Postfach |
-| LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename und die Verzeichnis-ID (`objectGUID`/`entryUUID`); Gruppen werden bei jedem Login gelesen, nicht gespeichert. Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
+| Triage | Few-Shot-Beispiele nur aus Korrekturen desselben Nutzers in eigenen Postfächern (doppelt gefiltert, Test `tests/triage/test_isolation.py`); Kategorien anderer Nutzer werden nie angeboten. Ausnahme Shared Mailboxes: Korrekturen wirken postfachweit und sind Beispiele nur für dieses Postfach, das alle Beteiligten ohnehin lesen dürfen; persönliche Korrekturen fließen dort nie ein. Prompts, Antworten und Begründungen nie in Logs, Fehlercodes statt Exception-Texten. Zurückschreiben aufs Postfach nur nach Opt-in je Postfach |
+| LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename, die Verzeichnis-ID (`objectGUID`/`entryUUID`) und die Gruppen-DNs des letzten Logins (`auth_identities.groups`, für Rollen-Mapping und Gruppenzuweisungen von Shared Mailboxes; mit dem Nutzer gelöscht). Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
 | Mails anzeigen | HTML serverseitig sanitisiert (`nh3`), im Browser zusätzlich in einem sandboxed `iframe` ohne Skripte mit eigener CSP. Externe Bilder (Tracking-Pixel) sind blockiert, bis der Nutzer sie für eine Mail lädt; dann ohne Referrer. Anhänge nur als Download (`application/octet-stream`, `nosniff`, CSP `sandbox`), inline nur Rasterbilder für `cid:`. Gelesen/ungelesen geht nur nach ausdrücklicher Aktion des Nutzers (Öffnen, `u`) an den Mailserver |
 | Anhänge lesen | Textextraktion (PDF, DOCX, TXT, HTML) in einem eigenen Prozess ohne Umgebungsvariablen (keine Secrets), mit Grenzen für Dateigröße, Laufzeit, Speicher und ohne Schreibrechte; Fehler nur als Statuscode |
-| Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/search/access.py`), getestet in `tests/search/test_service.py` und `tests/rag/` (Nutzer A erfährt nichts aus Mails von Nutzer B, auch nicht mit dessen Postfach als Filter). Mailinhalte stehen im Prompt nur als markierte Daten, die Antwort führt nichts aus; Zitate können nur auf tatsächlich abgerufene Chunks zeigen. Fragen, Antworten und Prompts nie in Logs (nur IDs, Anzahlen, Zeiten wie `ttft_ms`) |
+| Zugriff auf Postfächer | Eine einzige Regel für alle Features: `accessible_mailbox_ids(user)` in `app/mail/access.py` (eigene Postfächer und zugewiesene Shared Mailboxes), immer als SQL-Filter, ohne Cache. Ein Entzug wirkt mit der nächsten Anfrage in Inbox, Thread, Anhängen, Triage, Todos, Suche, RAG (auch gespeicherte Antworten und Zitate) und Digest (auch gespeicherte Digests und Podcast-Feed); getestet je Feature in `tests/shared/test_access.py`. Nutzer eines Shared Mailbox haben nur Leserecht |
+| Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/mail/access.py`), getestet in `tests/search/test_service.py`, `tests/rag/` und `tests/shared/` (Nutzer A erfährt nichts aus Mails von Nutzer B, auch nicht mit dessen Postfach als Filter). Mailinhalte stehen im Prompt nur als markierte Daten, die Antwort führt nichts aus; Zitate können nur auf tatsächlich abgerufene Chunks zeigen. Fragen, Antworten und Prompts nie in Logs (nur IDs, Anzahlen, Zeiten wie `ttft_ms`) |
 | Single Sign-on (OIDC) | Gespeichert werden nur `sub` (Identität), Gruppen-Claims (für das Rollen-Mapping) und beim ersten Login E-Mail-Adresse und Name; IdP-Tokens nie. Client-Secrets verschlüsselt. `state`/`nonce`/PKCE-Verifier nur im verschlüsselten Einmal-Cookie. Logs nur mit Provider und statischem Fehlercode, nie Claims oder Tokens |
 | Login mit GitHub | Gespeichert werden nur die numerische GitHub-Nutzer-ID, die Teams (für das Rollen-Mapping; bei Org-Beschränkung nur Teams der erlaubten Organisationen) und beim ersten Login die verifizierte primäre E-Mail-Adresse und der Name. Das Access-Token wird nur im Callback benutzt, nie gespeichert. Client-Secrets verschlüsselt. Logs nur mit Provider und statischem Fehlercode ([`auth/github.md`](auth/github.md)) |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
@@ -145,7 +148,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `idp.config_changed` | LDAP-Verzeichnis bzw. OIDC-Provider angelegt, geändert, gelöscht (`details.change`); lokale Anmeldung an/aus (`kind: local`); Rollen-Zuordnung gespeichert (`kind: role_mapping`, nur Anzahlen) | aktiv |
 | `ai.settings_changed` | KI-Einstellungen im Admin-Bereich: Provider anlegen/ändern/löschen (`details.change`, `provider`, `is_cloud`), Modell-Zuordnung, Profil, Parallelität, Cloud-Freigabe (`details.cloud_enabled`) | aktiv |
 | `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
-| `mailbox.shared` | Shared Mailboxes | geplant (#34) |
+| `mailbox.shared`, `mailbox.unshared` | Admin weist ein Shared Mailbox einem Nutzer oder einer Gruppe zu bzw. entzieht es (`/api/admin/shared-mailboxes/{id}/assignments`; je Eintrag `principal`, Nutzer-ID bzw. Gruppenname – nur wenn kurz und ohne `@`, sonst die Zuweisungs-ID – und `provider`); Anlegen eines Shared Mailbox als `mailbox.created` mit `shared: true` | aktiv |
 | `mailbox.deleted` | `app.mail.service.delete_mailbox`; über die Postfach-API mit dem Nutzer als Akteur | aktiv |
 | `data.exported` | Datenexport: angefordert und heruntergeladen (`details.stage`: `requested`, `downloaded`; `export_id`) | aktiv |
 | `data.deleted` | Aufbewahrungsjob `privacy.retention`, nur wenn er etwas gelöscht hat: Anzahlen (`mails`, `attachments`, `search_chunks`, `threads`, `audit_events`) und neuer Startpunkt der Hash-Kette | aktiv |
@@ -192,8 +195,13 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   Umsetzung Todos (`backend/app/todos/`): `todos` hängt per `ON DELETE CASCADE` an Nutzer und
   Postfach; Quell-Mail und Thread werden beim Löschen einer einzelnen Mail auf `NULL` gesetzt
   (das Todo gehört dem Nutzer und bleibt, bis er es löscht). Die Extraktion protokolliert nur
-  Anzahlen, nie Titel oder Beschreibungen. Die API liefert ausschließlich eigene Todos; ein
-  fremdes Todo verhält sich wie ein nicht vorhandenes (404).
+  Anzahlen, nie Titel oder Beschreibungen. Die API liefert ausschließlich eigene Todos und die
+  Team-Todos lesbarer Shared Mailboxes; ein fremdes Todo verhält sich wie ein nicht vorhandenes
+  (404). Team-Todos (`user_id IS NULL`) hängen am Shared Mailbox; die Zuweisung an eine Person
+  (`assignee_id`) wird beim Löschen dieser Person auf `NULL` gesetzt.
+  Umsetzung Shared Mailboxes (`backend/app/mail/`, #34): `mail_mailbox_assignments` hängt per
+  `ON DELETE CASCADE` am Postfach und am Nutzer. Wird ein Nutzer gelöscht, verschwinden nur seine
+  Zuweisungen, das Shared Mailbox und seine Daten bleiben für die anderen erhalten.
   Umsetzung Daily Digest (`backend/app/digest/`, #28): `digests` und `digest_user_settings`
   hängen per `ON DELETE CASCADE` am Nutzer. Ein Digest verweist auf Postfächer und Mails nur über
   IDs; der stündliche Job `digest.cleanup` löscht Digests, deren Postfach entfernt wurde, Digests

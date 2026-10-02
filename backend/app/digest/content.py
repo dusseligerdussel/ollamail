@@ -5,7 +5,12 @@ without drafts, sent mail, trash and spam folders. Triage decides the order (act
 required and important first) and which mails are only counted: bulk categories
 (newsletters, notifications) become one collective sentence, skipped categories (spam)
 are left out. Todos: open todos created in the period, and open todos due by tomorrow
-(in the user's time zone), overdue ones included.
+(in the user's time zone), overdue ones included: own todos and team todos of shared
+mailboxes assigned to the user.
+
+Access is checked again when the digest is written (``app.mail.access``): a mailbox the
+user can no longer read contributes nothing, even if it was selected when the digest was
+scheduled.
 
 Functions take an open session and never commit.
 """
@@ -19,9 +24,10 @@ from sqlalchemy import ColumnElement, and_, func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import DigestSettings
-from app.mail.api.access import visible_to
+from app.mail.access import accessible_mailbox_ids, visible_to
 from app.mail.models import Folder, FolderRole, Mailbox, Message, message_folders
 from app.todos.models import Todo, TodoPriority, TodoStatus
+from app.todos.service import visible_todos
 from app.triage.categories import slugify
 from app.triage.models import TriageCategory, TriageResult
 
@@ -116,7 +122,7 @@ async def collect(
     """Gather the content of a digest; ``today`` is the local date of the user."""
     content = DigestContent()
     if mailbox_ids:
-        await _collect_mails(session, content, mailbox_ids, start, end, settings)
+        await _collect_mails(session, content, user_id, mailbox_ids, start, end, settings)
     await _collect_todos(session, content, user_id, mailbox_ids, start, end, today)
     return content
 
@@ -124,6 +130,7 @@ async def collect(
 async def _collect_mails(
     session: AsyncSession,
     content: DigestContent,
+    user_id: uuid.UUID,
     mailbox_ids: Sequence[uuid.UUID],
     start: datetime,
     end: datetime,
@@ -142,6 +149,7 @@ async def _collect_mails(
         .outerjoin(TriageCategory, TriageCategory.id == TriageResult.category_id)
         .where(
             Message.mailbox_id.in_(list(mailbox_ids)),
+            Message.mailbox_id.in_(accessible_mailbox_ids(user_id)),
             received >= start,
             received < end,
             ~excluded,
@@ -184,15 +192,18 @@ async def _collect_todos(
     end: datetime,
     today: date,
 ) -> None:
-    # Manual todos and todos from the selected mailboxes.
-    source: ColumnElement[bool] = or_(
-        Todo.mailbox_id.is_(None), Todo.mailbox_id.in_(list(mailbox_ids))
+    # Manual todos and todos from the selected mailboxes; of shared mailboxes only those
+    # assigned to the user.
+    source: ColumnElement[bool] = and_(
+        visible_todos(user_id),
+        or_(Todo.user_id == user_id, Todo.assignee_id == user_id),
+        or_(Todo.mailbox_id.is_(None), Todo.mailbox_id.in_(list(mailbox_ids))),
     )
     is_new = and_(Todo.created_at >= start, Todo.created_at < end)
     is_due = Todo.due_date <= today + timedelta(days=1)
     todos = await session.scalars(
         select(Todo)
-        .where(Todo.user_id == user_id, Todo.status == TodoStatus.OPEN, source)
+        .where(Todo.status == TodoStatus.OPEN, source)
         .where(or_(is_new, is_due))
         .order_by(Todo.due_date.asc().nulls_last(), Todo.created_at, Todo.id)
     )

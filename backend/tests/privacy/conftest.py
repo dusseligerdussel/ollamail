@@ -16,7 +16,7 @@ from app.auth.models import Invitation
 from app.core.config import get_settings
 from app.digest.models import Digest, DigestLength, DigestStatus, DigestTrigger, DigestUserSettings
 from app.digest.storage import DigestStorage
-from app.mail.models import Attachment, Message
+from app.mail.models import Attachment, Mailbox, MailboxAssignment, MailboxType, Message
 from app.mail.storage import AttachmentStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
 from app.rag.models import RagCitation, RagConversation, RagMessage, RagRole
@@ -90,6 +90,20 @@ async def seed_user_data(
     assert message is not None
     attachment = await session.scalar(select(Attachment).where(Attachment.message_id == message.id))
     assert attachment is not None
+
+    # Access to a shared mailbox (#34): the assignment goes with the user, the shared
+    # mailbox stays (it is created once, by the first seeded user).
+    shared = await session.scalar(select(Mailbox).where(Mailbox.is_shared))
+    if shared is None:
+        shared = Mailbox(
+            type=MailboxType.IMAP,
+            display_name="Team",
+            address="team@example.org",
+            is_shared=True,
+        )
+        session.add(shared)
+        await session.flush()
+    session.add(MailboxAssignment(mailbox_id=shared.id, user_id=user_id))
 
     category = TriageCategory(owner_user_id=user_id, name=f"Category {marker}", description="")
     session.add(category)

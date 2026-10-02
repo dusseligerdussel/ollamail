@@ -15,6 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.events import Event, publish
 from app.core.ids import uuid7
+from app.mail.access import publish_to_readers
 from app.mail.models import Mailbox, Message
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
 from app.processing.steps import ProcessingStep, registry
@@ -169,16 +170,17 @@ async def start_step(
 async def _publish(
     session: AsyncSession, message_id: uuid.UUID, mailbox_id: uuid.UUID, status: str
 ) -> None:
-    owner = await session.scalar(select(Mailbox.owner_user_id).where(Mailbox.id == mailbox_id))
-    # TODO(#11): shared mailboxes notify their assigned users.
-    if owner is None:
-        return
     event = Event(
         type=PROCESSED_EVENT,
         ids={"message_id": message_id, "mailbox_id": mailbox_id},
         status=status,
     )
-    await publish(session, owner, event)
+    owner = await session.scalar(select(Mailbox.owner_user_id).where(Mailbox.id == mailbox_id))
+    if owner is not None:
+        await publish(session, owner, event)
+    else:
+        # Shared mailbox: its assigned users.
+        await publish_to_readers(session, mailbox_id, event)
 
 
 async def finish_step(

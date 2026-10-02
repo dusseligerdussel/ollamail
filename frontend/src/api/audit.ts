@@ -25,6 +25,7 @@ const actionGroups = {
   "ai.settings_changed": "settings",
   "mailbox.created": "mailboxes",
   "mailbox.shared": "mailboxes",
+  "mailbox.unshared": "mailboxes",
   "mailbox.deleted": "mailboxes",
   "data.exported": "data",
   "data.deleted": "data",

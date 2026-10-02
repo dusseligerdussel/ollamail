@@ -15,9 +15,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import CloudLLMDisabledError, LLMGateway, LLMOutputError, LLMTask
 from app.core.config import TriageSettings
-from app.core.events import Event, publish
+from app.core.events import Event
 from app.core.ids import uuid7
-from app.mail.api import access
+from app.mail.access import publish_to_readers, visible_to
 from app.mail.models import Folder, FolderRole, Mailbox, Message, message_folders
 from app.mail.providers.base import Flag
 from app.processing.steps import StepError
@@ -84,13 +84,20 @@ async def _decide(
         body_text=message.body_text,
         body_chars=settings.max_body_chars,
     )
-    examples = []
     language = message.language
+    # Few-shot examples only from the owner's own corrections, or for a shared mailbox from
+    # the corrections made in this mailbox (docs/PRIVACY.md).
+    examples = await select_examples(
+        session,
+        owner_id,
+        view,
+        categories,
+        settings,
+        llm=llm,
+        exclude_message_id=message.id,
+        shared_mailbox_id=None if owner_id is not None else mailbox.id,
+    )
     if owner_id is not None:
-        # Few-shot examples only from the owner's own corrections (docs/PRIVACY.md).
-        examples = await select_examples(
-            session, owner_id, view, categories, settings, llm=llm, exclude_message_id=message.id
-        )
         user = await session.get(User, owner_id)
         if user is not None:
             # The reason is shown to the owner, so it is written in the UI language.
@@ -153,6 +160,7 @@ async def triage_message(
     )
     if existing is not None and existing.source == TriageSource.USER:
         return existing
+    # Shared mailboxes use the organisation categories (``owner_user_id IS NULL``).
     categories = await effective_categories(session, mailbox.owner_user_id)
     if not categories:
         raise StepError("triage_no_categories", permanent=True)
@@ -163,13 +171,10 @@ async def triage_message(
 async def publish_triaged(
     session: AsyncSession, message_id: uuid.UUID, mailbox_id: uuid.UUID
 ) -> None:
-    """Tell the mailbox owner's UI that the category of a message is (newly) known."""
-    owner = await session.scalar(select(Mailbox.owner_user_id).where(Mailbox.id == mailbox_id))
-    # TODO(#34): shared mailboxes notify their assigned users.
-    if owner is None:
-        return
+    """Tell the UI of everybody who reads the mailbox (owner or assigned users of a shared
+    mailbox) that the category of a message is (newly) known."""
     event = Event(type=TRIAGED_EVENT, ids={"message_id": message_id, "mailbox_id": mailbox_id})
-    await publish(session, owner, event)
+    await publish_to_readers(session, mailbox_id, event)
 
 
 async def category_key(session: AsyncSession, message_id: uuid.UUID) -> str | None:
@@ -188,15 +193,18 @@ async def category_key(session: AsyncSession, message_id: uuid.UUID) -> str | No
 # -- API helpers -----------------------------------------------------------------------
 
 
-async def owned_message(
+async def readable_message(
     session: AsyncSession, user_id: uuid.UUID, message_id: uuid.UUID
-) -> Message | None:
-    """The message if it is in a mailbox owned by ``user_id``."""
-    return await session.scalar(
-        select(Message)
-        .join(Mailbox, Mailbox.id == Message.mailbox_id)
-        .where(Message.id == message_id, Mailbox.owner_user_id == user_id)
-    )
+) -> tuple[Message, Mailbox] | None:
+    """The message and its mailbox if ``user_id`` may read the mailbox."""
+    row = (
+        await session.execute(
+            select(Message, Mailbox)
+            .join(Mailbox, Mailbox.id == Message.mailbox_id)
+            .where(Message.id == message_id, visible_to(user_id))
+        )
+    ).first()
+    return (row[0], row[1]) if row is not None else None
 
 
 async def correct(
@@ -252,7 +260,7 @@ async def inbox(
     mailbox_id: uuid.UUID | None,
     per_group: int,
 ) -> tuple[dict[uuid.UUID | None, list[InboxEntry]], dict[uuid.UUID | None, int]]:
-    """Messages in the inbox folders of the user's mailboxes, grouped by category in the
+    """Messages in the inbox folders of the mailboxes the user may read, grouped by category in the
     order of ``visible`` (``None`` = not triaged yet, or in a hidden or deleted category):
     highest priority first, then newest; plus the total per group."""
     in_inbox = (
@@ -265,7 +273,7 @@ async def inbox(
         select(Message, Mailbox.id, TriageResult)
         .join(Mailbox, Mailbox.id == Message.mailbox_id)
         .outerjoin(TriageResult, TriageResult.message_id == Message.id)
-        .where(Mailbox.owner_user_id == user_id, in_inbox)
+        .where(visible_to(user_id), in_inbox)
     )
     if mailbox_id is not None:
         base = base.where(Mailbox.id == mailbox_id)
@@ -311,14 +319,14 @@ async def inbox(
 async def results_of(
     session: AsyncSession, user_id: uuid.UUID, message_ids: Sequence[uuid.UUID]
 ) -> list[TriageResult]:
-    """Triage results of those ``message_ids`` that are in mailboxes of ``user_id``."""
+    """Triage results of those ``message_ids`` that are in mailboxes ``user_id`` may read."""
     if not message_ids:
         return []
     rows = await session.scalars(
         select(TriageResult)
         .join(Message, Message.id == TriageResult.message_id)
         .join(Mailbox, Mailbox.id == Message.mailbox_id)
-        .where(TriageResult.message_id.in_(message_ids), Mailbox.owner_user_id == user_id)
+        .where(TriageResult.message_id.in_(message_ids), visible_to(user_id))
     )
     return list(rows)
 
@@ -354,7 +362,7 @@ async def inbox_page(
         .where(message_folders.c.message_id == Message.id, Folder.role == FolderRole.INBOX)
         .exists()
     )
-    conditions: list[ColumnElement[bool]] = [access.visible_to(user_id), in_inbox]
+    conditions: list[ColumnElement[bool]] = [visible_to(user_id), in_inbox]
     if mailbox_id is not None:
         conditions.append(Message.mailbox_id == mailbox_id)
     if unread is True:

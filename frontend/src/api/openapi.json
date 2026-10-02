@@ -879,6 +879,13 @@
         "title": "AskRequest",
         "type": "object"
       },
+      "AssignmentPermission": {
+        "enum": [
+          "read"
+        ],
+        "title": "AssignmentPermission",
+        "type": "string"
+      },
       "AttachmentRead": {
         "properties": {
           "content_type": {
@@ -939,6 +946,7 @@
           "mailbox.created",
           "mailbox.deleted",
           "mailbox.shared",
+          "mailbox.unshared",
           "data.exported",
           "data.deleted",
           "data.retention_changed",
@@ -1609,6 +1617,11 @@
                 "type": "null"
               }
             ]
+          },
+          "withheld": {
+            "default": false,
+            "title": "Withheld",
+            "type": "boolean"
           }
         },
         "required": [
@@ -3014,6 +3027,35 @@
         "title": "GraphConnectResponse",
         "type": "object"
       },
+      "GroupAssignment": {
+        "description": "Members of ``group`` at ``provider`` (any provider if null), as for the role\nmapping: Entra group object ID, LDAP group DN, GitHub ``org/team``.",
+        "properties": {
+          "group": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Group",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "required": [
+          "group"
+        ],
+        "title": "GroupAssignment",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -3779,6 +3821,97 @@
         "title": "LogoutResult",
         "type": "object"
       },
+      "MailboxAssignmentRead": {
+        "properties": {
+          "group": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "permission": {
+            "$ref": "#/components/schemas/AssignmentPermission"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "user_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Display Name"
+          },
+          "user_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "User Id"
+          }
+        },
+        "required": [
+          "id",
+          "user_id",
+          "user_display_name",
+          "group",
+          "provider",
+          "permission"
+        ],
+        "title": "MailboxAssignmentRead",
+        "type": "object"
+      },
+      "MailboxAssignmentsUpdate": {
+        "description": "Who may read a shared mailbox; replaces the current assignments.",
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/GroupAssignment"
+            },
+            "maxItems": 200,
+            "title": "Groups",
+            "type": "array"
+          },
+          "users": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "title": "MailboxAssignmentsUpdate",
+        "type": "object"
+      },
       "MailboxConnection": {
         "description": "Everything needed to connect to a mailbox.",
         "properties": {
@@ -3898,6 +4031,36 @@
         "title": "MailboxDeleted",
         "type": "object"
       },
+      "MailboxMember": {
+        "description": "Somebody who may read a mailbox (to assign team todos to).",
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "display_name"
+        ],
+        "title": "MailboxMember",
+        "type": "object"
+      },
+      "MailboxPermission": {
+        "enum": [
+          "read",
+          "sync",
+          "manage",
+          "act"
+        ],
+        "title": "MailboxPermission",
+        "type": "string"
+      },
       "MailboxProviderRead": {
         "description": "A mailbox type that can be added on this instance.",
         "properties": {
@@ -3959,6 +4122,13 @@
             "title": "Is Shared",
             "type": "boolean"
           },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/MailboxPermission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
           "provider_settings": {
             "additionalProperties": true,
             "title": "Provider Settings",
@@ -3989,6 +4159,7 @@
           "display_name",
           "address",
           "is_shared",
+          "permissions",
           "provider_settings",
           "has_credentials",
           "sync_enabled",
@@ -6257,6 +6428,168 @@
         "title": "SetupStatus",
         "type": "object"
       },
+      "SharedMailboxCreate": {
+        "description": "A shared mailbox and, optionally, its first assignments.",
+        "properties": {
+          "address": {
+            "maxLength": 320,
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "title": "Address",
+            "type": "string"
+          },
+          "credentials": {
+            "additionalProperties": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "maxProperties": 16,
+            "title": "Credentials",
+            "type": "object"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/GroupAssignment"
+            },
+            "maxItems": 200,
+            "title": "Groups",
+            "type": "array"
+          },
+          "provider_settings": {
+            "additionalProperties": true,
+            "title": "Provider Settings",
+            "type": "object"
+          },
+          "sync_enabled": {
+            "default": true,
+            "title": "Sync Enabled",
+            "type": "boolean"
+          },
+          "sync_settings": {
+            "$ref": "#/components/schemas/SyncSettings"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MailboxType"
+          },
+          "users": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Users",
+            "type": "array"
+          }
+        },
+        "required": [
+          "type",
+          "address"
+        ],
+        "title": "SharedMailboxCreate",
+        "type": "object"
+      },
+      "SharedMailboxRead": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "assignments": {
+            "items": {
+              "$ref": "#/components/schemas/MailboxAssignmentRead"
+            },
+            "title": "Assignments",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "has_credentials": {
+            "title": "Has Credentials",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_shared": {
+            "title": "Is Shared",
+            "type": "boolean"
+          },
+          "permissions": {
+            "items": {
+              "$ref": "#/components/schemas/MailboxPermission"
+            },
+            "title": "Permissions",
+            "type": "array"
+          },
+          "provider_settings": {
+            "additionalProperties": true,
+            "title": "Provider Settings",
+            "type": "object"
+          },
+          "reader_count": {
+            "title": "Reader Count",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MailboxSyncStatus"
+          },
+          "sync_enabled": {
+            "title": "Sync Enabled",
+            "type": "boolean"
+          },
+          "sync_settings": {
+            "$ref": "#/components/schemas/SyncSettings"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MailboxType"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "display_name",
+          "address",
+          "is_shared",
+          "permissions",
+          "provider_settings",
+          "has_credentials",
+          "sync_enabled",
+          "sync_settings",
+          "status",
+          "created_at",
+          "updated_at",
+          "assignments",
+          "reader_count"
+        ],
+        "title": "SharedMailboxRead",
+        "type": "object"
+      },
       "Source": {
         "enum": [
           "known",
@@ -6597,6 +6930,18 @@
       },
       "TodoRead": {
         "properties": {
+          "assignee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee Id"
+          },
           "completed_at": {
             "anyOf": [
               {
@@ -6697,6 +7042,10 @@
           "priority": {
             "$ref": "#/components/schemas/TodoPriority"
           },
+          "shared": {
+            "title": "Shared",
+            "type": "boolean"
+          },
           "status": {
             "$ref": "#/components/schemas/TodoStatus"
           },
@@ -6737,6 +7086,8 @@
           "message_id",
           "thread_id",
           "external_refs",
+          "shared",
+          "assignee_id",
           "created_at",
           "updated_at",
           "completed_at"
@@ -6756,6 +7107,18 @@
       "TodoUpdate": {
         "description": "Fields to change; omitted fields stay. ``null`` clears description and due date.",
         "properties": {
+          "assignee_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Assignee Id"
+          },
           "description": {
             "anyOf": [
               {
@@ -8543,6 +8906,469 @@
         "summary": "Delete User",
         "tags": [
           "privacy"
+        ]
+      }
+    },
+    "/admin/shared-mailboxes": {
+      "get": {
+        "description": "All shared mailboxes with sync status and assignments (no mail contents).",
+        "operationId": "admin_list_shared_mailboxes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SharedMailboxRead"
+                  },
+                  "title": "Response Admin List Shared Mailboxes",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Shared Mailboxes",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Connect a shared mailbox (connection tested first) and assign it. The initial\nimport starts right away unless ``sync_enabled`` is false.",
+        "operationId": "admin_create_shared_mailbox",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SharedMailboxCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedMailboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Shared mailbox already added"
+          },
+          "422": {
+            "description": "Unknown user or invalid group"
+          }
+        },
+        "summary": "Create Shared Mailbox",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/shared-mailboxes/{mailbox_id}": {
+      "delete": {
+        "description": "Remove the shared mailbox with all its data (as ``DELETE /mailboxes/{id}``) and\nits assignments.",
+        "operationId": "admin_delete_shared_mailbox",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxDeleted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such shared mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Shared Mailbox",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "admin_get_shared_mailbox",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedMailboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such shared mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Shared Mailbox",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "Rename, change connection settings or credentials (tested before saving), change\nsync settings, pause or resume syncing.",
+        "operationId": "admin_update_shared_mailbox",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MailboxUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedMailboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such shared mailbox"
+          },
+          "422": {
+            "description": "Invalid request, unavailable mailbox type or failed connection test"
+          }
+        },
+        "summary": "Update Shared Mailbox",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/shared-mailboxes/{mailbox_id}/assignments": {
+      "put": {
+        "description": "Replace who may read the mailbox. Removing a user or group revokes access at once:\nfrom the next request on, its mails, triage, todos, search hits, answers and digests\nare no longer visible to them.",
+        "operationId": "admin_set_shared_mailbox_assignments",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MailboxAssignmentsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SharedMailboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such shared mailbox"
+          },
+          "422": {
+            "description": "Unknown user or invalid group"
+          }
+        },
+        "summary": "Set Shared Mailbox Assignments",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/shared-mailboxes/{mailbox_id}/folders": {
+      "get": {
+        "description": "Folders with selection, sync status and counts (no contents).",
+        "operationId": "admin_list_shared_mailbox_folders",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FolderRead"
+                  },
+                  "title": "Response Admin List Shared Mailbox Folders",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such shared mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Shared Mailbox Folders",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "operationId": "admin_select_shared_mailbox_folders",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderSelectionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FolderRead"
+                  },
+                  "title": "Response Admin Select Shared Mailbox Folders",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such shared mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Shared Mailbox Folders",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/shared-mailboxes/{mailbox_id}/sync": {
+      "post": {
+        "operationId": "admin_sync_shared_mailbox",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncRequestResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such shared mailbox"
+          },
+          "409": {
+            "description": "Syncing is paused"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Shared Mailbox",
+        "tags": [
+          "admin"
         ]
       }
     },
@@ -10608,7 +11434,7 @@
     },
     "/mailboxes": {
       "get": {
-        "description": "The user's mailboxes with their sync status.",
+        "description": "The user's mailboxes (own and assigned shared ones) with their sync status.",
         "operationId": "mailboxes_list_mailboxes",
         "responses": {
           "200": {
@@ -11050,6 +11876,60 @@
         ]
       }
     },
+    "/mailboxes/{mailbox_id}/members": {
+      "get": {
+        "description": "Everybody who may read the mailbox (the owner, or the users assigned to a shared\nmailbox directly or through a group): the people team todos can be assigned to.",
+        "operationId": "mailboxes_list_members",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxMember"
+                  },
+                  "title": "Response Mailboxes List Members",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Members",
+        "tags": [
+          "mailboxes"
+        ]
+      }
+    },
     "/mailboxes/{mailbox_id}/status": {
       "get": {
         "description": "Sync status only (cheap to poll as a fallback to SSE).",
@@ -11268,7 +12148,7 @@
     },
     "/messages/{message_id}": {
       "patch": {
-        "description": "Mark read or unread. Stored at once, written back to the server by a job.",
+        "description": "Mark read or unread. Stored at once, written back to the server by a job. Users of\na shared mailbox may only read it (403 ``read_only``): the flag is the mailbox's.",
         "operationId": "messages_update_message",
         "parameters": [
           {
@@ -11305,6 +12185,9 @@
           },
           "401": {
             "description": "Not signed in"
+          },
+          "403": {
+            "description": "Read-only mailbox"
           },
           "404": {
             "description": "No such message"
@@ -12683,7 +13566,7 @@
         ]
       },
       "patch": {
-        "description": "Edit a todo or change its status (open, done, dismissed).",
+        "description": "Edit a todo or change its status (open, done, dismissed). ``assignee_id`` assigns\na team todo of a shared mailbox to one of its readers (``null``: nobody).",
         "operationId": "todos_update_todo",
         "parameters": [
           {
@@ -12725,14 +13608,7 @@
             "description": "No such todo"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Invalid value or assignee"
           }
         },
         "summary": "Update Todo",
@@ -13352,7 +14228,7 @@
         ]
       },
       "put": {
-        "description": "Correct category and priority. The correction is kept on reprocessing and used as\nexample for this user's future classifications.",
+        "description": "Correct category and priority. The correction is kept on reprocessing and used as\nexample for this user's future classifications. In a shared mailbox it applies to\neverybody who reads the mailbox, only organisation categories can be chosen, and it\nserves as example for the future classifications of that mailbox.",
         "operationId": "triage_correct_triage",
         "parameters": [
           {
