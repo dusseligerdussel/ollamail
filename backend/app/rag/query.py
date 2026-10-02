@@ -17,9 +17,9 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.mail.access import accessible_mailbox_ids
 from app.mail.models import Mailbox
 from app.rag.schemas import AppliedFilters, FilterField, RagFilters
-from app.search.access import readable_mailbox_ids
 from app.search.service import SearchFilters
 from app.triage.categories import effective_categories
 
@@ -71,7 +71,7 @@ async def query_context(
     mailboxes = (
         await session.execute(
             select(Mailbox.id, Mailbox.display_name, Mailbox.address)
-            .where(Mailbox.id.in_(readable_mailbox_ids(user_id)))
+            .where(Mailbox.id.in_(accessible_mailbox_ids(user_id)))
             .order_by(Mailbox.display_name, Mailbox.id)
         )
     ).all()

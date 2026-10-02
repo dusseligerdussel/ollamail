@@ -6,8 +6,9 @@ Attachment files live outside the database; ``app.mail.service.delete_mailbox`` 
 them together with the rows.
 
 Ownership: a mailbox belongs to exactly one user (``owner_user_id``, deleted together with
-the user) or is shared (``owner_user_id IS NULL``). The assignment table for shared
-mailboxes (mailbox ↔ user/group) follows in #34.
+the user) or is shared (``owner_user_id IS NULL``). Shared mailboxes are created by an admin
+and assigned to users and groups (``MailboxAssignment``); who may read which mailbox is
+decided only by ``app.mail.access.accessible_mailbox_ids``.
 """
 
 import enum
@@ -28,6 +29,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     false,
+    text,
     true,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
@@ -104,6 +106,57 @@ class Mailbox(Base):
 
     folders: Mapped[list["Folder"]] = relationship(
         back_populates="mailbox", cascade="all, delete-orphan", passive_deletes=True
+    )
+
+
+class AssignmentPermission(enum.StrEnum):
+    # Read the mailbox and everything derived from it (triage, todos, search, digest).
+    READ = "read"
+
+
+class MailboxAssignment(Base):
+    """Access of a user or a group to a shared mailbox.
+
+    A group assignment matches every user with an identity that reported ``group_name``
+    at its last login (``auth_identities.groups``), at ``provider`` or at any provider if
+    that is null; names compare case-insensitively, like the role mapping (#33). Deleting
+    the mailbox or the user deletes the assignment, never the shared mailbox itself.
+    """
+
+    __tablename__ = "mail_mailbox_assignments"
+    __table_args__ = (
+        CheckConstraint("(user_id IS NULL) <> (group_name IS NULL)", name="principal"),
+        CheckConstraint("provider IS NULL OR group_name IS NOT NULL", name="provider_group"),
+        Index(
+            "uq_mail_mailbox_assignments_user",
+            "mailbox_id",
+            "user_id",
+            unique=True,
+            postgresql_where=text("user_id IS NOT NULL"),
+        ),
+        Index(
+            "uq_mail_mailbox_assignments_group",
+            "mailbox_id",
+            text("lower(group_name)"),
+            text("coalesce(provider, '')"),
+            unique=True,
+            postgresql_where=text("group_name IS NOT NULL"),
+        ),
+        Index("ix_mail_mailbox_assignments_user_id", "user_id"),
+        Index("ix_mail_mailbox_assignments_group_name", text("lower(group_name)")),
+    )
+
+    mailbox_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("mail_mailboxes.id", ondelete="CASCADE")
+    )
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # Group as the provider reports it (Entra group object ID, LDAP group DN, GitHub team).
+    group_name: Mapped[str | None] = mapped_column(String(255))
+    # Provider key (``oidc:entra``, ``ldap:corp``); null matches the group at any provider.
+    provider: Mapped[str | None] = mapped_column(String(64))
+    permission: Mapped[AssignmentPermission] = mapped_column(
+        _str_enum(AssignmentPermission, "assignment_permission"),
+        default=AssignmentPermission.READ,
     )
 
 

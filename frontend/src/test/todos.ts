@@ -21,6 +21,8 @@ export function testTodo(index: number, overrides: Partial<Todo> = {}): Todo {
     message_id: null,
     thread_id: null,
     external_refs: {},
+    shared: false,
+    assignee_id: null,
     created_at: "2026-10-01T08:00:00Z",
     updated_at: "2026-10-01T08:00:00Z",
     completed_at: null,

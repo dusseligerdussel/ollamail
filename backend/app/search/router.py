@@ -2,7 +2,7 @@
 
 ``POST /search`` (the query is in the body, never in a URL that could end up in access
 logs). Access is enforced in SQL by ``app.search.service.search`` through
-``app.search.access.readable_mailbox_ids``.
+``app.mail.access.accessible_mailbox_ids`` (own and assigned shared mailboxes).
 """
 
 import re
@@ -17,10 +17,10 @@ from app.ai.llm import LLMGateway, get_llm
 from app.auth.dependencies import CurrentSessionDep
 from app.core.config import Settings
 from app.core.db import get_db
+from app.mail.access import accessible_mailbox_ids
 from app.mail.api.message_schemas import AddressRead
 from app.mail.models import Attachment, Message
 from app.search import service
-from app.search.access import readable_mailbox_ids
 from app.search.embedder import Embedder, GatewayEmbedder
 from app.search.schemas import SearchHitRead, SearchRequest, SearchResults
 
@@ -101,7 +101,7 @@ async def search(
     if not hits:
         return SearchResults(hits=[])
 
-    readable = readable_mailbox_ids(current.user_id)
+    readable = accessible_mailbox_ids(current.user_id)
     messages = {
         message.id: message
         for message in await db.scalars(

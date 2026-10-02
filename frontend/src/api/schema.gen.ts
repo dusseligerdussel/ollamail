@@ -372,6 +372,118 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/shared-mailboxes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Shared Mailboxes
+         * @description All shared mailboxes with sync status and assignments (no mail contents).
+         */
+        get: operations["admin_list_shared_mailboxes"];
+        put?: never;
+        /**
+         * Create Shared Mailbox
+         * @description Connect a shared mailbox (connection tested first) and assign it. The initial
+         *     import starts right away unless ``sync_enabled`` is false.
+         */
+        post: operations["admin_create_shared_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/shared-mailboxes/{mailbox_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Shared Mailbox */
+        get: operations["admin_get_shared_mailbox"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Shared Mailbox
+         * @description Remove the shared mailbox with all its data (as ``DELETE /mailboxes/{id}``) and
+         *     its assignments.
+         */
+        delete: operations["admin_delete_shared_mailbox"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Shared Mailbox
+         * @description Rename, change connection settings or credentials (tested before saving), change
+         *     sync settings, pause or resume syncing.
+         */
+        patch: operations["admin_update_shared_mailbox"];
+        trace?: never;
+    };
+    "/admin/shared-mailboxes/{mailbox_id}/assignments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Set Shared Mailbox Assignments
+         * @description Replace who may read the mailbox. Removing a user or group revokes access at once:
+         *     from the next request on, its mails, triage, todos, search hits, answers and digests
+         *     are no longer visible to them.
+         */
+        put: operations["admin_set_shared_mailbox_assignments"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/shared-mailboxes/{mailbox_id}/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Shared Mailbox Folders
+         * @description Folders with selection, sync status and counts (no contents).
+         */
+        get: operations["admin_list_shared_mailbox_folders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Select Shared Mailbox Folders */
+        patch: operations["admin_select_shared_mailbox_folders"];
+        trace?: never;
+    };
+    "/admin/shared-mailboxes/{mailbox_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Sync Shared Mailbox */
+        post: operations["admin_sync_shared_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/status": {
         parameters: {
             query?: never;
@@ -1102,7 +1214,7 @@ export interface paths {
         };
         /**
          * List Mailboxes
-         * @description The user's mailboxes with their sync status.
+         * @description The user's mailboxes (own and assigned shared ones) with their sync status.
          */
         get: operations["mailboxes_list_mailboxes"];
         put?: never;
@@ -1237,6 +1349,27 @@ export interface paths {
         patch: operations["mailboxes_select_folders"];
         trace?: never;
     };
+    "/mailboxes/{mailbox_id}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Members
+         * @description Everybody who may read the mailbox (the owner, or the users assigned to a shared
+         *     mailbox directly or through a group): the people team todos can be assigned to.
+         */
+        get: operations["mailboxes_list_members"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mailboxes/{mailbox_id}/status": {
         parameters: {
             query?: never;
@@ -1313,7 +1446,8 @@ export interface paths {
         head?: never;
         /**
          * Update Message
-         * @description Mark read or unread. Stored at once, written back to the server by a job.
+         * @description Mark read or unread. Stored at once, written back to the server by a job. Users of
+         *     a shared mailbox may only read it (403 ``read_only``): the flag is the mailbox's.
          */
         patch: operations["messages_update_message"];
         trace?: never;
@@ -1662,7 +1796,8 @@ export interface paths {
         head?: never;
         /**
          * Update Todo
-         * @description Edit a todo or change its status (open, done, dismissed).
+         * @description Edit a todo or change its status (open, done, dismissed). ``assignee_id`` assigns
+         *     a team todo of a shared mailbox to one of its readers (``null``: nobody).
          */
         patch: operations["todos_update_todo"];
         trace?: never;
@@ -1836,7 +1971,9 @@ export interface paths {
         /**
          * Correct Triage
          * @description Correct category and priority. The correction is kept on reprocessing and used as
-         *     example for this user's future classifications.
+         *     example for this user's future classifications. In a shared mailbox it applies to
+         *     everybody who reads the mailbox, only organisation categories can be chosen, and it
+         *     serves as example for the future classifications of that mailbox.
          */
         put: operations["triage_correct_triage"];
         post?: never;
@@ -2334,6 +2471,11 @@ export interface components {
             /** Question */
             question: string;
         };
+        /**
+         * AssignmentPermission
+         * @enum {string}
+         */
+        AssignmentPermission: "read";
         /** AttachmentRead */
         AttachmentRead: {
             /** Content Type */
@@ -2354,7 +2496,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -2576,6 +2718,11 @@ export interface components {
             id: string;
             role: components["schemas"]["RagRole"];
             status: components["schemas"]["AnswerStatus"] | null;
+            /**
+             * Withheld
+             * @default false
+             */
+            withheld: boolean;
         };
         /** ConversationRead */
         ConversationRead: {
@@ -3079,6 +3226,17 @@ export interface components {
             /** Authorization Url */
             authorization_url: string;
         };
+        /**
+         * GroupAssignment
+         * @description Members of ``group`` at ``provider`` (any provider if null), as for the role
+         *     mapping: Entra group object ID, LDAP group DN, GitHub ``org/team``.
+         */
+        GroupAssignment: {
+            /** Group */
+            group: string;
+            /** Provider */
+            provider?: string | null;
+        };
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -3357,6 +3515,33 @@ export interface components {
             /** Redirect Url */
             redirect_url: string | null;
         };
+        /** MailboxAssignmentRead */
+        MailboxAssignmentRead: {
+            /** Group */
+            group: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            permission: components["schemas"]["AssignmentPermission"];
+            /** Provider */
+            provider: string | null;
+            /** User Display Name */
+            user_display_name: string | null;
+            /** User Id */
+            user_id: string | null;
+        };
+        /**
+         * MailboxAssignmentsUpdate
+         * @description Who may read a shared mailbox; replaces the current assignments.
+         */
+        MailboxAssignmentsUpdate: {
+            /** Groups */
+            groups?: components["schemas"]["GroupAssignment"][];
+            /** Users */
+            users?: string[];
+        };
         /**
          * MailboxConnection
          * @description Everything needed to connect to a mailbox.
@@ -3420,6 +3605,24 @@ export interface components {
             messages: number;
         };
         /**
+         * MailboxMember
+         * @description Somebody who may read a mailbox (to assign team todos to).
+         */
+        MailboxMember: {
+            /** Display Name */
+            display_name: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+        };
+        /**
+         * MailboxPermission
+         * @enum {string}
+         */
+        MailboxPermission: "read" | "sync" | "manage" | "act";
+        /**
          * MailboxProviderRead
          * @description A mailbox type that can be added on this instance.
          */
@@ -3453,6 +3656,8 @@ export interface components {
             id: string;
             /** Is Shared */
             is_shared: boolean;
+            /** Permissions */
+            permissions: components["schemas"]["MailboxPermission"][];
             /** Provider Settings */
             provider_settings: {
                 [key: string]: unknown;
@@ -4288,6 +4493,76 @@ export interface components {
             initialized: boolean;
         };
         /**
+         * SharedMailboxCreate
+         * @description A shared mailbox and, optionally, its first assignments.
+         */
+        SharedMailboxCreate: {
+            /** Address */
+            address: string;
+            /** Credentials */
+            credentials?: {
+                [key: string]: string;
+            };
+            /** Display Name */
+            display_name?: string | null;
+            /** Groups */
+            groups?: components["schemas"]["GroupAssignment"][];
+            /** Provider Settings */
+            provider_settings?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Sync Enabled
+             * @default true
+             */
+            sync_enabled: boolean;
+            sync_settings?: components["schemas"]["SyncSettings"];
+            type: components["schemas"]["MailboxType"];
+            /** Users */
+            users?: string[];
+        };
+        /** SharedMailboxRead */
+        SharedMailboxRead: {
+            /** Address */
+            address: string;
+            /** Assignments */
+            assignments: components["schemas"]["MailboxAssignmentRead"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Has Credentials */
+            has_credentials: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Shared */
+            is_shared: boolean;
+            /** Permissions */
+            permissions: components["schemas"]["MailboxPermission"][];
+            /** Provider Settings */
+            provider_settings: {
+                [key: string]: unknown;
+            };
+            /** Reader Count */
+            reader_count: number;
+            status: components["schemas"]["MailboxSyncStatus"];
+            /** Sync Enabled */
+            sync_enabled: boolean;
+            sync_settings: components["schemas"]["SyncSettings"];
+            type: components["schemas"]["MailboxType"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
          * Source
          * @enum {string}
          */
@@ -4408,6 +4683,8 @@ export interface components {
         TodoPriority: "high" | "normal" | "low";
         /** TodoRead */
         TodoRead: {
+            /** Assignee Id */
+            assignee_id: string | null;
             /** Completed At */
             completed_at: string | null;
             /** Confidence */
@@ -4441,6 +4718,8 @@ export interface components {
             /** Message Id */
             message_id: string | null;
             priority: components["schemas"]["TodoPriority"];
+            /** Shared */
+            shared: boolean;
             status: components["schemas"]["TodoStatus"];
             /** Thread Id */
             thread_id: string | null;
@@ -4462,6 +4741,8 @@ export interface components {
          * @description Fields to change; omitted fields stay. ``null`` clears description and due date.
          */
         TodoUpdate: {
+            /** Assignee Id */
+            assignee_id?: string | null;
             /** Description */
             description?: string | null;
             /** Done Suggested */
@@ -6005,6 +6286,471 @@ export interface operations {
                 content?: never;
             };
             /** @description Last active administrator */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_list_shared_mailboxes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedMailboxRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_create_shared_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SharedMailboxCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedMailboxRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Shared mailbox already added */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown user or invalid group */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_get_shared_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedMailboxRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such shared mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_delete_shared_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxDeleted"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such shared mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_shared_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MailboxUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedMailboxRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such shared mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request, unavailable mailbox type or failed connection test */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_set_shared_mailbox_assignments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MailboxAssignmentsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SharedMailboxRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such shared mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown user or invalid group */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_list_shared_mailbox_folders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such shared mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_select_shared_mailbox_folders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderSelectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such shared mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_sync_shared_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncRequestResult"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such shared mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Syncing is paused */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -8159,6 +8905,51 @@ export interface operations {
             };
         };
     };
+    mailboxes_list_members: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxMember"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mailboxes_get_mailbox_status: {
         parameters: {
             query?: never;
@@ -8324,6 +9115,13 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Read-only mailbox */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9375,14 +10173,12 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Validation Error */
+            /** @description Invalid value or assignee */
             422: {
                 headers: {
                     [name: string]: unknown;
                 };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
+                content?: never;
             };
         };
     };

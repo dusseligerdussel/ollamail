@@ -152,6 +152,8 @@ class ConversationMessage(BaseModel):
     id: uuid.UUID
     role: RagRole
     content: str
+    # Answer written from a mailbox the user can no longer read: ``content`` is empty.
+    withheld: bool = False
     created_at: datetime
     # Question: filters the search used.
     filters: AppliedFilters | None

@@ -30,6 +30,7 @@ import { ListSkeleton } from "@/components/list-skeleton";
 import { FolderSheet } from "@/components/mail/folder-sheet";
 import { SyncStatus, useMailErrorText } from "@/components/mail/sync-status";
 import { PageHeader } from "@/components/page-header";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -73,6 +74,8 @@ function MailboxesPage() {
   const search = Route.useSearch();
   const errorText = useMailErrorText();
   const mailboxes = useQuery(mailboxesQueryOptions);
+  const own = mailboxes.data?.filter((mailbox) => !mailbox.is_shared);
+  const shared = mailboxes.data?.filter((mailbox) => mailbox.is_shared) ?? [];
   const [folders, setFolders] = useState<Mailbox>();
   const [removing, setRemoving] = useState<Mailbox>();
 
@@ -110,7 +113,7 @@ function MailboxesPage() {
           </Button>
         }
         actions={
-          mailboxes.data && mailboxes.data.length > 0 ? (
+          own && own.length > 0 ? (
             <Button asChild size="sm">
               <Link to="/settings/mailboxes/new">
                 <Plus />
@@ -128,7 +131,7 @@ function MailboxesPage() {
             </div>
           )}
           {mailboxes.isError && <InlineError error={mailboxes.error} />}
-          {mailboxes.data?.length === 0 && (
+          {own?.length === 0 && (
             <EmptyState
               icon={Inbox}
               title={t("mailboxes.emptyTitle")}
@@ -140,9 +143,9 @@ function MailboxesPage() {
               }
             />
           )}
-          {mailboxes.data && mailboxes.data.length > 0 && (
+          {own && own.length > 0 && (
             <ul aria-label={t("mailboxes.title")} className="divide-y rounded-lg border">
-              {mailboxes.data.map((mailbox) => (
+              {own.map((mailbox) => (
                 <MailboxRow
                   key={mailbox.id}
                   mailbox={mailbox}
@@ -152,8 +155,23 @@ function MailboxesPage() {
               ))}
             </ul>
           )}
-          {mailboxes.data && mailboxes.data.length > 0 && (
+          {own && own.length > 0 && (
             <p className="mt-4 text-ui text-muted-foreground">{t("mailboxes.privacyNote")}</p>
+          )}
+          {shared.length > 0 && (
+            <section aria-labelledby="shared-mailboxes" className="mt-8">
+              <h2 id="shared-mailboxes" className="mb-1 text-xs font-medium text-muted-foreground">
+                {t("mailboxes.sharedTitle")}
+              </h2>
+              <p className="mb-2 text-ui text-muted-foreground">
+                {t("mailboxes.sharedDescription")}
+              </p>
+              <ul aria-label={t("mailboxes.sharedTitle")} className="divide-y rounded-lg border">
+                {shared.map((mailbox) => (
+                  <MailboxRow key={mailbox.id} mailbox={mailbox} />
+                ))}
+              </ul>
+            </section>
           )}
         </div>
       </div>
@@ -163,14 +181,15 @@ function MailboxesPage() {
   );
 }
 
+/** A mailbox with its actions; shared mailboxes (no ``onFolders``/``onRemove``) are read only. */
 function MailboxRow({
   mailbox,
   onFolders,
   onRemove,
 }: {
   mailbox: Mailbox;
-  onFolders: () => void;
-  onRemove: () => void;
+  onFolders?: () => void;
+  onRemove?: () => void;
 }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -204,42 +223,48 @@ function MailboxRow({
         )}
         <SyncStatus status={mailbox.status} className="mt-0.5" />
       </div>
-      <DropdownMenu>
-        <DropdownMenuTrigger asChild>
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            aria-label={t("mailboxes.actions", { name: mailbox.display_name })}
-          >
-            <MoreHorizontal />
-          </Button>
-        </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem
-            disabled={!mailbox.sync_enabled || sync.isPending}
-            onSelect={() => sync.mutate()}
-          >
-            <RefreshCw />
-            {t("mailboxes.syncNow")}
-          </DropdownMenuItem>
-          <DropdownMenuItem onSelect={onFolders}>
-            <FolderTree />
-            {t("mailboxes.folders.open")}
-          </DropdownMenuItem>
-          <DropdownMenuItem
-            disabled={pause.isPending}
-            onSelect={() => pause.mutate(!mailbox.sync_enabled)}
-          >
-            {mailbox.sync_enabled ? <Pause /> : <Play />}
-            {mailbox.sync_enabled ? t("mailboxes.pause") : t("mailboxes.resume")}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onSelect={onRemove}>
-            <Trash2 />
-            {t("mailboxes.remove")}
-          </DropdownMenuItem>
-        </DropdownMenuContent>
-      </DropdownMenu>
+      {mailbox.is_shared ? (
+        <Badge variant="outline" className="font-normal text-muted-foreground">
+          {t("mailboxes.sharedBadge")}
+        </Badge>
+      ) : (
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              aria-label={t("mailboxes.actions", { name: mailbox.display_name })}
+            >
+              <MoreHorizontal />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuItem
+              disabled={!mailbox.sync_enabled || sync.isPending}
+              onSelect={() => sync.mutate()}
+            >
+              <RefreshCw />
+              {t("mailboxes.syncNow")}
+            </DropdownMenuItem>
+            <DropdownMenuItem onSelect={onFolders}>
+              <FolderTree />
+              {t("mailboxes.folders.open")}
+            </DropdownMenuItem>
+            <DropdownMenuItem
+              disabled={pause.isPending}
+              onSelect={() => pause.mutate(!mailbox.sync_enabled)}
+            >
+              {mailbox.sync_enabled ? <Pause /> : <Play />}
+              {mailbox.sync_enabled ? t("mailboxes.pause") : t("mailboxes.resume")}
+            </DropdownMenuItem>
+            <DropdownMenuSeparator />
+            <DropdownMenuItem onSelect={onRemove}>
+              <Trash2 />
+              {t("mailboxes.remove")}
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      )}
     </li>
   );
 }

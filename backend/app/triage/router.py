@@ -1,8 +1,9 @@
 """Triage API: categories, triage of a message, inbox by category, sender rules and the
 per-mailbox write-back switch.
 
-Every endpoint works on the signed-in user's own data: messages and mailboxes are only
-found if the user owns the mailbox (404 otherwise, so IDs of others are not confirmed).
+Every endpoint works on data the signed-in user may read (``app.mail.access``): messages
+are only found in the user's own and assigned shared mailboxes, mailbox settings only for
+own mailboxes (404 otherwise, so IDs of others are not confirmed).
 Organisation categories are managed by admins, who never see mail contents here.
 """
 
@@ -18,6 +19,7 @@ from app.auth.dependencies import AdminSessionDep, CurrentSessionDep, SettingsDe
 from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.logging import get_logger
+from app.mail.access import MailboxPermission, get_mailbox
 from app.mail.api.messages import _summary_fields as summary_fields
 from app.mail.models import Mailbox
 from app.triage import service
@@ -290,7 +292,7 @@ async def list_triage(
 @router.get("/messages/{message_id}", responses=NOT_FOUND)
 async def get_triage(message_id: uuid.UUID, current: CurrentSessionDep, db: DbDep) -> TriageRead:
     """Category, priority and reason of a message (404 while it is not triaged yet)."""
-    if await service.owned_message(db, current.user_id, message_id) is None:
+    if await service.readable_message(db, current.user_id, message_id) is None:
         raise ProblemError(404, detail="Message not found.")
     result = await db.scalar(select(TriageResult).where(TriageResult.message_id == message_id))
     if result is None:
@@ -303,11 +305,16 @@ async def correct_triage(
     message_id: uuid.UUID, body: TriageCorrection, current: CurrentSessionDep, db: DbDep
 ) -> TriageRead:
     """Correct category and priority. The correction is kept on reprocessing and used as
-    example for this user's future classifications."""
-    message = await service.owned_message(db, current.user_id, message_id)
-    if message is None:
+    example for this user's future classifications. In a shared mailbox it applies to
+    everybody who reads the mailbox, only organisation categories can be chosen, and it
+    serves as example for the future classifications of that mailbox."""
+    found = await service.readable_message(db, current.user_id, message_id)
+    if found is None:
         raise ProblemError(404, detail="Message not found.")
+    message, mailbox = found
     visible = {c.id for c in await effective_categories(db, current.user_id)}
+    if mailbox.is_shared:
+        visible &= {c.id for c in await effective_categories(db, None)}
     if body.category_id not in visible:
         raise ProblemError(422, detail="Unknown or hidden category.")
     result = await service.correct(db, current.user_id, message_id, body.category_id, body.priority)
@@ -484,9 +491,7 @@ async def list_sender_rule_suggestions(
 
 
 async def _owned_mailbox(db: AsyncSession, user_id: uuid.UUID, mailbox_id: uuid.UUID) -> Mailbox:
-    mailbox = await db.scalar(
-        select(Mailbox).where(Mailbox.id == mailbox_id, Mailbox.owner_user_id == user_id)
-    )
+    mailbox = await get_mailbox(db, user_id, mailbox_id, MailboxPermission.MANAGE)
     if mailbox is None:
         raise ProblemError(404, detail="Mailbox not found.")
     return mailbox

@@ -24,11 +24,14 @@ import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
 import { Route as AdminCategoriesRouteImport } from './routes/admin_.categories'
 import { Route as AdminRetentionRouteImport } from './routes/admin_.retention'
 import { Route as AdminRoleMappingRouteImport } from './routes/admin_.role-mapping'
+import { Route as AdminSharedMailboxesRouteImport } from './routes/admin_.shared-mailboxes'
 import { Route as AdminSignInRouteImport } from './routes/admin_.sign-in'
 import { Route as AdminUsersRouteImport } from './routes/admin_.users'
 import { Route as DigestSettingsRouteImport } from './routes/digest_.settings'
 import { Route as SettingsCategoriesRouteImport } from './routes/settings_.categories'
 import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
+import { Route as AdminSharedMailboxesMailboxIdRouteImport } from './routes/admin_.shared-mailboxes_.$mailboxId'
+import { Route as AdminSharedMailboxesNewRouteImport } from './routes/admin_.shared-mailboxes_.new'
 import { Route as SettingsMailboxesNewRouteImport } from './routes/settings_.mailboxes_.new'
 
 const IndexRoute = IndexRouteImport.update({
@@ -106,6 +109,11 @@ const AdminRoleMappingRoute = AdminRoleMappingRouteImport.update({
   path: '/admin/role-mapping',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSharedMailboxesRoute = AdminSharedMailboxesRouteImport.update({
+  id: '/admin_/shared-mailboxes',
+  path: '/admin/shared-mailboxes',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSignInRoute = AdminSignInRouteImport.update({
   id: '/admin_/sign-in',
   path: '/admin/sign-in',
@@ -131,6 +139,17 @@ const SettingsMailboxesRoute = SettingsMailboxesRouteImport.update({
   path: '/settings/mailboxes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminSharedMailboxesMailboxIdRoute =
+  AdminSharedMailboxesMailboxIdRouteImport.update({
+    id: '/admin_/shared-mailboxes_/$mailboxId',
+    path: '/admin/shared-mailboxes/$mailboxId',
+    getParentRoute: () => rootRouteImport,
+  } as any)
+const AdminSharedMailboxesNewRoute = AdminSharedMailboxesNewRouteImport.update({
+  id: '/admin_/shared-mailboxes_/new',
+  path: '/admin/shared-mailboxes/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsMailboxesNewRoute = SettingsMailboxesNewRouteImport.update({
   id: '/settings_/mailboxes_/new',
   path: '/settings/mailboxes/new',
@@ -153,11 +172,14 @@ export interface FileRoutesByFullPath {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/retention': typeof AdminRetentionRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
+  '/admin/shared-mailboxes': typeof AdminSharedMailboxesRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
   '/digest/settings': typeof DigestSettingsRoute
   '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/admin/shared-mailboxes/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
+  '/admin/shared-mailboxes/new': typeof AdminSharedMailboxesNewRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
 export interface FileRoutesByTo {
@@ -176,11 +198,14 @@ export interface FileRoutesByTo {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/retention': typeof AdminRetentionRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
+  '/admin/shared-mailboxes': typeof AdminSharedMailboxesRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
   '/digest/settings': typeof DigestSettingsRoute
   '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/admin/shared-mailboxes/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
+  '/admin/shared-mailboxes/new': typeof AdminSharedMailboxesNewRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
 export interface FileRoutesById {
@@ -200,11 +225,14 @@ export interface FileRoutesById {
   '/admin_/categories': typeof AdminCategoriesRoute
   '/admin_/retention': typeof AdminRetentionRoute
   '/admin_/role-mapping': typeof AdminRoleMappingRoute
+  '/admin_/shared-mailboxes': typeof AdminSharedMailboxesRoute
   '/admin_/sign-in': typeof AdminSignInRoute
   '/admin_/users': typeof AdminUsersRoute
   '/digest_/settings': typeof DigestSettingsRoute
   '/settings_/categories': typeof SettingsCategoriesRoute
   '/settings_/mailboxes': typeof SettingsMailboxesRoute
+  '/admin_/shared-mailboxes_/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
+  '/admin_/shared-mailboxes_/new': typeof AdminSharedMailboxesNewRoute
   '/settings_/mailboxes_/new': typeof SettingsMailboxesNewRoute
 }
 export interface FileRouteTypes {
@@ -225,11 +253,14 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/retention'
     | '/admin/role-mapping'
+    | '/admin/shared-mailboxes'
     | '/admin/sign-in'
     | '/admin/users'
     | '/digest/settings'
     | '/settings/categories'
     | '/settings/mailboxes'
+    | '/admin/shared-mailboxes/$mailboxId'
+    | '/admin/shared-mailboxes/new'
     | '/settings/mailboxes/new'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -248,11 +279,14 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/retention'
     | '/admin/role-mapping'
+    | '/admin/shared-mailboxes'
     | '/admin/sign-in'
     | '/admin/users'
     | '/digest/settings'
     | '/settings/categories'
     | '/settings/mailboxes'
+    | '/admin/shared-mailboxes/$mailboxId'
+    | '/admin/shared-mailboxes/new'
     | '/settings/mailboxes/new'
   id:
     | '__root__'
@@ -271,11 +305,14 @@ export interface FileRouteTypes {
     | '/admin_/categories'
     | '/admin_/retention'
     | '/admin_/role-mapping'
+    | '/admin_/shared-mailboxes'
     | '/admin_/sign-in'
     | '/admin_/users'
     | '/digest_/settings'
     | '/settings_/categories'
     | '/settings_/mailboxes'
+    | '/admin_/shared-mailboxes_/$mailboxId'
+    | '/admin_/shared-mailboxes_/new'
     | '/settings_/mailboxes_/new'
   fileRoutesById: FileRoutesById
 }
@@ -295,11 +332,14 @@ export interface RootRouteChildren {
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminRetentionRoute: typeof AdminRetentionRoute
   AdminRoleMappingRoute: typeof AdminRoleMappingRoute
+  AdminSharedMailboxesRoute: typeof AdminSharedMailboxesRoute
   AdminSignInRoute: typeof AdminSignInRoute
   AdminUsersRoute: typeof AdminUsersRoute
   DigestSettingsRoute: typeof DigestSettingsRoute
   SettingsCategoriesRoute: typeof SettingsCategoriesRoute
   SettingsMailboxesRoute: typeof SettingsMailboxesRoute
+  AdminSharedMailboxesMailboxIdRoute: typeof AdminSharedMailboxesMailboxIdRoute
+  AdminSharedMailboxesNewRoute: typeof AdminSharedMailboxesNewRoute
   SettingsMailboxesNewRoute: typeof SettingsMailboxesNewRoute
 }
 
@@ -410,6 +450,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRoleMappingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/shared-mailboxes': {
+      id: '/admin_/shared-mailboxes'
+      path: '/admin/shared-mailboxes'
+      fullPath: '/admin/shared-mailboxes'
+      preLoaderRoute: typeof AdminSharedMailboxesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/sign-in': {
       id: '/admin_/sign-in'
       path: '/admin/sign-in'
@@ -445,6 +492,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMailboxesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/shared-mailboxes_/$mailboxId': {
+      id: '/admin_/shared-mailboxes_/$mailboxId'
+      path: '/admin/shared-mailboxes/$mailboxId'
+      fullPath: '/admin/shared-mailboxes/$mailboxId'
+      preLoaderRoute: typeof AdminSharedMailboxesMailboxIdRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/shared-mailboxes_/new': {
+      id: '/admin_/shared-mailboxes_/new'
+      path: '/admin/shared-mailboxes/new'
+      fullPath: '/admin/shared-mailboxes/new'
+      preLoaderRoute: typeof AdminSharedMailboxesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings_/mailboxes_/new': {
       id: '/settings_/mailboxes_/new'
       path: '/settings/mailboxes/new'
@@ -471,11 +532,14 @@ const rootRouteChildren: RootRouteChildren = {
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminRetentionRoute: AdminRetentionRoute,
   AdminRoleMappingRoute: AdminRoleMappingRoute,
+  AdminSharedMailboxesRoute: AdminSharedMailboxesRoute,
   AdminSignInRoute: AdminSignInRoute,
   AdminUsersRoute: AdminUsersRoute,
   DigestSettingsRoute: DigestSettingsRoute,
   SettingsCategoriesRoute: SettingsCategoriesRoute,
   SettingsMailboxesRoute: SettingsMailboxesRoute,
+  AdminSharedMailboxesMailboxIdRoute: AdminSharedMailboxesMailboxIdRoute,
+  AdminSharedMailboxesNewRoute: AdminSharedMailboxesNewRoute,
   SettingsMailboxesNewRoute: SettingsMailboxesNewRoute,
 }
 export const routeTree = rootRouteImport

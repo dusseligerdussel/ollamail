@@ -11,8 +11,9 @@ from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 
+from app.mail.access import MailboxPermission
 from app.mail.api.autodiscovery import Hint, Source
-from app.mail.models import FolderKind, FolderRole, MailboxType
+from app.mail.models import AssignmentPermission, FolderKind, FolderRole, MailboxType
 from app.mail.schemas import SyncSettings
 
 # Deliberately loose (internationalised addresses, IMAP logins that look like addresses);
@@ -128,6 +129,9 @@ class MailboxRead(BaseModel):
     display_name: str
     address: str
     is_shared: bool
+    # What the signed-in user may do; users of a shared mailbox may only ``read``.
+    permissions: list[MailboxPermission]
+    # Only for those who manage the mailbox, else empty.
     provider_settings: dict[str, Any]
     has_credentials: bool
     sync_enabled: bool
@@ -135,6 +139,13 @@ class MailboxRead(BaseModel):
     status: MailboxSyncStatus
     created_at: datetime
     updated_at: datetime
+
+
+class MailboxMember(BaseModel):
+    """Somebody who may read a mailbox (to assign team todos to)."""
+
+    id: uuid.UUID
+    display_name: str
 
 
 class FolderRead(BaseModel):
@@ -196,3 +207,42 @@ class AutodiscoverSuggestion(BaseModel):
 
 class AutodiscoverResult(BaseModel):
     suggestions: list[AutodiscoverSuggestion]
+
+
+GroupName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
+ProviderKey = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=64)]
+
+
+class GroupAssignment(BaseModel):
+    """Members of ``group`` at ``provider`` (any provider if null), as for the role
+    mapping: Entra group object ID, LDAP group DN, GitHub ``org/team``."""
+
+    group: GroupName
+    provider: ProviderKey | None = None
+
+
+class MailboxAssignmentsUpdate(BaseModel):
+    """Who may read a shared mailbox; replaces the current assignments."""
+
+    users: list[uuid.UUID] = Field(default_factory=list, max_length=1000)
+    groups: list[GroupAssignment] = Field(default_factory=list, max_length=200)
+
+
+class SharedMailboxCreate(MailboxCreate, MailboxAssignmentsUpdate):
+    """A shared mailbox and, optionally, its first assignments."""
+
+
+class MailboxAssignmentRead(BaseModel):
+    id: uuid.UUID
+    # Exactly one of ``user_id`` and ``group`` is set.
+    user_id: uuid.UUID | None
+    user_display_name: str | None
+    group: str | None
+    provider: str | None
+    permission: AssignmentPermission
+
+
+class SharedMailboxRead(MailboxRead):
+    assignments: list[MailboxAssignmentRead]
+    # Active users who may read the mailbox now (directly or through a group).
+    reader_count: int

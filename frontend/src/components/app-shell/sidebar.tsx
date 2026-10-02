@@ -22,18 +22,23 @@ import { isTheme, themes } from "@/lib/theme";
 
 import { AppMark } from "./app-mark";
 import { type NavItem, visibleNavItems } from "./nav-items";
+import { SharedMailboxNav, useInboxActiveOptions } from "./shared-mailbox-nav";
 import { useShortcutsOverlay } from "./shortcuts-overlay";
 
 const rowClass =
   "flex h-8 w-full items-center gap-2.5 rounded-md px-2 text-ui text-muted-foreground outline-none transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground focus-visible:ring-2 focus-visible:ring-sidebar-ring";
 
+const linkClass = `${rowClass} data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground [&[data-status=active]_svg]:text-brand`;
+
 function SidebarLink({ item }: { item: NavItem }) {
   const { t } = useTranslation();
+  const inboxActive = useInboxActiveOptions();
   const Icon = item.icon;
   return (
     <Link
       to={item.to}
-      className={`${rowClass} data-[status=active]:bg-sidebar-accent data-[status=active]:font-medium data-[status=active]:text-sidebar-accent-foreground [&[data-status=active]_svg]:text-brand`}
+      activeOptions={item.key === "inbox" ? inboxActive : undefined}
+      className={linkClass}
     >
       <Icon className="size-4 shrink-0" aria-hidden="true" />
       <span className="truncate">{t(`nav.${item.key}`)}</span>
@@ -153,6 +158,10 @@ export function Sidebar() {
             </li>
           ))}
         </ul>
+        <SharedMailboxNav
+          linkClassName={linkClass}
+          headingClassName="mt-4 mb-1 px-2 text-xs font-medium text-muted-foreground"
+        />
         <ul className="mt-auto flex flex-col gap-px pt-4">
           {secondary.map((item) => (
             <li key={item.key}>

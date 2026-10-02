@@ -148,9 +148,10 @@ async def ldap_login(
         await _login_failed(db, directory.provider, "invalid_credentials")
         raise ProblemError(401, detail="Invalid user name or password.")
     try:
-        # Groups are mapped to the role at every login and not stored (docs/auth/ldap.md).
+        # Groups are mapped to the role at every login and stored for group assignments
+        # of shared mailboxes (#34, docs/auth/ldap.md).
         result = await provision_user(
-            db, identity, ProvisioningPolicy(store_groups=False), role=provider.role(identity)
+            db, identity, ProvisioningPolicy(), role=provider.role(identity)
         )
     except ProvisioningError as exc:
         if exc.code is not ProvisioningErrorCode.INACTIVE:

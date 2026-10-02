@@ -31,6 +31,9 @@ class TodoRead(BaseModel):
     message_id: uuid.UUID | None
     thread_id: uuid.UUID | None
     external_refs: dict[str, Any]
+    # Team todo of a shared mailbox: visible to all its readers, assignable to one of them.
+    shared: bool
+    assignee_id: uuid.UUID | None
     created_at: datetime
     updated_at: datetime
     completed_at: datetime | None
@@ -56,3 +59,5 @@ class TodoUpdate(BaseModel):
     status: TodoStatus | None = None
     # ``false`` dismisses a "done" suggestion without changing the status.
     done_suggested: bool | None = None
+    # Team todos only: a reader of the shared mailbox, ``null`` for nobody.
+    assignee_id: uuid.UUID | None = None

@@ -240,24 +240,31 @@ async def test_skip_categories_are_configurable(mail: MailData, fake_llm: FakeLL
     )
 
 
-async def test_disabled_extraction_and_shared_mailboxes_are_skipped(
-    mail: MailData, fake_llm: FakeLLM
-) -> None:
+async def test_disabled_extraction_is_skipped(mail: MailData, fake_llm: FakeLLM) -> None:
     message = await mail.message()
     disabled = TodosSettings(extraction_enabled=False)
     assert (
         await extract_todos(mail.session, message.id, llm=fake_llm.gateway, settings=disabled) == []
     )
+    assert fake_llm.provider.calls == []
 
+
+async def test_shared_mailboxes_get_unassigned_team_todos(
+    mail: MailData, fake_llm: FakeLLM
+) -> None:
     shared = await make_mailbox(mail.session, None, "team@example.org")
     shared_message = await mail.message(mailbox=shared)
-    assert (
-        await extract_todos(
-            mail.session, shared_message.id, llm=fake_llm.gateway, settings=SETTINGS
-        )
-        == []
+    fake_llm.provider.answers.append(
+        '{"todos": [{"title": "Answer the customer", "priority": 2, "confidence": 0.9}],'
+        ' "done": []}'
     )
-    assert fake_llm.provider.calls == []
+
+    (todo,) = await extract_todos(
+        mail.session, shared_message.id, llm=fake_llm.gateway, settings=SETTINGS
+    )
+
+    assert (todo.user_id, todo.assignee_id, todo.mailbox_id) == (None, None, shared.id)
+    assert todo.shared
 
 
 async def test_invalid_model_answers_are_repaired(mail: MailData, fake_llm: FakeLLM) -> None:

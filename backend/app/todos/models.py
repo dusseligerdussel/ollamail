@@ -1,8 +1,11 @@
 """Todos: extracted from mails (pipeline step ``todos``) or created by the user.
 
-A todo belongs to one user and is only ever visible to them. Extracted todos keep a link
-to their source: mailbox (``ON DELETE CASCADE``, so deleting a mailbox deletes its todos,
-docs/PRIVACY.md), message and thread (``SET NULL``: the todo outlives a single deleted
+A todo belongs to one user and is only ever visible to them. Todos of a shared mailbox
+(#34) belong to the mailbox instead (``user_id IS NULL``): everybody who can read the
+mailbox sees them, and they can be assigned to one of these people (``assignee_id``,
+``SET NULL`` when that user is deleted). Extracted todos keep a link to their source:
+mailbox (``ON DELETE CASCADE``, so deleting a mailbox deletes its todos, docs/PRIVACY.md),
+message and thread (``SET NULL``: the todo outlives a single deleted
 mail, the user can still delete it).
 """
 
@@ -11,7 +14,7 @@ import uuid
 from datetime import date, datetime
 from typing import Any
 
-from sqlalchemy import Enum, Float, ForeignKey, Index, String, Text, false
+from sqlalchemy import CheckConstraint, Enum, Float, ForeignKey, Index, String, Text, false
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -48,9 +51,16 @@ class Todo(Base):
         Index("ix_todos_user_id_status_due_date", "user_id", "status", "due_date"),
         Index(None, "thread_id"),
         Index(None, "message_id"),
+        CheckConstraint("user_id IS NOT NULL OR mailbox_id IS NOT NULL", name="owner"),
+        CheckConstraint("assignee_id IS NULL OR user_id IS NULL", name="assignee"),
     )
 
-    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # Owner; ``NULL`` for todos of a shared mailbox (team todos).
+    user_id: Mapped[uuid.UUID | None] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # Team todos only: the person who takes care of it.
+    assignee_id: Mapped[uuid.UUID | None] = mapped_column(
+        ForeignKey("users.id", ondelete="SET NULL"), index=True
+    )
     mailbox_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("mail_mailboxes.id", ondelete="CASCADE"), index=True
     )
@@ -86,3 +96,8 @@ class Todo(Base):
     # IDs in external task systems (CalDAV, Microsoft To Do, Google Tasks; #40), e.g.
     # ``{"caldav": {"uid": "..."}}``.
     external_refs: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+
+    @property
+    def shared(self) -> bool:
+        """Team todo of a shared mailbox (no owner)."""
+        return self.user_id is None
