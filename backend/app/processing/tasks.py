@@ -27,6 +27,7 @@ from procrastinate import BaseRetryStrategy, JobContext, RetryDecision
 from procrastinate.exceptions import AlreadyEnqueued
 from procrastinate.jobs import Job
 
+from app.ai.llm.errors import LLMTimeoutError
 from app.core.config import get_settings
 from app.core.db import Database
 from app.core.logging import get_logger
@@ -91,10 +92,17 @@ def error_code(exc: BaseException) -> str:
 
 
 class StepRetry(BaseRetryStrategy):
-    """Retries a step job with the ``retry`` strategy of its step."""
+    """Retries a step job with the ``retry`` strategy of its step. An LLM call that timed
+    out is retried at most ``OLLAMAIL_PROCESSING_LLM_TIMEOUT_ATTEMPTS`` times in total:
+    the same mail would most likely time out again and block the LLM slot each time."""
 
     def get_retry_decision(self, *, exception: BaseException, job: Job) -> RetryDecision | None:
         if isinstance(exception, StepError) and exception.permanent:
+            return None
+        if isinstance(exception, LLMTimeoutError) and (
+            # ``job.attempts`` counts the previous attempts.
+            job.attempts + 1 >= get_settings().processing.llm_timeout_attempts
+        ):
             return None
         step = registry.get(str(job.task_kwargs.get("step")))
         strategy = step.retry if step is not None else DEFAULT_RETRY

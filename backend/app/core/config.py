@@ -144,6 +144,15 @@ class LLMSettings(BaseSettings):
     structured_output: StructuredOutputMode = "native"
     # Seconds per request; CPU inference of long prompts is slow.
     timeout: float = Field(default=300.0, gt=0)
+    # Upper bound for generated tokens when a feature sets none (Ollama ``num_predict``,
+    # OpenAI ``max_tokens``). Per task: ``TASK_<TASK>_MAX_TOKENS``; built-in task
+    # defaults are in ``app/ai/llm/config.py``.
+    max_output_tokens: int = Field(default=1024, ge=16, le=32768)
+    # Seconds one generation call may take in total, including streaming and
+    # structured-output retries (the HTTP ``timeout`` only bounds the wait between two
+    # received bytes). ``None`` follows the hardware profile. Per task:
+    # ``TASK_<TASK>_CALL_TIMEOUT``.
+    call_timeout: float | None = Field(default=None, gt=0)
     # Further endpoints as JSON object: {"<name>": {"provider": ..., "base_url": ...}}.
     endpoints: dict[str, LLMEndpointSettings] = Field(default_factory=dict)
 
@@ -155,14 +164,24 @@ class LLMSettings(BaseSettings):
     # Per-task model/endpoint (endpoint: "default" or a key of ``endpoints``).
     task_triage_model: str | None = None
     task_triage_endpoint: str | None = None
+    task_triage_max_tokens: int | None = Field(default=None, ge=16, le=32768)
+    task_triage_call_timeout: float | None = Field(default=None, gt=0)
     task_todos_model: str | None = None
     task_todos_endpoint: str | None = None
+    task_todos_max_tokens: int | None = Field(default=None, ge=16, le=32768)
+    task_todos_call_timeout: float | None = Field(default=None, gt=0)
     task_digest_model: str | None = None
     task_digest_endpoint: str | None = None
+    task_digest_max_tokens: int | None = Field(default=None, ge=16, le=32768)
+    task_digest_call_timeout: float | None = Field(default=None, gt=0)
     task_rag_chat_model: str | None = None
     task_rag_chat_endpoint: str | None = None
+    task_rag_chat_max_tokens: int | None = Field(default=None, ge=16, le=32768)
+    task_rag_chat_call_timeout: float | None = Field(default=None, gt=0)
     task_reply_draft_model: str | None = None
     task_reply_draft_endpoint: str | None = None
+    task_reply_draft_max_tokens: int | None = Field(default=None, ge=16, le=32768)
+    task_reply_draft_call_timeout: float | None = Field(default=None, gt=0)
     task_embeddings_model: str | None = None
     task_embeddings_endpoint: str | None = None
 
@@ -425,6 +444,10 @@ class ProcessingSettings(BaseSettings):
     enabled: bool = True
     # Messages queued per run of the periodic job that re-processes outdated messages.
     requeue_batch_size: int = Field(default=500, ge=1)
+    # Attempts of a step whose LLM call timed out before it fails permanently for that
+    # message (other errors keep the normal backoff). Keeps one mail from blocking the
+    # LLM slot again and again; reprocessing runs it again.
+    llm_timeout_attempts: int = Field(default=2, ge=1, le=8)
 
 
 class TriageSettings(BaseSettings):

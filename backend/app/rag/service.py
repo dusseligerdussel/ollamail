@@ -93,6 +93,8 @@ BLOCK_OVERHEAD = 80
 MIN_SOURCE_CHARS = 200
 _MARKERS = re.compile(r"\[\s*\d{1,3}(?:\s*[,;]\s*\d{1,3})*\s*\]")
 _NONE = {"en": "(none)", "de": "(keine)"}
+# Answer limit of the query analysis (filters and a search query, #132).
+ANALYSIS_MAX_TOKENS = 256
 
 
 class ConversationNotFoundError(Exception):
@@ -237,6 +239,7 @@ class RagService:
                 messages,
                 QueryAnalysis,
                 prompt_version=RAG_QUERY.id,
+                options=GenerationOptions(max_tokens=ANALYSIS_MAX_TOKENS),
                 language=language,
             )
         except LLMError as exc:

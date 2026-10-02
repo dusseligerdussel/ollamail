@@ -6,16 +6,24 @@ from typing import Any
 
 import httpx
 
-from app.ai.llm.errors import LLMRequestError, LLMUnavailableError, ModelNotAvailableError
+from app.ai.llm.errors import (
+    LLMRequestError,
+    LLMTimeoutError,
+    LLMUnavailableError,
+    ModelNotAvailableError,
+)
 
 
 @contextmanager
 def transport_errors() -> Iterator[None]:
-    """Map transport failures to :class:`LLMUnavailableError` without request details."""
+    """Map transport failures to :class:`LLMUnavailableError` without request details.
+    A connect timeout means unreachable; any other timeout is a :class:`LLMTimeoutError`."""
     try:
         yield
+    except httpx.ConnectTimeout as exc:
+        raise LLMUnavailableError("LLM endpoint unreachable") from exc
     except httpx.TimeoutException as exc:
-        raise LLMUnavailableError("LLM request timed out") from exc
+        raise LLMTimeoutError("LLM request timed out") from exc
     except httpx.TransportError as exc:
         raise LLMUnavailableError("LLM endpoint unreachable") from exc
 
