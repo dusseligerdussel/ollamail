@@ -11,7 +11,9 @@ from app.ai.settings.router import router as ai_settings_router
 from app.ai.settings.router import status_router as ai_status_router
 from app.ai.settings.runtime import build_resolver
 from app.audit.router import router as audit_router
+from app.auth.admin_router import router as auth_admin_router
 from app.auth.csrf import CSRFMiddleware
+from app.auth.invitations import router as invitations_router
 from app.auth.providers import AuthProviderRegistry, github, oidc
 from app.auth.providers.ldap.router import login_router as ldap_login_router
 from app.auth.providers.ldap.router import router as ldap_router
@@ -92,6 +94,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         register_readiness_check(app, "llm", llm.check_ready)
 
     app.state.auth_providers = AuthProviderRegistry()
+    # Provider types the admin UI can configure.
+    app.state.idp_kinds = {"oidc", "ldap", "github"}
 
     install_error_handlers(app)
     # Added first, so it runs inside RequestContextMiddleware (403s carry a request ID).
@@ -104,6 +108,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ldap_login_router)
     app.include_router(ldap_router)
     app.include_router(users_router)
+    app.include_router(auth_admin_router)
+    app.include_router(invitations_router)
     app.include_router(todos_router)
     app.include_router(triage_router)
     app.include_router(audit_router)

@@ -13,7 +13,9 @@ Feature, sondern eine Randbedingung für jede Änderung.
 3. **Zweckbindung & Trennung** – Daten eines Nutzers werden nie für einen anderen genutzt
    (keine nutzerübergreifenden Few-Shot-Beispiele, RAG-Zugriff strikt per SQL-Filter).
 4. **Admin ≠ Leser** – Admins verwalten die Instanz, sehen aber **keine fremden Mail-Inhalte**,
-   nur Metadaten (Anzahl, Sync-Status, Fehler) und aggregierte Statistiken.
+   nur Metadaten (Anzahl, Sync-Status, Fehler) und aggregierte Statistiken. Die Nutzerverwaltung
+   (Admin → Nutzer) zeigt nur Kontodaten: Name, Adresse, Rolle, Anmeldeverfahren, Status, letzte
+   Anmeldung und Zahl der Sitzungen.
 5. **Transparenz** – Jede KI-Bewertung (Triage, Todo) ist für den Nutzer erklärbar und korrigierbar.
 
 ## Technische Maßnahmen
@@ -118,10 +120,13 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `auth.setup_completed` | Ersteinrichtung (`POST /api/setup`) | aktiv |
 | `auth.login_succeeded`, `auth.login_failed` | Lokaler Login und LDAP (`provider`; Fehlschlag mit `reason`: `invalid_credentials`, `locked`, bei LDAP zusätzlich `user_inactive`, `directory_unavailable`) | aktiv; OIDC mit #30 |
 | `auth.logout`, `auth.session_revoked` | Logout, Beenden eigener Sitzungen | aktiv |
-| `user.created` | Admin legt Nutzer an, Selbstregistrierung, `app.cli create-admin`, JIT-Provisioning beim ersten LDAP-Login | aktiv |
-| `user.role_changed` | Rollen-Sync über LDAP-Gruppen (`admin_groups`) | aktiv; Nutzerverwaltung mit #33 |
-| `user.deleted` | Nutzerverwaltung | geplant (#33) |
-| `idp.config_changed` | LDAP-Verzeichnis angelegt, geändert, gelöscht (`details.change`) | aktiv; OIDC mit #30 |
+| `user.created` | Admin legt Nutzer an oder lädt ein (`via: invitation`), Selbstregistrierung, `app.cli create-admin`, JIT-Provisioning beim ersten externen Login | aktiv |
+| `user.role_changed` | Nutzerverwaltung (`via: admin`), Rollen-Zuordnung bzw. LDAP-`admin_groups` beim Login (Akteur `system`, `provider`) | aktiv |
+| `user.deactivated`, `user.reactivated` | Nutzerverwaltung (Deaktivieren beendet alle Sitzungen, `details.sessions`); `app.cli reset-password --activate` | aktiv |
+| `user.invited` | Einladung bzw. neuer Einladungslink (`renewed`) | aktiv |
+| `user.password_set` | Einladung angenommen (`via: invitation`), `app.cli reset-password` (`via: cli`) | aktiv |
+| `user.deleted` | Kontolöschung | geplant |
+| `idp.config_changed` | LDAP-Verzeichnis bzw. OIDC-Provider angelegt, geändert, gelöscht (`details.change`); lokale Anmeldung an/aus (`kind: local`); Rollen-Zuordnung gespeichert (`kind: role_mapping`, nur Anzahlen) | aktiv |
 | `ai.settings_changed` | KI-Einstellungen im Admin-Bereich: Provider anlegen/ändern/löschen (`details.change`, `provider`, `is_cloud`), Modell-Zuordnung, Profil, Parallelität, Cloud-Freigabe (`details.cloud_enabled`) | aktiv |
 | `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
 | `mailbox.shared` | Shared Mailboxes | geplant (#34) |

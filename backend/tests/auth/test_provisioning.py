@@ -196,8 +196,18 @@ async def test_role_from_group_mapping_is_applied_on_every_login(
     unchanged = await provision_user(db_session, _identity())
     assert unchanged.user.role is UserRole.ADMIN
 
+    await make_local_user(db_session, "root@example.org", role=UserRole.ADMIN)
     demoted = await provision_user(db_session, _identity(), role=UserRole.USER)
     assert demoted.user.role is UserRole.USER
+
+
+async def test_last_active_admin_is_not_demoted_at_login(db_session: AsyncSession) -> None:
+    await provision_user(db_session, _identity(), role=UserRole.ADMIN)
+
+    kept = await provision_user(db_session, _identity(), role=UserRole.USER)
+
+    assert kept.user.role is UserRole.ADMIN
+    assert await audit_rows(db_session, AuditAction.USER_ROLE_CHANGED) == []
 
 
 def test_errors_are_problem_details() -> None:
