@@ -122,8 +122,9 @@ CSS nur ohne Ressourcen/Positionierung). Externe Bilder sind standardmäßig blo
 `cid:`-Bilder werden auf Anhang-URLs umgeschrieben.
 
 **Besitz:** Ein Postfach gehört genau einem Nutzer (`owner_user_id`, Fremdschlüssel auf `users`
-mit `ON DELETE CASCADE`) oder ist shared (`is_shared`, per CHECK erzwungen). Die Zuweisungstabelle
-für Shared Mailboxes folgt mit #34.
+mit `ON DELETE CASCADE`) oder ist shared (`is_shared`, per CHECK erzwungen). Shared Mailboxes
+werden Nutzern und Gruppen über `mail_mailbox_assignments` zugewiesen (siehe §5, Shared
+Mailboxes).
 
 | Provider | Phase | Auth | Sync | Hinweise |
 |---|---|---|---|---|
@@ -261,9 +262,12 @@ und `delete_mailbox`; sie baut nichts davon nach.
 | `GET/PATCH /mailboxes/{id}/folders` | Ordner mit Auswahl und Status je Ordner; Auswahl setzen |
 | `GET /mailboxes/providers` | Postfachtypen, die sich auf dieser Instanz anlegen lassen: `credentials` (Formular, z. B. IMAP) oder `oauth` mit `oauth_start_path`. OAuth-Typen erscheinen nur, wenn der Provider registriert und sein OAuth-Client konfiguriert ist (`app/mail/api/providers.py`, ein Eintrag je Provider) |
 
-- **Zugriff:** ausschließlich über `app/mail/api/access.py` (`get_mailbox`, `visible_to`,
-  Berechtigungen `read`/`sync`/`manage`). Heute nur der Besitzer; #34 erweitert diese Funktionen
-  um Shared Mailboxes. Fremde Postfächer verhalten sich wie nicht vorhandene (404).
+- **Zugriff:** ausschließlich über `app/mail/access.py` (`accessible_mailbox_ids`, `visible_to`,
+  `get_mailbox`, Berechtigungen `read`/`sync`/`manage`/`act`). Besitzer haben alle, Nutzer eines
+  Shared Mailbox nur `read`. Fremde Postfächer verhalten sich wie nicht vorhandene (404).
+  `MailboxRead.permissions` nennt die Berechtigungen des angemeldeten Nutzers;
+  `provider_settings` sehen nur Nutzer mit `manage`. `GET /mailboxes/{id}/members` listet alle,
+  die das Postfach lesen dürfen (für die Zuweisung von Team-Todos).
 - **Zugangsdaten** sind write-only (Antworten enthalten nur `has_credentials`) und werden
   verschlüsselt gespeichert. Ein PATCH ersetzt sie als Ganzes; neue Verbindungsdaten werden mit den
   gespeicherten Zugangsdaten getestet.
@@ -295,7 +299,7 @@ Postfächer antworten 404.
 | `GET /messages` | Eine Zeile je Mail, neueste zuerst, Keyset-Paging (`cursor`, `limit` ≤ 200), `total` für die virtualisierte Liste. Filter: `mailbox_id`, `folder_id` (ohne: Ordner mit Rolle `inbox`), `unread`. Ohne Bodies; nur ein Snippet aus `body_main` |
 | `GET /messages/{id}/thread` | Konversation der Mail, älteste zuerst (höchstens die neuesten 100), mit Empfängern, Text, sanitisiertem HTML (`body.html`, `body.blocked_images`) und Anhängen |
 | `GET /messages/{id}/body?external_images=true` | HTML mit externen Bildern – erst, wenn der Nutzer sie für diese Mail anfordert |
-| `PATCH /messages/{id}` | `{"seen": bool}`: gelesen/ungelesen. Sofort gespeichert, Event `message.updated`, Job `mail.write_flags` schreibt die Flags auf den Server |
+| `PATCH /messages/{id}` | `{"seen": bool}`: gelesen/ungelesen. Sofort gespeichert, Event `message.updated`, Job `mail.write_flags` schreibt die Flags auf den Server. Braucht `act`; in Shared Mailboxes 403 `read_only` (der Status gilt für das ganze Postfach) |
 | `GET /messages/{id}/attachments/{attachment_id}` | Download (`Content-Disposition: attachment`, `application/octet-stream`, `nosniff`, CSP `sandbox`). `?inline=true` nur für PNG/JPEG/GIF/WebP (`cid:`-Bilder im HTML) |
 
 - **HTML:** immer serverseitig mit `sanitize_html` bereinigt; das Roh-HTML verlässt den Server nie.
@@ -572,7 +576,11 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Lernen aus Korrekturen** (`feedback.py`): `PUT /triage/messages/{id}` speichert die Korrektur als
   Ergebnis und als Beispiel (`triage_feedback`). In den Prompt kommen bis zu
   `OLLAMAIL_TRIAGE_FEW_SHOT_EXAMPLES` Beispiele **nur desselben Nutzers** (Filter auf Nutzer *und* auf
-  eigene Postfächer). Gibt es mehr Kandidaten, wählt die Triage die ähnlichsten per Embedding
+  eigene Postfächer). Ausnahme Shared Mailboxes: Korrekturen wirken postfachweit, also für alle
+  Nutzer des Postfachs, und dienen als Beispiele für genau dieses Postfach (Korrekturen aller
+  seiner Nutzer, nur aus seinen Mails); persönliche Korrekturen fließen dort nie ein und
+  umgekehrt. Shared Mailboxes nutzen nur die Org-Kategorien (eine Korrektur dort nimmt keine
+  eigene Kategorie an, 422) und keine Absenderregeln. Gibt es mehr Kandidaten, wählt die Triage die ähnlichsten per Embedding
   (Kosinus, Embeddings werden im Job nachberechnet und mit Modellname gespeichert); ohne
   Embedding-Modell die neuesten. Absenderregeln schlägt `GET /triage/sender-rules/suggestions` vor,
   sobald ein Absender mindestens `OLLAMAIL_TRIAGE_RULE_SUGGESTION_MIN_CORRECTIONS`-mal und immer in
@@ -584,7 +592,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   das nachträgliche Aktivieren arbeitet der minütliche Job `triage.write_back` ab
   (`write_back_pending`).
 - **API** (`/triage`): Kategorien (CRUD, Reihenfolge, Ausblenden), Triage einer Mail lesen/korrigieren,
-  Inbox nach Kategorie gruppiert (`GET /triage/inbox`, Posteingangsordner der eigenen Postfächer),
+  Inbox nach Kategorie gruppiert (`GET /triage/inbox`, Posteingangsordner der lesbaren Postfächer),
   Absenderregeln, Write-back-Einstellung je Postfach.
 - **Evaluierung:** `uv run python -m scripts.eval_triage --model qwen2.5:3b [--model …]` klassifiziert
   einen synthetischen, gelabelten Datensatz (`scripts/triage_eval_dataset.json`, DE/EN) und gibt die
@@ -601,7 +609,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   Triage-Kategorie in `OLLAMAIL_TODOS_SKIP_CATEGORIES` steht (Standard `newsletter,notification,spam`).
   Ohne Triage-Ergebnis (Triage nicht installiert, fehlgeschlagen) läuft er immer. Die Kategorie liest
   `extraction.message_category`; die Triage (#20) installiert ihren Lookup mit
-  `extraction.set_category_lookup(...)`. Geteilte Postfächer werden bis #34 übersprungen.
+  `extraction.set_category_lookup(...)`. Mails aus Shared Mailboxes ergeben Team-Todos (siehe
+  unten), angesprochen mit dem Namen des Postfachs, Bezugstag in UTC.
   `OLLAMAIL_TODOS_EXTRACTION_ENABLED=false` schaltet den Schritt ab.
 - **Prompt** `todos_extract@1` (`app/ai/prompts/todos.py`, DE/EN) über `LLMGateway.complete_structured`
   mit `LLMTask.TODOS`. Das Modell bekommt Absender, Empfänger, Betreff, Text ohne Zitate, das
@@ -627,12 +636,18 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Idempotenz:** Ein erneuter Lauf für dieselbe Mail löscht zuerst die Todos, die ein früherer Lauf
   aus ihr erzeugt hat, sofern der Nutzer sie nicht angefasst hat (offen, nicht bearbeitet, kein
   Vorschlag).
+- **Team-Todos** (#34): Todos eines Shared Mailbox gehören dem Postfach (`user_id IS NULL`), alle
+  seine Nutzer sehen und bearbeiten sie, solange sie es lesen dürfen. `assignee_id` weist sie einer
+  dieser Personen zu (`PATCH /todos/{id}`, `{"assignee_id": …}`; sonst 422 `invalid_assignee`,
+  eigene Todos: `not_assignable`); wird die Person gelöscht, ist das Todo wieder offen
+  (`SET NULL`). Ein manuelles Todo zu einer Mail eines Shared Mailbox ist ein Team-Todo, das dem
+  Ersteller zugewiesen ist. Der Digest nimmt nur die eigenen und die zugewiesenen auf.
 - **Modell** `Todo` (`models.py`, Tabelle `todos`): Nutzer, Quelle (Postfach, Mail, Thread),
   Status `open|done|dismissed`, `is_manual`, `is_edited`, Konfidenz, `done_suggested`,
   `completed_at` und `external_refs` (JSON, für den Export in #40).
-- **API** (`/todos`, nur eigene Todos): `GET /todos` (Filter `status` mehrfach, `mailbox_id`,
+- **API** (`/todos`, eigene und Team-Todos lesbarer Shared Mailboxes): `GET /todos` (Filter `status` mehrfach, `mailbox_id`,
   `due_before`, `due_after`; früheste Fälligkeit zuerst, ohne Fälligkeit zuletzt; `limit`/`offset`),
-  `POST /todos` (manuell, optional mit `message_id` einer eigenen Mail), `GET|PATCH|DELETE /todos/{id}`.
+  `POST /todos` (manuell, optional mit `message_id` einer lesbaren Mail), `GET|PATCH|DELETE /todos/{id}`.
   `PATCH` bearbeitet Felder und den Status (`done` setzt `completed_at`, jede Statusänderung löscht
   den Vorschlag); `done_suggested: false` verwirft nur den Vorschlag.
 - **Evaluierung:** `python -m app.todos.evaluation [--model NAME ...]` läuft mit dem echten Prompt
@@ -751,9 +766,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
   (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
   Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang).
-- **Zugriff:** Jede Abfrage enthält `mailbox_id IN (readable_mailbox_ids(user_id))` aus
-  `app.search.access`, der einzigen Stelle dieser Regel. Heute: eigene Postfächer; Shared
-  Mailboxes werden dort mit #34 ergänzt.
+- **Zugriff:** Jede Abfrage enthält `mailbox_id IN (accessible_mailbox_ids(user_id))` aus
+  `app.mail.access`, der einzigen Stelle dieser Regel (eigene und zugewiesene Shared Mailboxes).
 - **Kategorie-Filter** (`SearchFilters.category_ids`): Triage-Kategorie der Mail
   (`triage_results.category_id`).
 
@@ -934,6 +948,45 @@ SSE-Streams keine Pool-Verbindung halten.
 
 Ein Postfach gehört entweder einem Nutzer oder ist ein **Shared Mailbox**, das vom Admin angelegt und
 Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triage, Todos, RAG, Digest).
+
+**Umsetzung (#34):**
+
+- **Zuweisungen** (`mail_mailbox_assignments`, `app/mail/models.py`): je Zeile genau ein Nutzer
+  (`user_id`) oder eine Gruppe (`group_name`, optional `provider`), Recht `read` (Aktionen
+  später). Gruppen sind die, die eine Identität des Nutzers beim letzten Login gemeldet hat
+  (`auth_identities.groups`: OIDC-Gruppen-Claim, LDAP-Gruppen-DNs, GitHub-Teams), verglichen ohne
+  Groß-/Kleinschreibung wie beim Rollen-Mapping (#33). Änderungen der Gruppenmitgliedschaft im
+  Verzeichnis wirken mit dem nächsten Login.
+- **Eine Zugriffsregel:** `accessible_mailbox_ids(user_id)` in `app/mail/access.py` ist eine
+  SQL-Unterabfrage (eigene Postfächer ∪ zugewiesene Shared Mailboxes). Alle Abfragen nutzen sie:
+  Postfach- und Mail-API (Inbox, Thread, Body, Anhänge), Triage, Todos, Suche, RAG (Abruf,
+  gespeicherte Zitate *und* Antworten), Digest (Erzeugung und gespeicherte Digests, Podcast-Feed).
+  Es gibt keinen Cache: Ein Entzug wirkt mit der nächsten Anfrage. Gespeicherte RAG-Antworten,
+  die ein nicht mehr lesbares Postfach zitieren, werden ohne Text ausgeliefert (`withheld`) und
+  nicht als Verlauf an das Modell gegeben; Digests mit einem nicht mehr lesbaren Postfach sind
+  nicht mehr abrufbar. Getestet für jedes Feature in `backend/tests/shared/test_access.py`.
+- **Admin-API** (`/admin/shared-mailboxes`, nur Admins, `app/mail/api/shared.py`): anlegen
+  (Verbindungstest, Zugangsdaten verschlüsselt), umbenennen, Zugangsdaten/Sync-Einstellungen,
+  pausieren, Ordner, Sync anstoßen, entfernen (`delete_mailbox`), Zuweisungen ersetzen
+  (`PUT …/assignments`, `{"users": [...], "groups": [{"group", "provider"}]}`). Antworten enthalten
+  nur Metadaten (Status, Anzahlen, Zuweisungen, `reader_count`), nie Mails. Admins lesen ein
+  Shared Mailbox nur, wenn sie sich zuweisen – sichtbar im Audit-Log.
+- **Audit:** `mailbox.shared` und `mailbox.unshared` je Nutzer bzw. Gruppe (Nutzer-ID bzw.
+  Gruppenname, falls kurz und ohne `@`, sonst nur die Zuweisungs-ID), in derselben Transaktion.
+- **Einmal synchronisiert:** Ein Shared Mailbox ist eine Zeile in `mail_mailboxes`; Sync-Job,
+  Mails, Verarbeitung (Triage, Todos, Suchindex) gibt es genau einmal, egal wie viele es lesen.
+  Events (`mailbox.sync`, `mailbox.changed`, `message.processed`) gehen an alle aktuellen Leser
+  (`app.mail.access.publish_to_readers`); wer Zugriff erhält oder verliert, bekommt
+  `mailbox.changed` (`assigned`/`revoked`).
+- **Nur lesen:** Nutzer eines Shared Mailbox dürfen weder Einstellungen ändern noch synchronisieren
+  noch gelesen/ungelesen setzen (der Status gehört dem Postfach). Triage-Korrekturen sind erlaubt
+  und wirken postfachweit (§4.2).
+- **Löschen:** Wird ein Nutzer gelöscht, verschwinden nur seine Zuweisungen (`ON DELETE
+  CASCADE`) und seine Team-Todo-Zuweisungen (`SET NULL`); das Shared Mailbox bleibt.
+- **UI:** Admin → Geteilte Postfächer (anlegen mit dem IMAP-Formular, Personen und Gruppen
+  zuweisen); Shared Mailboxes stehen in der Navigation in einem eigenen Abschnitt und öffnen die
+  Inbox gefiltert auf das Postfach; unter Einstellungen → Postfächer erscheinen sie getrennt und
+  ohne Aktionen.
 
 ## 6. Frontend
 

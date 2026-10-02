@@ -110,7 +110,8 @@ Einschränkung auf die freigegebenen Postfächer:
 Ein App-only-Postfach wird vom Admin über die Postfach-API (#15) angelegt:
 `type = "graph"`, `provider_settings = {"auth": "application", "user": "team@contoso.com"}`
 (optional `"tenant_id"`, sonst `OLLAMAIL_MAIL_GRAPH_TENANT_ID`), keine `credentials`. Shared
-Mailboxes (`is_shared`) werden Nutzern mit #34 zugewiesen. Der Access-Token wird nur im
+Mailboxes (`is_shared`) legt der Admin unter `/api/admin/shared-mailboxes` an und weist sie
+Nutzern und Gruppen zu (#34). Der Access-Token wird nur im
 Speicher des Prozesses gehalten (≤ 1 h), nicht gespeichert. Verweigert die Policy den Zugriff,
 meldet der Sync `access_denied`.
 
