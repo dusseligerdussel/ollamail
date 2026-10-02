@@ -12,7 +12,8 @@ from app.auth import sessions as session_store
 from app.auth.dependencies import CurrentSessionDep, CurrentUserDep, SettingsDep
 from app.auth.models import LOCAL_PROVIDER
 from app.auth.passwords import hash_password
-from app.auth.providers import AuthProviderRegistry, LocalAuthProvider
+from app.auth.providers import AuthProviderKind, AuthProviderRegistry, LocalAuthProvider
+from app.auth.providers.ldap.service import list_directories
 from app.auth.schemas import (
     AuthProviderInfo,
     AuthProviders,
@@ -87,16 +88,23 @@ async def create_admin(
 
 
 @router.get("/providers")
-async def providers(request: Request, settings: SettingsDep) -> AuthProviders:
+async def providers(request: Request, db: DbDep, settings: SettingsDep) -> AuthProviders:
     """Sign-in options for the login page."""
     registry: AuthProviderRegistry = request.app.state.auth_providers
+    infos = [
+        AuthProviderInfo(name=p.name, display_name=p.display_name, kind=p.kind) for p in registry
+    ]
+    # LDAP directories are configured in the database (sign-in: POST /auth/login/ldap/{name}).
+    infos += [
+        AuthProviderInfo(
+            name=d.provider, display_name=d.display_name, kind=AuthProviderKind.PASSWORD
+        )
+        for d in await list_directories(db, enabled_only=True)
+    ]
     return AuthProviders(
         local_login=True,
         local_registration=settings.auth.local_registration,
-        providers=[
-            AuthProviderInfo(name=p.name, display_name=p.display_name, kind=p.kind)
-            for p in registry
-        ],
+        providers=infos,
     )
 
 

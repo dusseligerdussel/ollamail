@@ -101,8 +101,9 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Heute wird nur `database` geprüft; Prüfungen für Queue und LLM kommen mit #7 und #17. |
 
-Die UI ist unter `http://<host>:8080` erreichbar. Externe Identity-Provider (OIDC, GitHub, LDAP)
-sind **geplant (#30–#33)**.
+Die UI ist unter `http://<host>:8080` erreichbar. LDAP/Active Directory ist per API konfigurierbar
+([`auth/ldap.md`](auth/ldap.md)); OIDC, GitHub und die Admin-UI für Identity-Provider sind
+**geplant (#30, #31, #33)**.
 
 **Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
@@ -627,7 +628,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
 
-api ──▶ Identity-Provider: OIDC / LDAP (geplant #30–#32)
+api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (geplant #30, #31)
 ```
 
 - **Standardmäßig verlassen keine Daten die Instanz.** Externe Verbindungen entstehen nur zu den

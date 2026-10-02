@@ -255,6 +255,14 @@
         "title": "AuthProviders",
         "type": "object"
       },
+      "DirectoryType": {
+        "enum": [
+          "active_directory",
+          "openldap"
+        ],
+        "title": "DirectoryType",
+        "type": "string"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -280,6 +288,465 @@
           "status"
         ],
         "title": "HealthStatus",
+        "type": "object"
+      },
+      "LdapConnectionTest": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "servers": {
+            "items": {
+              "$ref": "#/components/schemas/LdapServerCheck"
+            },
+            "title": "Servers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "servers"
+        ],
+        "title": "LdapConnectionTest",
+        "type": "object"
+      },
+      "LdapDirectoryCreate": {
+        "properties": {
+          "bind_password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Bind Password",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "name": {
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LdapDirectorySettings"
+          }
+        },
+        "required": [
+          "display_name",
+          "settings",
+          "bind_password",
+          "name"
+        ],
+        "title": "LdapDirectoryCreate",
+        "type": "object"
+      },
+      "LdapDirectoryRead": {
+        "properties": {
+          "bind_password_set": {
+            "title": "Bind Password Set",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LdapDirectorySettings"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "display_name",
+          "enabled",
+          "settings",
+          "bind_password_set",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "LdapDirectoryRead",
+        "type": "object"
+      },
+      "LdapDirectorySettings": {
+        "description": "Connection, search and mapping settings of a directory.",
+        "properties": {
+          "admin_groups": {
+            "items": {
+              "maxLength": 1024,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Admin Groups",
+            "type": "array"
+          },
+          "allowed_groups": {
+            "items": {
+              "maxLength": 1024,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Groups",
+            "type": "array"
+          },
+          "bind_dn": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Bind Dn",
+            "type": "string"
+          },
+          "ca_certificate": {
+            "anyOf": [
+              {
+                "maxLength": 65536,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ca Certificate"
+          },
+          "connect_timeout": {
+            "default": 5.0,
+            "maximum": 60.0,
+            "minimum": 0.5,
+            "title": "Connect Timeout",
+            "type": "number"
+          },
+          "directory_type": {
+            "$ref": "#/components/schemas/DirectoryType",
+            "default": "active_directory"
+          },
+          "display_name_attribute": {
+            "maxLength": 64,
+            "title": "Display Name Attribute",
+            "type": "string"
+          },
+          "email_attribute": {
+            "maxLength": 64,
+            "title": "Email Attribute",
+            "type": "string"
+          },
+          "group_base_dn": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Base Dn"
+          },
+          "group_filter": {
+            "maxLength": 1024,
+            "title": "Group Filter",
+            "type": "string"
+          },
+          "group_member_attribute": {
+            "maxLength": 64,
+            "title": "Group Member Attribute",
+            "type": "string"
+          },
+          "nested_groups": {
+            "default": true,
+            "title": "Nested Groups",
+            "type": "boolean"
+          },
+          "operation_timeout": {
+            "default": 10.0,
+            "maximum": 120.0,
+            "minimum": 0.5,
+            "title": "Operation Timeout",
+            "type": "number"
+          },
+          "server_urls": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Server Urls",
+            "type": "array"
+          },
+          "subject_attribute": {
+            "maxLength": 64,
+            "title": "Subject Attribute",
+            "type": "string"
+          },
+          "tls_mode": {
+            "$ref": "#/components/schemas/TlsMode",
+            "default": "ldaps"
+          },
+          "user_base_dn": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "User Base Dn",
+            "type": "string"
+          },
+          "user_filter": {
+            "maxLength": 1024,
+            "title": "User Filter",
+            "type": "string"
+          }
+        },
+        "required": [
+          "server_urls",
+          "bind_dn",
+          "user_base_dn",
+          "user_filter",
+          "subject_attribute",
+          "email_attribute",
+          "display_name_attribute",
+          "group_filter",
+          "group_member_attribute"
+        ],
+        "title": "LdapDirectorySettings",
+        "type": "object"
+      },
+      "LdapDirectoryUpdate": {
+        "description": "Replaces the configuration; without ``bind_password`` the stored one is kept.",
+        "properties": {
+          "bind_password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bind Password"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LdapDirectorySettings"
+          }
+        },
+        "required": [
+          "display_name",
+          "settings"
+        ],
+        "title": "LdapDirectoryUpdate",
+        "type": "object"
+      },
+      "LdapLoginRequest": {
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LdapLoginRequest",
+        "type": "object"
+      },
+      "LdapServerCheck": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "ok",
+          "error",
+          "latency_ms"
+        ],
+        "title": "LdapServerCheck",
+        "type": "object"
+      },
+      "LdapUserLookup": {
+        "description": "What a login of this user would yield (no password check).",
+        "properties": {
+          "allowed": {
+            "default": false,
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "disabled": {
+            "default": false,
+            "title": "Disabled",
+            "type": "boolean"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "dn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dn"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "found": {
+            "title": "Found",
+            "type": "boolean"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "found"
+        ],
+        "title": "LdapUserLookup",
+        "type": "object"
+      },
+      "LdapUserLookupRequest": {
+        "properties": {
+          "login": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Login",
+            "type": "string"
+          }
+        },
+        "required": [
+          "login"
+        ],
+        "title": "LdapUserLookupRequest",
         "type": "object"
       },
       "LoginRequest": {
@@ -549,6 +1016,15 @@
           "settings"
         ],
         "title": "TargetType",
+        "type": "string"
+      },
+      "TlsMode": {
+        "enum": [
+          "ldaps",
+          "starttls",
+          "none"
+        ],
+        "title": "TlsMode",
         "type": "string"
       },
       "TodoCreate": {
@@ -1358,6 +1834,341 @@
         ]
       }
     },
+    "/auth/ldap/directories": {
+      "get": {
+        "description": "All configured directories (without bind passwords).",
+        "operationId": "auth_list_directories",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LdapDirectoryRead"
+                  },
+                  "title": "Response Auth List Directories",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Directories",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "description": "Add a directory. Test it with ``…/test`` before enabling it for users.",
+        "operationId": "auth_create_directory",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LdapDirectoryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapDirectoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Name taken"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Create Directory",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/ldap/directories/{name}": {
+      "delete": {
+        "description": "Remove the directory and all sign-in links through it (the users stay).",
+        "operationId": "auth_delete_directory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Directory",
+        "tags": [
+          "auth"
+        ]
+      },
+      "get": {
+        "operationId": "auth_get_directory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapDirectoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Directory",
+        "tags": [
+          "auth"
+        ]
+      },
+      "put": {
+        "description": "Replace the configuration. Without ``bind_password`` the stored one is kept.",
+        "operationId": "auth_update_directory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LdapDirectoryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapDirectoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Update Directory",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/ldap/directories/{name}/test": {
+      "post": {
+        "description": "Connect to every server, negotiate TLS and bind as the service account.",
+        "operationId": "auth_test_connection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapConnectionTest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Connection",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/ldap/directories/{name}/test-user": {
+      "post": {
+        "description": "Look up a user as a login would (search, attributes, groups, role), without\nchecking a password.",
+        "operationId": "auth_test_user",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LdapUserLookupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapUserLookup"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test User",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "description": "Sign in with a local account.",
@@ -1401,6 +2212,77 @@
           }
         },
         "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login/ldap/{name}": {
+      "post": {
+        "description": "Sign in with a directory account; the user is created on the first login.",
+        "operationId": "auth_ldap_login",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LdapLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Wrong credentials, account disabled or not allowed"
+          },
+          "403": {
+            "description": "The directory supplies no e-mail address for the user"
+          },
+          "404": {
+            "description": "No such (enabled) directory"
+          },
+          "409": {
+            "description": "E-mail address belongs to an account not linked to the directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
+          },
+          "503": {
+            "description": "Directory not reachable"
+          }
+        },
+        "summary": "Ldap Login",
         "tags": [
           "auth"
         ]

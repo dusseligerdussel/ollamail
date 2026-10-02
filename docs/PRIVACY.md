@@ -30,6 +30,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. Die eingebaute Telemetrie von ONNX Runtime (von Piper genutzt) ist per `ORT_DISABLE_TELEMETRY=1` abgeschaltet, im Code und im Image (Test: `tests/ai/tts/test_piper.py`) |
+| LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename und die Verzeichnis-ID (`objectGUID`/`entryUUID`); Gruppen werden bei jedem Login gelesen, nicht gespeichert. Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
 | Anhänge lesen | Textextraktion (PDF, DOCX, TXT, HTML) in einem eigenen Prozess ohne Umgebungsvariablen (keine Secrets), mit Grenzen für Dateigröße, Laufzeit, Speicher und ohne Schreibrechte; Fehler nur als Statuscode |
 | Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/search/access.py`), getestet in `tests/search/test_service.py` |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
@@ -97,11 +98,12 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | Ereignistyp | Ausgelöst durch | Status |
 |---|---|---|
 | `auth.setup_completed` | Ersteinrichtung (`POST /api/setup`) | aktiv |
-| `auth.login_succeeded`, `auth.login_failed` | Lokaler Login (Fehlschlag mit `reason`: `invalid_credentials`, `locked`) | aktiv; OIDC/LDAP mit #30, #32 |
+| `auth.login_succeeded`, `auth.login_failed` | Lokaler Login und LDAP (`provider`; Fehlschlag mit `reason`: `invalid_credentials`, `locked`, bei LDAP zusätzlich `user_inactive`, `directory_unavailable`) | aktiv; OIDC mit #30 |
 | `auth.logout`, `auth.session_revoked` | Logout, Beenden eigener Sitzungen | aktiv |
-| `user.created` | Admin legt Nutzer an, Selbstregistrierung, `app.cli create-admin` | aktiv |
-| `user.role_changed`, `user.deleted` | Nutzerverwaltung | geplant (#33) |
-| `idp.config_changed` | IdP-/LDAP-Konfiguration | geplant (#30, #32) |
+| `user.created` | Admin legt Nutzer an, Selbstregistrierung, `app.cli create-admin`, JIT-Provisioning beim ersten LDAP-Login | aktiv |
+| `user.role_changed` | Rollen-Sync über LDAP-Gruppen (`admin_groups`) | aktiv; Nutzerverwaltung mit #33 |
+| `user.deleted` | Nutzerverwaltung | geplant (#33) |
+| `idp.config_changed` | LDAP-Verzeichnis angelegt, geändert, gelöscht (`details.change`) | aktiv; OIDC mit #30 |
 | `ai.settings_changed` | KI-Einstellungen inkl. Cloud-Freigabe (`details.cloud_enabled`) | geplant |
 | `mailbox.created`, `mailbox.shared` | Postfach-API, Shared Mailboxes | geplant (#15) |
 | `mailbox.deleted` | `app.mail.service.delete_mailbox` | aktiv |

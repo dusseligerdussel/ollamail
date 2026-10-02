@@ -532,7 +532,19 @@ und liefert eine `VerifiedIdentity(provider, subject, email, display_name, group
 Die Zuordnung Identität → Nutzer (`auth.service.user_for_identity`, später mit
 JIT-Provisioning), Sperre, Session und Rollenprüfung sind für alle Provider gleich. Konfigurierte
 externe Provider registrieren sich in `app.state.auth_providers`; `GET /api/auth/providers`
-listet sie für die Login-Seite.
+listet sie für die Login-Seite, zusätzlich die aktiven LDAP-Verzeichnisse aus der Datenbank.
+
+**JIT-Provisioning** (`app/auth/provisioning.py`, für alle externen Provider):
+`provision_user(db, identity, role=...)` findet den Nutzer über `auth_identities` oder legt ihn
+beim ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben
+Adresse wird **nicht** automatisch verknüpft (409), sonst könnte jeder, der ein E-Mail-Attribut
+im externen Verzeichnis setzen darf, ein lokales (Admin-)Konto übernehmen. `role` kommt aus dem
+Gruppen-Mapping des Providers; `None` heißt, der Provider verwaltet keine Rollen.
+
+**LDAP / Active Directory** (`app/auth/providers/ldap/`, Details: [`auth/ldap.md`](auth/ldap.md)):
+Verzeichnisse stehen in `auth_ldap_directories` (Einstellungen als JSONB, Bind-Passwort
+verschlüsselt) und werden über `/api/auth/ldap/directories` (nur Admins) gepflegt und getestet.
+Login über `POST /api/auth/login/ldap/{name}` mit denselben Rate-Limits wie der lokale Login.
 
 **Bootstrap:** `GET /api/setup/status` → `{"initialized": bool}`. `POST /api/setup` legt den ersten
 Admin an und meldet ihn an. Voraussetzung ist der Setup-Token (`OLLAMAIL_SETUP_TOKEN` oder per

@@ -241,6 +241,9 @@ class AuthSettings(BaseSettings):
     # Login/registration attempts per client IP and window. Behind a reverse proxy the client
     # IP comes from X-Forwarded-For (uvicorn --forwarded-allow-ips).
     ip_max_attempts: int = Field(default=50, ge=1)
+    # Allow LDAP directories without TLS (tls_mode "none"). Passwords then travel in clear
+    # text; only for test setups or networks that are encrypted otherwise.
+    ldap_allow_plaintext: bool = False
 
     @model_validator(mode="after")
     def _idle_within_lifetime(self) -> "AuthSettings":
