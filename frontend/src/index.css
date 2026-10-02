@@ -31,9 +31,11 @@
   --muted-foreground: oklch(0.5 0.014 285.938);
   --accent: oklch(0.955 0.002 286.32);
   --accent-foreground: oklch(0.21 0.006 285.885);
-  --destructive: oklch(0.577 0.245 27.325);
+  /* Error text keeps 4.5:1 on muted and accent surfaces as well. */
+  --destructive: oklch(0.55 0.245 27.325);
   --border: oklch(0.92 0.004 286.32);
-  --input: oklch(0.89 0.005 286.32);
+  /* Boundary of form controls: at least 3:1 against the surfaces (WCAG 1.4.11). */
+  --input: oklch(0.62 0.012 286);
   --ring: var(--brand);
   --chart-1: oklch(0.871 0.006 286.286);
   --chart-2: oklch(0.552 0.016 285.938);
@@ -76,7 +78,8 @@
   --accent-foreground: oklch(0.95 0.002 286.32);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(0.27 0.005 286.033);
-  --input: oklch(0.31 0.006 286.033);
+  /* Boundary of form controls: at least 3:1 against the surfaces (WCAG 1.4.11). */
+  --input: oklch(0.54 0.012 286);
   --ring: var(--brand);
   --chart-1: oklch(0.871 0.006 286.286);
   --chart-2: oklch(0.552 0.016 285.938);
@@ -152,7 +155,7 @@
 
 @layer base {
   * {
-    @apply border-border outline-ring/50;
+    @apply border-border outline-ring/80;
   }
   html,
   body,

@@ -303,6 +303,7 @@ function InboxPage() {
         fetchNextPage={() => void messages.fetchNextPage()}
         selectedId={selectedId}
         activeIndex={activeIndex}
+        onActiveIndexChange={setActiveIndex}
         linkSearch={linkSearch}
         groupHeader={triage.groupHeader}
       />

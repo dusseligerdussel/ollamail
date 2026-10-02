@@ -84,6 +84,23 @@ function isEditableTarget(target: EventTarget | null): boolean {
   return ["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName);
 }
 
+const activationKeys = new Set(["enter", " "]);
+const interactiveSelector =
+  'a[href], button, summary, [role="button"], [role="link"], [role="checkbox"], [role="switch"], [role="radio"], [role="tab"], [role="menuitem"], [role="option"]';
+
+/** Enter and Space on a focused control activate it; shortcuts must not take them away. */
+function isActivation(shortcut: Shortcut, event: KeyboardEvent): boolean {
+  if (event.ctrlKey || event.metaKey || event.altKey) return false;
+  const [first, ...rest] = parseKeys(shortcut.keys);
+  return (
+    rest.length === 0 &&
+    !!first &&
+    activationKeys.has(first.key) &&
+    event.target instanceof Element &&
+    event.target.closest(interactiveSelector) !== null
+  );
+}
+
 function isInsideDialog(target: EventTarget | null): boolean {
   return (
     target instanceof Element && target.closest('[role="dialog"], [role="alertdialog"]') !== null
@@ -114,7 +131,8 @@ export function createShortcutDispatcher(
     const restricted = isEditableTarget(event.target) || isInsideDialog(event.target);
     const candidates = registry
       .getSnapshot()
-      .filter((shortcut) => !restricted || shortcut.allowInInput);
+      .filter((shortcut) => !restricted || shortcut.allowInInput)
+      .filter((shortcut) => !isActivation(shortcut, event));
 
     const previous = pending && now() - pending.at <= sequenceTimeoutMs ? pending.event : null;
     pending = null;

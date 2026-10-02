@@ -1,10 +1,12 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
+import { expectNoA11yViolations } from "./a11y";
 import { mockApi } from "./mock-api";
 
 // Runs without a backend: the export API and Google's consent page are mocked in the
 // browser. Lists and IDs are invented.
+// Stacked toasts fade out on purpose (app-wide sonner behaviour, not this page).
+const TOASTS = "[data-sonner-toaster]";
 const GOOGLE = "https://accounts.google.test/o/oauth2/v2/auth";
 
 interface Target {
@@ -82,20 +84,6 @@ async function mockExport(page: Page) {
   return { requests };
 }
 
-async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    // Stacked toasts fade out on purpose (app-wide sonner behaviour, not this page).
-    .exclude("[data-sonner-toaster]")
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  expect(
-    results.violations.map(
-      (violation) =>
-        `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
-    ),
-  ).toEqual([]);
-}
-
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
@@ -107,7 +95,7 @@ test("connect Google Tasks and pick another list", async ({ page }) => {
   await page.getByRole("radio", { name: /Google Tasks/ }).click();
   await expect(page.getByLabel("Server URL")).toHaveCount(0);
   await expect(page.getByText(/to Google Tasks\.$/)).toBeVisible();
-  await expectNoA11yViolations(page);
+  await expectNoA11yViolations(page, [TOASTS]);
   await page.getByRole("radio", { name: /Manual/ }).click();
   await page.getByRole("button", { name: "Connect with Google" }).click();
 
@@ -126,7 +114,7 @@ test("connect Google Tasks and pick another list", async ({ page }) => {
     { method: "POST", path: "/api/todo-export/gtasks/oauth/start", body: { mode: "manual" } },
     { method: "PATCH", path: "/api/todo-export", body: { list_id: "gl-work" } },
   ]);
-  await expectNoA11yViolations(page);
+  await expectNoA11yViolations(page, [TOASTS]);
 });
 
 test("a cancelled sign-in is explained", async ({ page }) => {

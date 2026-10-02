@@ -64,9 +64,15 @@ function AuditLogPage() {
         }
       />
       <FilterBar filters={filters} />
-      <div className="flex-1 overflow-y-auto">
+      {/* Focusable, so the list scrolls with the keyboard: its rows have no controls. */}
+      <section
+        aria-label={t("pages.audit.title")}
+        // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container without focusable content
+        tabIndex={0}
+        className="flex-1 overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/80 focus-visible:ring-inset"
+      >
         <AuditEvents filters={filters} />
-      </div>
+      </section>
     </>
   );
 }

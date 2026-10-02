@@ -79,6 +79,23 @@ describe("shortcut dispatcher", () => {
     expect(palette).toHaveBeenCalledOnce();
   });
 
+  it("leaves Enter and Space to a focused button or link", () => {
+    const { dispatch, add } = setup();
+    const open = add("enter");
+    const play = add("space");
+    const button = document.createElement("button");
+    const link = document.createElement("a");
+    link.href = "/inbox";
+    const enterOnButton = key("Enter", {}, button);
+    dispatch(enterOnButton);
+    dispatch(key(" ", {}, link));
+    expect(open).not.toHaveBeenCalled();
+    expect(play).not.toHaveBeenCalled();
+    expect(enterOnButton.defaultPrevented).toBe(false);
+    dispatch(key("Enter", {}, document.body));
+    expect(open).toHaveBeenCalledOnce();
+  });
+
   it("supports sequences within the timeout", () => {
     let time = 0;
     const { dispatch, add } = setup({ now: () => time });

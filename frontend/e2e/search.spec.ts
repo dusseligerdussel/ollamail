@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
+import { expectNoA11yViolations } from "./a11y";
 import { mockApi } from "./mock-api";
 import { mockMail } from "./mock-mail";
 import {
@@ -16,17 +16,6 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
   await mockMail(page);
 });
-
-async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  const summary = results.violations.map(
-    (violation) =>
-      `${violation.impact}: ${violation.id} – ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
-  );
-  expect(summary).toEqual([]);
-}
 
 async function overflow(page: Page) {
   return page.evaluate(
@@ -61,7 +50,8 @@ test("keyboard only: search, filter, open a hit at the matching passage", async 
   await page.keyboard.press("Enter");
   await page.getByRole("menuitemradio", { name: "Last 30 days" }).focus();
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("button", { name: "Date: Last 30 days" })).toBeVisible();
+  // The closed menu returns the focus to its chip.
+  await expect(page.getByRole("button", { name: "Date: Last 30 days" })).toBeFocused();
   await expect.poll(() => searches.length).toBe(2);
   expect(searches[1]).toMatchObject({ query: "rechnung", filters: { since: expect.any(String) } });
 
