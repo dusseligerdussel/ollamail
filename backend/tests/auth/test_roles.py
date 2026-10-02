@@ -143,11 +143,16 @@ class FakeRedirectProvider:
     name = "oidc:test"
     display_name = "Test IdP"
     kind = AuthProviderKind.REDIRECT
+    login_path = "/auth/test/login"
 
-    async def authorization_url(self, *, state: str, nonce: str, redirect_uri: str) -> str:
+    async def authorization_url(
+        self, *, state: str, nonce: str, redirect_uri: str, code_verifier: str
+    ) -> str:
         return "https://idp.example.org/authorize"
 
-    async def complete(self, *, params: object, nonce: str, redirect_uri: str) -> VerifiedIdentity:
+    async def complete(
+        self, *, params: object, nonce: str, redirect_uri: str, code_verifier: str
+    ) -> VerifiedIdentity:
         return VerifiedIdentity(provider=self.name, subject="1")
 
 
@@ -179,7 +184,14 @@ async def test_providers_lists_registered_external_providers(
     app.state.auth_providers.register(FakeRedirectProvider())
 
     providers = (await client.get("/auth/providers")).json()["providers"]
-    assert providers == [{"name": "oidc:test", "display_name": "Test IdP", "kind": "redirect"}]
+    assert providers == [
+        {
+            "name": "oidc:test",
+            "display_name": "Test IdP",
+            "kind": "redirect",
+            "login_path": "/auth/test/login",
+        }
+    ]
 
 
 async def test_external_identity_maps_to_its_user(db_session: AsyncSession) -> None:

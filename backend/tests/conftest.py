@@ -9,6 +9,7 @@ Each ``db_session`` runs inside a transaction that is rolled back after the test
 """
 
 import asyncio
+import importlib
 import os
 from collections.abc import AsyncIterator, Callable, Iterator
 from http.cookies import SimpleCookie
@@ -38,6 +39,12 @@ from app.core.crypto import generate_key
 from app.core.db import get_db
 from app.core.logging import configure_logging
 from app.main import create_app
+from app.worker import TASK_MODULES
+
+# Import task modules (and so register their processing steps) before any test isolates
+# the step registry; the worker would otherwise import them inside the isolated registry.
+for _module in TASK_MODULES:
+    importlib.import_module(_module)
 
 BACKEND_DIR = Path(__file__).resolve().parent.parent
 TEST_DATABASE_URL = os.environ.get(

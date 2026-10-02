@@ -101,8 +101,9 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Heute wird nur `database` geprüft; Prüfungen für Queue und LLM kommen mit #7 und #17. |
 
-Die UI ist unter `http://<host>:8080` erreichbar. Externe Identity-Provider (OIDC, GitHub, LDAP)
-sind **geplant (#30–#33)**.
+Die UI ist unter `http://<host>:8080` erreichbar. LDAP/Active Directory ist per API konfigurierbar
+([`auth/ldap.md`](auth/ldap.md)); OIDC, GitHub und die Admin-UI für Identity-Provider sind
+**geplant (#30, #31, #33)**.
 
 **Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
@@ -595,13 +596,17 @@ verarbeitet.
 | Datenkategorie | Speicherort | Status |
 |---|---|---|
 | Nutzerkonten, Rollen | PostgreSQL (`postgres-data`): `users`, `auth_identities` (Passwörter als Argon2id-Hash) | aktiv |
-| Gruppen | PostgreSQL | geplant (#30–#33) |
+| Gruppen | PostgreSQL: `auth_identities.groups` (Gruppen-Claims des IdP beim letzten Login, z. B. Entra-Gruppen-IDs) | aktiv (OIDC); LDAP liest Gruppen bei jedem Login und speichert sie nicht; GitHub geplant (#31) |
+| IdP-Konfiguration (OIDC) | PostgreSQL: `auth_oidc_providers` (Client-Secret verschlüsselt mit `OLLAMAIL_SECRET_KEY`) oder Umgebung (`OLLAMAIL_AUTH_OIDC_PROVIDERS`) | aktiv |
 | Sessions | PostgreSQL: `auth_sessions` (nur SHA-256 des Cookie-Tokens, Browser-Kennung gekürzt); abgelaufene stündlich gelöscht | aktiv |
 | Login-Zähler (Rate-Limit, Sperre) | PostgreSQL: `auth_rate_limits` (nur HMAC von IP bzw. E-Mail-Adresse); stündlich bereinigt | aktiv |
 | Postfach-Zugangsdaten, OAuth-Tokens, IdP-Secrets | PostgreSQL, verschlüsselt mit `OLLAMAIL_SECRET_KEY` | geplant (#6, #15) |
 | E-Mails (Header, Inhalte, Metadaten) | PostgreSQL | geplant (#13, #14) |
 | Anhänge | Daten-Volume (`ollamail-data`) | geplant (#13) |
-| KI-Ergebnisse: Triage, Aufgaben | PostgreSQL | geplant (#20, #22) |
+| Triage: Kategorie, Priorität, Begründung (ein Satz) je Mail | PostgreSQL (`triage_results`), gelöscht mit der Mail | vorhanden (#20) |
+| Triage-Korrekturen (Few-Shot-Beispiele, nur für denselben Nutzer; Embeddings als Zahlenvektor) | PostgreSQL (`triage_feedback`), gelöscht mit Mail oder Nutzer | vorhanden (#20) |
+| Kategorien, Absenderregeln (Adresse oder Domain), Einstellungen je Nutzer/Postfach | PostgreSQL (`triage_categories`, `triage_category_preferences`, `triage_sender_rules`, `triage_mailbox_settings`) | vorhanden (#20) |
+| KI-Ergebnisse: Aufgaben | PostgreSQL | geplant (#22) |
 | Suchindex: Text-Abschnitte von Mails und Anhängen, Volltextindex, Embeddings | PostgreSQL: `search_chunks`, `search_embeddings` (pgvector); hängen per `ON DELETE CASCADE` an Mail, Anhang und Postfach | vorhanden (#24) |
 | Chat-Verläufe („Frag deine Inbox“) | PostgreSQL | geplant (#25) |
 | Daily Digest: Text und Audio | PostgreSQL bzw. Daten-Volume | geplant (#28) |
@@ -627,7 +632,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
 
-api ──▶ Identity-Provider: OIDC / LDAP (geplant #30–#32)
+api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30; GitHub OAuth2 geplant #31)
 ```
 
 - **Standardmäßig verlassen keine Daten die Instanz.** Externe Verbindungen entstehen nur zu den
