@@ -1637,6 +1637,10 @@
       "caldav": {
         "title": "CalDAV",
         "description": "Nextcloud, Radicale, Baïkal, iCloud und andere CalDAV-Server"
+      },
+      "mstodo": {
+        "title": "Microsoft To Do",
+        "description": "Aufgabenliste deines Microsoft-365- oder Outlook-Kontos"
       }
     },
     "url": "Server-URL",
@@ -1690,7 +1694,28 @@
       "sink_not_available": "Dieses Ziel ist auf diesem Server nicht freigegeben.",
       "unknown_list": "Die Liste gibt es auf dem Server nicht mehr.",
       "list_not_found": "Die Liste gibt es auf dem Server nicht mehr.",
+      "not_configured": "Microsoft 365 ist auf diesem Server nicht eingerichtet.",
+      "mstodo_not_connected": "Melde dich zuerst mit Microsoft an.",
+      "consent_denied": "Die Anmeldung wurde abgebrochen oder der Zugriff nicht erlaubt.",
+      "access_denied": "Microsoft hat den Zugriff auf die Aufgaben verweigert.",
+      "state_invalid": "Die Anmeldung ist abgelaufen. Bitte erneut versuchen.",
+      "session_mismatch": "Die Anmeldung gehört zu einer anderen Sitzung. Bitte erneut versuchen.",
+      "token_exchange_failed": "Microsoft hat die Anmeldung nicht bestätigt. Bitte erneut versuchen.",
+      "offline_access_missing": "Microsoft hat keinen dauerhaften Zugriff erteilt. Bitte erneut anmelden.",
+      "mstodo_auth_failed": "Microsoft hat den Zugriff abgelehnt. Melde dich erneut an.",
       "other": "Der Server hat unerwartet geantwortet."
+    },
+    "mstodo": {
+      "signIn": "Mit Microsoft anmelden",
+      "signInHint": "Melde dich mit deinem Microsoft-Konto an und erlaube den Zugriff auf deine Aufgaben. Danach wählst du die Liste aus.",
+      "redirecting": "Weiterleitung …",
+      "loadingLists": "Listen werden geladen",
+      "signedInAs": "Angemeldet als {{account}}",
+      "otherAccount": "Anderes Konto",
+      "account": "Konto",
+      "signInFailed": "Anmeldung bei Microsoft fehlgeschlagen",
+      "privacySent": "Beim Export gehen Titel, Beschreibung, Fälligkeit, Priorität und Status deiner Aufgaben sowie ein Link zur Mail an Microsoft To Do.",
+      "privacyNotSent": "Die Mails selbst werden nicht übertragen. ollamail erhält nur Zugriff auf deine Aufgaben, nicht auf dein Postfach."
     }
   }
 }

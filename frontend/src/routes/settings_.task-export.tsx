@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute, Link } from "@tanstack/react-router";
+import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
 import { ArrowLeft, ListChecks, RefreshCw, Unplug } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { type ReactNode, useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -29,14 +29,43 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { formatDateTime } from "@/lib/mail-format";
 
+interface TaskExportSearch {
+  /** Result of the Microsoft To Do sign-in (`mstodo=connected` or `mstodo=error&reason=…`). */
+  mstodo?: "connected" | "error";
+  reason?: string;
+}
+
+const CODE = /^[a-z][a-z0-9_]{0,63}$/;
+
 export const Route = createFileRoute("/settings_/task-export")({
+  validateSearch: (search: Record<string, unknown>): TaskExportSearch => {
+    const mstodo =
+      search.mstodo === "connected" || search.mstodo === "error" ? search.mstodo : undefined;
+    const reason =
+      typeof search.reason === "string" && CODE.test(search.reason) ? search.reason : undefined;
+    return { ...(mstodo && { mstodo }), ...(mstodo === "error" && reason && { reason }) };
+  },
   component: TaskExportPage,
 });
 
 function TaskExportPage() {
   const { t } = useTranslation();
+  const navigate = useNavigate();
+  const search = Route.useSearch();
+  const errorText = useExportErrorText();
   const settings = useQuery(todoExportQueryOptions);
-  const [editing, setEditing] = useState(false);
+  // Back from the Microsoft sign-in: continue with list and mode.
+  const [signedIn] = useState(search.mstodo === "connected");
+  const [editing, setEditing] = useState(signedIn);
+
+  // Report a failed sign-in once, then clean the URL.
+  useEffect(() => {
+    if (!search.mstodo) return;
+    if (search.mstodo === "error") {
+      toast.error(t("taskExport.mstodo.signInFailed"), { description: errorText(search.reason) });
+    }
+    void navigate({ to: "/settings/task-export", search: {}, replace: true });
+  }, [search.mstodo, search.reason, navigate, t, errorText]);
 
   let content: ReactNode;
   if (settings.isPending) {
@@ -65,6 +94,7 @@ function TaskExportPage() {
         <ConnectForm
           sinks={sinks}
           current={target ?? undefined}
+          signedIn={signedIn ? "mstodo" : undefined}
           onDone={() => {
             setEditing(false);
             toast.success(t(target ? "taskExport.saved" : "taskExport.enabled"));
@@ -116,7 +146,7 @@ function SyncStatus({ target }: { target: ExportTarget }) {
     return <span className="text-destructive">{t("taskExport.inactive")}</span>;
   }
   if (target.last_error) {
-    return <span className="text-destructive">{errorText(target.last_error)}</span>;
+    return <span className="text-destructive">{errorText(target.last_error, target.sink)}</span>;
   }
   if (!target.last_sync_at) {
     return <span className="text-muted-foreground">{t("taskExport.neverSynced")}</span>;
@@ -146,8 +176,16 @@ function ConnectedTarget({ target, onEdit }: { target: ExportTarget; onEdit: () 
         </h2>
         <dl className="divide-y rounded-lg border">
           <Row label={t("taskExport.target")}>{t(`taskExport.sinks.${target.sink}.title`)}</Row>
-          <Row label={t("taskExport.url")}>{target.url}</Row>
-          {target.username && <Row label={t("taskExport.username")}>{target.username}</Row>}
+          {target.url && <Row label={t("taskExport.url")}>{target.url}</Row>}
+          {target.username && (
+            <Row
+              label={t(
+                target.sink === "mstodo" ? "taskExport.mstodo.account" : "taskExport.username",
+              )}
+            >
+              {target.username}
+            </Row>
+          )}
           <Row label={t("taskExport.list")}>{target.list_name}</Row>
           <Row label={t("taskExport.status")}>
             <SyncStatus target={target} />

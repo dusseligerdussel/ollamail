@@ -29,7 +29,7 @@ from app.todos.export.base import (
     TaskList,
 )
 from app.todos.export.models import TodoExportTarget
-from app.todos.export.registry import available_sinks, create_sink
+from app.todos.export.registry import OAUTH_SINKS, available_sinks, create_sink
 from app.todos.export.schemas import (
     ExportConnection,
     ExportCounts,
@@ -110,6 +110,12 @@ def _connection_config(
     if body.sink not in available_sinks(settings.todos):
         raise ProblemError(
             422, detail="This export target is not enabled.", error_code="sink_not_available"
+        )
+    if body.sink in OAUTH_SINKS:
+        raise ProblemError(
+            422,
+            detail="This export target is connected by signing in.",
+            error_code="oauth_required",
         )
     password = body.password
     if password is None:

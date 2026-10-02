@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { Info } from "lucide-react";
-import { type FormEvent, useId, useState } from "react";
+import { type FormEvent, useCallback, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { problemErrorCode } from "@/api/mail";
@@ -13,6 +13,7 @@ import {
   useSaveTodoExport,
 } from "@/api/todo-export";
 import { FormError, FormField } from "@/components/form-field";
+import { MsTodoConnect } from "@/components/task-export/mstodo-connect";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -28,19 +29,45 @@ const KNOWN_ERRORS = new Set([
   "insecure_url",
   "sink_not_available",
   "unknown_list",
+  // Microsoft To Do sign-in (`mstodo=error&reason=…`) and its API.
+  "not_configured",
+  "mstodo_not_connected",
+  "consent_denied",
+  "access_denied",
+  "state_invalid",
+  "session_mismatch",
+  "token_exchange_failed",
+  "offline_access_missing",
 ]);
 
 export function useExportErrorText() {
   const { t } = useTranslation();
-  return (code: string | null | undefined) =>
-    code && KNOWN_ERRORS.has(code)
-      ? t(`taskExport.errors.${code as "auth_failed"}`)
-      : t("taskExport.errors.other");
+  return useCallback(
+    (code: string | null | undefined, sink?: ExportSink) => {
+      if (sink === "mstodo" && code === "auth_failed")
+        return t("taskExport.errors.mstodo_auth_failed");
+      return code && KNOWN_ERRORS.has(code)
+        ? t(`taskExport.errors.${code as "auth_failed"}`)
+        : t("taskExport.errors.other");
+    },
+    [t],
+  );
 }
 
 /** What leaves the instance, shown before the user connects (docs/PRIVACY.md). */
-export function ExportPrivacyNotice() {
+export function ExportPrivacyNotice({ sink }: { sink?: ExportSink }) {
   const { t } = useTranslation();
+  if (sink === "mstodo") {
+    return (
+      <div className="flex items-start gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-ui">
+        <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <div className="flex flex-col gap-1">
+          <p>{t("taskExport.mstodo.privacySent")}</p>
+          <p className="text-muted-foreground">{t("taskExport.mstodo.privacyNotSent")}</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-ui">
       <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
@@ -93,6 +120,8 @@ interface ConnectFormProps {
   sinks: ExportSink[];
   /** Change an existing connection (server, account, list). */
   current?: ExportTarget;
+  /** Target the user just signed in to (OAuth flow), preselected. */
+  signedIn?: ExportSink;
   onDone: () => void;
   onCancel?: () => void;
 }
@@ -101,11 +130,11 @@ interface ConnectFormProps {
  * Connect the export in two steps: target and credentials (checked by listing the task lists),
  * then list and mode. Nothing is stored before the second step.
  */
-export function ConnectForm({ sinks, current, onDone, onCancel }: ConnectFormProps) {
+export function ConnectForm({ sinks, current, signedIn, onDone, onCancel }: ConnectFormProps) {
   const { t } = useTranslation();
   const errorText = useExportErrorText();
   const sinkLabel = useId();
-  const [sink, setSink] = useState<ExportSink>(current?.sink ?? sinks[0] ?? "caldav");
+  const [sink, setSink] = useState<ExportSink>(signedIn ?? current?.sink ?? sinks[0] ?? "caldav");
   const [url, setUrl] = useState(current?.url ?? "");
   const [username, setUsername] = useState(current?.username ?? "");
   const [password, setPassword] = useState("");
@@ -157,7 +186,7 @@ export function ConnectForm({ sinks, current, onDone, onCancel }: ConnectFormPro
 
   return (
     <div className="flex flex-col gap-8">
-      <ExportPrivacyNotice />
+      <ExportPrivacyNotice sink={sink} />
       <form onSubmit={onConnect} className="flex flex-col gap-4" noValidate>
         {sinks.length > 0 && (
           <section aria-labelledby={sinkLabel}>
@@ -192,55 +221,69 @@ export function ConnectForm({ sinks, current, onDone, onCancel }: ConnectFormPro
             </RadioGroup>
           </section>
         )}
-        <FormField
-          label={t("taskExport.url")}
-          description={t("taskExport.urlHint")}
-          type="url"
-          inputMode="url"
-          autoComplete="url"
-          placeholder="https://cloud.example.org/remote.php/dav"
-          value={url}
-          required
-          onChange={(event) => {
-            setUrl(event.target.value);
-            resetLists();
-          }}
-        />
-        <FormField
-          label={t("taskExport.username")}
-          autoComplete="username"
-          value={username}
-          onChange={(event) => {
-            setUsername(event.target.value);
-            resetLists();
-          }}
-        />
-        <FormField
-          label={t("taskExport.password")}
-          description={keepsPassword ? t("taskExport.passwordKept") : t("taskExport.passwordHint")}
-          type="password"
-          autoComplete="current-password"
-          value={password}
-          onChange={(event) => {
-            setPassword(event.target.value);
-            resetLists();
-          }}
-        />
-        {discoverError && <FormError>{discoverError}</FormError>}
-        {!lists && (
-          <div className="flex gap-2">
-            <Button type="submit" size="sm" disabled={!url.trim() || discover.isPending}>
-              {discover.isPending ? t("taskExport.connecting") : t("taskExport.connect")}
-            </Button>
-            {onCancel && (
-              <Button type="button" size="sm" variant="outline" onClick={onCancel}>
-                {t("taskExport.cancel")}
-              </Button>
+        {sink !== "mstodo" && (
+          <>
+            <FormField
+              label={t("taskExport.url")}
+              description={t("taskExport.urlHint")}
+              type="url"
+              inputMode="url"
+              autoComplete="url"
+              placeholder="https://cloud.example.org/remote.php/dav"
+              value={url}
+              required
+              onChange={(event) => {
+                setUrl(event.target.value);
+                resetLists();
+              }}
+            />
+            <FormField
+              label={t("taskExport.username")}
+              autoComplete="username"
+              value={username}
+              onChange={(event) => {
+                setUsername(event.target.value);
+                resetLists();
+              }}
+            />
+            <FormField
+              label={t("taskExport.password")}
+              description={
+                keepsPassword ? t("taskExport.passwordKept") : t("taskExport.passwordHint")
+              }
+              type="password"
+              autoComplete="current-password"
+              value={password}
+              onChange={(event) => {
+                setPassword(event.target.value);
+                resetLists();
+              }}
+            />
+            {discoverError && <FormError>{discoverError}</FormError>}
+            {!lists && (
+              <div className="flex gap-2">
+                <Button type="submit" size="sm" disabled={!url.trim() || discover.isPending}>
+                  {discover.isPending ? t("taskExport.connecting") : t("taskExport.connect")}
+                </Button>
+                {onCancel && (
+                  <Button type="button" size="sm" variant="outline" onClick={onCancel}>
+                    {t("taskExport.cancel")}
+                  </Button>
+                )}
+              </div>
             )}
-          </div>
+          </>
         )}
       </form>
-      {lists && (
+      {sink === "mstodo" && (
+        <MsTodoConnect
+          current={current}
+          signedIn={signedIn === "mstodo"}
+          onDone={onDone}
+          onCancel={onCancel}
+        />
+      )}
+      {sink !== "mstodo" && lists && (
         <form onSubmit={onSave} className="flex flex-col gap-6">
           {lists.length === 0 ? (
             <FormError>{t("taskExport.noLists")}</FormError>

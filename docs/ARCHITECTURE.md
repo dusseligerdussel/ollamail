@@ -67,7 +67,7 @@ backend/app/
     embeddings/  Chunking, Embedding-Jobs
     prompts/     versionierte Prompt-Templates
   triage/        Kategorien, Klassifikation, Feedback/Few-Shot
-  todos/         Extraktion, CRUD; export/: Export nach CalDAV (TodoSink-Interface)
+  todos/         Extraktion, CRUD; export/: Export nach CalDAV und Microsoft To Do (TodoSink-Interface)
   digest/        Tageszusammenfassung, TTS, Podcast-Feed
   search/        Suchindex: Chunking, Anhangstexte, Embeddings, Hybrid-Suche (RRF)
   rag/           Chat, Zitate (nutzt search/)
@@ -688,14 +688,15 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   erwarteten Todos, Fristen, Updates und Erledigt-Vorschlägen) und gibt je Modell Precision, Recall
   und Trefferquote der Fristen aus. Neue Fälle im selben Format ergänzen.
 - **Export** (`backend/app/todos/export/`, #40): Aufgaben landen in der Aufgabenliste, mit der
-  der Nutzer ohnehin arbeitet. Umgesetzt ist CalDAV (VTODO); Microsoft To Do (Graph) und
-  Google Tasks folgen als eigene Sinks (#101, #102).
+  der Nutzer ohnehin arbeitet. Umgesetzt sind CalDAV (VTODO) und Microsoft To Do (Graph,
+  #101); Google Tasks folgt als eigener Sink (#102).
   - **Admin-Opt-in:** `OLLAMAIL_TODOS_EXPORT_SINKS` (Standard leer = aus) nennt die Ziele, die
     Nutzer verbinden dürfen. Ziele, die der Admin später entfernt, werden nicht mehr abgeglichen.
   - **Interface** `TodoSink` (`base.py`): `list_task_lists`, `push` (idempotent je `uid`),
     `update`/`complete` (mit ETag, sonst `SinkConflictError`), `delete`, `changes` (Status der
-    bekannten Aufgaben, die sich im Ziel geändert haben oder dort gelöscht wurden). Fehler sind
-    `SinkError`-Codes ohne Servertexte. `registry.FACTORIES` ordnet Zieltypen Implementierungen
+    bekannten Aufgaben, die sich im Ziel geändert haben oder dort gelöscht wurden),
+    `updated_config` (rotierte OAuth-Tokens oder Abgleich-Stand, die der Abgleich speichert,
+    solange der Nutzer nicht neu verbunden hat). Fehler sind `SinkError`-Codes ohne Servertexte. `registry.FACTORIES` ordnet Zieltypen Implementierungen
     zu; ein neuer Dienst ist eine Klasse plus ein Eintrag.
   - **CalDAV** (`caldav.py`, `ical.py`, `httpx` ohne CalDAV-Bibliothek): Discovery über
     `current-user-principal` und `calendar-home-set` (auch `/.well-known/caldav`), angeboten
@@ -705,6 +706,12 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
     den Link zur Mail (`<OLLAMAIL_AUTH_PUBLIC_URL bzw. Origin beim Verbinden>/inbox?message=<id>`,
     auch als `URL`). Anfragen gehen nur an den eingetragenen Server; `https` ist Pflicht
     (`OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP` nur für Tests), keine DTDs in Antworten.
+  - **Microsoft To Do** (`mstodo.py`, `mstodo_router.py`, Details:
+    [`providers/microsoft365.md`](providers/microsoft365.md) §11): eigener OAuth-Flow mit
+    `Tasks.ReadWrite` (Entra-App und Token-Erneuerung der Graph-Postfächer), Tokens verschlüsselt
+    in der Konfiguration; Aufgaben mit `linkedResources` (Todo-ID, Link zur Mail), Änderungen mit
+    `If-Match`, Statusabgleich per Delta Query. Ziele mit OAuth (`registry.OAUTH_SINKS`) lehnt
+    `PUT /todo-export` ab (`oauth_required`).
   - **Einstellungen** je Nutzer (`todo_export_targets`, höchstens eine Zeile): Ziel,
     Zugangsdaten (`EncryptedJSON`), Liste, Modus `auto` (alle offenen Aufgaben, neue sofort)
     oder `manual` (nur einzeln exportierte). API `GET|PUT|PATCH|DELETE /todo-export`,
