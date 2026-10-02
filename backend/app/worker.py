@@ -58,8 +58,10 @@ QUEUES: tuple[QueueName, ...] = get_args(QueueName)
 TASK_MODULES: list[str] = [
     "app.ai.tts.tasks",
     "app.auth.tasks",
+    "app.mail.sync.tasks",
     "app.processing.tasks",
     "app.triage.tasks",
+    "app.todos.steps",
 ]
 
 # Waits 2, 4, 8, ... 128 seconds between attempts (8 attempts, ~4 minutes in total).
@@ -136,6 +138,16 @@ def pool_size(groups: list[WorkerGroup]) -> int:
     return sum(group.concurrency + 2 for group in groups) + 1
 
 
+def background_services(settings: Settings, stop: asyncio.Event) -> list[asyncio.Task[None]]:
+    """Long-running tasks next to the job workers, e.g. the mailbox push watcher."""
+    services = []
+    if "sync" in settings.worker.queues and settings.mail.watch_enabled:
+        from app.mail.sync.watcher import run_watcher
+
+        services.append(asyncio.create_task(run_watcher(settings, stop), name="mail-watcher"))
+    return services
+
+
 async def run(settings: Settings, stop: asyncio.Event) -> None:
     """Run all worker groups until ``stop`` is set, then shut down gracefully."""
     groups = worker_groups(settings)
@@ -154,6 +166,7 @@ async def run(settings: Settings, stop: asyncio.Event) -> None:
                 )
                 for group in groups
             ]
+            services = background_services(settings, stop)
             log.info(
                 "worker_started",
                 groups={group.name: list(group.queues) for group in groups},
@@ -161,6 +174,9 @@ async def run(settings: Settings, stop: asyncio.Event) -> None:
             stopping = asyncio.create_task(stop.wait())
             await asyncio.wait([stopping, *workers], return_when=asyncio.FIRST_COMPLETED)
             stopping.cancel()
+            for service in services:
+                service.cancel()
+            await asyncio.gather(*services, return_exceptions=True)
             # Cancelling a Procrastinate worker stops it gracefully: no new jobs are
             # fetched, running jobs get ``shutdown_timeout`` seconds to finish.
             for worker in workers:

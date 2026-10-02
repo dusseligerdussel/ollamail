@@ -1,7 +1,7 @@
 """add triage tables
 
 Revision ID: b03b12892021
-Revises: 0287a3035915
+Revises: 173b28ed6d7e
 Create Date: 2026-10-01 21:02:22.346959+00:00
 """
 
@@ -13,7 +13,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "b03b12892021"
-down_revision: str | Sequence[str] | None = "0287a3035915"
+down_revision: str | Sequence[str] | None = "173b28ed6d7e"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

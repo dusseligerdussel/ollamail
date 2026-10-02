@@ -143,7 +143,7 @@ class FakeMailProvider:
                     continue
                 if since and message.received_at and message.received_at < since:
                     continue
-                yield MessageFetched(message)
+                yield MessageFetched(message, initial=True)
         else:
             if cursor.data.get("epoch") != self._epoch:
                 raise CursorInvalidError()
