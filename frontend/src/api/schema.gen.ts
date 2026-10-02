@@ -372,6 +372,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/scim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Scim Settings
+         * @description SCIM switch, endpoint URL, tokens (hints only) and counts of provisioned objects.
+         */
+        get: operations["admin_get_scim_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Scim Settings
+         * @description Switch SCIM on or off; set the providers that may link logins to SCIM users.
+         */
+        patch: operations["admin_update_scim_settings"];
+        trace?: never;
+    };
+    "/admin/scim/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Scim Token
+         * @description Create a bearer token for an IdP. The secret is only in this response.
+         */
+        post: operations["admin_create_scim_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/scim/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Scim Token
+         * @description Revoke a token; requests with it fail from now on.
+         */
+        delete: operations["admin_revoke_scim_token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/shared-mailboxes": {
         parameters: {
             query?: never;
@@ -2632,7 +2696,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -4600,6 +4664,68 @@ export interface components {
              */
             rules: components["schemas"]["RoleMappingRuleFields"][];
         };
+        /** ScimSettingsRead */
+        ScimSettingsRead: {
+            /** Enabled */
+            enabled: boolean;
+            /** Endpoint Url */
+            endpoint_url: string;
+            /** Link Providers */
+            link_providers: string[];
+            stats: components["schemas"]["ScimStats"];
+            /** Tokens */
+            tokens: components["schemas"]["ScimTokenRead"][];
+        };
+        /** ScimSettingsUpdate */
+        ScimSettingsUpdate: {
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Link Providers */
+            link_providers?: string[] | null;
+        };
+        /** ScimStats */
+        ScimStats: {
+            /** Active Users */
+            active_users: number;
+            /** Groups */
+            groups: number;
+            /** Users */
+            users: number;
+        };
+        /** ScimTokenCreate */
+        ScimTokenCreate: {
+            /** Expires In Days */
+            expires_in_days?: number | null;
+            /** Name */
+            name: string;
+        };
+        /** ScimTokenIssued */
+        ScimTokenIssued: {
+            /** Secret */
+            secret: string;
+            token: components["schemas"]["ScimTokenRead"];
+        };
+        /** ScimTokenRead */
+        ScimTokenRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /** Hint */
+            hint: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Name */
+            name: string;
+        };
         /**
          * SearchFilterParams
          * @description Filters set in the UI; each one narrows the mailboxes the user may read.
@@ -4890,7 +5016,7 @@ export interface components {
          * TargetType
          * @enum {string}
          */
-        TargetType: "user" | "session" | "mailbox" | "idp" | "settings";
+        TargetType: "user" | "session" | "mailbox" | "idp" | "settings" | "group";
         /**
          * TaskAssignmentUpdate
          * @description ``provider`` and ``model`` both ``null``: back to the environment's default.
@@ -6568,6 +6694,191 @@ export interface operations {
             };
             /** @description Last active administrator */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_scim_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScimSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_update_scim_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScimSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScimSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_scim_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScimTokenCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScimTokenIssued"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many tokens */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_revoke_scim_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such token */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

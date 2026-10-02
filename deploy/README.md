@@ -2,6 +2,8 @@
 
 Referenz für den Compose-Stack. Schritt-für-Schritt-Installation, Reverse-Proxy-Beispiele,
 Backup/Restore, Updates und Fehlersuche: [`docs/OPERATIONS.md`](../docs/OPERATIONS.md).
+Für Kubernetes gibt es ein Helm-Chart unter [`helm/ollamail`](helm/ollamail), siehe
+[`docs/operations/kubernetes.md`](../docs/operations/kubernetes.md).
 
 ## Schnellstart
 

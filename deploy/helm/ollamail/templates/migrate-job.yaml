@@ -1,0 +1,46 @@
+{{- if .Values.migrations.enabled }}
+{{- include "ollamail.validate" . }}
+# Applies the database migrations before the workloads are installed or upgraded. Hooks run
+# before the chart's other resources exist, so the job only uses existing Secrets.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "ollamail.fullname" . }}-migrate
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" . "component" "migrate") | nindent 4 }}
+  annotations:
+    helm.sh/hook: pre-install,pre-upgrade
+    helm.sh/hook-weight: "0"
+    # A failed job is kept for `kubectl logs` until the next install/upgrade.
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  backoffLimit: {{ .Values.migrations.backoffLimit }}
+  activeDeadlineSeconds: {{ .Values.migrations.activeDeadlineSeconds }}
+  template:
+    metadata:
+      labels:
+        {{- include "ollamail.componentLabels" (dict "root" . "component" "migrate") | nindent 8 }}
+    spec:
+      restartPolicy: Never
+      {{- with .Values.migrations.serviceAccountName }}
+      serviceAccountName: {{ . }}
+      {{- end }}
+      automountServiceAccountToken: false
+      {{- include "ollamail.podCommon" . | nindent 6 }}
+      containers:
+        - name: migrate
+          {{- include "ollamail.backendImage" . | nindent 10 }}
+          command: ["alembic", "upgrade", "head"]
+          securityContext:
+            {{- toYaml .Values.containerSecurityContext | nindent 12 }}
+          {{- include "ollamail.backendEnv" (dict "root" .) | nindent 10 }}
+          resources:
+            {{- toYaml .Values.migrations.resources | nindent 12 }}
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
+      {{- with (include "ollamail.scheduling" .Values.api) }}{{ trim . | nindent 6 }}{{ end }}
+{{- end }}

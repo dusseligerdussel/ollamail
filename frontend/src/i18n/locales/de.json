@@ -119,6 +119,7 @@
       "signInDescription": "Identity-Provider, LDAP-Verzeichnisse und lokale Konten.",
       "roleMappingDescription": "Rollen aus den Gruppen deines Identity-Providers ableiten.",
       "usersDescription": "Rollen, Deaktivierung, Sitzungen und Einladungen.",
+      "scimDescription": "Nutzer und Gruppen aus Entra ID oder Okta anlegen, deaktivieren und löschen.",
       "retentionDescription": "Wie lange Mails, Anhänge, Suchindex, Fragen-Verläufe, Digests und Audit-Log aufbewahrt werden.",
       "mail": "Mail",
       "sharedMailboxesDescription": "Team-Postfächer wie info@ oder support@: einmal anbinden, Personen und Gruppen zuweisen."
@@ -155,7 +156,8 @@
         "session": "Sitzung",
         "mailbox": "Postfach",
         "idp": "Anmeldeverfahren",
-        "settings": "Einstellungen"
+        "settings": "Einstellungen",
+        "group": "Gruppe"
       },
       "groups": {
         "auth": "Anmeldung",
@@ -180,7 +182,15 @@
           "deactivated": "Benutzer deaktiviert",
           "reactivated": "Benutzer reaktiviert",
           "invited": "Benutzer eingeladen",
-          "password_set": "Passwort gesetzt"
+          "password_set": "Passwort gesetzt",
+          "updated": "Nutzer geändert"
+        },
+        "group": {
+          "created": "Gruppe angelegt",
+          "updated": "Gruppe geändert",
+          "deleted": "Gruppe gelöscht",
+          "member_added": "Zur Gruppe hinzugefügt",
+          "member_removed": "Aus Gruppe entfernt"
         },
         "idp": {
           "config_changed": "Anmeldeverfahren geändert"
@@ -501,6 +511,50 @@
       "testNoMatch": "Keine Regel passt; Standardrolle.",
       "testOff": "Rollen-Zuordnung ist aus; Rollen bleiben, wie sie sind.",
       "general": "Allgemein"
+    },
+    "scim": {
+      "title": "SCIM-Provisionierung",
+      "back": "Zurück zur Administration",
+      "providerLabel": "SCIM",
+      "general": "Provisionierung",
+      "enabled": "SCIM-Provisionierung",
+      "enabledDescription": "Ihr Identity Provider (Entra ID, Okta) legt Nutzer an, ändert und deaktiviert sie und überträgt Gruppen.",
+      "off": "Aus",
+      "on": "An",
+      "saved": "SCIM-Einstellungen gespeichert",
+      "endpoint": "Endpunkt-URL",
+      "endpointDescription": "Beim Identity Provider als Mandanten-URL bzw. SCIM-Basis-URL eintragen.",
+      "stats": "{{users}} Nutzer provisioniert ({{active}} aktiv), {{groups}} Gruppen",
+      "statsEmpty": "Noch nichts provisioniert.",
+      "tokens": "Tokens",
+      "tokensDescription": "Der Identity Provider sendet einen Token als Bearer-Token. Gespeichert wird nur sein Hash, deshalb wird ein Token nur einmal angezeigt.",
+      "noTokens": "Noch keine Tokens. Legen Sie für jeden Identity Provider einen an.",
+      "created": "Erstellt am {{date}}",
+      "lastUsed": "zuletzt genutzt am {{date}}",
+      "neverUsed": "noch nicht genutzt",
+      "expires": "läuft am {{date}} ab",
+      "expired": "Abgelaufen",
+      "tokenName": "Name",
+      "tokenNamePlaceholder": "z. B. Entra ID",
+      "validity": "Gültig für",
+      "noExpiry": "Unbegrenzt",
+      "days_one": "{{count}} Tag",
+      "days_other": "{{count}} Tage",
+      "createToken": "Token erstellen",
+      "copyNow": "Kopieren Sie den Token jetzt und tragen Sie ihn beim Identity Provider als geheimes Token ein. Er wird nicht noch einmal angezeigt.",
+      "secret": "Token „{{name}}“",
+      "done": "Fertig",
+      "revokeLabel": "Token {{name}} widerrufen",
+      "revokeTitle": "Token „{{name}}“ widerrufen?",
+      "revokeDescription": "Anfragen mit diesem Token schlagen sofort fehl. Die Provisionierung stoppt, bis der Identity Provider einen neuen Token hat.",
+      "revoke": "Widerrufen",
+      "revoked": "Token widerrufen",
+      "cancel": "Abbrechen",
+      "linking": "Anmeldung provisionierter Nutzer",
+      "linkingDescription": "Provisionierte Nutzer melden sich über einen Anbieter an. Ausgewählte Anbieter dürfen die erste Anmeldung über die bestätigte E-Mail-Adresse mit dem provisionierten Konto verknüpfen.",
+      "noProviders": "Es ist noch kein Anmeldeanbieter eingerichtet.",
+      "saveLinking": "Speichern",
+      "groupsHint": "Gruppen erscheinen im Rollen-Mapping und bei geteilten Postfächern als Anbieter „SCIM“. Deaktivieren beendet sofort alle Sitzungen; Löschen entfernt den Nutzer mit allen Daten, geteilte Postfächer bleiben erhalten."
     },
     "users": {
       "title": "Nutzer",

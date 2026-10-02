@@ -1,0 +1,29 @@
+ollamail {{ include "ollamail.backendTag" . }} is installed as release "{{ .Release.Name }}" in namespace "{{ .Release.Namespace }}".
+
+{{- if .Values.ingress.enabled }}
+
+Web UI: {{ if or .Values.ingress.tls .Values.ingress.certManager.enabled }}https{{ else }}http{{ end }}://{{ first .Values.ingress.hosts }}
+{{- else }}
+
+Web UI (no ingress configured):
+  kubectl -n {{ .Release.Namespace }} port-forward svc/{{ include "ollamail.fullname" . }}-frontend 8080:{{ .Values.frontend.service.port }}
+  open http://localhost:8080
+{{- end }}
+
+Create the first admin in the setup wizard. Setup code (unless OLLAMAIL_SETUP_TOKEN is set):
+  kubectl -n {{ .Release.Namespace }} exec deploy/{{ include "ollamail.fullname" . }}-api -- python -m app.cli setup-token
+
+Check readiness:
+  helm -n {{ .Release.Namespace }} test {{ .Release.Name }}
+{{- if eq (include "ollamail.backendTag" .) "latest" }}
+
+WARNING: the images use the moving tag "latest". Pin a version (image.backend.tag,
+image.frontend.tag) for reproducible deployments.
+{{- end }}
+{{- if and .Values.persistence.enabled (has "ReadWriteOnce" .Values.persistence.accessModes) }}
+
+NOTE: the data volume is ReadWriteOnce. api and all workers mount it, so they must run on
+the same node, or use a ReadWriteMany storage class (docs/operations/kubernetes.md).
+{{- end }}
+
+Documentation: https://github.com/dusseligerdussel/ollamail/blob/main/docs/operations/kubernetes.md

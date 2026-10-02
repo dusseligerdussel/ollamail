@@ -13,6 +13,7 @@ import {
 } from "@/api/admin-auth";
 import { describeApiError, isApiError } from "@/api/errors";
 import { problemErrorCode } from "@/api/mail";
+import { SCIM_PROVIDER } from "@/api/scim";
 import {
   deleteSharedMailbox,
   type GroupAssignment,
@@ -161,6 +162,7 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
     ...(oidc.data ?? []).map((p) => ({ key: p.provider, label: p.display_name })),
     ...(github.data ?? []).map((p) => ({ key: p.provider, label: p.display_name })),
     ...(ldap.data ?? []).map((d) => ({ key: d.provider, label: d.display_name })),
+    { key: SCIM_PROVIDER, label: t("pages.scim.providerLabel") },
   ];
   const visibleUsers = useMemo(() => {
     const needle = filter.trim().toLowerCase();
