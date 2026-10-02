@@ -149,6 +149,23 @@ def test_stdlib_exceptions_are_sanitised(log_output: io.StringIO) -> None:
     assert record["exception"][0]["exc_type"] == "RuntimeError"
 
 
+def test_console_format_renders_sanitised_exceptions() -> None:
+    stream = io.StringIO()
+    configure_logging(LoggingSettings(level="DEBUG", format="console"), stream=stream)
+    try:
+        raise RuntimeError(SECRET_VALUES[1])
+    except RuntimeError:
+        logging.getLogger("some.library").exception("library_failed")
+        get_logger("test").exception("delivery_failed")
+
+    output = stream.getvalue()
+    _assert_no_secrets(stream)
+    # Without the text conversion the formatter fails and both records are lost.
+    assert "library_failed" in output
+    assert "delivery_failed" in output
+    assert output.count("RuntimeError") == 2
+
+
 def test_context_variables_are_filtered(log_output: io.StringIO) -> None:
     structlog.contextvars.bind_contextvars(request_id="r-1", email=SECRET_VALUES[2])
     try:

@@ -64,6 +64,9 @@ export function ThreadView({
     <>
       <PageHeader
         title={thread.subject || t("mail.noSubject")}
+        // Next to the list (no back button) the list pane has the page's `h1`.
+        headingLevel={onBack ? 1 : 2}
+        documentTitle={false}
         leading={
           onBack && (
             <Button variant="ghost" size="icon-sm" onClick={onBack} aria-label={t("mail.back")}>

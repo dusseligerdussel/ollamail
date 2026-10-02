@@ -9,16 +9,22 @@ Für Kubernetes gibt es ein Helm-Chart unter [`helm/ollamail`](helm/ollamail), s
 
 ```sh
 cp deploy/.env.example deploy/.env
-# deploy/.env anpassen: mindestens OLLAMAIL_SECRET_KEY (openssl rand -base64 32) und POSTGRES_PASSWORD
+chmod 600 deploy/.env
+# deploy/.env anpassen: mindestens OLLAMAIL_SECRET_KEY (openssl rand -base64 32) und
+# POSTGRES_PASSWORD (openssl rand -hex 24)
+docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml up -d --build
+```
+
+Das baut die Images lokal. Mit Zugriff auf die fertigen Images aus GHCR (siehe [Images](#images))
+reicht stattdessen:
+
+```sh
+docker compose -f deploy/compose.yaml pull
 docker compose -f deploy/compose.yaml up -d
 ```
 
-Standardmäßig werden die fertigen Images aus GHCR gezogen (siehe [Images](#images)). Solange das
-Repository privat ist, ist dafür ein `docker login ghcr.io` nötig. Alternativ lokal bauen:
-
-```sh
-docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml up -d --build
-```
+`compose.yaml` allein enthält keine Build-Kontexte: `up -d --build` ohne `compose.build.yaml`
+versucht die GHCR-Images zu ziehen und bricht ohne Zugriff mit `unauthorized` ab.
 
 Die UI ist danach unter <http://localhost:8080> erreichbar, die API unter `/api`
 (z. B. `curl http://localhost:8080/api/healthz`).
@@ -31,7 +37,7 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 |---|---|---|
 | `frontend` | `ollamail-frontend` (`frontend/Dockerfile`, Caddy) | Statische UI, Reverse Proxy `/api/*` → `api:8000` (Präfix wird entfernt), einziger veröffentlichter Port |
 | `api` | `ollamail-api` (`backend/Dockerfile`) | FastAPI (uvicorn) |
-| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `default` |
+| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `ocr`, `default` |
 | `migrate` | `ollamail-api` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
 | `postgres` | `pgvector/pgvector:pg16` | Datenbank, Volume `postgres-data` |
 | `ollama-cpu` / `ollama-gpu` | `ollama/ollama` | Optionaler LLM-Server, im Netz als `ollama` erreichbar |
@@ -59,8 +65,10 @@ veröffentlicht sie in der GitHub Container Registry:
 | `edge` | Nächtlicher Build von `main` (nur wenn sich etwas geändert hat) – ungetestet, nicht für den Produktivbetrieb |
 | `sha-<commit>` | Jeder Build, unveränderlich |
 
-Die Version wählt `OLLAMAIL_VERSION` in `deploy/.env` (Standard `latest`). Für reproduzierbare
-Installationen eine feste Version eintragen, z. B. `OLLAMAIL_VERSION=1.2.3`. Update:
+Die Version wählt `OLLAMAIL_VERSION` in `deploy/.env` (Standard `latest`). `latest` gibt es erst
+ab dem ersten stabilen Release (`v0.1.0`); bis dahin nur `edge` und `sha-<commit>`. Für
+reproduzierbare Installationen eine feste Version eintragen, z. B. `OLLAMAIL_VERSION=0.1.0`.
+Update (Backup vorher, siehe [`docs/OPERATIONS.md` §6](../docs/OPERATIONS.md#6-updates-und-migrationen)):
 
 ```sh
 docker compose -f deploy/compose.yaml pull
@@ -71,18 +79,21 @@ Jedes Image enthält eine SBOM und eine SLSA-Provenance-Attestation (BuildKit) u
 Veröffentlichen mit Trivy geprüft; behebbare kritische CVEs brechen den Build ab. Anzeigen z. B. mit
 `docker buildx imagetools inspect ghcr.io/dusseligerdussel/ollamail-api:<tag> --format '{{ json .SBOM }}'`.
 
-### Zugriff (privates Repository)
+### Zugriff auf die Images
 
-Das Repository ist derzeit **privat**. GHCR-Pakete erben diese Sichtbarkeit, die Images sind also
-ebenfalls privat. Zum Ziehen ist ein Login mit einem Personal Access Token (classic) mit dem Scope
-`read:packages` nötig:
+Das Repository ist öffentlich, die GHCR-Pakete sind es derzeit noch **nicht**: Pakete behalten
+die Sichtbarkeit, mit der sie angelegt wurden (damals privat), auch wenn das Repository später
+öffentlich wird. Solange das so ist, ist zum Ziehen ein Login mit einem Personal Access Token
+(classic) mit dem Scope `read:packages` und Lesezugriff auf die Pakete nötig:
 
 ```sh
 echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-benutzer> --password-stdin
 ```
 
 Ohne Zugriff auf die Pakete die Images lokal bauen (`compose.build.yaml`, siehe Schnellstart).
-Ob die Pakete öffentlich werden, entscheidet der Repository-Owner (Paket-Einstellungen in GHCR).
+Ob die Pakete öffentlich werden, entscheidet der Repository-Owner (GitHub → Packages →
+`ollamail-api` bzw. `ollamail-frontend` → Package settings → Change visibility); danach entfällt
+der Login.
 
 ### Lokaler Build
 
