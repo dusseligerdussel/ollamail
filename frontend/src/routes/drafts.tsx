@@ -140,7 +140,8 @@ function DraftRow({
   const { t, i18n } = useTranslation();
   const { timezone } = useCurrentUser();
   const recipients = draft.to.map(addressName).join(", ") || t("drafts.noRecipients");
-  const preview = draft.body.trim().split("\n")[0] || t("drafts.overview.noText");
+  // Line breaks collapsed: the first line alone is often just the greeting.
+  const preview = draft.body.replace(/\s+/g, " ").trim() || t("drafts.overview.noText");
   const inner = (
     <>
       <span className="flex min-w-0 items-baseline gap-3">

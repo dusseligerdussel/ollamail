@@ -412,10 +412,16 @@ export function ReplyEditor({
           aria-label={t("drafts.recipientsLabel")}
           className="shrink-0"
         >
-          <ToggleGroupItem value="sender" className="px-2.5 text-ui">
+          <ToggleGroupItem
+            value="sender"
+            className="px-2.5 text-ui data-[state=off]:text-muted-foreground"
+          >
             {t("drafts.reply")}
           </ToggleGroupItem>
-          <ToggleGroupItem value="all" className="px-2.5 text-ui">
+          <ToggleGroupItem
+            value="all"
+            className="px-2.5 text-ui data-[state=off]:text-muted-foreground"
+          >
             {t("drafts.replyAll")}
           </ToggleGroupItem>
         </ToggleGroup>
@@ -528,10 +534,12 @@ export function ReplyEditor({
                 {send.isPending ? t("drafts.sending") : t("drafts.send")}
               </Button>
               {hasKeyboard && <KeyHint keys="mod+enter" className="mr-1" />}
-              <Button size="sm" variant="outline" onClick={openInstruction} disabled={busy}>
-                <PenLine aria-hidden="true" />
-                {t("drafts.suggest")}
-              </Button>
+              {!instructionOpen && (
+                <Button size="sm" variant="outline" onClick={openInstruction} disabled={busy}>
+                  <PenLine aria-hidden="true" />
+                  {t("drafts.suggest")}
+                </Button>
+              )}
               <SaveStatus
                 state={body === savedText ? saveState : "saving"}
                 onRetry={() => void save().catch(() => undefined)}
