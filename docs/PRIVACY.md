@@ -148,6 +148,18 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   (das Todo gehört dem Nutzer und bleibt, bis er es löscht). Die Extraktion protokolliert nur
   Anzahlen, nie Titel oder Beschreibungen. Die API liefert ausschließlich eigene Todos; ein
   fremdes Todo verhält sich wie ein nicht vorhandenes (404).
+  Umsetzung Daily Digest (`backend/app/digest/`, #28): `digests` und `digest_user_settings`
+  hängen per `ON DELETE CASCADE` am Nutzer. Ein Digest verweist auf Postfächer und Mails nur über
+  IDs; der stündliche Job `digest.cleanup` löscht Digests, deren Postfach entfernt wurde, Digests
+  nach Ablauf der Aufbewahrungsfrist (`OLLAMAIL_DIGEST_RETENTION_DAYS`, Standard 30 Tage) und
+  Audiodateien ohne Digest (z. B. nach dem Löschen eines Nutzers), jeweils inkl. Dateien unter
+  `<OLLAMAIL_DATA_DIR>/digests/<user_id>/` (Dateinamen nur aus IDs). Logs enthalten nur IDs,
+  Anzahlen und Statuscodes, nie Skript, Betreffzeilen oder Absender. Der Podcast-Feed ist ohne
+  Anmeldung erreichbar; Schutz ist allein das Token in der URL (256 Bit, nur als SHA-256-Hash
+  gespeichert, widerrufbar, wird im Request-Log nicht protokolliert, da nur das Routen-Template
+  geloggt wird). Wer die Feed-URL kennt, kann Skripte und Audio der Digests abrufen; die UI muss
+  darauf hinweisen. Der Feed bittet Verzeichnisse per `itunes:block` und `X-Robots-Tag: noindex`,
+  ihn nicht aufzunehmen.
   Umsetzung „Frag deine Inbox“ (`backend/app/rag/`, #25): Gespräche (`rag_conversations`)
   hängen per `ON DELETE CASCADE` am Nutzer, Fragen und Antworten (`rag_messages`) am Gespräch.
   Zitierte Ausschnitte (`rag_citations`) hängen zusätzlich per `ON DELETE CASCADE` an Mail,

@@ -29,6 +29,8 @@ from app.core.jobs import JobQueue
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
+from app.digest.router import feed_router as digest_feed_router
+from app.digest.router import router as digests_router
 from app.mail.api.router import router as mailboxes_router
 from app.mail.providers.gmail_connect import router as gmail_connect_router
 from app.mail.providers.graph_router import NOTIFICATIONS_PATH
@@ -104,6 +106,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(mailboxes_router)
     app.include_router(gmail_connect_router)
     app.include_router(graph_router)
+    app.include_router(digests_router)
+    app.include_router(digest_feed_router)
     app.include_router(rag_router)
     oidc.install(app, settings)
     github.install(app)

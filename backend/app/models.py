@@ -9,6 +9,7 @@ from app.auth.providers.github import models as github_models
 from app.auth.providers.ldap import models as ldap_models
 from app.auth.providers.oidc import models as oidc_models
 from app.core.db import Base
+from app.digest import models as digest_models
 from app.mail import models as mail_models
 from app.processing import models as processing_models
 from app.rag import models as rag_models
@@ -21,6 +22,7 @@ __all__ = [
     "Base",
     "audit_models",
     "auth_models",
+    "digest_models",
     "github_models",
     "ldap_models",
     "mail_models",

@@ -675,6 +675,126 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/digests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Digests
+         * @description Own digests, newest first.
+         */
+        get: operations["digests_list_digests"];
+        put?: never;
+        /**
+         * Create Digest
+         * @description Generate a digest of the mails since the last one, now.
+         */
+        post: operations["digests_create_digest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/digests/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Feed
+         * @description Whether the private podcast feed is enabled (the URL is only shown on creation).
+         */
+        get: operations["digests_get_feed"];
+        put?: never;
+        /**
+         * Create Feed
+         * @description Create a new secret feed URL. An existing feed URL stops working immediately.
+         */
+        post: operations["digests_create_feed"];
+        /**
+         * Revoke Feed
+         * @description Disable the feed; its URL and all audio URLs in it return 404 from now on.
+         */
+        delete: operations["digests_revoke_feed"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/digests/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Digest Settings
+         * @description Own digest settings with defaults filled in.
+         */
+        get: operations["digests_get_digest_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Digest Settings
+         * @description Change own digest settings. A changed schedule starts with the next slot.
+         */
+        patch: operations["digests_update_digest_settings"];
+        trace?: never;
+    };
+    "/digests/{digest_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Digest
+         * @description A digest with its script and the mails it refers to.
+         */
+        get: operations["digests_get_digest"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Digest
+         * @description Delete a digest and its audio files.
+         */
+        delete: operations["digests_delete_digest"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/digests/{digest_id}/audio.{fmt}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Audio
+         * @description The audio of a digest for the web player; supports Range requests.
+         */
+        get: operations["digests_get_audio"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/events": {
         parameters: {
             query?: never;
@@ -1801,10 +1921,212 @@ export interface components {
             updated_at: string;
         };
         /**
+         * DigestLength
+         * @enum {string}
+         */
+        DigestLength: "short" | "normal";
+        /** DigestRead */
+        DigestRead: {
+            /** Audio Formats */
+            audio_formats: ("mp3" | "opus")[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration Seconds */
+            duration_seconds: number | null;
+            /** Error Code */
+            error_code: string | null;
+            /** Generated At */
+            generated_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Language */
+            language: string;
+            length: components["schemas"]["DigestLength"];
+            /** Message Count */
+            message_count: number;
+            /** Model */
+            model: string | null;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /** References */
+            references: components["schemas"]["DigestReference"][];
+            /** Scheduled For */
+            scheduled_for: string | null;
+            /** Script */
+            script: string | null;
+            status: components["schemas"]["DigestStatus"];
+            /** Title */
+            title: string;
+            /** Todo Count */
+            todo_count: number;
+            trigger: components["schemas"]["DigestTrigger"];
+            /** Voice */
+            voice: string | null;
+        };
+        /**
+         * DigestReference
+         * @description ``[ref]`` in the script refers to this mail.
+         */
+        DigestReference: {
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /** Ref */
+            ref: number;
+        };
+        /** DigestSettingsRead */
+        DigestSettingsRead: {
+            /**
+             * Delivery Time
+             * Format: time
+             */
+            delivery_time: string;
+            /**
+             * Effective Language
+             * @enum {string}
+             */
+            effective_language: "de" | "en";
+            /** Effective Timezone */
+            effective_timezone: string;
+            /** Enabled */
+            enabled: boolean;
+            feed: components["schemas"]["FeedStatus"];
+            /** Language */
+            language: ("de" | "en") | null;
+            length: components["schemas"]["DigestLength"];
+            /** Mailbox Ids */
+            mailbox_ids: string[] | null;
+            /** Next Run At */
+            next_run_at: string | null;
+            /** Timezone */
+            timezone: string | null;
+            /** Voice */
+            voice: string | null;
+            /** Weekdays */
+            weekdays: number[];
+        };
+        /**
+         * DigestSettingsUpdate
+         * @description Fields to change; omitted fields stay. ``null`` resets timezone, language, voice and
+         *     mailboxes to their defaults.
+         */
+        DigestSettingsUpdate: {
+            /** Delivery Time */
+            delivery_time?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Language */
+            language?: ("de" | "en") | null;
+            length?: components["schemas"]["DigestLength"] | null;
+            /** Mailbox Ids */
+            mailbox_ids?: string[] | null;
+            /** Timezone */
+            timezone?: string | null;
+            /** Voice */
+            voice?: string | null;
+            /** Weekdays */
+            weekdays?: number[] | null;
+        };
+        /**
+         * DigestStatus
+         * @enum {string}
+         */
+        DigestStatus: "pending" | "summarizing" | "synthesizing" | "ready" | "failed";
+        /** DigestSummary */
+        DigestSummary: {
+            /** Audio Formats */
+            audio_formats: ("mp3" | "opus")[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration Seconds */
+            duration_seconds: number | null;
+            /** Error Code */
+            error_code: string | null;
+            /** Generated At */
+            generated_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Language */
+            language: string;
+            length: components["schemas"]["DigestLength"];
+            /** Message Count */
+            message_count: number;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /** Scheduled For */
+            scheduled_for: string | null;
+            status: components["schemas"]["DigestStatus"];
+            /** Title */
+            title: string;
+            /** Todo Count */
+            todo_count: number;
+            trigger: components["schemas"]["DigestTrigger"];
+        };
+        /**
+         * DigestTrigger
+         * @enum {string}
+         */
+        DigestTrigger: "scheduled" | "manual";
+        /**
          * DirectoryType
          * @enum {string}
          */
         DirectoryType: "active_directory" | "openldap";
+        /** FeedCreated */
+        FeedCreated: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Feed Url */
+            feed_url: string;
+        };
+        /**
+         * FeedStatus
+         * @description Whether the podcast feed is enabled. The token itself is only shown on creation.
+         */
+        FeedStatus: {
+            /** Active */
+            active: boolean;
+            /** Created At */
+            created_at: string | null;
+        };
         /**
          * FolderKind
          * @enum {string}
@@ -5169,6 +5491,365 @@ export interface operations {
                 content?: never;
             };
             /** @description No such session */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    digests_list_digests: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestSummary"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    digests_create_digest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A digest is already being generated */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_get_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedStatus"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_create_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedCreated"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_revoke_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_get_digest_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_update_digest_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DigestSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid value or mailbox */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_get_digest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                digest_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such digest */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    digests_delete_digest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                digest_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such digest */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    digests_get_audio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                digest_id: string;
+                fmt: "mp3" | "opus";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audio file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/mpeg": unknown;
+                    "audio/ogg": unknown;
+                };
+            };
+            /** @description Partial content (Range request) */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such digest */
             404: {
                 headers: {
                     [name: string]: unknown;
