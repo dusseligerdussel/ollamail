@@ -284,6 +284,38 @@ API und Query-Keys in `src/api/digest.ts`, Komponenten in `src/components/digest
   die URL ohne Anmeldung Zugriff gibt (`docs/PRIVACY.md`).
 - **E2E:** `e2e/digest.spec.ts` (gemockt, `e2e/mock-digest.ts`).
 
+### Antwortentwürfe (#93)
+
+API und Query-Keys in `src/api/drafts.ts`, Komponenten in `src/components/drafts/`, Seite
+`/drafts`. Backend-Vertrag: #92 (`docs/ARCHITECTURE.md`, Abschnitt 4.6).
+
+- **Im Thread** (`ReplySlot` in `src/components/mail/slots.tsx`, unter den Mails): „Antworten“ /
+  „Allen antworten“ legen einen Entwurf an (`POST /drafts`, Empfänger und Betreff bestimmt das
+  Backend) und öffnen den Editor. Ein offener Entwurf der Mail erscheint beim Öffnen des Threads
+  sofort wieder. Nur für Postfächer mit Recht `act`; geteilte Postfächer zeigen nichts.
+- **Editor:** reiner Text. Änderungen werden 800 ms nach der letzten Eingabe gespeichert
+  (`PATCH /drafts/{id}`), der Status steht in der Fußzeile. Ein Entwurf ohne Text wird beim
+  Verlassen des Threads gelöscht. „Verwerfen“ ruft `POST /drafts/{id}/discard`.
+- **Entwurf vorschlagen:** optionale Kurzanweisung, dann `POST /drafts/generate` mit `draft_id`
+  (POST-SSE wie die Suche, `generateDraft()`); der Text läuft in den Editor, der währenddessen
+  schreibgeschützt ist. `Esc`/„Abbrechen“ bricht ab, der vorherige Text kommt zurück (der Server
+  speichert dann nichts). Fehler (`llm_unavailable` …) stehen im Editor.
+- **Senden** nur über „Senden“ bzw. `⌘Enter`. Ist der Text noch genau der Vorschlag, verlangt der
+  Editor eine zweite Bestätigung („Trotzdem senden“). Der Vorschlag wird dafür nur im Speicher der
+  Seite gehalten (`src/lib/reply-draft.ts`), nie in `localStorage`. Vor dem Senden wird gespeichert.
+  Fehler erscheinen im Editor, übersetzt nach `error_code` (`drafts.sendErrors.*`); der Entwurf
+  bleibt offen.
+- **Tasten:** `r` antworten, `a` allen antworten (beide im Thread; in Textfeldern nicht aktiv, `g a`
+  bleibt die Admin-Navigation), `⌘Enter` senden, `Esc` bricht einen laufenden Vorschlag ab bzw.
+  schließt die Anweisung. Antworten, Vorschlagen, Senden und Verwerfen auch in der Command Palette.
+- **Übersicht** (`/drafts`, Navigation „Entwürfe“, `g r`): offene Entwürfe, zuletzt geänderte
+  zuerst; Klick bzw. `j`/`k` + `o` öffnet die Mail mit dem Entwurf (`/inbox?message=`).
+- **Query-Keys** unter `["drafts", …]`, nicht `["message", …]`: Mail-Events sollen einen Entwurf
+  nicht während der Bearbeitung neu laden.
+- **E2E:** `e2e/drafts.spec.ts` mit `e2e/mock-drafts.ts` (gemockter Stream im Browser wie bei der
+  Suche): vorschlagen, bearbeiten, senden, Bestätigung bei unverändertem Vorschlag, Abbrechen,
+  Sendefehler, Übersicht, axe in Hell/Dunkel, Mobil.
+
 ## Design-System und App-Shell
 
 Grundlage ist `docs/DESIGN.md`.

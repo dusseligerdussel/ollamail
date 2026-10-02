@@ -901,6 +901,8 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
   `send_not_permitted`), 503 bei nicht erreichbarem Server, 409 für Konfigurationsfehler.
 - **Aufbewahrung:** Der tägliche Job `drafts.purge` löscht Entwürfe, die seit
   `OLLAMAIL_DRAFTS_RETENTION_DAYS` (Standard 30, 0 = nie) nicht geändert wurden.
+- **UI** (#93): Editor unter dem Thread, Übersicht `/drafts`; Senden nur per eigener Aktion, ein
+  unveränderter Vorschlag verlangt eine zweite Bestätigung. Details: `frontend/README.md`.
 
 | Endpunkt | Zweck |
 |---|---|
