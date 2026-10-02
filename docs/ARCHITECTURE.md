@@ -85,7 +85,7 @@ class MailProvider(Protocol):  # app/mail/providers/base.py
     capabilities: ProviderCapabilities  # labels, push, server_threads, keywords
     async def list_folders(self) -> list[RemoteFolder]: ...
     def fetch_since(self, folder_id: str, cursor: SyncCursor | None, *, since: datetime | None = None
-                    ) -> AsyncIterator[SyncEvent]: ...  # MessageFetched | MessageUpdated | MessageDeleted | CursorAdvanced
+                    ) -> AsyncIterator[SyncEvent]: ...  # MessageFetched | MessageUpdated | MessageChanged | MessageDeleted | CursorAdvanced
     def watch(self, folder_id: str | None = None) -> AsyncIterator[ChangeEvent]: ...  # IMAP IDLE / Graph Webhooks / Gmail Push
     async def move(self, remote_ref: str, target_folder_id: str) -> str: ...  # neue Referenz (IMAP-UIDs ändern sich)
     async def set_flags(self, remote_ref: str, flags: frozenset[str]) -> None: ...
@@ -127,7 +127,7 @@ für Shared Mailboxes folgt mit #34.
 | Provider | Phase | Auth | Sync | Hinweise |
 |---|---|---|---|---|
 | IMAP/SMTP | MVP | Passwort/App-Passwort, XOAUTH2 vorbereitet | UIDVALIDITY/UID + `IDLE`, CONDSTORE/QRESYNC falls verfügbar | Funktioniert mit jedem Server |
-| Microsoft 365 | v1 | OAuth2 (Entra ID App, delegiert oder App-only mit Admin-Consent) | Graph Delta Query + Change Notifications | Shared Mailboxes über App-Permissions + `ApplicationAccessPolicy` |
+| Microsoft 365 | v1 (#37) | OAuth2 (Entra ID App, delegiert oder App-only mit Admin-Consent) | Graph Delta Query, Polling; Change Notifications optional | Shared Mailboxes über App-Permissions + RBAC for Applications / `ApplicationAccessPolicy` |
 | Gmail / Google Workspace | v1 | OAuth2, Workspace: Domain-wide Delegation | `history.list`, Polling (Standard) oder Pub/Sub-Pull (optional) | Labels statt Ordner; Details: [`providers/gmail.md`](providers/gmail.md) |
 
 Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`;
@@ -167,6 +167,26 @@ Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto
   wenn der Ordner keine Keywords erlaubt (`PERMANENTFLAGS` ohne `\*`), als Kopie in einen Ordner
   mit dem Label-Namen.
 
+#### Microsoft-365-Provider (`backend/app/mail/providers/graph*.py`)
+
+Design, App-Registrierung, Berechtigungsmodelle und Testanleitung:
+[`docs/providers/microsoft365.md`](providers/microsoft365.md). Kurzfassung:
+
+- **Auth** (`graph_auth.py`): delegiert per Authorization Code + PKCE (Connect-Flow in
+  `graph_router.py`: `POST /api/mail/graph/connect`, `GET /api/mail/graph/callback`) oder
+  App-only per Client Credentials für Shared Mailboxes. Entra-App aus `OLLAMAIL_MAIL_GRAPH_*`.
+  Tokens werden automatisch erneuert; rotierte Refresh-Tokens speichert der Provider sofort über
+  `MailboxConfig.save_credentials`.
+- **Client** (`graph_client.py`): unveränderliche IDs (`Prefer: IdType="ImmutableId"`),
+  Drosselung mit `Retry-After`, JSON-`$batch`, Fehler nur als Codes.
+- **Sync** (`graph.py`): Ordner rekursiv mit Rollen aus Well-known-Namen; Delta Query pro Ordner
+  (Cursor = `nextLink`/`deltaLink`), Initialimport mit MIME per `$batch`, danach
+  `MessageChanged`; `@removed` wird per `GET` als Verschieben oder Löschen erkannt.
+  Kategorien sind Keywords/Labels.
+- **Push:** Standard ist Polling. Mit `OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL` hält `watch()` eine
+  Subscription aktiv; `POST /api/mail/graph/notifications` (CSRF-frei, `clientState` per HMAC)
+  stößt nur `request_sync` an.
+
 #### Gmail-Provider (`backend/app/mail/providers/gmail*.py`)
 
 Design und Einrichtung: [`providers/gmail.md`](providers/gmail.md). Kurzfassung:
@@ -191,7 +211,12 @@ Design und Einrichtung: [`providers/gmail.md`](providers/gmail.md). Kurzfassung:
   Server gelöschte Ordner samt Mails löschen; Ordner mit ausgeschlossener Rolle aus
   `SyncSettings.excluded_roles` – Standard Papierkorb und Spam – werden angelegt, aber nicht
   synchronisiert), dann je Ordner (INBOX zuerst) `fetch_since` anwenden: `MessageFetched` →
-  `store_message`, `MessageUpdated` → Flags, `MessageDeleted` → `delete_messages`. Bei jedem
+  `store_message`, `MessageUpdated` → Flags/Ordner, `MessageDeleted` → `delete_messages`,
+  `MessageChanged` (Provider kann neu/geändert nicht unterscheiden, z. B. Graph Delta) → bekannt:
+  wie `MessageUpdated`, unbekannt: Quelle über `event.load()` laden und speichern. Liegt eine Mail
+  in keinem synchronisierten Ordner mehr (z. B. in den Papierkorb verschoben), wird sie gelöscht.
+  Provider können erneuerte Zugangsdaten über `MailboxConfig.save_credentials` speichern (eigene
+  Transaktion, unabhängig vom Sync-Commit). Bei jedem
   `CursorAdvanced` werden Mails, Änderungen und Cursor **in einer Transaktion** committet.
   Ungültiger Cursor → Mails des Ordners löschen und neu importieren.
 - **Postfachweiter Cursor** (`capabilities.mailbox_cursor`, Gmail): ein `fetch_since` pro Sync,
@@ -634,6 +659,59 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Zugriff:** Jede Abfrage enthält `mailbox_id IN (readable_mailbox_ids(user_id))` aus
   `app.search.access`, der einzigen Stelle dieser Regel. Heute: eigene Postfächer; Shared
   Mailboxes werden dort mit #34 ergänzt.
+- **Kategorie-Filter** (`SearchFilters.category_ids`): Triage-Kategorie der Mail
+  (`triage_results.category_id`).
+
+**Umsetzung „Frag deine Inbox“ (`backend/app/rag/`, #25):**
+
+- **Ablauf** (`RagService.ask`, ein Event-Stream pro Frage):
+  1. Kontext aus der DB: frühere Runden des Gesprächs, lesbare Postfächer, sichtbare Kategorien.
+  2. **Query-Analyse** (Prompt `rag_query@1`, Structured Output `QueryAnalysis`): eigenständige
+     Suchanfrage (löst Bezüge in Folgefragen auf) und Filter Zeitraum, Absender, Postfach,
+     Kategorie. Das Modell sieht nur die Fragen des Nutzers und die Schlüssel seiner Postfächer
+     (`m1`, `m2`, …) und Kategorien, nie Mailinhalte. Übernommen wird nur, was sich auf ein
+     lesbares Postfach, eine sichtbare Kategorie oder einen gültigen Zeitraum (Tage in der
+     Zeitzone des Nutzers) abbilden lässt. **UI-Filter haben Vorrang**, extrahierte Filter
+     füllen nur Lücken (`extracted` nennt sie). Schlägt die Analyse fehl, wird die Frage
+     unverändert gesucht. Abschaltbar: `OLLAMAIL_RAG_FILTER_EXTRACTION_ENABLED`.
+  3. **Retrieval** über `search()` (Zugriff in SQL, siehe oben), `OLLAMAIL_RAG_RETRIEVAL_LIMIT`
+     Chunks. **Reranker** (optional, `app.rag.rerank`): das Chat-Modell ordnet
+     `OLLAMAIL_RAG_RERANK_CANDIDATES` Kandidaten (Prompt `rag_rerank@1`); standardmäßig an für
+     `gpu-consumer`/`gpu-server`, **aus beim Profil `cpu`**, per
+     `OLLAMAIL_RAG_RERANKER_ENABLED` überschreibbar. Fehler → Reihenfolge der Suche.
+  4. **Antwort** (Prompt `rag_answer@1`, `LLMGateway.stream`, Aufgabe `rag_chat`): Die besten
+     Chunks, die neben Prompt, Verlauf und Antwort (`OLLAMAIL_RAG_MAX_ANSWER_TOKENS`) ins
+     Kontextfenster passen, werden nummerierte Quellen. Ohne Treffer wird kein Modell gefragt;
+     die Antwort sagt, dass nichts gefunden wurde.
+  5. Frage, Antwort und zitierte Ausschnitte speichern; Log-Event `rag_answer_finished` mit
+     `ttft_ms` (Anfrage bis erstes Antwortstück), `retrieval_ms`, `total_ms`, Anzahl Quellen
+     und Zitate, Status – ohne Inhalte.
+- **Zitate:** Das Modell zitiert mit `[n]`. `CitationFilter` liegt zwischen Modell und Client
+  und lässt nur Nummern durch, die einer übergebenen Quelle entsprechen (`[1, 3]` → `[1][3]`,
+  erfundene Nummern werden entfernt) – auch über Stream-Stücke hinweg. Zitiert die Antwort
+  nichts, ist ihr Status `no_evidence` (sonst `answered`); das UI kennzeichnet sie.
+- **Prompt-Injection:** Mailinhalte stehen nur in Datenblöcken mit pro Anfrage zufälligem
+  Tag (`<mail-3f9a… n="1">…</mail-3f9a…>`), eine Mail kann ihren Block also nicht schließen.
+  Der System-Prompt erklärt die Blöcke zu nicht vertrauenswürdigen Daten und verbietet, darin
+  enthaltenen Anweisungen zu folgen. Es gibt keine Tools: Die Ausgabe wird nur als Text mit
+  Zitatmarkern behandelt, nie ausgeführt. Zugriffskontrolle steht nie im Prompt.
+- **Verbindungen:** Für jeden Schritt wird eine eigene DB-Session geöffnet und wieder
+  geschlossen; während das Modell schreibt, hält der Stream keine Verbindung.
+- **Gesprächsverlauf:** `rag_conversations` (am Nutzer, `ON DELETE CASCADE`), `rag_messages`
+  (Frage/Antwort mit `position`, Filtern, Status, Modell, Prompt-Version), `rag_citations`
+  (Nummer, Mail, Postfach, Anhang, Kopfzeile, Ausschnitt; `ON DELETE CASCADE` an Antwort, Mail,
+  Anhang und Postfach). Folgefragen bekommen die letzten `OLLAMAIL_RAG_HISTORY_TURNS` Runden,
+  frühere Antworten ohne Zitatmarker. Beim Lesen eines Gesprächs werden Zitate aus nicht
+  (mehr) lesbaren Postfächern per SQL ausgeblendet. Der Job `rag.purge_conversations`
+  (täglich) löscht Gespräche nach `OLLAMAIL_RAG_HISTORY_RETENTION_DAYS` ohne neue Frage
+  (Standard 90, 0 = nie).
+
+| Endpunkt | Zweck |
+|---|---|
+| `POST /rag/ask` | Frage stellen (`question`, optional `conversation_id`, `filters`). Antwort als `text/event-stream`: `start` (IDs), `filters` (angewandte Filter), `sources` (nummerierte Quellen mit Mail-ID und Ausschnitt), `token`…, dann `done` (`status`, `citations`, `ttft_ms`) oder `error` (`code`). POST, damit die Frage nicht in URLs/Access-Logs landet; Clients lesen den Stream per `fetch` |
+| `GET /rag/conversations` | Eigene Gespräche, zuletzt genutzte zuerst |
+| `GET/DELETE /rag/conversations/{id}` | Gespräch mit Fragen, Antworten und Zitaten; löschen. Fremde Gespräche verhalten sich wie nicht vorhandene (404) |
+| `DELETE /rag/conversations` | Alle eigenen Gespräche löschen |
 
 ## 5. Auth & Mandantenmodell
 
@@ -692,6 +770,14 @@ werden je Issuer gecacht; ID-Token-Prüfung mit `joserfc`, PKCE-/Client-Auth-Hel
 Presets für Entra ID (`tid`-Prüfung, Multi-Tenant nur mit Tenant-Allowlist), Google Workspace
 (`hd`), Keycloak, Authentik und generisch. `POST /api/auth/oidc/logout` liefert zusätzlich die
 URL für das RP-initiated Logout.
+
+**GitHub** (`app/auth/providers/github/`, Anleitung: [`auth/github.md`](auth/github.md)): OAuth App
+oder GitHub App, github.com oder GitHub Enterprise Server (`base_url`, API unter `/api/v3`).
+Provider stehen in `auth_github_providers` (Client-Secret als `EncryptedStr`, Admin-API unter
+`/api/admin/auth/github`) und nutzen Redirect-Flow und Provisioning von OIDC. Subject ist die
+numerische GitHub-Nutzer-ID; E-Mail nur die verifizierte primäre Adresse. Org- und
+Team-Beschränkung (`allowed_organizations`, `allowed_teams`) wird serverseitig über die REST-API
+geprüft; Teams (`<org>/<team-slug>`) sind die Gruppen für das Rollen-Mapping (#33).
 
 **LDAP / Active Directory** (`app/auth/providers/ldap/`, Details: [`auth/ldap.md`](auth/ldap.md)):
 Verzeichnisse stehen in `auth_ldap_directories` (Einstellungen als JSONB, Bind-Passwort
