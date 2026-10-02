@@ -70,6 +70,10 @@ class Recorder:
 
 @pytest.fixture
 def recorder() -> Iterator[Recorder]:
+    # Feature modules register their steps on import; the worker imports them while the
+    # test runs. Import them now so they land in the real registry, not the isolated one.
+    for module in TASK_MODULES:
+        importlib.import_module(module)
     with registry.isolated():
         yield Recorder()
 

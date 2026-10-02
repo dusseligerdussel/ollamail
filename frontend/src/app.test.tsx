@@ -5,18 +5,14 @@ import { useMemo } from "react";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { useCommands } from "@/components/command-palette/command-provider";
-import type { CurrentUser } from "@/hooks/use-current-user";
 import type { Command } from "@/lib/commands";
 
 import i18n from "./i18n";
+import { backend, mockFetch, testUser } from "./test/fetch";
 import { setCoarsePointer, setViewportWidth } from "./test/media";
 import { renderApp } from "./test/render-app";
 
-const currentUser = vi.hoisted(() => ({ value: { id: "test", isAdmin: true } as CurrentUser }));
-vi.mock("@/hooks/use-current-user", () => ({ useCurrentUser: () => currentUser.value }));
-
 beforeEach(async () => {
-  currentUser.value = { id: "test", isAdmin: true };
   await i18n.changeLanguage("en");
 });
 
@@ -38,9 +34,9 @@ describe("app shell", () => {
   });
 
   it("hides the admin area from non-admins", async () => {
-    currentUser.value = { id: "test", isAdmin: false };
+    mockFetch(backend({ user: testUser }));
     await renderApp("/admin");
-    expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "No access" })).toBeInTheDocument();
     const nav = screen.getByRole("navigation", { name: "Main navigation" });
     expect(within(nav).queryByRole("link", { name: "Admin" })).not.toBeInTheDocument();
   });
@@ -76,11 +72,11 @@ describe("app shell", () => {
     expect(screen.queryByRole("button", { name: /Keyboard shortcuts/ })).not.toBeInTheDocument();
   });
 
-  it("links from the empty admin area to the settings", async () => {
+  it("links from the admin area to the audit log", async () => {
     const user = userEvent.setup();
     await renderApp("/admin");
-    await user.click(screen.getByRole("link", { name: "Open your settings" }));
-    await screen.findByRole("heading", { level: 1, name: "Settings" });
+    await user.click(screen.getByRole("link", { name: /Audit log/ }));
+    await screen.findByRole("heading", { level: 1, name: "Audit log" });
   });
 
   it("uses a bottom bar and a sheet on narrow screens", async () => {

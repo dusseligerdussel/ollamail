@@ -138,6 +138,16 @@ async def test_callback_creates_mailbox(
     assert challenge.rstrip(b"=").decode() == params["code_challenge"]
     assert sent["code"] == ["auth-code"]
     assert STATE_COOKIE not in {c.name for c in signed_in.cookies.jar}
+    event = (
+        await db_session.execute(
+            text(
+                "SELECT actor_id, target_type, target_id, details FROM audit_events"
+                " WHERE action = 'mailbox.created'"
+            )
+        )
+    ).one()
+    assert (event.target_type, event.target_id) == ("mailbox", str(mailbox.id))
+    assert event.details == {"provider": "gmail"}
 
 
 async def test_reconnect_updates_the_refresh_token(

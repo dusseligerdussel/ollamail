@@ -6,6 +6,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth import service
 from app.auth import sessions as session_store
 from app.auth.dependencies import CurrentSessionDep, CurrentUserDep, SettingsDep
@@ -40,6 +41,9 @@ _UNAUTHORIZED: dict[int | str, dict[str, Any]] = {401: {"description": "Not sign
 _THROTTLED: dict[int | str, dict[str, Any]] = {
     429: {"description": "Too many attempts (rate limit or account lockout)"}
 }
+# Audit details of failed local logins (no e-mail address: docs/PRIVACY.md).
+LOCKED = {"provider": LOCAL_PROVIDER, "reason": "locked"}
+INVALID = {"provider": LOCAL_PROVIDER, "reason": "invalid_credentials"}
 
 
 @setup_router.get("/status")
@@ -76,6 +80,7 @@ async def create_admin(
         language=body.language,
         timezone=body.timezone,
     )
+    await audit.record(db, audit.Actor.user(user.id), audit.AuditAction.SETUP_COMPLETED)
     await service.start_session(db, settings, request, response, user, provider=LOCAL_PROVIDER)
     log.info("setup_completed", user_id=user.id)
     return UserRead.model_validate(user)
@@ -105,13 +110,23 @@ async def login(
         await service.throttle_account(db, settings, body.email)
     except ProblemError:
         log.warning("login_rejected", reason="locked")
+        await audit.record(db, audit.ANONYMOUS, audit.AuditAction.LOGIN_FAILED, None, LOCKED)
+        await db.commit()
         raise
     identity = await LocalAuthProvider(db).authenticate(body.email, body.password)
     user = await service.user_for_identity(db, identity) if identity else None
     if identity is None or user is None:
         log.info("login_failed", reason="invalid_credentials")
+        await audit.record(db, audit.ANONYMOUS, audit.AuditAction.LOGIN_FAILED, None, INVALID)
+        await db.commit()
         raise ProblemError(401, detail="Invalid e-mail address or password.")
     await service.reset_account_throttle(db, settings, body.email)
+    await audit.record(
+        db,
+        audit.Actor.user(user.id),
+        audit.AuditAction.LOGIN_SUCCEEDED,
+        details={"provider": identity.provider},
+    )
     await service.start_session(db, settings, request, response, user, provider=identity.provider)
     log.info("login_succeeded", user_id=user.id, provider=identity.provider)
     return UserRead.model_validate(user)
@@ -152,6 +167,13 @@ async def register(
         role=UserRole.USER,
         language=body.language,
         timezone=body.timezone,
+    )
+    await audit.record(
+        db,
+        audit.Actor.user(user.id),
+        audit.AuditAction.USER_CREATED,
+        audit.Target.of(audit.TargetType.USER, user.id),
+        {"role": user.role, "via": "registration"},
     )
     await service.start_session(db, settings, request, response, user, provider=LOCAL_PROVIDER)
     log.info("user_registered", user_id=user.id)
@@ -217,6 +239,13 @@ async def revoke_session(
     """Sign out one of the own sessions."""
     if not await session_store.revoke_session(db, current.user_id, session_id):
         raise ProblemError(404, detail="Session not found.")
+    await audit.record(
+        db,
+        audit.Actor.user(current.user_id),
+        audit.AuditAction.SESSION_REVOKED,
+        audit.Target.of(audit.TargetType.SESSION, session_id),
+        {"count": 1, "current": session_id == current.session_id},
+    )
     await db.commit()
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     if session_id == current.session_id:
@@ -234,6 +263,13 @@ async def revoke_sessions(
     """Sign out all other sessions, or all sessions with ``include_current=true``."""
     count = await session_store.revoke_user_sessions(
         db, current.user_id, keep=None if include_current else current.session_id
+    )
+    await audit.record(
+        db,
+        audit.Actor.user(current.user_id),
+        audit.AuditAction.SESSION_REVOKED,
+        audit.Target.of(audit.TargetType.USER, current.user_id),
+        {"count": count, "current": include_current},
     )
     await db.commit()
     log.info("sessions_revoked", user_id=current.user_id, count=count)

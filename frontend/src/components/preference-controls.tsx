@@ -44,8 +44,17 @@ export function ThemeToggleGroup({ className }: { className?: string }) {
   );
 }
 
-/** Segmented control for the interface language. */
-export function LanguageToggleGroup({ className }: { className?: string }) {
+/**
+ * Segmented control for the interface language. `onChange` replaces the default (switch the
+ * language only), e.g. to also store it in the profile.
+ */
+export function LanguageToggleGroup({
+  className,
+  onChange,
+}: {
+  className?: string;
+  onChange?: (language: SupportedLanguage) => void;
+}) {
   const { t, i18n } = useTranslation();
 
   return (
@@ -55,7 +64,9 @@ export function LanguageToggleGroup({ className }: { className?: string }) {
       value={i18n.resolvedLanguage}
       onValueChange={(value) => {
         if ((supportedLanguages as readonly string[]).includes(value)) {
-          void i18n.changeLanguage(value as SupportedLanguage);
+          const language = value as SupportedLanguage;
+          if (onChange) onChange(language);
+          else void i18n.changeLanguage(language);
         }
       }}
       aria-label={t("language.label")}

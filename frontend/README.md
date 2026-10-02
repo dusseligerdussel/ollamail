@@ -35,7 +35,7 @@ src/
   components/command-palette/  Command Palette und Command-Registry
   components/shortcuts/        Shortcut-Registry (Provider + Hooks)
   components/                  Basiskomponenten: EmptyState, ListSkeleton, PageHeader, SplitView, …
-  hooks/                       useCurrentUser (Platzhalter), useEvents, useListNavigation, useMediaQuery
+  hooks/                       useCurrentUser, useEvents, useListNavigation, useMediaQuery
   i18n/                        i18next-Setup und Übersetzungen (locales/de.json, locales/en.json)
   lib/                         Theme, Registry, Shortcut-Parser, Hilfsfunktionen
 public/                        theme-init.js, sw.js, manifest.webmanifest, Icons
@@ -87,6 +87,35 @@ const health = useQuery({
   Aktualisierung). Abweichungen über `meta: { errorToast: true | false }`. 4xx werden nicht wiederholt.
 - **401** → Weiterleitung auf `/login?redirect=<aktuelle Seite>` (ganze Seite neu laden), kein Toast.
 
+### Anmeldung und Route-Guards
+
+Backend-Vertrag: #11 (`docs/ARCHITECTURE.md`, Abschnitt Authentifizierung). Queries und Aufrufe
+stehen in `src/api/auth.ts`.
+
+- **Guard** (`beforeLoad` in `routes/__root.tsx`): lädt `GET /api/setup/status` und
+  `GET /api/auth/me` (beide im Query-Cache). Nicht eingerichtet → `/setup`. Ohne Session →
+  `/login?redirect=<Seite>`. Angemeldet auf `/login` oder `/setup` → weiter zum Ziel bzw. Posteingang.
+  **Jede Route ist geschützt**, auch neue; öffentlich sind nur Routen mit `staticData: { public: true }`
+  (ohne App-Shell, `PublicLayout`), die der Guard ausdrücklich behandelt.
+- **`useCurrentUser()`** liefert den angemeldeten Nutzer (`UserRead` + `isAdmin`) aus dem Cache;
+  nur in geschützten Routen verwenden. Änderungen über `useUpdateProfile()` (`PATCH /api/auth/me`)
+  aktualisieren den Cache, `useChangeLanguage()` speichert die Sprache zusätzlich im Profil.
+- **Admin-Seiten** prüfen `isAdmin` und zeigen sonst `<Forbidden />` (403). Die Rechte setzt die API
+  durch (`require_admin`); das Frontend entscheidet nur, was es anzeigt.
+- **Abmelden** (`useLogout()`): `POST /api/auth/logout`, danach lädt die Login-Seite neu, damit keine
+  Daten im Speicher bleiben (Query-Cache, Router). Eine abgelaufene Session fällt beim nächsten
+  API-Aufruf als 401 auf (Weiterleitung, siehe oben).
+- **`?redirect=`** wird über `safeRedirect()` geprüft: nur Pfade dieses Origins, nie `/login`
+  oder `/setup` (kein Open Redirect).
+- **Login-Seite:** Die lokale Anmeldung erscheint bei `local_login`. Externe Provider kommen aus
+  `GET /api/auth/providers`: Für `kind: "redirect"` (OIDC, GitHub) entsteht je ein Button, der per
+  ganzer Seitennavigation `GET /api/auth/providers/{name}/login?redirect=<Pfad>` aufruft. Diesen
+  Start-Endpunkt legen #30/#31 an. Passwort-Provider (LDAP, #32) bekommen ihren Platz im Formular,
+  sobald #32 den Login-Vertrag festlegt.
+- **Konto** (`/settings`): Name, E-Mail, Rolle, Zeitzone (IANA, im Profil gespeichert), Abmelden;
+  Darstellung (Theme lokal, Sprache im Profil); aktive Sitzungen mit Abmelden einzelner bzw. aller
+  anderen Geräte.
+
 ### Echtzeit-Events
 
 `useEvents()` (in der App-Shell gemountet) abonniert `GET /api/events` per `EventSource` und
@@ -120,8 +149,7 @@ Grundlage ist `docs/DESIGN.md`.
 - **Layout:** ab 768 px Sidebar + Inhalt, ab 1024 px Liste und Detail nebeneinander (`SplitView`).
   Spaltenbreiten sind verstellbar und werden pro Seite gespeichert. Darunter Bottom-Bar, Liste und
   Detail gestapelt.
-- **Admin-Navigation** hängt an `useCurrentUser().isAdmin`. Der Hook ist ein Platzhalter (liefert
-  immer einen Admin), bis die Authentifizierung (#11, #12) ihn ersetzt.
+- **Admin-Navigation** hängt an `useCurrentUser().isAdmin` (siehe „Anmeldung und Route-Guards“).
 
 ### Tastenkürzel
 
@@ -164,12 +192,24 @@ Browser-Cache. Nach Änderungen an der Cache-Strategie `CACHE` in `sw.js` hochz�
 
 ### Tests
 
-`fetch` ist in allen Tests gemockt (`src/test/fetch.ts`): `/api/healthz` antwortet `ok`, alles
-andere 404. Eigene Antworten mit `mockFetch((request) => json(...))`.
+`fetch` ist in allen Tests gemockt (`src/test/fetch.ts`): eine eingerichtete Instanz mit
+angemeldetem Admin (`/api/healthz`, Setup-Status, `auth/me`, Provider, Sitzungen), alles andere 404.
+Andere Zustände mit `mockFetch(backend({ initialized: false, user: null }))`, eigene Antworten mit
+`mockFetch((request) => json(...))`.
 
 - Unit-Tests (Vitest): API-Client (CSRF, 401, Problem Details), Fehleranzeige, `useEvents` mit
   Mock-`EventSource`, Theme-Umschaltung inkl. `theme-init.js`, Shortcut-Parser/-Dispatcher,
   Registries, Command Palette, Navigation, mobile Variante.
-- E2E (Playwright): axe-Check (WCAG 2.2 AA) aller Seiten in Hell/Dunkel bei 1440 px und 360 px, keine
-  horizontale Überbreite, Tastaturbedienung, Theme vor dem App-Bundle, keine externen Requests.
+- E2E (Playwright): axe-Check (WCAG 2.2 AA) aller Seiten (inkl. Login, Setup, 403) in Hell/Dunkel bei
+  1440 px und 360 px, keine horizontale Überbreite, Tastaturbedienung, Theme vor dem App-Bundle, keine
+  externen Requests. `e2e/shell.spec.ts` braucht kein Backend; die API wird im Browser gemockt
+  (`e2e/mock-api.ts`).
+- E2E gegen die echte API (`e2e/auth.spec.ts`): frische Instanz → Setup → Admin angemeldet → Logout
+  → Login, Nicht-Admin ohne Admin-Navigation und mit 403-Seite. Braucht Backend und **leere**
+  Datenbank hinter dem Dev-Proxy, sonst wird der Test übersprungen:
+
+  ```sh
+  # backend/: OLLAMAIL_SETUP_TOKEN=e2e OLLAMAIL_AUTH_COOKIE_SECURE=false … uv run uvicorn app.main:app
+  E2E_API=1 E2E_SETUP_TOKEN=e2e pnpm e2e e2e/auth.spec.ts
+  ```
 

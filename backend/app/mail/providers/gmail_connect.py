@@ -30,6 +30,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth.dependencies import CurrentSessionDep, SettingsDep
 from app.auth.keys import derive_key
 from app.core.config import Settings
@@ -171,7 +172,8 @@ async def _profile_address(http: httpx.AsyncClient, access_token: str) -> str:
 async def connect_mailbox(
     db: AsyncSession, user_id: uuid.UUID, address: str, refresh_token: str | None
 ) -> Mailbox:
-    """Create the user's Gmail mailbox for ``address`` or update its refresh token."""
+    """Create the user's Gmail mailbox for ``address`` (audited as ``mailbox.created``) or
+    update its refresh token."""
     mailbox = await db.scalar(
         select(Mailbox).where(
             Mailbox.owner_user_id == user_id,
@@ -191,6 +193,14 @@ async def connect_mailbox(
             credentials={"refresh_token": refresh_token},
         )
         db.add(mailbox)
+        await db.flush()
+        await audit.record(
+            db,
+            audit.Actor.user(user_id),
+            audit.AuditAction.MAILBOX_CREATED,
+            audit.Target.of(audit.TargetType.MAILBOX, mailbox.id),
+            {"provider": MailboxType.GMAIL.value},
+        )
     elif refresh_token is not None:
         mailbox.credentials = {**(mailbox.credentials or {}), "refresh_token": refresh_token}
     await db.commit()

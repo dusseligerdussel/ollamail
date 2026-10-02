@@ -11,15 +11,18 @@ from typing import Annotated
 import typer
 from pydantic import ValidationError
 
+from app import audit
 from app.core.config import get_settings
 from app.core.crypto import CryptoError, RotationResult, configure_keyring, generate_key
 from app.core.crypto import rotate_keys as rotate_all
 from app.core.db import Database
 from app.core.logging import configure_logging
 from app.processing.cli import processing_cli
+from app.search.cli import search_cli
 
 cli = typer.Typer(name="ollamail", no_args_is_help=True, add_completion=False)
 cli.add_typer(processing_cli)
+cli.add_typer(search_cli)
 
 
 @cli.callback()
@@ -43,7 +46,16 @@ async def _rotate() -> RotationResult:
     database = Database(settings.database)
     try:
         async with database.engine.begin() as connection:
-            return await rotate_all(connection, keyring, Base.metadata)
+            result = await rotate_all(connection, keyring, Base.metadata)
+            details = {
+                "tables": result.tables,
+                "checked": result.checked,
+                "rotated": result.rotated,
+            }
+            await audit.record(
+                connection, audit.SYSTEM, audit.AuditAction.KEYS_ROTATED, None, details
+            )
+            return result
     finally:
         await database.dispose()
 
@@ -88,13 +100,16 @@ async def _create_admin(email: str, display_name: str, password: str) -> None:
     database = Database(settings.database)
     try:
         async with database.sessionmaker() as db:
-            await add_local_user(
+            user = await add_local_user(
                 db,
                 email=email,
                 display_name=display_name,
                 password_hash=await hash_password(password),
                 role=UserRole.ADMIN,
             )
+            target = audit.Target.of(audit.TargetType.USER, user.id)
+            details = {"role": user.role, "via": "cli"}
+            await audit.record(db, audit.SYSTEM, audit.AuditAction.USER_CREATED, target, details)
             await db.commit()
     finally:
         await database.dispose()
