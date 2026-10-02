@@ -189,7 +189,8 @@ API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
 - **Postfächer** (`/settings/mailboxes`, `/settings/mailboxes/new`): Provider-Auswahl aus
   `GET /api/mailboxes/providers` – OAuth-Provider (Google, Microsoft 365) erscheinen nur, wenn das
   Backend sie als konfiguriert meldet. IMAP-Formular mit Autodiscovery (beim Verlassen des
-  Adressfelds) und Verbindungstest; Fehler kommen als `error_code` und werden über
+  Adressfelds; der Vorschlag füllt die Serverfelder nur, solange der Nutzer keines davon geändert
+  hat und gerade in keinem steht, auch wenn die Antwort spät kommt) und Verbindungstest; Fehler kommen als `error_code` und werden über
   `mailboxes.errors.<code>` übersetzt. OAuth: `POST <oauth_start_path>` mit `return_to`, danach
   ganze Seitennavigation zum Anbieter; das Ergebnis (`?graph=…` bzw. Gmails `/?mailbox_connected=…`)
   zeigt die Postfachliste einmal als Toast. Sync-Status live über die Events `mailbox.sync` und
