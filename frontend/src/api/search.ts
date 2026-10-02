@@ -13,7 +13,6 @@ export type ConversationSummary = components["schemas"]["ConversationSummary"];
 export type Conversation = components["schemas"]["ConversationRead"];
 export type ConversationMessage = components["schemas"]["ConversationMessage"];
 export type Citation = components["schemas"]["CitationRead"];
-export type Category = components["schemas"]["CategoryRead"];
 export type AskRequest = components["schemas"]["AskRequest"];
 /** One event of the answer stream (`POST /rag/ask`). */
 export type AnswerEvent = operations["rag_ask"]["responses"][200]["content"]["text/event-stream"];
@@ -29,7 +28,6 @@ export const searchKeys = {
     ["message", "search", query, filters] as const,
   conversations: ["rag", "conversations"] as const,
   conversation: (id: string) => ["rag", "conversations", id] as const,
-  categories: ["triage", "categories"] as const,
 };
 
 export const SEARCH_LIMIT = 30;
@@ -62,15 +60,6 @@ export function conversationQueryOptions(id: string) {
       ),
   });
 }
-
-export const categoriesQueryOptions = queryOptions({
-  queryKey: searchKeys.categories,
-  queryFn: ({ signal }) => unwrap(api.GET("/triage/categories", { signal })),
-  staleTime: 5 * 60_000,
-  // Categories only add a filter; the page works without them.
-  retry: false,
-  meta: { errorToast: false },
-});
 
 export function deleteConversation(id: string) {
   return unwrap(

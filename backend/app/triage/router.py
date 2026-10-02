@@ -7,7 +7,7 @@ Organisation categories are managed by admins, who never see mail contents here.
 """
 
 import uuid
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, Query, status
 from sqlalchemy import delete, select
@@ -18,6 +18,7 @@ from app.auth.dependencies import AdminSessionDep, CurrentSessionDep, SettingsDe
 from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.logging import get_logger
+from app.mail.api.messages import _summary_fields as summary_fields
 from app.mail.models import Mailbox
 from app.triage import service
 from app.triage.categories import EffectiveCategory, effective_categories
@@ -29,6 +30,7 @@ from app.triage.models import (
     TriageSenderRule,
 )
 from app.triage.schemas import (
+    CategoryCount,
     CategoryCreate,
     CategoryOrder,
     CategoryRead,
@@ -43,6 +45,8 @@ from app.triage.schemas import (
     SenderRuleRead,
     SenderRuleSuggestion,
     TriageCorrection,
+    TriagedMessage,
+    TriagedMessagePage,
     TriageRead,
 )
 from app.triage.writeback import set_write_back_mode, write_back_mode
@@ -272,6 +276,17 @@ def _triage_read(result: TriageResult) -> TriageRead:
     )
 
 
+@router.get("/messages")
+async def list_triage(
+    current: CurrentSessionDep,
+    db: DbDep,
+    ids: Annotated[list[uuid.UUID], Query(min_length=1, max_length=200)],
+) -> list[TriageRead]:
+    """Triage of several messages at once (e.g. the visible rows of a list). Messages that
+    are not triaged yet, or not the user's, are left out."""
+    return [_triage_read(r) for r in await service.results_of(db, current.user_id, ids)]
+
+
 @router.get("/messages/{message_id}", responses=NOT_FOUND)
 async def get_triage(message_id: uuid.UUID, current: CurrentSessionDep, db: DbDep) -> TriageRead:
     """Category, priority and reason of a message (404 while it is not triaged yet)."""
@@ -289,12 +304,14 @@ async def correct_triage(
 ) -> TriageRead:
     """Correct category and priority. The correction is kept on reprocessing and used as
     example for this user's future classifications."""
-    if await service.owned_message(db, current.user_id, message_id) is None:
+    message = await service.owned_message(db, current.user_id, message_id)
+    if message is None:
         raise ProblemError(404, detail="Message not found.")
     visible = {c.id for c in await effective_categories(db, current.user_id)}
     if body.category_id not in visible:
         raise ProblemError(422, detail="Unknown or hidden category.")
     result = await service.correct(db, current.user_id, message_id, body.category_id, body.priority)
+    await service.publish_triaged(db, message_id, message.mailbox_id)
     await db.commit()
     await db.refresh(result)
     log.info("triage_corrected", message_id=message_id, user_id=current.user_id)
@@ -343,6 +360,50 @@ async def get_inbox(
             )
         )
     return response
+
+
+@router.get("/inbox/messages", responses={422: {"description": "Unknown or hidden category"}})
+async def list_inbox_messages(
+    current: CurrentSessionDep,
+    db: DbDep,
+    mailbox_id: uuid.UUID | None = None,
+    unread: Annotated[bool | None, Query(description="Only unread (true) or read (false)")] = None,
+    category: Annotated[
+        uuid.UUID | Literal["none"] | None,
+        Query(description="One visible category, or `none` for the uncategorised messages"),
+    ] = None,
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=200)] = 100,
+) -> TriagedMessagePage:
+    """Inbox messages ordered by category (user's order, uncategorised last), then
+    priority, then newest first; with the number of messages per category."""
+    categories = await effective_categories(db, current.user_id)
+    visible = [c.id for c in categories]
+    if isinstance(category, uuid.UUID) and category not in visible:
+        raise ProblemError(422, detail="Unknown or hidden category.")
+    page = await service.inbox_page(
+        db,
+        current.user_id,
+        visible,
+        mailbox_id=mailbox_id,
+        unread=unread,
+        category=category,
+        offset=offset,
+        limit=limit,
+    )
+    end = offset + len(page.rows)
+    return TriagedMessagePage(
+        items=[
+            TriagedMessage(**summary_fields(message), category_id=category_id, priority=priority)
+            for message, category_id, priority in page.rows
+        ],
+        next_offset=end if end < page.total else None,
+        total=page.total,
+        groups=[
+            CategoryCount(category_id=category_id, total=total)
+            for category_id, total in page.counts.items()
+        ],
+    )
 
 
 # -- sender rules ----------------------------------------------------------------------

@@ -1019,6 +1019,111 @@
       "lastAdmin": "Du bist der letzte Administrator. Mache zuerst einen anderen Nutzer zum Administrator."
     }
   },
+  "triage": {
+    "builtin": {
+      "important": "Wichtig",
+      "action_required": "Handlungsbedarf",
+      "waiting_for": "Warten auf",
+      "info": "Info",
+      "newsletter": "Newsletter",
+      "notification": "Benachrichtigung",
+      "spam": "Spam/Werbung"
+    },
+    "uncategorized": "Ohne Kategorie",
+    "label": "Kategorie: {{category}}",
+    "labelHighPriority": "Kategorie: {{category}}, hohe Priorität",
+    "highPriority": "Hohe Priorität",
+    "reason": {
+      "llm": "Eingeordnet als <0>{{category}}</0>. {{reason}}",
+      "llmNoReason": "Eingeordnet als <0>{{category}}</0>.",
+      "rule": "Eingeordnet als <0>{{category}}</0>, weil {{rule}}.",
+      "sender_rule": "Eingeordnet als <0>{{category}}</0> nach deiner Regel für diesen Absender.",
+      "user": "Von dir eingeordnet als <0>{{category}}</0>.",
+      "hidden": "Eingeordnet als <0>{{category}}</0> (ausgeblendet).",
+      "pending": "Noch nicht eingeordnet."
+    },
+    "rules": {
+      "list_unsubscribe": "die Nachricht einen Abmeldelink enthält",
+      "precedence_bulk": "die Nachricht als Massenversand gekennzeichnet ist",
+      "precedence_junk": "die Nachricht als unerwünscht gekennzeichnet ist",
+      "auto_submitted": "die Nachricht automatisch versendet wurde",
+      "robot_sender": "der Absender eine automatische Adresse ist",
+      "other": "eine feste Regel zutrifft"
+    },
+    "change": "Kategorie ändern",
+    "assign": "Einordnen",
+    "picker": {
+      "title": "Einordnen als",
+      "description": "Kategorie wählen. Die Ziffern 1 bis 9 wählen direkt.",
+      "placeholder": "Kategorie suchen…",
+      "empty": "Keine Kategorie gefunden."
+    },
+    "commands": {
+      "change": "Kategorie ändern…",
+      "assign": "Einordnen als {{category}}",
+      "groupByCategory": "Nach Kategorie gruppieren",
+      "sortByDate": "Nach Datum sortieren",
+      "manage": "Kategorien verwalten"
+    },
+    "shortcuts": {
+      "change": "Kategorie ändern"
+    },
+    "view": {
+      "label": "Ansicht",
+      "byDate": "Nach Datum",
+      "byCategory": "Nach Kategorie",
+      "only": "Nur {{category}}",
+      "onlyCount": "Nur {{category}} ({{formatted}})",
+      "showOnly": "Nur „{{category}}“ anzeigen",
+      "groupCount_one": "1 Nachricht",
+      "groupCount_other": "{{formatted}} Nachrichten"
+    },
+    "settings": {
+      "title": "Kategorien",
+      "linkDescription": "Reihenfolge, Sichtbarkeit und eigene Kategorien für die Inbox.",
+      "back": "Zurück zu den Einstellungen",
+      "intro": "Neue Nachrichten werden anhand dieser Kategorien und ihrer Beschreibungen eingeordnet. Ausgeblendete Kategorien werden nicht mehr vergeben und nicht als Gruppe gezeigt.",
+      "add": "Kategorie hinzufügen",
+      "organization": "Organisation",
+      "organizationHint": "Von der Organisation vorgegeben. Du kannst sie ausblenden und sortieren.",
+      "noDescription": "Keine Beschreibung",
+      "actions": "Aktionen für {{category}}",
+      "moveUp": "{{category}} nach oben",
+      "moveDown": "{{category}} nach unten",
+      "visible": "{{category}} anzeigen",
+      "hiddenState": "Ausgeblendet",
+      "edit": "Bearbeiten",
+      "delete": "Löschen",
+      "deleteTitle": "Kategorie löschen?",
+      "deleteDescription": "„{{category}}“ wird gelöscht. Nachrichten in dieser Kategorie sind danach ohne Kategorie; Absenderregeln dafür werden entfernt.",
+      "cancel": "Abbrechen",
+      "deleted": "Kategorie gelöscht.",
+      "lastVisible": "Mindestens eine Kategorie muss sichtbar bleiben."
+    },
+    "form": {
+      "addTitle": "Kategorie hinzufügen",
+      "editTitle": "Kategorie bearbeiten",
+      "intro": "Die Beschreibung bestimmt, welche Nachrichten in die Kategorie kommen.",
+      "name": "Name",
+      "nameRequired": "Bitte einen Namen eingeben.",
+      "description": "Beschreibung",
+      "descriptionHint": "Welche Nachrichten gehören hinein? Zum Beispiel: „Rechnungen und Zahlungserinnerungen von Lieferanten“.",
+      "renameHint": "Umbenannte Standardkategorien werden nicht mehr automatisch übersetzt.",
+      "save": "Speichern",
+      "cancel": "Abbrechen",
+      "created": "Kategorie hinzugefügt.",
+      "updated": "Kategorie gespeichert."
+    },
+    "admin": {
+      "title": "Kategorien der Organisation",
+      "linkDescription": "Standardkategorien, die alle Nutzer sehen.",
+      "back": "Zurück zur Verwaltung",
+      "intro": "Diese Kategorien gelten für alle Nutzer. Jeder kann sie für sich ausblenden und anders sortieren, aber nicht ändern.",
+      "empty": "Keine Kategorien der Organisation",
+      "emptyDescription": "Lege Kategorien an, die alle Nutzer erhalten.",
+      "deleteDescription": "„{{category}}“ wird für alle Nutzer gelöscht. Nachrichten in dieser Kategorie sind danach ohne Kategorie."
+    }
+  },
   "search": {
     "inputLabel": "Suchbegriff oder Frage",
     "placeholder": "Suchen oder Frage stellen",

@@ -6,6 +6,7 @@ import {
   KeyRound,
   type LucideIcon,
   ScrollText,
+  Tags,
   UserCog,
   Users,
 } from "lucide-react";
@@ -95,6 +96,26 @@ function AdminPage() {
                   <span className="block text-ui font-medium">{t("pages.admin.ai")}</span>
                   <span className="block text-ui text-muted-foreground">
                     {t("pages.admin.aiDescription")}
+                  </span>
+                </span>
+                <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              </Link>
+            </div>
+          </section>
+          <section aria-labelledby="admin-categories" className="mt-6">
+            <h2 id="admin-categories" className="mb-2 text-xs font-medium text-muted-foreground">
+              {t("triage.settings.title")}
+            </h2>
+            <div className="divide-y rounded-lg border">
+              <Link
+                to="/admin/categories"
+                className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <Tags aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-ui font-medium">{t("triage.admin.title")}</span>
+                  <span className="block text-ui text-muted-foreground">
+                    {t("triage.admin.linkDescription")}
                   </span>
                 </span>
                 <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />

@@ -1019,6 +1019,111 @@
       "lastAdmin": "You are the last administrator. Make another user an administrator first."
     }
   },
+  "triage": {
+    "builtin": {
+      "important": "Important",
+      "action_required": "Action required",
+      "waiting_for": "Waiting for",
+      "info": "Info",
+      "newsletter": "Newsletter",
+      "notification": "Notification",
+      "spam": "Spam/Advertising"
+    },
+    "uncategorized": "Uncategorized",
+    "label": "Category: {{category}}",
+    "labelHighPriority": "Category: {{category}}, high priority",
+    "highPriority": "High priority",
+    "reason": {
+      "llm": "Categorized as <0>{{category}}</0>. {{reason}}",
+      "llmNoReason": "Categorized as <0>{{category}}</0>.",
+      "rule": "Categorized as <0>{{category}}</0> because {{rule}}.",
+      "sender_rule": "Categorized as <0>{{category}}</0> by your rule for this sender.",
+      "user": "You categorized this as <0>{{category}}</0>.",
+      "hidden": "Categorized as <0>{{category}}</0> (hidden).",
+      "pending": "Not categorized yet."
+    },
+    "rules": {
+      "list_unsubscribe": "the message contains an unsubscribe link",
+      "precedence_bulk": "the message is marked as bulk mail",
+      "precedence_junk": "the message is marked as junk",
+      "auto_submitted": "the message was sent automatically",
+      "robot_sender": "the sender is an automated address",
+      "other": "a fixed rule applies"
+    },
+    "change": "Change category",
+    "assign": "Categorize",
+    "picker": {
+      "title": "Categorize as",
+      "description": "Choose a category. The digits 1 to 9 choose directly.",
+      "placeholder": "Search categories…",
+      "empty": "No category found."
+    },
+    "commands": {
+      "change": "Change category…",
+      "assign": "Categorize as {{category}}",
+      "groupByCategory": "Group by category",
+      "sortByDate": "Sort by date",
+      "manage": "Manage categories"
+    },
+    "shortcuts": {
+      "change": "Change category"
+    },
+    "view": {
+      "label": "View",
+      "byDate": "By date",
+      "byCategory": "By category",
+      "only": "Only {{category}}",
+      "onlyCount": "Only {{category}} ({{formatted}})",
+      "showOnly": "Show only “{{category}}”",
+      "groupCount_one": "1 message",
+      "groupCount_other": "{{formatted}} messages"
+    },
+    "settings": {
+      "title": "Categories",
+      "linkDescription": "Order, visibility and your own categories for the inbox.",
+      "back": "Back to settings",
+      "intro": "New messages are categorized using these categories and their descriptions. Hidden categories are no longer assigned and not shown as a group.",
+      "add": "Add category",
+      "organization": "Organization",
+      "organizationHint": "Set by your organization. You can hide and reorder it.",
+      "noDescription": "No description",
+      "actions": "Actions for {{category}}",
+      "moveUp": "Move {{category}} up",
+      "moveDown": "Move {{category}} down",
+      "visible": "Show {{category}}",
+      "hiddenState": "Hidden",
+      "edit": "Edit",
+      "delete": "Delete",
+      "deleteTitle": "Delete category?",
+      "deleteDescription": "“{{category}}” will be deleted. Its messages will be uncategorized; sender rules for it are removed.",
+      "cancel": "Cancel",
+      "deleted": "Category deleted.",
+      "lastVisible": "At least one category must stay visible."
+    },
+    "form": {
+      "addTitle": "Add category",
+      "editTitle": "Edit category",
+      "intro": "The description decides which messages go into the category.",
+      "name": "Name",
+      "nameRequired": "Please enter a name.",
+      "description": "Description",
+      "descriptionHint": "Which messages belong here? For example: “Invoices and payment reminders from suppliers”.",
+      "renameHint": "Renamed default categories are no longer translated automatically.",
+      "save": "Save",
+      "cancel": "Cancel",
+      "created": "Category added.",
+      "updated": "Category saved."
+    },
+    "admin": {
+      "title": "Organization categories",
+      "linkDescription": "Default categories every user sees.",
+      "back": "Back to administration",
+      "intro": "These categories apply to all users. Everyone can hide and reorder them for themselves, but not change them.",
+      "empty": "No organization categories",
+      "emptyDescription": "Add categories that every user gets.",
+      "deleteDescription": "“{{category}}” will be deleted for all users. Its messages will be uncategorized."
+    }
+  },
   "search": {
     "inputLabel": "Search terms or question",
     "placeholder": "Search or ask a question",

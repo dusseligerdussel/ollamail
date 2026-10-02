@@ -196,6 +196,30 @@ API in `src/api/search.ts`, Komponenten in `src/components/search/`, Seite `/sea
 - **E2E:** `e2e/search.spec.ts` mit `e2e/mock-search.ts`; der Antwort-Stream wird im Browser
   erzeugt (umhülltes `fetch`), damit er wirklich stückweise ankommt.
 
+### Triage (#21)
+
+API und Query-Keys in `src/api/triage.ts`, Komponenten in `src/components/triage/`.
+
+- **Label in der Liste** (`TriageLabel`, Slot `TriageLabelSlot compact`): dezentes Label mit dem
+  Kategorienamen, hohe Priorität etwas kräftiger. Die Triage der sichtbaren Zeilen lädt
+  `createTriageLoader` gebündelt (alle Anfragen desselben Ticks in einem
+  `GET /triage/messages?ids=…`, höchstens 200 IDs je Anfrage).
+- **Begründung im Detail** (`TriageReason`): eine Zeile über dem Thread, z. B. „Eingeordnet als
+  Handlungsbedarf. <Begründung>“, bei Regeln „…, weil die Nachricht einen Abmeldelink enthält“.
+  Rechts daneben öffnet „Kategorie ändern“ ein Menü zum Korrigieren.
+- **Korrektur:** Klick (Menü), Command Palette („Einordnen als …“) oder `c` → Kategorieauswahl, dort
+  wählen die Ziffern `1`–`9` direkt (zwei Tastendrücke). Die Priorität bleibt erhalten.
+- **Inbox nach Kategorie:** Auswahl „Ansicht“ im Seitenkopf bzw. Suchparameter `category`
+  (`all` = gruppiert mit Überschriften, eine Kategorie-ID oder `none`). Quelle ist
+  `GET /triage/inbox/messages` (sortiert nach Kategorie, Priorität, Datum); die Überschriften fügt
+  `MessageList` über `groupHeader` ein. Für andere Ordner als den Posteingang gibt es die Ansicht nicht.
+- **Live-Updates:** Das Event `message.triaged` invalidiert `["message", "triage"]` (Labels und die
+  Inbox nach Kategorie), nicht die Threads.
+- **Einstellungen → Kategorien** (`/settings/categories`): sortieren, ein-/ausblenden (mindestens eine
+  bleibt sichtbar), eigene anlegen, Beschreibung bearbeiten, löschen. **Verwaltung → Kategorien der
+  Organisation** (`/admin/categories`): Org-Defaults anlegen, bearbeiten, sortieren, löschen. Wird
+  eine Standardkategorie umbenannt, übersetzt das UI sie nicht mehr.
+
 ### Digest (#29)
 
 API und Query-Keys in `src/api/digest.ts`, Komponenten in `src/components/digest/`.

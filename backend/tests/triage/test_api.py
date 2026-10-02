@@ -7,6 +7,9 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.core.events import Event
+from app.mail.providers.base import Flag
+from app.triage import service
 from app.triage.models import TriageFeedback, TriageMailboxSettings, TriageSource
 from app.triage.service import Decision, save_result
 from app.users.models import UserRole
@@ -328,3 +331,147 @@ async def test_mailbox_write_back_settings(
         select(TriageMailboxSettings).where(TriageMailboxSettings.mailbox_id == account.mailbox.id)
     )
     assert row is not None and row.write_back == "label"
+
+
+async def test_triage_of_several_messages(db_client: AsyncClient, db_session: AsyncSession) -> None:
+    account = await _signed_in(db_client, db_session)
+    other = await make_account(db_session)
+    info = uuid.UUID(str((await _categories(db_client))["info"]["id"]))
+    triaged = await account.message("Triaged")
+    untriaged = await account.message("New mail")
+    foreign = await other.message("Foreign")
+    for message in (triaged, foreign):
+        await save_result(db_session, message.id, Decision(info, 2, TriageSource.LLM))
+
+    response = await db_client.get(
+        "/triage/messages", params={"ids": [str(triaged.id), str(untriaged.id), str(foreign.id)]}
+    )
+
+    assert response.status_code == 200
+    assert [(r["message_id"], r["category_id"]) for r in response.json()] == [
+        (str(triaged.id), str(info))
+    ]
+    assert (await db_client.get("/triage/messages")).status_code == 422
+
+
+async def test_inbox_messages_ordered_by_category(
+    db_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    account = await _signed_in(db_client, db_session)
+    other = await make_account(db_session)
+    categories = await _categories(db_client)
+    important = uuid.UUID(str(categories["important"]["id"]))
+    info = uuid.UUID(str(categories["info"]["id"]))
+    spam = uuid.UUID(str(categories["spam"]["id"]))
+
+    low = await account.message("Low info")
+    high = await account.message("High info")
+    urgent = await account.message("Important")
+    hidden = await account.message("Hidden spam")
+    untriaged = await account.message("New mail")
+    await account.message("Archived", in_inbox=False)
+    foreign = await other.message("Foreign")
+    for message, category, priority in [
+        (low, info, 3),
+        (high, info, 1),
+        (urgent, important, 2),
+        (hidden, spam, 3),
+        (foreign, info, 1),
+    ]:
+        await save_result(db_session, message.id, Decision(category, priority, TriageSource.LLM))
+    await db_client.patch(f"/triage/categories/{spam}", json={"hidden": True})
+    untriaged.flags = [Flag.SEEN.value]
+    await db_session.flush()
+
+    response = await db_client.get("/triage/inbox/messages")
+
+    assert response.status_code == 200
+    page = response.json()
+    assert [m["subject"] for m in page["items"]] == [
+        "Important",
+        "High info",
+        "Low info",
+        # Hidden category and untriaged: last, without priority last.
+        "Hidden spam",
+        "New mail",
+    ]
+    assert [m["category_id"] for m in page["items"]] == [
+        str(important),
+        str(info),
+        str(info),
+        None,
+        None,
+    ]
+    assert page["items"][0]["priority"] == 2 and page["items"][-1]["priority"] is None
+    assert (page["total"], page["next_offset"]) == (5, None)
+    counts = {g["category_id"]: g["total"] for g in page["groups"]}
+    assert (counts[str(important)], counts[str(info)], counts[None]) == (1, 2, 2)
+    assert str(spam) not in counts
+    assert page["groups"][-1]["category_id"] is None
+
+    first = (await db_client.get("/triage/inbox/messages", params={"limit": 2})).json()
+    assert ([m["subject"] for m in first["items"]], first["next_offset"]) == (
+        ["Important", "High info"],
+        2,
+    )
+    second = (
+        await db_client.get("/triage/inbox/messages", params={"limit": 2, "offset": 2})
+    ).json()
+    assert [m["subject"] for m in second["items"]] == ["Low info", "Hidden spam"]
+
+    only_info = (
+        await db_client.get("/triage/inbox/messages", params={"category": str(info)})
+    ).json()
+    assert [m["subject"] for m in only_info["items"]] == ["High info", "Low info"]
+    assert only_info["total"] == 2
+    # The counts ignore the category filter.
+    assert {g["category_id"]: g["total"] for g in only_info["groups"]} == counts
+
+    uncategorised = (
+        await db_client.get("/triage/inbox/messages", params={"category": "none"})
+    ).json()
+    assert [m["subject"] for m in uncategorised["items"]] == ["Hidden spam", "New mail"]
+
+    unread = (await db_client.get("/triage/inbox/messages", params={"unread": True})).json()
+    assert "New mail" not in [m["subject"] for m in unread["items"]]
+    assert {g["category_id"]: g["total"] for g in unread["groups"]}[None] == 1
+
+    assert (
+        await db_client.get("/triage/inbox/messages", params={"category": str(spam)})
+    ).status_code == 422
+    assert (
+        await db_client.get("/triage/inbox/messages", params={"category": "other"})
+    ).status_code == 422
+    foreign_mailbox = (
+        await db_client.get("/triage/inbox/messages", params={"mailbox_id": str(other.mailbox.id)})
+    ).json()
+    assert foreign_mailbox["total"] == 0
+
+
+async def test_correction_notifies_the_ui(
+    db_client: AsyncClient, db_session: AsyncSession, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    account = await _signed_in(db_client, db_session)
+    info = (await _categories(db_client))["info"]["id"]
+    message = await account.message()
+    published: list[tuple[uuid.UUID, Event]] = []
+
+    async def record(_: object, user_id: uuid.UUID, event: Event) -> None:
+        published.append((user_id, event))
+
+    monkeypatch.setattr(service, "publish", record)
+
+    response = await db_client.put(
+        f"/triage/messages/{message.id}", json={"category_id": info, "priority": 1}
+    )
+
+    assert response.status_code == 200
+    assert published == [
+        (
+            account.user.id,
+            Event(
+                type="message.triaged",
+                ids={"message_id": message.id, "mailbox_id": account.mailbox.id},
+            ),
+        )
+    ]

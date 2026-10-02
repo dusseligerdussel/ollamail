@@ -4,7 +4,9 @@ import { type ReactNode, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { mailboxesQueryOptions } from "@/api/mail";
-import { categoriesQueryOptions, type SearchFilterParams } from "@/api/search";
+import type { SearchFilterParams } from "@/api/search";
+import { categoriesQueryOptions } from "@/api/triage";
+import { useCategoryName } from "@/components/triage/use-triage";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -208,7 +210,11 @@ export function SearchFilters({ filters, onChange }: SearchFiltersProps) {
     (mailbox) => mailbox.id === filters.mailbox,
   )?.display_name;
   const visibleCategories = categories.data?.filter((category) => !category.hidden) ?? [];
-  const categoryName = (id: string) => categories.data?.find((item) => item.id === id)?.name;
+  const nameOf = useCategoryName();
+  const categoryName = (id: string) => {
+    const category = categories.data?.find((item) => item.id === id);
+    return category && nameOf(category);
+  };
 
   return (
     <fieldset className="flex min-w-0 flex-wrap items-center gap-1.5">
