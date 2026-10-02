@@ -5,11 +5,14 @@ import { toast } from "sonner";
 
 import {
   adminAuthQueryKey,
+  deleteGitHubProvider,
   deleteLdapDirectory,
   deleteOidcProvider,
+  type GitHubProvider,
   isAdminLockout,
   type LdapDirectory,
   type OidcProvider,
+  updateGitHubProvider,
   updateLdapDirectory,
   updateOidcProvider,
 } from "@/api/admin-auth";
@@ -29,14 +32,20 @@ import {
 
 export type ProviderItem =
   | { kind: "oidc"; key: string; provider: OidcProvider }
+  | { kind: "github"; key: string; provider: GitHubProvider }
   | { kind: "ldap"; key: string; directory: LdapDirectory };
 
 export function providerLabel(item: ProviderItem) {
-  return item.kind === "oidc" ? item.provider.display_name : item.directory.display_name;
+  return item.kind === "ldap" ? item.directory.display_name : item.provider.display_name;
 }
 
 export function providerEnabled(item: ProviderItem) {
-  return item.kind === "oidc" ? item.provider.enabled : item.directory.enabled;
+  return item.kind === "ldap" ? item.directory.enabled : item.provider.enabled;
+}
+
+/** Name in the provider's own admin API (`/admin/auth/oidc/providers/{name}` etc.). */
+function apiName(item: ProviderItem) {
+  return item.kind === "ldap" ? item.directory.name : item.provider.name;
 }
 
 function Detail({ label, value }: { label: string; value: string }) {
@@ -87,8 +96,10 @@ function ProviderDetails({
 
   const toggle = useMutation({
     mutationFn: async () => {
-      if (item.kind === "oidc") await updateOidcProvider(item.provider.name, { enabled: !enabled });
-      else await updateLdapDirectory(item.directory, { enabled: !enabled });
+      const change = { enabled: !enabled };
+      if (item.kind === "oidc") await updateOidcProvider(item.provider.name, change);
+      else if (item.kind === "github") await updateGitHubProvider(item.provider.name, change);
+      else await updateLdapDirectory(item.directory, change);
     },
     meta: { errorToast: false },
     onSuccess: async () => {
@@ -97,10 +108,11 @@ function ProviderDetails({
     },
   });
   const remove = useMutation({
-    mutationFn: () =>
-      item.kind === "oidc"
-        ? deleteOidcProvider(item.provider.name)
-        : deleteLdapDirectory(item.directory.name),
+    mutationFn: () => {
+      if (item.kind === "oidc") return deleteOidcProvider(apiName(item));
+      if (item.kind === "github") return deleteGitHubProvider(apiName(item));
+      return deleteLdapDirectory(apiName(item));
+    },
     meta: { errorToast: false },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
@@ -122,12 +134,28 @@ function ProviderDetails({
         {readOnly && <Notice>{t("pages.signIn.provider.readOnly")}</Notice>}
         <dl className="grid gap-3">
           <Detail label={t("pages.signIn.provider.key")} value={item.key} />
-          {item.kind === "oidc" ? (
+          {item.kind === "oidc" && (
             <>
               <Detail label={t("pages.signIn.provider.issuer")} value={item.provider.issuer} />
               <Detail label={t("pages.signIn.provider.clientId")} value={item.provider.client_id} />
             </>
-          ) : (
+          )}
+          {item.kind === "github" && (
+            <>
+              <Detail
+                label={t("pages.signIn.provider.server")}
+                value={item.provider.base_url ?? "https://github.com"}
+              />
+              <Detail label={t("pages.signIn.provider.clientId")} value={item.provider.client_id} />
+              {item.provider.allowed_organizations.length > 0 && (
+                <Detail
+                  label={t("pages.signIn.provider.organizations")}
+                  value={item.provider.allowed_organizations.join(", ")}
+                />
+              )}
+            </>
+          )}
+          {item.kind === "ldap" && (
             <>
               <Detail
                 label={t("pages.signIn.provider.servers")}
@@ -140,17 +168,17 @@ function ProviderDetails({
             </>
           )}
         </dl>
-        {item.kind === "oidc" && (
+        {item.kind !== "ldap" && (
           <CopyField
             label={t("pages.signIn.provider.redirectUri")}
             value={item.provider.redirect_uri}
             description={t("pages.signIn.provider.redirectUriHint")}
           />
         )}
-        {item.kind === "oidc" ? (
-          <OidcTestPanel name={item.provider.name} />
-        ) : (
-          <LdapTestPanel name={item.directory.name} />
+        {item.kind === "oidc" && <OidcTestPanel name={item.provider.name} />}
+        {item.kind === "ldap" && <LdapTestPanel name={item.directory.name} />}
+        {item.kind === "github" && (
+          <p className="text-xs text-muted-foreground">{t("pages.signIn.provider.githubCheck")}</p>
         )}
         {failed ? (
           <Notice tone="error">

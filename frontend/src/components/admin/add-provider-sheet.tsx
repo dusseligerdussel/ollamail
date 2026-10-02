@@ -6,14 +6,18 @@ import { toast } from "sonner";
 
 import {
   adminAuthQueryKey,
+  createGitHubProvider,
   createLdapDirectory,
   createOidcProvider,
+  type GitHubProvider,
+  type GitHubProviderCreate,
   type LdapDirectory,
   type LdapDirectoryCreate,
   ldapPresets,
   type OidcPreset,
   type OidcProvider,
   type OidcProviderCreate,
+  updateGitHubProvider,
   updateLdapDirectory,
   updateOidcProvider,
 } from "@/api/admin-auth";
@@ -35,11 +39,12 @@ import {
 } from "@/components/ui/sheet";
 import { cn } from "@/lib/utils";
 
-/** What the admin picks in step 1. GitHub is listed but only usable once its provider exists. */
+/** What the admin picks in step 1; offered if the backend lists its kind. */
 export type ProviderChoice = "entra" | "google" | "github" | "oidc" | "ldap";
 
 type Created =
   | { kind: "oidc"; provider: OidcProvider }
+  | { kind: "github"; provider: GitHubProvider }
   | { kind: "ldap"; directory: LdapDirectory };
 
 const choices: { id: ProviderChoice; icon: typeof KeyRound; kind: string }[] = [
@@ -98,12 +103,9 @@ export function AddProviderSheet({
           </SheetTitle>
           <SheetDescription className="text-ui">
             {step === 1 && t("pages.signIn.wizard.chooseType")}
-            {step === 3 &&
-              t(
-                created?.kind === "ldap"
-                  ? "pages.signIn.wizard.verifyLdap"
-                  : "pages.signIn.wizard.verifyOidc",
-              )}
+            {step === 3 && created?.kind === "ldap" && t("pages.signIn.wizard.verifyLdap")}
+            {step === 3 && created?.kind === "oidc" && t("pages.signIn.wizard.verifyOidc")}
+            {step === 3 && created?.kind === "github" && t("pages.signIn.wizard.verifyGithub")}
           </SheetDescription>
         </SheetHeader>
         {step === 1 && <ChooseType kinds={kinds} onChoose={setChoice} />}
@@ -111,6 +113,12 @@ export function AddProviderSheet({
           <LdapForm
             onBack={() => setChoice(undefined)}
             onCreated={(directory) => setCreated({ kind: "ldap", directory })}
+          />
+        )}
+        {step === 2 && choice === "github" && (
+          <GitHubForm
+            onBack={() => setChoice(undefined)}
+            onCreated={(provider) => setCreated({ kind: "github", provider })}
           />
         )}
         {step === 2 && choice && choice !== "ldap" && choice !== "github" && (
@@ -137,8 +145,7 @@ function ChooseType({
   return (
     <ul className="flex flex-col gap-2 overflow-y-auto p-4">
       {choices.map(({ id, icon: Icon, kind }) => {
-        // GitHub needs its own form, which comes with the GitHub provider.
-        const available = kinds.includes(kind) && id !== "github";
+        const available = kinds.includes(kind);
         return (
           <li key={id}>
             <button
@@ -396,6 +403,106 @@ function OidcForm({
   );
 }
 
+function GitHubForm({
+  onBack,
+  onCreated,
+}: {
+  onBack: () => void;
+  onCreated: (provider: GitHubProvider) => void;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [displayName, setDisplayName] = useState("GitHub");
+  const [name, setName] = useState("github");
+  const [nameTouched, setNameTouched] = useState(false);
+  const [baseUrl, setBaseUrl] = useState("");
+  const [organizations, setOrganizations] = useState("");
+  const [clientId, setClientId] = useState("");
+  const [clientSecret, setClientSecret] = useState("");
+
+  const create = useMutation({
+    mutationFn: (body: GitHubProviderCreate) => createGitHubProvider(body),
+    meta: { errorToast: false },
+    onSuccess: async (provider) => {
+      await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
+      onCreated(provider);
+    },
+  });
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    create.mutate({
+      name,
+      display_name: displayName,
+      base_url: baseUrl.trim() || null,
+      client_id: clientId,
+      client_secret: clientSecret,
+      // Saved disabled; enabled in step 3 after the callback URL is registered.
+      enabled: false,
+      auto_provision: true,
+      link_by_email: false,
+      allowed_domains: [],
+      allowed_organizations: organizations.split(/[\s,]+/).filter(Boolean),
+      allowed_teams: [],
+    });
+  }
+
+  return (
+    <FormBody onSubmit={onSubmit} onBack={onBack} pending={create.isPending} error={create.error}>
+      <FormField
+        label={t("pages.signIn.wizard.fields.displayName")}
+        required
+        value={displayName}
+        onChange={(event) => {
+          setDisplayName(event.target.value);
+          if (!nameTouched) setName(slugify(event.target.value));
+        }}
+      />
+      <FormField
+        label={t("pages.signIn.wizard.fields.name")}
+        description={t("pages.signIn.wizard.fields.nameHint")}
+        required
+        pattern="[a-z0-9]([a-z0-9\-]{0,30}[a-z0-9])?"
+        value={name}
+        onChange={(event) => {
+          setNameTouched(true);
+          setName(event.target.value);
+        }}
+      />
+      <FormField
+        label={t("pages.signIn.wizard.fields.organizations")}
+        description={t("pages.signIn.wizard.fields.organizationsHint")}
+        placeholder="example-org"
+        value={organizations}
+        onChange={(event) => setOrganizations(event.target.value)}
+      />
+      <FormField
+        label={t("pages.signIn.wizard.fields.baseUrl")}
+        description={t("pages.signIn.wizard.fields.baseUrlHint")}
+        type="url"
+        placeholder="https://github.example.org"
+        value={baseUrl}
+        onChange={(event) => setBaseUrl(event.target.value)}
+      />
+      <FormField
+        label={t("pages.signIn.wizard.fields.clientId")}
+        required
+        autoComplete="off"
+        value={clientId}
+        onChange={(event) => setClientId(event.target.value)}
+      />
+      <FormField
+        label={t("pages.signIn.wizard.fields.clientSecret")}
+        type="password"
+        autoComplete="new-password"
+        required
+        value={clientSecret}
+        onChange={(event) => setClientSecret(event.target.value)}
+      />
+    </FormBody>
+  );
+}
+
 function LdapForm({
   onBack,
   onCreated,
@@ -525,9 +632,13 @@ function Verify({ created, onDone }: { created: Created; onDone: () => void }) {
   const queryClient = useQueryClient();
   const activate = useMutation({
     mutationFn: async () => {
-      if (created.kind === "oidc")
+      if (created.kind === "oidc") {
         await updateOidcProvider(created.provider.name, { enabled: true });
-      else await updateLdapDirectory(created.directory, { enabled: true });
+      } else if (created.kind === "github") {
+        await updateGitHubProvider(created.provider.name, { enabled: true });
+      } else {
+        await updateLdapDirectory(created.directory, { enabled: true });
+      }
     },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
@@ -540,18 +651,18 @@ function Verify({ created, onDone }: { created: Created; onDone: () => void }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className={cn("flex flex-col gap-5 overflow-y-auto p-4")}>
         <Notice>{t("pages.signIn.wizard.savedDisabled")}</Notice>
-        {created.kind === "oidc" ? (
-          <>
-            <CopyField
-              label={t("pages.signIn.provider.redirectUri")}
-              value={created.provider.redirect_uri}
-              description={t("pages.signIn.provider.redirectUriHint")}
-            />
-            <OidcTestPanel name={created.provider.name} />
-          </>
-        ) : (
-          <LdapTestPanel name={created.directory.name} />
+        {created.kind !== "ldap" && (
+          <CopyField
+            label={t("pages.signIn.provider.redirectUri")}
+            value={created.provider.redirect_uri}
+            description={t("pages.signIn.provider.redirectUriHint")}
+          />
         )}
+        {created.kind === "oidc" && <OidcTestPanel name={created.provider.name} />}
+        {created.kind === "github" && (
+          <p className="text-xs text-muted-foreground">{t("pages.signIn.provider.githubCheck")}</p>
+        )}
+        {created.kind === "ldap" && <LdapTestPanel name={created.directory.name} />}
       </div>
       <SheetFooter className="flex-row justify-between border-t">
         <Button type="button" variant="ghost" onClick={onDone}>

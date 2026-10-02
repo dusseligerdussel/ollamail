@@ -257,7 +257,10 @@
         "removeConfirm": "Remove for good",
         "removeHint": "Users stay; they can no longer sign in through this provider.",
         "changed": "Provider updated",
-        "removed": "Provider removed"
+        "removed": "Provider removed",
+        "server": "Server",
+        "organizations": "Organisations",
+        "githubCheck": "GitHub has no connection test: client ID, secret and organisation membership are checked at the first sign-in."
       },
       "wizard": {
         "title": "Add provider",
@@ -280,7 +283,8 @@
           "oidc": "OpenID Connect",
           "oidcDescription": "Keycloak, Authentik and other providers",
           "ldap": "LDAP / Active Directory",
-          "ldapDescription": "Sign-in with directory user name and password"
+          "ldapDescription": "Sign-in with directory user name and password",
+          "githubEnterprise": "GitHub Enterprise Server"
         },
         "fields": {
           "displayName": "Name on the login page",
@@ -301,7 +305,11 @@
           "tlsMode": "Encryption",
           "bindDn": "Service account (bind DN)",
           "bindPassword": "Service account password",
-          "userBaseDn": "Search base for users"
+          "userBaseDn": "Search base for users",
+          "organizations": "Allowed organisations",
+          "organizationsHint": "Organisation names, separated by commas. Empty: every GitHub account can sign in.",
+          "baseUrl": "GitHub Enterprise Server URL",
+          "baseUrlHint": "Leave empty for github.com."
         },
         "presetsOidc": {
           "keycloak": "Keycloak",
@@ -319,7 +327,8 @@
         },
         "verifyOidc": "Register the redirect URI at the identity provider, then test the connection.",
         "verifyLdap": "Test the connection and, optionally, look up a user before enabling the directory.",
-        "savedDisabled": "Saved, not enabled yet: nobody can sign in with it until you enable it."
+        "savedDisabled": "Saved, not enabled yet: nobody can sign in with it until you enable it.",
+        "verifyGithub": "Register the callback URL in the OAuth app at GitHub, then enable the provider."
       }
     },
     "roleMapping": {

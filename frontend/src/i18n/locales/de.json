@@ -257,7 +257,10 @@
         "removeConfirm": "Endgültig entfernen",
         "removeHint": "Nutzer bleiben erhalten, können sich aber nicht mehr über diesen Anbieter anmelden.",
         "changed": "Anbieter geändert",
-        "removed": "Anbieter entfernt"
+        "removed": "Anbieter entfernt",
+        "server": "Server",
+        "organizations": "Organisationen",
+        "githubCheck": "GitHub bietet keinen Verbindungstest: Client-ID, Secret und Organisationszugehörigkeit werden bei der ersten Anmeldung geprüft."
       },
       "wizard": {
         "title": "Anbieter hinzufügen",
@@ -280,7 +283,8 @@
           "oidc": "OpenID Connect",
           "oidcDescription": "Keycloak, Authentik und weitere Anbieter",
           "ldap": "LDAP / Active Directory",
-          "ldapDescription": "Anmeldung mit Benutzername und Passwort aus dem Verzeichnis"
+          "ldapDescription": "Anmeldung mit Benutzername und Passwort aus dem Verzeichnis",
+          "githubEnterprise": "GitHub Enterprise Server"
         },
         "fields": {
           "displayName": "Name auf der Login-Seite",
@@ -301,7 +305,11 @@
           "tlsMode": "Verschlüsselung",
           "bindDn": "Dienstkonto (Bind-DN)",
           "bindPassword": "Passwort des Dienstkontos",
-          "userBaseDn": "Suchbasis für Benutzer"
+          "userBaseDn": "Suchbasis für Benutzer",
+          "organizations": "Erlaubte Organisationen",
+          "organizationsHint": "Namen der Organisationen, durch Kommas getrennt. Leer: Jedes GitHub-Konto kann sich anmelden.",
+          "baseUrl": "URL des GitHub Enterprise Servers",
+          "baseUrlHint": "Für github.com leer lassen."
         },
         "presetsOidc": {
           "keycloak": "Keycloak",
@@ -319,7 +327,8 @@
         },
         "verifyOidc": "Trage die Redirect-URI beim Identity-Provider ein und teste dann die Verbindung.",
         "verifyLdap": "Teste die Verbindung und suche optional einen Benutzer, bevor du das Verzeichnis aktivierst.",
-        "savedDisabled": "Gespeichert, noch nicht aktiv: Niemand kann sich darüber anmelden, bis du es aktivierst."
+        "savedDisabled": "Gespeichert, noch nicht aktiv: Niemand kann sich darüber anmelden, bis du es aktivierst.",
+        "verifyGithub": "Trage die Callback-URL in der OAuth-App bei GitHub ein und aktiviere dann den Anbieter."
       }
     },
     "roleMapping": {

@@ -9,6 +9,7 @@ import {
   type AdminUser,
   adminUsersQueryOptions,
   authSettingsQueryOptions,
+  githubProvidersQueryOptions,
   type InvitationIssued,
   isAdminLockout,
   ldapDirectoriesQueryOptions,
@@ -224,9 +225,11 @@ function useFormatters() {
   const { timezone } = useCurrentUser();
   // Already loaded on the sign-in pages; only used for readable provider names.
   const oidc = useQuery(oidcProvidersQueryOptions);
+  const github = useQuery(githubProvidersQueryOptions);
   const ldap = useQuery(ldapDirectoriesQueryOptions);
   const names = new Map<string, string>([
     ...(oidc.data ?? []).map((p) => [p.provider, p.display_name] as const),
+    ...(github.data ?? []).map((p) => [p.provider, p.display_name] as const),
     ...(ldap.data ?? []).map((d) => [d.provider, d.display_name] as const),
   ]);
   const date = new Intl.DateTimeFormat(i18n.resolvedLanguage, {

@@ -11,6 +11,8 @@ export type OidcProvider = Schemas["OIDCProviderRead"];
 export type OidcProviderCreate = Schemas["OIDCProviderCreate"];
 export type OidcPreset = Schemas["OIDCPreset"];
 export type OidcConnectionTest = Schemas["OIDCConnectionTest"];
+export type GitHubProvider = Schemas["GitHubProviderRead"];
+export type GitHubProviderCreate = Schemas["GitHubProviderCreate"];
 export type LdapDirectory = Schemas["LdapDirectoryRead"];
 export type LdapDirectoryCreate = Schemas["LdapDirectoryCreate"];
 export type LdapDirectorySettings = Schemas["LdapDirectorySettings"];
@@ -47,6 +49,12 @@ export const oidcProvidersQueryOptions = queryOptions({
   meta: { errorToast: false },
 });
 
+export const githubProvidersQueryOptions = queryOptions({
+  queryKey: ["admin", "auth", "github"],
+  queryFn: ({ signal }) => unwrap(api.GET("/admin/auth/github/providers", { signal })),
+  meta: { errorToast: false },
+});
+
 export const ldapDirectoriesQueryOptions = queryOptions({
   queryKey: ["admin", "auth", "ldap"],
   queryFn: ({ signal }) => unwrap(api.GET("/auth/ldap/directories", { signal })),
@@ -76,6 +84,20 @@ export function deleteOidcProvider(name: string) {
 
 export function testOidcProvider(name: string) {
   return unwrap(api.POST("/admin/auth/oidc/providers/{name}/test", { params: { path: { name } } }));
+}
+
+export function createGitHubProvider(body: GitHubProviderCreate) {
+  return unwrap(api.POST("/admin/auth/github/providers", { body }));
+}
+
+export function updateGitHubProvider(name: string, body: Schemas["GitHubProviderUpdate"]) {
+  return unwrap(
+    api.PATCH("/admin/auth/github/providers/{name}", { params: { path: { name } }, body }),
+  );
+}
+
+export function deleteGitHubProvider(name: string) {
+  return unwrap(api.DELETE("/admin/auth/github/providers/{name}", { params: { path: { name } } }));
 }
 
 export function createLdapDirectory(body: LdapDirectoryCreate) {

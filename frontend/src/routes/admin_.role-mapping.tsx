@@ -7,6 +7,7 @@ import { toast } from "sonner";
 
 import {
   adminAuthQueryKey,
+  githubProvidersQueryOptions,
   ldapDirectoriesQueryOptions,
   oidcProvidersQueryOptions,
   type Role,
@@ -50,15 +51,23 @@ function RoleMappingPage() {
 }
 
 function RoleMappingContent() {
-  const [mapping, oidc, ldap] = useQueries({
-    queries: [roleMappingQueryOptions, oidcProvidersQueryOptions, ldapDirectoriesQueryOptions],
+  const [mapping, oidc, github, ldap] = useQueries({
+    queries: [
+      roleMappingQueryOptions,
+      oidcProvidersQueryOptions,
+      githubProvidersQueryOptions,
+      ldapDirectoriesQueryOptions,
+    ],
   });
-  if (mapping.isPending || oidc.isPending || ldap.isPending) return <ListSkeleton />;
-  const error = mapping.error ?? oidc.error ?? ldap.error;
+  if (mapping.isPending || oidc.isPending || github.isPending || ldap.isPending) {
+    return <ListSkeleton />;
+  }
+  const error = mapping.error ?? oidc.error ?? github.error ?? ldap.error;
   if (error || !mapping.data) return <InlineError error={error} />;
 
   const providers: ProviderOption[] = [
     ...(oidc.data ?? []).map((p) => ({ key: p.provider, label: p.display_name })),
+    ...(github.data ?? []).map((p) => ({ key: p.provider, label: p.display_name })),
     ...(ldap.data ?? []).map((d) => ({ key: d.provider, label: d.display_name })),
   ];
   // Re-mount the form when the saved mapping changes (after saving).

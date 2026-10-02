@@ -15,18 +15,21 @@ Liste aller Anmeldeverfahren: lokale Konten, OIDC-Provider (Datenbank und
 
 **Anbieter hinzufügen** (Assistent in drei Schritten):
 
-1. Typ wählen: Microsoft Entra ID, Google Workspace, OpenID Connect (Keycloak, Authentik,
-   generisch), LDAP / Active Directory. GitHub wird angezeigt, ist aber erst wählbar, sobald der
-   GitHub-Provider vorhanden ist (siehe unten).
+1. Typ wählen: Microsoft Entra ID, Google Workspace, GitHub (github.com oder Enterprise Server),
+   OpenID Connect (Keycloak, Authentik, generisch), LDAP / Active Directory. Angeboten wird, was
+   das Backend in `GET /api/admin/auth/settings` → `provider_kinds` meldet.
 2. Daten eintragen. Entra ID: Tenant-ID, Client-ID, Client-Secret (der Issuer wird daraus
    gebildet). Google: Workspace-Domain (`hd`). LDAP: Server, Verschlüsselung, Dienstkonto,
    Suchbasis; die übrigen Felder kommen aus dem Preset des Verzeichnistyps (siehe
-   [`ldap.md`](ldap.md)). Der Anbieter wird **deaktiviert** gespeichert.
+   [`ldap.md`](ldap.md)). GitHub: erlaubte Organisationen, optional Enterprise-Server-URL,
+   Client-ID und -Secret ([`github.md`](github.md)). Der Anbieter wird **deaktiviert**
+   gespeichert.
 3. Prüfen und aktivieren. OIDC: Redirect-URI anzeigen und kopieren (beim IdP eintragen), dann
    „Verbindung testen“ (`POST /api/admin/auth/oidc/providers/{name}/test`: Discovery-Dokument
    und Signaturschlüssel werden am Cache vorbei geladen; das Client-Secret prüft erst ein echter
-   Login). LDAP: Verbindungstest je Server und optional „Benutzer suchen“. Danach „Jetzt
-   aktivieren“ oder später über die Detailansicht.
+   Login). GitHub: Callback-URL kopieren; einen Verbindungstest bietet GitHub nicht, geprüft wird
+   bei der ersten Anmeldung. LDAP: Verbindungstest je Server und optional „Benutzer suchen“.
+   Danach „Jetzt aktivieren“ oder später über die Detailansicht.
 
 In der Detailansicht eines Anbieters: Redirect-URI kopieren, Verbindung testen, aktivieren bzw.
 deaktivieren, entfernen.
@@ -36,10 +39,9 @@ Danach lehnen `POST /api/auth/login`, `POST /api/auth/register` und das Annehmen
 mit 403 (`local-login-disabled`) ab; die Login-Seite zeigt nur noch externe Anbieter. Lokale
 Passwörter bleiben gespeichert.
 
-**GitHub (#31):** Der Assistent zeigt GitHub an, wählbar wird es, sobald das Backend den Typ in
-`GET /api/admin/auth/settings` → `provider_kinds` meldet (`app.state.idp_kinds`, in `main.py`
-um `"github"` ergänzen) und der Assistent ein Formular dafür hat. Die Prüfung der Admin-Zugänge
-berücksichtigt GitHub automatisch, weil sie alle Provider der `AuthProviderRegistry` einbezieht.
+**Weitere Provider-Typen** meldet das Backend über `app.state.idp_kinds` (`main.py`); die
+Prüfung der Admin-Zugänge berücksichtigt sie automatisch, weil sie alle Provider der
+`AuthProviderRegistry` einbezieht.
 
 ## 2. Schutz vor Selbst-Aussperrung
 
@@ -57,6 +59,7 @@ Jede Änderung, die einen Zugang entfernen kann, wird geprüft und mit **409
 | Rolle entziehen, Konto deaktivieren (auch das eigene) | `PATCH /api/users/{id}` |
 | Lokale Anmeldung abschalten | `PATCH /api/admin/auth/settings` |
 | OIDC-Provider deaktivieren/ändern/löschen | `PATCH`/`DELETE /api/admin/auth/oidc/providers/{name}` |
+| GitHub-Provider deaktivieren/ändern/löschen | `PATCH`/`DELETE /api/admin/auth/github/providers/{name}` |
 | LDAP-Verzeichnis ändern/löschen | `PUT`/`DELETE /api/auth/ldap/directories/{name}` |
 
 Hatte schon vorher kein Admin Zugang (z. B. nach einer Fehlkonfiguration), werden Änderungen
@@ -86,7 +89,7 @@ Admin-Rolle entzieht oder sein Konto deaktiviert. `GET /api/admin/auth/settings`
 - **Regeln:** Gruppe, optional Anbieter (`oidc:entra`, `ldap:ad`; leer = alle), Rolle. Gruppen
   werden ohne Beachtung der Groß-/Kleinschreibung verglichen und so eingetragen, wie der
   Anbieter sie meldet: Entra ID die Objekt-ID der Gruppe (Claim `groups`), LDAP der Gruppen-DN,
-  Keycloak/Authentik der Gruppenname bzw. -pfad. Je Anbieter darf eine Gruppe nur eine Regel
+  Keycloak/Authentik der Gruppenname bzw. -pfad, GitHub das Team als `<org>/<team-slug>`. Je Anbieter darf eine Gruppe nur eine Regel
   haben (sonst 422).
 - **Ausprobieren:** `POST /api/admin/auth/role-mapping/test {"provider", "groups"}` zeigt, welche
   Rolle eine Anmeldung mit diesen Gruppen bekäme.

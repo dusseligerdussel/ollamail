@@ -115,6 +115,8 @@ function mockAdminApi(overrides: Record<string, () => Response> = {}) {
         return json([entra]);
       case "GET /api/auth/ldap/directories":
         return json([directory]);
+      case "GET /api/admin/auth/github/providers":
+        return json([]);
       case "GET /api/admin/auth/role-mapping":
         return json(mapping);
       case "PUT /api/admin/auth/role-mapping":
@@ -214,15 +216,70 @@ describe("admin: sign-in methods", () => {
     );
   });
 
-  it("offers GitHub only once it is available", async () => {
+  it("offers only provider types the backend supports", async () => {
     const user = userEvent.setup();
-    mockAdminApi();
+    mockAdminApi({
+      "GET /api/admin/auth/settings": () => json({ ...settings, provider_kinds: ["oidc"] }),
+    });
     await renderApp("/admin/sign-in");
 
     await user.click(await screen.findByRole("button", { name: "Add provider" }));
     const sheet = await screen.findByRole("dialog");
     expect(within(sheet).getByRole("button", { name: /GitHub/ })).toBeDisabled();
-    expect(within(sheet).getByRole("button", { name: /LDAP/ })).toBeEnabled();
+    expect(within(sheet).getByRole("button", { name: /LDAP/ })).toBeDisabled();
+    expect(within(sheet).getByRole("button", { name: /OpenID Connect/ })).toBeEnabled();
+  });
+
+  it("adds a GitHub provider restricted to an organisation", async () => {
+    const user = userEvent.setup();
+    const github = {
+      name: "github",
+      provider: "github:github",
+      display_name: "GitHub",
+      base_url: null,
+      client_id: "Iv1.test",
+      has_client_secret: true,
+      enabled: false,
+      auto_provision: true,
+      link_by_email: false,
+      allowed_domains: [],
+      allowed_organizations: ["example-org"],
+      allowed_teams: [],
+      redirect_uri: "https://mail.example.org/api/auth/github/github/callback",
+      created_at: "2026-10-01T08:00:00Z",
+      updated_at: "2026-10-01T08:00:00Z",
+    };
+    const calls = mockAdminApi({
+      "GET /api/admin/auth/settings": () =>
+        json({ ...settings, provider_kinds: ["github", "ldap", "oidc"] }),
+      "POST /api/admin/auth/github/providers": () => json(github, { status: 201 }),
+      "PATCH /api/admin/auth/github/providers/github": () => json({ ...github, enabled: true }),
+    });
+    await renderApp("/admin/sign-in");
+
+    await user.click(await screen.findByRole("button", { name: "Add provider" }));
+    const sheet = await screen.findByRole("dialog");
+    await user.click(within(sheet).getByRole("button", { name: /GitHub/ }));
+    await user.type(within(sheet).getByLabelText("Allowed organisations"), "example-org");
+    await user.type(within(sheet).getByLabelText("Client ID"), "Iv1.test");
+    await user.type(within(sheet).getByLabelText("Client secret"), "secret");
+    await user.click(within(sheet).getByRole("button", { name: "Save and continue" }));
+
+    expect(await within(sheet).findByDisplayValue(github.redirect_uri)).toBeInTheDocument();
+    expect(
+      calls.find((c) => c.method === "POST" && c.path === "/api/admin/auth/github/providers")?.body,
+    ).toMatchObject({
+      name: "github",
+      base_url: null,
+      client_id: "Iv1.test",
+      client_secret: "secret",
+      allowed_organizations: ["example-org"],
+      enabled: false,
+    });
+    await user.click(within(sheet).getByRole("button", { name: "Enable now" }));
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({ enabled: true }),
+    );
   });
 });
 

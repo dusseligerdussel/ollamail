@@ -103,7 +103,7 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 
 Die UI ist unter `http://<host>:8080` erreichbar. Identity-Provider (Entra ID, Google, OIDC,
 LDAP/Active Directory), Rollen-Zuordnung und Nutzer verwaltet der Admin unter Admin → Anmeldung
-bzw. Nutzer ([`auth/admin.md`](auth/admin.md)); GitHub ist **geplant (#31)**.
+bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)).
 
 **Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
