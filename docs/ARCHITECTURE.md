@@ -952,7 +952,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 
 | Endpunkt | Zweck |
 |---|---|
-| `POST /rag/ask` | Frage stellen (`question`, optional `conversation_id`, `filters`). Antwort als `text/event-stream`: `start` (IDs), `filters` (angewandte Filter), `sources` (nummerierte Quellen mit Mail-ID und Ausschnitt), `token`…, dann `done` (`status`, `citations`, `ttft_ms`) oder `error` (`code`). POST, damit die Frage nicht in URLs/Access-Logs landet; Clients lesen den Stream per `fetch` |
+| `POST /rag/ask` | Frage stellen (`question`, optional `conversation_id`, `filters`). Antwort als `text/event-stream`: `start` (IDs), `filters` (angewandte Filter), `sources` (nummerierte Quellen mit Mail-ID und Ausschnitt), `token`…, dann `done` (`status`, `citations`, `ttft_ms`) oder `error` (`code`: `llm_unavailable` (Server nicht erreichbar), `llm_timeout` (Gesamtfrist bzw. Lese-Timeout überschritten, `LLMTimeoutError`: Server erreichbar, aber zu langsam), `llm_cloud_disabled`, `llm_error`, `internal`). POST, damit die Frage nicht in URLs/Access-Logs landet; Clients lesen den Stream per `fetch` |
 | `GET /rag/conversations` | Eigene Gespräche, zuletzt genutzte zuerst |
 | `GET/DELETE /rag/conversations/{id}` | Gespräch mit Fragen, Antworten und Zitaten; löschen. Fremde Gespräche verhalten sich wie nicht vorhandene (404) |
 | `DELETE /rag/conversations` | Alle eigenen Gespräche löschen |
@@ -999,7 +999,7 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
 
 | Endpunkt | Zweck |
 |---|---|
-| `POST /drafts/generate` | Entwurf erzeugen (`message_id`, optional `instruction`, `reply_all`, `draft_id` zum Neuschreiben). `text/event-stream`: `start` (`draft_id`), `token`…, dann `done` (gespeicherter Entwurf, `ttft_ms`) oder `error` (`code`) |
+| `POST /drafts/generate` | Entwurf erzeugen (`message_id`, optional `instruction`, `reply_all`, `draft_id` zum Neuschreiben). `text/event-stream`: `start` (`draft_id`), `token`…, dann `done` (gespeicherter Entwurf, `ttft_ms`) oder `error` (`code` wie bei `POST /rag/ask`: `llm_unavailable`, `llm_timeout`, `llm_cloud_disabled`, `llm_error`, `internal`) |
 | `POST /drafts` | Entwurf ohne Modell anlegen (Empfänger und Betreff aus der Mail) |
 | `GET /drafts` | Eigene Entwürfe (Filter `message_id`, `status`) |
 | `GET/PATCH/DELETE /drafts/{id}` | Lesen, bearbeiten (Text, Betreff, Empfänger, Allen antworten, Zitat), endgültig löschen |

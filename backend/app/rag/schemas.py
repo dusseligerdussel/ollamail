@@ -109,10 +109,10 @@ class DoneEvent(_StreamEvent):
 
 
 class ErrorEvent(_StreamEvent):
-    """Last event if no answer could be generated; nothing is stored."""
+    """Last event if no answer could be generated; nothing is stored. Codes:
+    ``llm_unavailable``, ``llm_timeout``, ``llm_cloud_disabled``, ``llm_error``, ``internal``."""
 
     type: Literal["error"] = "error"
-    # ``llm_unavailable``, ``llm_cloud_disabled``, ``llm_error``, ``internal``.
     code: str
 
 

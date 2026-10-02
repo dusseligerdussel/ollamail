@@ -1,5 +1,6 @@
 """Answer pipeline with PostgreSQL, the search index and a fake chat model."""
 
+import asyncio
 import io
 import json
 import uuid
@@ -341,6 +342,27 @@ async def test_llm_failure_ends_with_error_and_stores_nothing(
 
     assert events[-1].type == "error"
     assert events[-1].code == "llm_unavailable"  # type: ignore[union-attr]
+    count = await db_session.scalar(select(func.count()).select_from(RagConversation))
+    assert count == 0
+
+
+async def test_llm_timeout_has_its_own_code(
+    inbox: Inbox,
+    make_service: Callable[..., RagService],
+    fake_llm: FakeLLM,
+    db_session: AsyncSession,
+) -> None:
+    user, mailbox = await setup_user(inbox)
+    await inbox.add(mailbox, FLIGHT)
+    fake_llm.hang_until_deadline()
+
+    events = await asyncio.wait_for(collect(make_service().ask(user, "flight")), timeout=5)
+
+    assert events[-1].type == "error"
+    assert events[-1].code == "llm_timeout"  # type: ignore[union-attr]
+    assert [m.error_type for m in fake_llm.sink.records if m.operation == "stream"] == [
+        "LLMTimeoutError"
+    ]
     count = await db_session.scalar(select(func.count()).select_from(RagConversation))
     assert count == 0
 

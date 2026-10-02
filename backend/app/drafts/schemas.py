@@ -140,7 +140,7 @@ class DoneEvent(_StreamEvent):
 
 class ErrorEvent(_StreamEvent):
     """Last event on failure; nothing is stored. Codes: ``llm_unavailable``,
-    ``llm_cloud_disabled``, ``llm_error``, ``internal``."""
+    ``llm_timeout``, ``llm_cloud_disabled``, ``llm_error``, ``internal``."""
 
     type: Literal["error"] = "error"
     code: str

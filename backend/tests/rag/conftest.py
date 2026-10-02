@@ -3,6 +3,7 @@
 All names, addresses and texts are invented (example.* domains, docs/PRIVACY.md).
 """
 
+import asyncio
 import json
 import re
 import uuid
@@ -56,13 +57,15 @@ class FakeChatModel:
     """Answers structured calls by schema (query analysis, ranking) and streams answers.
 
     ``answer`` is the streamed text or a function of the prompt; it is streamed in small
-    pieces so that citation markers are split across chunks.
+    pieces so that citation markers are split across chunks. With ``hang`` the stream
+    never yields (a server that is reachable but too slow).
     """
 
     analysis: dict[str, Any] | Exception = field(default_factory=dict)
     ranking: list[int] | Exception = field(default_factory=list)
     answer: Answer = "Nothing [1]."
     piece: int = 3
+    hang: bool = False
     calls: list[Call] = field(default_factory=list)
 
     @property
@@ -95,6 +98,8 @@ class FakeChatModel:
         options: GenerationOptions | None = None,
     ) -> AsyncIterator[str]:
         self.calls.append(Call(list(messages), None))
+        if self.hang:
+            await asyncio.Event().wait()
         answer = self.answer
         if isinstance(answer, Exception):
             raise answer
@@ -114,23 +119,33 @@ class FakeChatModel:
         pass
 
 
+def _gateway(model: FakeChatModel, sink: RecordingSink, **settings: Any) -> LLMGateway:
+    return LLMGateway(
+        EnvConfigResolver(
+            LLMSettings(default_chat_model="chat:1b", structured_output_retries=0, **settings)
+        ),
+        provider_factory=lambda _: model,
+        metrics=sink,
+    )
+
+
 @dataclass
 class FakeLLM:
     gateway: LLMGateway
     model: FakeChatModel
     sink: RecordingSink
 
+    def hang_until_deadline(self, seconds: float = 0.2) -> None:
+        """The answer never comes; every call ends after ``seconds`` with a timeout."""
+        self.model.hang = True
+        self.gateway = _gateway(self.model, self.sink, call_timeout=seconds)
+
 
 @pytest.fixture
 def fake_llm() -> FakeLLM:
     model = FakeChatModel()
     sink = RecordingSink()
-    gateway = LLMGateway(
-        EnvConfigResolver(LLMSettings(default_chat_model="chat:1b", structured_output_retries=0)),
-        provider_factory=lambda _: model,
-        metrics=sink,
-    )
-    return FakeLLM(gateway, model, sink)
+    return FakeLLM(_gateway(model, sink), model, sink)
 
 
 @pytest.fixture

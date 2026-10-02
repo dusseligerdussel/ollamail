@@ -159,6 +159,20 @@ async def test_model_failure_is_reported_and_nothing_is_stored(
     assert await db_session.scalar(select(ReplyDraft.id)) is None
 
 
+async def test_model_timeout_has_its_own_code(
+    signed_in: Client, mails: Mails, fake_llm: FakeLLM, db_session: AsyncSession
+) -> None:
+    client, erika = await signed_in("erika@example.org")
+    message = await mails.message(await mails.mailbox(erika), QUESTION)
+    fake_llm.hang_until_deadline()
+
+    events = await generate(client, message_id=str(message.id))
+
+    assert [name for name, _ in events] == ["start", "error"]
+    assert events[-1][1]["code"] == "llm_timeout"
+    assert await db_session.scalar(select(ReplyDraft.id)) is None
+
+
 async def test_draft_by_hand_edit_and_send(
     signed_in: Client, mails: Mails, outbox: Outbox, db_session: AsyncSession
 ) -> None:

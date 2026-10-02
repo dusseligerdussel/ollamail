@@ -39,6 +39,7 @@ interface AnswerViewProps {
 
 const streamErrors = [
   "llm_unavailable",
+  "llm_timeout",
   "llm_cloud_disabled",
   "llm_error",
   "internal",
