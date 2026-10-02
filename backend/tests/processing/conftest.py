@@ -4,12 +4,13 @@ All data is synthetic."""
 
 import importlib
 import uuid
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Iterable, Iterator
 from dataclasses import dataclass, field
 from datetime import datetime
 
 import pytest
 from procrastinate import RetryStrategy
+from procrastinate.periodic import PeriodicRegistry
 from sqlalchemy import delete, text
 
 from app.core.config import DatabaseSettings, QueueName
@@ -78,6 +79,28 @@ def recorder() -> Iterator[Recorder]:
         yield Recorder()
 
 
+async def run_worker(queues: Iterable[str] = QUEUES, concurrency: int = 1) -> None:
+    """Run a worker until its queues are empty, without its periodic deferrer.
+
+    A real worker also defers every periodic task that came due in the last ten minutes
+    (``digest.schedule`` and ``triage.write_back`` every minute, for example). Those jobs
+    belong to no test: depending on the clock they would land in the middle of a test,
+    run against its data or stay queued (retries with a wait, queues the test does not
+    drain). Tests call periodic tasks directly instead."""
+    registry = app.periodic_registry
+    app.periodic_registry = PeriodicRegistry()
+    try:
+        await app.run_worker_async(
+            queues=list(queues),
+            concurrency=concurrency,
+            wait=False,
+            install_signal_handlers=False,
+            listen_notify=False,
+        )
+    finally:
+        app.periodic_registry = registry
+
+
 @dataclass
 class Pipeline:
     database: Database
@@ -114,13 +137,7 @@ class Pipeline:
         """Run a worker until no job is left (retries without wait included)."""
         async with app.open_async():
             for _ in range(50):
-                await app.run_worker_async(
-                    queues=QUEUES,
-                    concurrency=concurrency,
-                    wait=False,
-                    install_signal_handlers=False,
-                    listen_notify=False,
-                )
+                await run_worker(concurrency=concurrency)
                 if await self.pending_jobs() == 0:
                     return
         raise AssertionError("jobs left after draining")
