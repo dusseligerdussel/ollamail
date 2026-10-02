@@ -61,6 +61,7 @@ TASK_MODULES: list[str] = [
     "app.mail.sync.tasks",
     "app.processing.tasks",
     "app.triage.tasks",
+    "app.search.tasks",
     "app.todos.steps",
 ]
 

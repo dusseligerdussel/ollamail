@@ -97,8 +97,14 @@ async def resolve_session(
     return CurrentSession(session_id=session_id, user_id=user_id, role=role)
 
 
-async def revoke_token(db: AsyncSession, token: str) -> None:
-    await db.execute(delete(AuthSession).where(AuthSession.token_hash == hash_token(token)))
+async def revoke_token(db: AsyncSession, token: str) -> uuid.UUID | None:
+    """Delete the session of a cookie token; returns its user ID (``None`` if unknown)."""
+    result = await db.execute(
+        delete(AuthSession)
+        .where(AuthSession.token_hash == hash_token(token))
+        .returning(AuthSession.user_id)
+    )
+    return result.scalar_one_or_none()
 
 
 async def revoke_session(db: AsyncSession, user_id: uuid.UUID, session_id: uuid.UUID) -> bool:

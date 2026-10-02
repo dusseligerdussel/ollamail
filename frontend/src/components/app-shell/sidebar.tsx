@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Command, Keyboard } from "lucide-react";
+import { CircleUser, Command, Keyboard, LogOut, Settings } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { useCommandPalette } from "@/components/command-palette/command-provider";
@@ -9,12 +9,14 @@ import { useTheme } from "@/components/theme-provider";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
+  DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useCurrentUser, useLogout } from "@/hooks/use-current-user";
 import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
 import { isTheme, themes } from "@/lib/theme";
 
@@ -74,6 +76,42 @@ function ThemeMenu() {
   );
 }
 
+function UserMenu() {
+  const { t } = useTranslation();
+  const user = useCurrentUser();
+  const logout = useLogout();
+
+  return (
+    <DropdownMenu>
+      <DropdownMenuTrigger className={rowClass} aria-label={t("account.menu")}>
+        <CircleUser className="size-4 shrink-0" aria-hidden="true" />
+        <span className="truncate">{user.display_name}</span>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent side="top" align="start" className="w-56">
+        <DropdownMenuLabel className="flex flex-col gap-0.5 font-normal">
+          <span className="truncate text-ui font-medium">{user.display_name}</span>
+          <span className="truncate text-xs text-muted-foreground">{user.email}</span>
+        </DropdownMenuLabel>
+        <DropdownMenuSeparator />
+        <DropdownMenuItem asChild className="text-ui">
+          <Link to="/settings">
+            <Settings aria-hidden="true" />
+            {t("account.settings")}
+          </Link>
+        </DropdownMenuItem>
+        <DropdownMenuItem
+          className="text-ui"
+          disabled={logout.isPending}
+          onSelect={() => logout.mutate()}
+        >
+          <LogOut aria-hidden="true" />
+          {t("auth.logout")}
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+}
+
 export function Sidebar() {
   const { t } = useTranslation();
   const { isAdmin } = useCurrentUser();
@@ -125,6 +163,7 @@ export function Sidebar() {
       </nav>
 
       <div className="flex flex-col gap-px border-t border-sidebar-border p-2">
+        <UserMenu />
         <ThemeMenu />
         {hasKeyboard && (
           <button type="button" onClick={() => shortcuts.setOpen(true)} className={rowClass}>

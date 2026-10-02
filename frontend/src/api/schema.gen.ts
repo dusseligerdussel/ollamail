@@ -4,6 +4,156 @@
  */
 
 export interface paths {
+    "/audit/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Events
+         * @description Audit events, newest first.
+         */
+        get: operations["audit_get_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/events/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Events
+         * @description All matching audit events as CSV. The export itself is recorded.
+         */
+        get: operations["audit_export_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify
+         * @description Recompute the hash chain to detect changed or removed entries.
+         */
+        get: operations["audit_verify"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/ldap/directories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Directories
+         * @description All configured directories (without bind passwords).
+         */
+        get: operations["auth_list_directories"];
+        put?: never;
+        /**
+         * Create Directory
+         * @description Add a directory. Test it with ``…/test`` before enabling it for users.
+         */
+        post: operations["auth_create_directory"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/ldap/directories/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Directory */
+        get: operations["auth_get_directory"];
+        /**
+         * Update Directory
+         * @description Replace the configuration. Without ``bind_password`` the stored one is kept.
+         */
+        put: operations["auth_update_directory"];
+        post?: never;
+        /**
+         * Delete Directory
+         * @description Remove the directory and all sign-in links through it (the users stay).
+         */
+        delete: operations["auth_delete_directory"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/ldap/directories/{name}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Connection
+         * @description Connect to every server, negotiate TLS and bind as the service account.
+         */
+        post: operations["auth_test_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/ldap/directories/{name}/test-user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test User
+         * @description Look up a user as a login would (search, attributes, groups, role), without
+         *     checking a password.
+         */
+        post: operations["auth_test_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -18,6 +168,26 @@ export interface paths {
          * @description Sign in with a local account.
          */
         post: operations["auth_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/login/ldap/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ldap Login
+         * @description Sign in with a directory account; the user is created on the first login.
+         */
+        post: operations["auth_ldap_login"];
         delete?: never;
         options?: never;
         head?: never;
@@ -561,6 +731,57 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActorKind
+         * @enum {string}
+         */
+        ActorKind: "user" | "system" | "anonymous";
+        /**
+         * AuditAction
+         * @enum {string}
+         */
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "crypto.keys_rotated" | "audit.exported";
+        /** AuditChainStatus */
+        AuditChainStatus: {
+            /** Checked */
+            checked: number;
+            /** First Invalid Id */
+            first_invalid_id: number | null;
+            /** Valid */
+            valid: boolean;
+        };
+        /** AuditEventPage */
+        AuditEventPage: {
+            /** Items */
+            items: components["schemas"]["AuditEventRead"][];
+            /** Next Before */
+            next_before: number | null;
+        };
+        /** AuditEventRead */
+        AuditEventRead: {
+            action: components["schemas"]["AuditAction"];
+            /** Actor Id */
+            actor_id: string | null;
+            actor_kind: components["schemas"]["ActorKind"];
+            /** Actor Name */
+            actor_name: string | null;
+            /** Details */
+            details: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Target Id */
+            target_id: string | null;
+            /** Target Name */
+            target_name: string | null;
+            target_type: components["schemas"]["TargetType"] | null;
+        };
         /** AuthProviderInfo */
         AuthProviderInfo: {
             /** Display Name */
@@ -636,6 +857,11 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /**
+         * DirectoryType
+         * @enum {string}
+         */
+        DirectoryType: "active_directory" | "openldap";
         /** HTTPValidationError */
         HTTPValidationError: {
             /** Detail */
@@ -682,6 +908,178 @@ export interface components {
             source: components["schemas"]["TriageSource"] | null;
             /** Subject */
             subject: string;
+        };
+        /** LdapConnectionTest */
+        LdapConnectionTest: {
+            /** Ok */
+            ok: boolean;
+            /** Servers */
+            servers: components["schemas"]["LdapServerCheck"][];
+        };
+        /** LdapDirectoryCreate */
+        LdapDirectoryCreate: {
+            /** Bind Password */
+            bind_password: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Name */
+            name: string;
+            settings: components["schemas"]["LdapDirectorySettings"];
+        };
+        /** LdapDirectoryRead */
+        LdapDirectoryRead: {
+            /** Bind Password Set */
+            bind_password_set: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Provider */
+            provider: string;
+            settings: components["schemas"]["LdapDirectorySettings"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * LdapDirectorySettings
+         * @description Connection, search and mapping settings of a directory.
+         */
+        LdapDirectorySettings: {
+            /** Admin Groups */
+            admin_groups?: string[];
+            /** Allowed Groups */
+            allowed_groups?: string[];
+            /** Bind Dn */
+            bind_dn: string;
+            /** Ca Certificate */
+            ca_certificate?: string | null;
+            /**
+             * Connect Timeout
+             * @default 5
+             */
+            connect_timeout: number;
+            /** @default active_directory */
+            directory_type: components["schemas"]["DirectoryType"];
+            /** Display Name Attribute */
+            display_name_attribute: string;
+            /** Email Attribute */
+            email_attribute: string;
+            /** Group Base Dn */
+            group_base_dn?: string | null;
+            /** Group Filter */
+            group_filter: string;
+            /** Group Member Attribute */
+            group_member_attribute: string;
+            /**
+             * Nested Groups
+             * @default true
+             */
+            nested_groups: boolean;
+            /**
+             * Operation Timeout
+             * @default 10
+             */
+            operation_timeout: number;
+            /** Server Urls */
+            server_urls: string[];
+            /** Subject Attribute */
+            subject_attribute: string;
+            /** @default ldaps */
+            tls_mode: components["schemas"]["TlsMode"];
+            /** User Base Dn */
+            user_base_dn: string;
+            /** User Filter */
+            user_filter: string;
+        };
+        /**
+         * LdapDirectoryUpdate
+         * @description Replaces the configuration; without ``bind_password`` the stored one is kept.
+         */
+        LdapDirectoryUpdate: {
+            /** Bind Password */
+            bind_password?: string | null;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            settings: components["schemas"]["LdapDirectorySettings"];
+        };
+        /** LdapLoginRequest */
+        LdapLoginRequest: {
+            /** Password */
+            password: string;
+            /** Username */
+            username: string;
+        };
+        /** LdapServerCheck */
+        LdapServerCheck: {
+            /** Error */
+            error: string | null;
+            /** Latency Ms */
+            latency_ms: number;
+            /** Ok */
+            ok: boolean;
+            /** Url */
+            url: string;
+        };
+        /**
+         * LdapUserLookup
+         * @description What a login of this user would yield (no password check).
+         */
+        LdapUserLookup: {
+            /**
+             * Allowed
+             * @default false
+             */
+            allowed: boolean;
+            /**
+             * Disabled
+             * @default false
+             */
+            disabled: boolean;
+            /** Display Name */
+            display_name?: string | null;
+            /** Dn */
+            dn?: string | null;
+            /** Email */
+            email?: string | null;
+            /** Error */
+            error?: string | null;
+            /** Found */
+            found: boolean;
+            /** Groups */
+            groups?: string[];
+            role?: components["schemas"]["UserRole"] | null;
+            /** Subject */
+            subject?: string | null;
+        };
+        /** LdapUserLookupRequest */
+        LdapUserLookupRequest: {
+            /** Login */
+            login: string;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -883,6 +1281,16 @@ export interface components {
             /** Initialized */
             initialized: boolean;
         };
+        /**
+         * TargetType
+         * @enum {string}
+         */
+        TargetType: "user" | "session" | "mailbox" | "idp" | "settings";
+        /**
+         * TlsMode
+         * @enum {string}
+         */
+        TlsMode: "ldaps" | "starttls" | "none";
         /**
          * TodoCreate
          * @description A todo created by the user, optionally linked to one of their mails.
@@ -1100,6 +1508,497 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    audit_get_events: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description Cursor: `next_before` */
+                before?: number | null;
+                action?: components["schemas"]["AuditAction"] | null;
+                actor_id?: string | null;
+                target_type?: components["schemas"]["TargetType"] | null;
+                target_id?: string | null;
+                /** @description Inclusive lower bound */
+                since?: string | null;
+                /** @description Exclusive upper bound */
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventPage"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_export_events: {
+        parameters: {
+            query?: {
+                action?: components["schemas"]["AuditAction"] | null;
+                actor_id?: string | null;
+                target_type?: components["schemas"]["TargetType"] | null;
+                target_id?: string | null;
+                /** @description Inclusive lower bound */
+                since?: string | null;
+                /** @description Exclusive upper bound */
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditChainStatus"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_list_directories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LdapDirectoryRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_create_directory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LdapDirectoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LdapDirectoryRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Name taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_get_directory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LdapDirectoryRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_update_directory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LdapDirectoryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LdapDirectoryRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_delete_directory: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_test_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LdapConnectionTest"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_test_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LdapUserLookupRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LdapUserLookup"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     auth_login: {
         parameters: {
             query?: never;
@@ -1140,6 +2039,83 @@ export interface operations {
             };
             /** @description Too many attempts (rate limit or account lockout) */
             429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_ldap_login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LdapLoginRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Wrong credentials, account disabled or not allowed */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The directory supplies no e-mail address for the user */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such (enabled) directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description E-mail address belongs to an account not linked to the directory */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts (rate limit or account lockout) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Directory not reachable */
+            503: {
                 headers: {
                     [name: string]: unknown;
                 };

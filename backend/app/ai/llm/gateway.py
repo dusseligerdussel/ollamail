@@ -5,6 +5,7 @@ prompts into the context window, validates structured output and records metrics
 Features never talk to a provider directly.
 """
 
+import dataclasses
 import math
 import time
 from collections.abc import AsyncIterator, Callable, Sequence
@@ -237,10 +238,22 @@ class LLMGateway:
             usage = Usage(completion_tokens=math.ceil(streamed_chars / CHARS_PER_TOKEN))
             self._record(assignment, "stream", prompt_version, started, error=error, usage=usage)
 
+    async def assignment(self, task: LLMTask) -> ModelAssignment:
+        """Endpoint and model currently serving ``task`` (e.g. to tag stored embeddings)."""
+        return await self._resolver.resolve(task)
+
     async def embed(
-        self, texts: Sequence[str], *, task: LLMTask = LLMTask.EMBEDDINGS
+        self,
+        texts: Sequence[str],
+        *,
+        task: LLMTask = LLMTask.EMBEDDINGS,
+        model: str | None = None,
     ) -> list[list[float]]:
+        """Embed ``texts``. ``model`` overrides the task's model on the task's endpoint,
+        e.g. to query an index built with the previous model while it is rebuilt."""
         assignment, provider = await self._select(task)
+        if model is not None:
+            assignment = dataclasses.replace(assignment, model=model)
         started = time.perf_counter()
         try:
             vectors = await provider.embed(texts, model=assignment.model)

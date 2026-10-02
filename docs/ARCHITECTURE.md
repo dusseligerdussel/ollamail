@@ -69,9 +69,10 @@ backend/app/
   triage/        Kategorien, Klassifikation, Feedback/Few-Shot
   todos/         Extraktion, CRUD, (später) CalDAV-Export
   digest/        Tageszusammenfassung, TTS, Podcast-Feed
-  rag/           Hybrid-Retrieval, Chat, Zitate
+  search/        Suchindex: Chunking, Anhangstexte, Embeddings, Hybrid-Suche (RRF)
+  rag/           Chat, Zitate (nutzt search/)
   admin/         Instanz-Einstellungen, Auth-Provider, Audit-Log, Statistiken
-  audit/         Audit-Events
+  audit/         Audit-Log: record(), append-only Tabelle mit Hash-Kette, Admin-API (Liste, CSV)
   worker.py      Procrastinate-App und Task-Registrierung
 ```
 
@@ -506,6 +507,44 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - Antworten werden gestreamt (SSE) und enthalten **immer Zitate** mit Links auf die Quell-Mails.
 - Strikte Zugriffskontrolle: Retrieval nur über Postfächer, auf die der Nutzer Zugriff hat (Filter in SQL, nicht im Prompt).
 
+**Umsetzung des Index (`backend/app/search/`, #24):**
+
+- **Schritt `index`** (`@registry.step("index", version=1, queue="llm")` in `app.search.tasks`):
+  Chunks aus `body_main` (ohne Zitate/Signatur; leer → `body_text`) und aus Anhangstexten,
+  je Mail höchstens `OLLAMAIL_SEARCH_MAX_CHUNKS_PER_MESSAGE`. Jeder Chunk hat Kopfdaten als
+  Kontext (`From`, `Date`, `Subject`, ggf. `Attachment`), die mit eingebettet und (Gewicht B)
+  volltextindiziert werden. Grenzen folgen Absätzen, Zeilen, Sätzen, Wörtern; benachbarte Chunks
+  überlappen (`OLLAMAIL_SEARCH_CHUNK_SIZE`/`_OVERLAP`). Jede Mail hat mindestens einen Chunk,
+  damit Absender und Betreff immer auffindbar sind. Der Schritt ersetzt die Chunks einer Mail
+  (idempotent).
+- **Anhänge** (`app.search.extract`): PDF (`pypdf`), DOCX (Standardbibliothek: ZIP + XML, DTDs
+  abgelehnt), TXT, HTML. Je Datei ein Kindprozess (`python -m app.search._extract_child`) mit
+  leerer Umgebung (keine Secrets), `RLIMIT_AS`/`RLIMIT_CPU`, ohne Dateischreibrechte, nach
+  `OLLAMAIL_SEARCH_EXTRACTION_TIMEOUT` beendet. Ergebnisse als Statuscodes (`ok`, `too_large`,
+  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`). Kein OCR.
+- **Tabellen:** `search_chunks` (Text, `ts_config` `german`/`english`/`simple` aus der erkannten
+  Sprache, generierte `tsvector`-Spalte mit GIN-Index), `search_embeddings` (`chunk_id`, `model`,
+  `embedding vector(n)` mit HNSW-Index, Kosinus), `search_index_state` (aktives Modell). `n` kommt
+  aus `OLLAMAIL_SEARCH_EMBEDDING_DIMENSIONS`; zur Laufzeit gilt die Länge der Datenbankspalte.
+- **Embeddings** über `LLMGateway.embed` (Aufgabe `embeddings`) in Batches
+  (`OLLAMAIL_SEARCH_EMBED_BATCH_SIZE`, optional Pause), auf der Queue `llm` mit deren
+  Parallelität. Schlägt das Einbetten fehl, werden die Chunks ohne Vektor gespeichert; der Job
+  `search.fill_embeddings` ergänzt sie.
+- **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte vom aktiven Modell ab,
+  rechnet `search.fill_embeddings` alle Chunks batchweise neu; Anfragen nutzen bis zum Abschluss
+  das alte Modell (`LLMGateway.embed(model=...)`), dann wird umgeschaltet und aufgeräumt.
+  Dimensionswechsel: `python -m app.cli search resize` (`docs/OPERATIONS.md` 3.7).
+- **Suche:** `search(session, user_id, query, filters, embedder=..., settings=...)` in
+  `app.search.service` liefert Chunks (für #25) oder mit `per_message=True` die beste Stelle je
+  Mail (klassische Suche). Volltext: `websearch_to_tsquery` in allen drei Konfigurationen,
+  ODER-verknüpft, Rang `ts_rank_cd`. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
+  `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
+  (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
+  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang).
+- **Zugriff:** Jede Abfrage enthält `mailbox_id IN (readable_mailbox_ids(user_id))` aus
+  `app.search.access`, der einzigen Stelle dieser Regel. Heute: eigene Postfächer; Shared
+  Mailboxes werden dort mit #34 ergänzt.
+
 ## 5. Auth & Mandantenmodell
 
 - **Eine Organisation pro Instanz.** Rollen: `admin`, `user` (erweiterbar, z. B. `auditor`).
@@ -537,7 +576,19 @@ und liefert eine `VerifiedIdentity(provider, subject, email, display_name, group
 Die Zuordnung Identität → Nutzer (`auth.service.user_for_identity`, später mit
 JIT-Provisioning), Sperre, Session und Rollenprüfung sind für alle Provider gleich. Konfigurierte
 externe Provider registrieren sich in `app.state.auth_providers`; `GET /api/auth/providers`
-listet sie für die Login-Seite.
+listet sie für die Login-Seite, zusätzlich die aktiven LDAP-Verzeichnisse aus der Datenbank.
+
+**JIT-Provisioning** (`app/auth/provisioning.py`, für alle externen Provider):
+`provision_user(db, identity, role=...)` findet den Nutzer über `auth_identities` oder legt ihn
+beim ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben
+Adresse wird **nicht** automatisch verknüpft (409), sonst könnte jeder, der ein E-Mail-Attribut
+im externen Verzeichnis setzen darf, ein lokales (Admin-)Konto übernehmen. `role` kommt aus dem
+Gruppen-Mapping des Providers; `None` heißt, der Provider verwaltet keine Rollen.
+
+**LDAP / Active Directory** (`app/auth/providers/ldap/`, Details: [`auth/ldap.md`](auth/ldap.md)):
+Verzeichnisse stehen in `auth_ldap_directories` (Einstellungen als JSONB, Bind-Passwort
+verschlüsselt) und werden über `/api/auth/ldap/directories` (nur Admins) gepflegt und getestet.
+Login über `POST /api/auth/login/ldap/{name}` mit denselben Rate-Limits wie der lokale Login.
 
 **Bootstrap:** `GET /api/setup/status` → `{"initialized": bool}`. `POST /api/setup` legt den ersten
 Admin an und meldet ihn an. Voraussetzung ist der Setup-Token (`OLLAMAIL_SETUP_TOKEN` oder per
@@ -595,6 +646,11 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
   `<Tag>_<Funktionsname>`.
 - Fehler: Problem Details → übersetzte Meldung (Toast bei Mutationen, inline bei Queries), 401 →
   Login-Seite. CSRF per Double-Submit (Cookie `ollamail_csrf`, Header `X-CSRF-Token`).
+- Anmeldung und Route-Guards: Der Root-Route-Guard lädt `GET /api/setup/status` und
+  `GET /api/auth/me`. Nicht eingerichtet → `/setup` (Erst-Admin), ohne Session →
+  `/login?redirect=…`; jede Route ist geschützt, außer sie ist ausdrücklich öffentlich (`/login`,
+  `/setup`). Admin-Seiten zeigen Nicht-Admins eine 403-Seite; durchgesetzt wird es in der API.
+  Externe Provider kommen dynamisch aus `GET /api/auth/providers`. Details: `frontend/README.md`.
 - Echtzeit über SSE (`GET /api/events`): JSON-Events `{"type": "<ressource>.<aktion>", …IDs}`, die
   das Frontend (`useEvents()`) in Query-Invalidierungen übersetzt. Details: `frontend/README.md`.
 - i18n (DE/EN), Dark/Light/System, PWA, Tastaturbedienung und Command Palette (⌘K).
