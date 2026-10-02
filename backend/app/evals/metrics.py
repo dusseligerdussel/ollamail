@@ -17,8 +17,11 @@ from dataclasses import dataclass, field
 from datetime import date
 from difflib import SequenceMatcher
 
+from app.ai.llm.errors import LLMTimeoutError
 from app.ai.llm.metrics import LLMCallMetrics
-from app.evals.timeout import TIMEOUT_ERROR
+
+# Error type the gateway records for calls past their deadline or HTTP read timeout.
+TIMEOUT_ERROR = LLMTimeoutError.__name__
 
 # Fuzzy title similarity from which a predicted todo counts as the expected one.
 TITLE_THRESHOLD = 0.6
@@ -224,7 +227,7 @@ def percentile(values: Sequence[float], share: float) -> float:
 class CallStats:
     calls: int
     failed: int
-    # Calls cancelled by the evaluation's time limit (part of ``failed``).
+    # Calls that timed out (part of ``failed``).
     timeouts: int
     seconds_mean: float
     seconds_p50: float

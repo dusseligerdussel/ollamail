@@ -15,7 +15,7 @@ from pathlib import Path
 from app.core.config import Settings
 from app.evals.dataset import load_dataset
 from app.evals.report import STAGES
-from app.evals.runner import DEFAULT_TIMEOUT, RunOptions, run
+from app.evals.runner import RunOptions, run
 
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -60,8 +60,8 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--timeout",
         type=float,
-        default=DEFAULT_TIMEOUT,
-        help=f"seconds per model call before it counts as a timeout (default {DEFAULT_TIMEOUT:g})",
+        help="deadline in seconds per model call of every chat task (default: "
+        "OLLAMAIL_LLM_CALL_TIMEOUT or the profile's per-task defaults)",
     )
     parser.add_argument(
         "--output", type=Path, help="directory for report.json and report.md (else stdout)"

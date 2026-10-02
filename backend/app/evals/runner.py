@@ -25,13 +25,11 @@ from app.evals.digest import run_digest
 from app.evals.metrics import RecordingSink, call_stats
 from app.evals.rag import EvalInbox, eval_inbox, run_rag
 from app.evals.report import STAGES, ModelResult, Report
-from app.evals.timeout import time_limited
 from app.evals.todos import run_todos
 from app.evals.triage import run_triage
 from app.search.embedder import GatewayEmbedder
 
 CHAT_TASKS = (LLMTask.TRIAGE, LLMTask.TODOS, LLMTask.DIGEST, LLMTask.RAG_CHAT)
-DEFAULT_TIMEOUT = 120.0
 
 
 @dataclass
@@ -46,8 +44,9 @@ class RunOptions:
     use_prefilter: bool = True
     settings: Settings = field(default_factory=Settings)
     provider_factory: ProviderFactory | None = None
-    # Seconds per model call before it counts as a timeout (``None``: endpoint timeout).
-    timeout: float | None = DEFAULT_TIMEOUT
+    # Deadline per model call for every chat task (``OLLAMAIL_LLM_CALL_TIMEOUT``);
+    # ``None``: as configured (environment, else the profile's per-task defaults).
+    timeout: float | None = None
 
 
 def _log(message: str) -> None:
@@ -65,7 +64,10 @@ def llm_settings(options: RunOptions, model: str | None) -> LLMSettings:
     if options.embedding_model:
         update["task_embeddings_model"] = options.embedding_model
     if options.timeout is not None:
-        # The HTTP timeout must not fire before the evaluation's own limit.
+        # Task settings from the environment would otherwise win.
+        update["call_timeout"] = options.timeout
+        update |= {f"task_{task.value}_call_timeout": options.timeout for task in CHAT_TASKS}
+        # The HTTP read timeout must not fire before the deadline.
         update["timeout"] = max(options.settings.llm.timeout, options.timeout + 30)
     if model:
         update["default_chat_model"] = model
@@ -76,7 +78,7 @@ def llm_settings(options: RunOptions, model: str | None) -> LLMSettings:
 def gateway(settings: LLMSettings, options: RunOptions, sink: RecordingSink) -> LLMGateway:
     return LLMGateway(
         EnvConfigResolver(settings),
-        provider_factory=time_limited(options.provider_factory or create_provider, options.timeout),
+        provider_factory=options.provider_factory or create_provider,
         metrics=sink,
     )
 
@@ -193,6 +195,8 @@ async def run(dataset: Dataset, options: RunOptions) -> Report:
         stages.remove("rag")
     options.stages = stages
     base = llm_settings(options, None)
+    resolver = EnvConfigResolver(base)
+    deadlines = {task.value: (await resolver.resolve(task)).call_timeout for task in CHAT_TASKS}
     run_info: dict[str, Any] = {
         "started_at": started_at.isoformat(timespec="seconds"),
         "host": host_info(),
@@ -205,7 +209,7 @@ async def run(dataset: Dataset, options: RunOptions) -> Report:
             "languages": sorted({m.language for m in dataset.mails}),
         },
         "prefilter": options.use_prefilter,
-        "call_timeout_seconds": options.timeout,
+        "call_timeouts": deadlines,
         "judge_model": options.judge_model,
         "prompt_versions": prompt_versions(),
     }

@@ -89,7 +89,8 @@ def render_markdown(report: Report) -> str:
         f"- Stages: {', '.join(run.get('stages', []))}",
         f"- Embedding model (RAG): {run.get('embedding_model') or '-'}",
         f"- Judge model: {run.get('judge_model') or '-'}",
-        f"- Time limit per model call: {_num(run.get('call_timeout_seconds'), 0)} s",
+        "- Deadline per model call: "
+        + ", ".join(f"{task} {_num(s, 0)} s" for task, s in run.get("call_timeouts", {}).items()),
         "",
         "## Summary",
         "",
@@ -162,7 +163,7 @@ def render_markdown(report: Report) -> str:
         + ", ".join(f"`{r.model}` {_num(r.seconds / 60)} min" for r in report.models)
         + ".",
         "",
-        "Timeouts: calls cancelled at the time limit; they count as failed answers "
+        "Timeouts: calls cancelled at their deadline; they count as failed answers "
         "(error) in the stage that made them. "
         "Seconds per call include retries of structured output. Generated tok/s: answer "
         "tokens per second of call time; processed tok/s: prompt and answer tokens per "
