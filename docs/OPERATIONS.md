@@ -101,9 +101,9 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Heute wird nur `database` geprüft; Prüfungen für Queue und LLM kommen mit #7 und #17. |
 
-Die UI ist unter `http://<host>:8080` erreichbar. LDAP/Active Directory ist per API konfigurierbar
-([`auth/ldap.md`](auth/ldap.md)); OIDC, GitHub und die Admin-UI für Identity-Provider sind
-**geplant (#30, #31, #33)**.
+Die UI ist unter `http://<host>:8080` erreichbar. Identity-Provider (Entra ID, Google, OIDC,
+LDAP/Active Directory), Rollen-Zuordnung und Nutzer verwaltet der Admin unter Admin → Anmeldung
+bzw. Nutzer ([`auth/admin.md`](auth/admin.md)); GitHub ist **geplant (#31)**.
 
 **Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
@@ -116,8 +116,10 @@ docker compose -f deploy/compose.yaml logs api | grep setup_pending
 docker compose -f deploy/compose.yaml run --rm --no-deps api python -m app.cli setup-token
 ```
 
-Nach dem Setup ist der Token wertlos. Notfallzugang ohne UI (z. B. ausgesperrt):
-`docker compose -f deploy/compose.yaml run --rm api python -m app.cli create-admin`.
+Nach dem Setup ist der Token wertlos. Notfallzugang ohne UI (z. B. ausgesperrt oder IdP
+ausgefallen): `docker compose -f deploy/compose.yaml run --rm api python -m app.cli reset-password`
+(neues lokales Passwort für ein vorhandenes Konto) bzw. `… create-admin` (neues Admin-Konto).
+Beide schalten eine abgeschaltete lokale Anmeldung wieder ein ([`auth/admin.md`](auth/admin.md#5-notfallzugang)).
 
 **Cookies nur über HTTPS:** Sitzungs-Cookies sind `Secure`. Browser speichern sie über
 `http://<ip>:8080` nicht (Ausnahme `http://localhost`); die Anmeldung schlägt dann fehl. Also TLS

@@ -147,7 +147,8 @@ def create_admin_command(
     """Create a local admin account, also when users exist (emergency access).
 
     Prefer the setup wizard for the first admin. The password is read from a prompt;
-    passing it as option puts it into the shell history.
+    passing it as option puts it into the shell history. Switches local login back on if
+    an admin had disabled it.
     """
     from app.core.errors import ProblemError
     from app.users.schemas import UserCreate
