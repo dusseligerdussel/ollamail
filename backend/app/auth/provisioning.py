@@ -15,7 +15,8 @@ The domain allowlist is checked on every login (also for known identities, so na
 it takes effect immediately) and only accepts verified addresses.
 
 Providers that derive the role from groups pass ``role``; it is applied on every login.
-Without it new users get ``user`` and existing users keep their role.
+Without it new users get ``user`` and existing users keep their role. Creating a user and
+changing a role are recorded in the audit log (actor ``system``).
 
 ``ProvisioningError`` is a ``ProblemError``: JSON endpoints (password providers) can let it
 propagate, browser flows (``app.auth.redirect_flow``) use its static ``code``.
@@ -30,6 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth.models import Identity
 from app.auth.providers.base import VerifiedIdentity
 from app.core.errors import ProblemError
@@ -58,6 +60,12 @@ class ProvisioningErrorCode(enum.StrEnum):
     # Unknown user and just-in-time provisioning is off.
     NOT_PROVISIONED = "not_provisioned"
 
+
+# Problem types used by the JSON login endpoints (LDAP) since #32; kept stable.
+_TYPES = {
+    ProvisioningErrorCode.EMAIL_CONFLICT: "urn:ollamail:problem:account-exists",
+    ProvisioningErrorCode.EMAIL_MISSING: "urn:ollamail:problem:missing-email",
+}
 
 _ERRORS: dict[ProvisioningErrorCode, tuple[int, str]] = {
     ProvisioningErrorCode.INACTIVE: (403, "The account is deactivated."),
@@ -88,7 +96,7 @@ class ProvisioningError(ProblemError):
         super().__init__(
             status,
             detail=detail,
-            type=f"urn:ollamail:problem:{code.value.replace('_', '-')}",
+            type=_TYPES.get(code, f"urn:ollamail:problem:{code.value.replace('_', '-')}"),
         )
         self.code = code
 
@@ -103,6 +111,9 @@ class ProvisioningPolicy:
     link_by_email: bool = False
     # Lower-case e-mail domains allowed to sign in; empty allows all.
     allowed_domains: frozenset[str] = field(default_factory=frozenset)
+    # Store the identity's groups for the role mapping (#33). Providers that map roles at
+    # login time (LDAP) and do not keep groups turn this off.
+    store_groups: bool = True
 
 
 @dataclass(frozen=True)
@@ -147,8 +158,8 @@ def _display_name(identity: VerifiedIdentity, email: str) -> str:
     return (name or email.partition("@")[0])[:_MAX_DISPLAY_NAME]
 
 
-def _touch(identity_row: Identity, identity: VerifiedIdentity) -> None:
-    identity_row.groups = clean_groups(identity.groups)
+def _touch(identity_row: Identity, identity: VerifiedIdentity, policy: ProvisioningPolicy) -> None:
+    identity_row.groups = clean_groups(identity.groups) if policy.store_groups else []
     identity_row.last_used_at = datetime.now(UTC)
 
 
@@ -185,8 +196,8 @@ async def provision_user(
         identity_row, user = known
         if not user.is_active:
             raise ProvisioningError(ProvisioningErrorCode.INACTIVE)
-        _touch(identity_row, identity)
-        _sync_role(user, identity, role)
+        _touch(identity_row, identity, policy)
+        await _sync_role(db, user, identity, role)
         await db.flush()
         return ProvisioningResult(user=user)
 
@@ -199,31 +210,48 @@ async def provision_user(
             raise ProvisioningError(ProvisioningErrorCode.EMAIL_CONFLICT)
         if not existing.is_active:
             raise ProvisioningError(ProvisioningErrorCode.INACTIVE)
-        _sync_role(existing, identity, role)
-        await _add_identity(db, existing, identity)
+        await _sync_role(db, existing, identity, role)
+        await _add_identity(db, existing, identity, policy)
+        log.info("identity_linked", user_id=existing.id, provider=identity.provider)
         return ProvisioningResult(user=existing, linked=True)
 
     if not policy.auto_provision:
         raise ProvisioningError(ProvisioningErrorCode.NOT_PROVISIONED)
-    return await _create(db, identity, email, role or UserRole.USER)
+    return await _create(db, identity, email, role or UserRole.USER, policy)
 
 
-def _sync_role(user: User, identity: VerifiedIdentity, role: UserRole | None) -> None:
-    if role is not None and user.role != role:
-        log.info("user_role_synced", user_id=user.id, role=role, provider=identity.provider)
-        user.role = role
+async def _sync_role(
+    db: AsyncSession, user: User, identity: VerifiedIdentity, role: UserRole | None
+) -> None:
+    if role is None or user.role == role:
+        return
+    log.info("user_role_synced", user_id=user.id, role=role, provider=identity.provider)
+    await audit.record(
+        db,
+        audit.SYSTEM,
+        audit.AuditAction.USER_ROLE_CHANGED,
+        audit.Target.of(audit.TargetType.USER, user.id),
+        {"from_role": str(user.role), "to_role": str(role), "provider": identity.provider},
+    )
+    user.role = role
 
 
-async def _add_identity(db: AsyncSession, user: User, identity: VerifiedIdentity) -> Identity:
+async def _add_identity(
+    db: AsyncSession, user: User, identity: VerifiedIdentity, policy: ProvisioningPolicy
+) -> Identity:
     row = Identity(user_id=user.id, provider=identity.provider, subject=identity.subject)
-    _touch(row, identity)
+    _touch(row, identity, policy)
     db.add(row)
     await db.flush()
     return row
 
 
 async def _create(
-    db: AsyncSession, identity: VerifiedIdentity, email: str, role: UserRole
+    db: AsyncSession,
+    identity: VerifiedIdentity,
+    email: str,
+    role: UserRole,
+    policy: ProvisioningPolicy,
 ) -> ProvisioningResult:
     try:
         async with db.begin_nested():
@@ -235,7 +263,7 @@ async def _create(
             )
             db.add(user)
             await db.flush()
-            await _add_identity(db, user, identity)
+            await _add_identity(db, user, identity, policy)
     except IntegrityError:
         # A concurrent first login of the same person (or the same address) won the race.
         known = await _known(db, identity)
@@ -243,4 +271,12 @@ async def _create(
             return ProvisioningResult(user=known[1])
         raise ProvisioningError(ProvisioningErrorCode.EMAIL_CONFLICT) from None
     await db.refresh(user)
+    await audit.record(
+        db,
+        audit.SYSTEM,
+        audit.AuditAction.USER_CREATED,
+        audit.Target.of(audit.TargetType.USER, user.id),
+        {"role": str(user.role), "provider": identity.provider},
+    )
+    log.info("user_provisioned", user_id=user.id, role=user.role, provider=identity.provider)
     return ProvisioningResult(user=user, created=True)

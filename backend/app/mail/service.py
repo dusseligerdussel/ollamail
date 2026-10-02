@@ -15,6 +15,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app import audit
 from app.core.ids import uuid7
 from app.core.logging import get_logger
 from app.mail.mime import Address, normalize_message
@@ -145,14 +146,20 @@ async def delete_messages(
 
 
 async def delete_mailbox(
-    session: AsyncSession, mailbox_id: uuid.UUID, storage: AttachmentStorage
+    session: AsyncSession,
+    mailbox_id: uuid.UUID,
+    storage: AttachmentStorage,
+    actor: audit.Actor = audit.SYSTEM,
 ) -> bool:
     """Hard-delete a mailbox with all folders, threads, messages, attachments and sync
-    state, commit, then remove its attachment files."""
+    state, commit, then remove its attachment files. ``actor`` goes into the audit log."""
     result = await session.execute(
         delete(Mailbox).where(Mailbox.id == mailbox_id).returning(Mailbox.id)
     )
     deleted = result.first() is not None
+    if deleted:
+        target = audit.Target.of(audit.TargetType.MAILBOX, mailbox_id)
+        await audit.record(session, actor, audit.AuditAction.MAILBOX_DELETED, target)
     await session.commit()
     # Also runs if the row was already gone, to clean up leftovers.
     await asyncio.to_thread(storage.delete_mailbox, mailbox_id)

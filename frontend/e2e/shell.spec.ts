@@ -1,7 +1,22 @@
 import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
+import { type MockApi, mockApi } from "./mock-api";
+
 const pages = ["/inbox", "/tasks", "/digest", "/search", "/settings", "/admin"] as const;
+
+// Pages that need a different session state: path → mocked API.
+const statePages: [string, MockApi][] = [
+  ["/login", { role: null }],
+  ["/setup", { initialized: false, role: null }],
+  // 403 page
+  ["/admin", { role: "user" }],
+];
+
+// Runs without a backend: the API is mocked (signed-in admin unless a test says otherwise).
+test.beforeEach(async ({ page }) => {
+  await mockApi(page);
+});
 
 async function expectNoA11yViolations(page: Page) {
   const results = await new AxeBuilder({ page })
@@ -76,6 +91,21 @@ for (const colorScheme of ["light", "dark"] as const) {
           await page.goto(path);
           await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
           await expectNoA11yViolations(page);
+        }
+      });
+
+      test("sign-in, setup and 403 pages have no axe violations", async ({ page }) => {
+        for (const [path, api] of statePages) {
+          await page.unrouteAll();
+          await mockApi(page, api);
+          await page.goto(path);
+          await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          expect(new URL(page.url()).pathname).toBe(path);
+          await expectNoA11yViolations(page);
+          const overflow = await page.evaluate(
+            () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
+          );
+          expect(overflow, path).toBe(0);
         }
       });
 

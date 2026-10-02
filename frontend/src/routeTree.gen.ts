@@ -13,9 +13,12 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DigestRouteImport } from './routes/digest'
 import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as LoginRouteImport } from './routes/login'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
+import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -37,6 +40,11 @@ const InboxRoute = InboxRouteImport.update({
   path: '/inbox',
   getParentRoute: () => rootRouteImport,
 } as any)
+const LoginRoute = LoginRouteImport.update({
+  id: '/login',
+  path: '/login',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SearchRoute = SearchRouteImport.update({
   id: '/search',
   path: '/search',
@@ -47,9 +55,19 @@ const SettingsRoute = SettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SetupRoute = SetupRouteImport.update({
+  id: '/setup',
+  path: '/setup',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const TasksRoute = TasksRouteImport.update({
   id: '/tasks',
   path: '/tasks',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminAuditRoute = AdminAuditRouteImport.update({
+  id: '/admin_/audit',
+  path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
 
@@ -58,18 +76,24 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
   '/inbox': typeof InboxRoute
+  '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
+  '/admin/audit': typeof AdminAuditRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
   '/inbox': typeof InboxRoute
+  '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
+  '/admin/audit': typeof AdminAuditRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -77,25 +101,50 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
   '/inbox': typeof InboxRoute
+  '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
+  '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
+  '/admin_/audit': typeof AdminAuditRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
   fullPaths:
-    '/' | '/admin' | '/digest' | '/inbox' | '/search' | '/settings' | '/tasks'
+    | '/'
+    | '/admin'
+    | '/digest'
+    | '/inbox'
+    | '/login'
+    | '/search'
+    | '/settings'
+    | '/setup'
+    | '/tasks'
+    | '/admin/audit'
   fileRoutesByTo: FileRoutesByTo
-  to: '/' | '/admin' | '/digest' | '/inbox' | '/search' | '/settings' | '/tasks'
+  to:
+    | '/'
+    | '/admin'
+    | '/digest'
+    | '/inbox'
+    | '/login'
+    | '/search'
+    | '/settings'
+    | '/setup'
+    | '/tasks'
+    | '/admin/audit'
   id:
     | '__root__'
     | '/'
     | '/admin'
     | '/digest'
     | '/inbox'
+    | '/login'
     | '/search'
     | '/settings'
+    | '/setup'
     | '/tasks'
+    | '/admin_/audit'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -103,9 +152,12 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   DigestRoute: typeof DigestRoute
   InboxRoute: typeof InboxRoute
+  LoginRoute: typeof LoginRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
+  SetupRoute: typeof SetupRoute
   TasksRoute: typeof TasksRoute
+  AdminAuditRoute: typeof AdminAuditRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -138,6 +190,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof InboxRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/login': {
+      id: '/login'
+      path: '/login'
+      fullPath: '/login'
+      preLoaderRoute: typeof LoginRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/search': {
       id: '/search'
       path: '/search'
@@ -152,11 +211,25 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/setup': {
+      id: '/setup'
+      path: '/setup'
+      fullPath: '/setup'
+      preLoaderRoute: typeof SetupRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/tasks': {
       id: '/tasks'
       path: '/tasks'
       fullPath: '/tasks'
       preLoaderRoute: typeof TasksRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/audit': {
+      id: '/admin_/audit'
+      path: '/admin/audit'
+      fullPath: '/admin/audit'
+      preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
   }
@@ -167,9 +240,12 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   DigestRoute: DigestRoute,
   InboxRoute: InboxRoute,
+  LoginRoute: LoginRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
+  SetupRoute: SetupRoute,
   TasksRoute: TasksRoute,
+  AdminAuditRoute: AdminAuditRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

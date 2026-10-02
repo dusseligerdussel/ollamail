@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth.dependencies import AdminSessionDep, SettingsDep
 from app.auth.passwords import hash_password
 from app.core.db import get_db
@@ -51,6 +52,13 @@ async def create_user(
         role=body.role,
         language=body.language,
         timezone=body.timezone,
+    )
+    await audit.record(
+        db,
+        audit.Actor.user(admin.user_id),
+        audit.AuditAction.USER_CREATED,
+        audit.Target.of(audit.TargetType.USER, user.id),
+        {"role": user.role, "via": "admin"},
     )
     await db.commit()
     log.info("user_created", user_id=user.id, role=user.role, by_user_id=admin.user_id)

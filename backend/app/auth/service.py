@@ -6,6 +6,7 @@ from fastapi import Request, Response
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth import rate_limit
 from app.auth.csrf import set_csrf_cookie
 from app.auth.keys import derive_key, keyed_digest
@@ -117,6 +118,8 @@ async def end_session(
 ) -> None:
     token = request.cookies.get(SESSION_COOKIE)
     if token:
-        await revoke_token(db, token)
+        user_id = await revoke_token(db, token)
+        if user_id is not None:
+            await audit.record(db, audit.Actor.user(user_id), audit.AuditAction.LOGOUT)
         await db.commit()
     clear_cookies(response, settings)

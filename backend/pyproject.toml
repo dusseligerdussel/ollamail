@@ -14,14 +14,17 @@ dependencies = [
     "fastapi>=0.115",
     "httpx>=0.28.1",
     "joserfc>=1.3",
+    "ldap3>=2.9.1",
     "nh3>=0.3.7",
     "num2words>=0.5.14",
+    "pgvector>=0.3",
     "piper-tts>=1.3,<2",
     "procrastinate>=3.10,<4",
     "psycopg[binary]>=3.2",
     "py3langid>=0.4.0",
     "pydantic>=2.7",
     "pydantic-settings>=2.3",
+    "pypdf>=5",
     "sqlalchemy[asyncio]>=2.0.30",
     "structlog>=26.1.0",
     "typer>=0.12",
@@ -36,6 +39,7 @@ dev = [
     "pytest-asyncio>=0.23",
     "respx>=0.23.1",
     "ruff>=0.5",
+    "types-ldap3>=2.9.13.20260827",
 ]
 
 [tool.uv]
@@ -66,5 +70,6 @@ markers = [
     "db: needs PostgreSQL with pgvector (skipped if unreachable, see tests/conftest.py)",
     "ollama: needs a running Ollama with a small model (skipped if unreachable)",
     "imap: needs an IMAP test server (Dovecot, skipped if unreachable, see tests/mail/imap_server.py)",
+    "ldap: needs slapd (OpenLDAP server binary; skipped if not installed)",
     "piper: needs piper-tts and a voice in OLLAMAIL_TEST_PIPER_VOICES (skipped otherwise)",
 ]

@@ -30,6 +30,7 @@ from fastapi import Request
 from fastapi.responses import RedirectResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth import service
 from app.auth.keys import derive_key
 from app.auth.providers.base import RedirectAuthProvider
@@ -191,6 +192,16 @@ async def start_login(
     return response
 
 
+async def _login_failed(db: AsyncSession, provider: str, reason: str) -> None:
+    await audit.record(
+        db,
+        audit.ANONYMOUS,
+        audit.AuditAction.LOGIN_FAILED,
+        details={"provider": provider, "reason": reason},
+    )
+    await db.commit()
+
+
 def idp_error_code(value: str | None) -> str:
     """The IdP's ``error`` parameter if it looks like an OAuth error code, else ``other``."""
     return value if value and _SAFE_ERROR.match(value) else "other"
@@ -208,6 +219,8 @@ async def finish_login(
     """Validate the callback, provision the user and start the session.
 
     ``error_type`` is the provider's validation error; it must carry a static ``code``.
+    Failures after a valid ``state`` (a real round trip to the IdP) are audited; callbacks
+    without a matching flow cookie are only logged, since anyone can send them.
     """
     params = dict(request.query_params)
     flow = unseal(settings, request.cookies.get(FLOW_COOKIE))
@@ -233,6 +246,7 @@ async def finish_login(
     except ProvisioningError as exc:
         await db.rollback()
         log.info("login_failed", provider=provider.name, reason=exc.code)
+        await _login_failed(db, provider.name, exc.code)
         response = error_redirect(exc.code)
         clear_flow_cookie(response, settings)
         return response
@@ -245,18 +259,21 @@ async def finish_login(
             check=getattr(exc, "reason", None),
             idp_error=idp_error_code(params.get("error")) if "error" in params else None,
         )
+        await _login_failed(db, provider.name, code)
         response = error_redirect(code)
         clear_flow_cookie(response, settings)
         return response
 
     response = RedirectResponse(flow.return_to, status_code=303)
+    await audit.record(
+        db,
+        audit.Actor.user(result.user.id),
+        audit.AuditAction.LOGIN_SUCCEEDED,
+        details={"provider": provider.name},
+    )
     await service.start_session(
         db, settings, request, response, result.user, provider=provider.name
     )
     clear_flow_cookie(response, settings)
-    if result.created:
-        log.info("user_provisioned", user_id=result.user.id, provider=provider.name)
-    elif result.linked:
-        log.info("identity_linked", user_id=result.user.id, provider=provider.name)
     log.info("login_succeeded", user_id=result.user.id, provider=provider.name)
     return response

@@ -8,11 +8,13 @@ from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import AuditAction
 from app.auth.models import AuthSession, Identity
 from app.auth.redirect_flow import FLOW_COOKIE
 from app.auth.sessions import SESSION_COOKIE
 from app.core.config import AuthSettings, OIDCProviderSettings, Settings
 from app.users.models import User, UserRole
+from tests.audit.conftest import audit_rows
 from tests.auth.conftest import make_local_user
 from tests.auth.oidc.conftest import PUBLIC_URL, OIDCTestApp, add_provider, make_app, sign_in
 from tests.auth.oidc.mock_idp import CLIENT_ID, CLIENT_SECRET, ISSUER, MockIdP
@@ -89,6 +91,10 @@ async def test_first_login_provisions_user_and_starts_session(
     assert identity.groups == ["mail-admins", "staff"]
     session = await db_session.scalar(select(AuthSession))
     assert session is not None and session.provider == "oidc:test"
+    (login,) = await audit_rows(db_session, AuditAction.LOGIN_SUCCEEDED)
+    assert login.details == {"provider": "oidc:test"}
+    (created,) = await audit_rows(db_session, AuditAction.USER_CREATED)
+    assert created.details == {"role": "user", "provider": "oidc:test"}
     # PKCE: the token request carried the verifier, authenticated with client_secret_basic.
     token_request = oidc.idp.token_requests[-1]
     assert token_request["code_verifier"]
@@ -177,6 +183,8 @@ async def test_userinfo_of_another_subject_is_ignored(
     result = await sign_in(oidc)
 
     assert result.location == "/login?error=email_missing"
+    (failed,) = await audit_rows(db_session, AuditAction.LOGIN_FAILED)
+    assert failed.details == {"provider": "oidc:test", "reason": "email_missing"}
 
 
 async def test_disabled_or_unknown_provider_cannot_start_a_login(

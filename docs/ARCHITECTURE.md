@@ -69,9 +69,10 @@ backend/app/
   triage/        Kategorien, Klassifikation, Feedback/Few-Shot
   todos/         Extraktion, CRUD, (später) CalDAV-Export
   digest/        Tageszusammenfassung, TTS, Podcast-Feed
-  rag/           Hybrid-Retrieval, Chat, Zitate
+  search/        Suchindex: Chunking, Anhangstexte, Embeddings, Hybrid-Suche (RRF)
+  rag/           Chat, Zitate (nutzt search/)
   admin/         Instanz-Einstellungen, Auth-Provider, Audit-Log, Statistiken
-  audit/         Audit-Events
+  audit/         Audit-Log: record(), append-only Tabelle mit Hash-Kette, Admin-API (Liste, CSV)
   worker.py      Procrastinate-App und Task-Registrierung
 ```
 
@@ -395,6 +396,50 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - Korrekturen durch den Nutzer werden gespeichert und als Few-Shot-Beispiele genutzt (pro Nutzer, nie nutzerübergreifend).
 - Vorfilter ohne LLM (Header wie `List-Unsubscribe`, `Precedence: bulk`, bekannte Absender) sparen Rechenzeit.
 
+**Umsetzung (`backend/app/triage/`, #20):**
+
+- **Kategorien** (`categories.py`, `models.py`): Die sieben Standardkategorien legt die Migration als
+  Org-Kategorien an (`owner_user_id IS NULL`, `builtin_key` für die Übersetzung im UI). Admins pflegen
+  Org-Kategorien (`/triage/organization/categories`), Nutzer legen eigene an und blenden beliebige aus
+  bzw. sortieren sie (`triage_category_preferences`). Ausgeblendete Kategorien bietet die Triage dem
+  Modell nicht an; mindestens eine bleibt sichtbar.
+- **Pipeline:** Schritt `triage` (Queue `llm`, `TRIAGE_STEP_VERSION`), danach `triage_write_back`
+  (Queue `sync`). Eine Korrektur des Nutzers (`source = user`) überschreibt die Triage nie, auch nicht
+  beim Neuverarbeiten.
+- **Todos:** Der Schritt `todos` läuft `after=("triage",)` und liest die Kategorie über
+  `app.triage.service.category_key` (`builtin_key` bzw. Slug des Namens, registriert beim Import von
+  `app.triage.tasks`). Mails in `OLLAMAIL_TODOS_SKIP_CATEGORIES` (Standard: Newsletter,
+  Benachrichtigung, Spam) werden nicht nach Todos durchsucht.
+- **Vorfilter** (`rules.py`, ohne LLM, `OLLAMAIL_TRIAGE_PREFILTER_ENABLED`): erst Absenderregeln des
+  Nutzers (Adresse vor Domain), dann `Auto-Submitted` ≠ `no` und Roboter-Absender (`no-reply@`, …) →
+  Benachrichtigung, `Precedence: junk` → Spam, `List-Unsubscribe`/`Precedence: bulk|list` → Newsletter,
+  Priorität 3. Gespeichert wird der Regelname (`rule`), keine Begründung.
+- **LLM** (`classify.py`, Prompt `triage@1` in `prompts.py`): `LLMGateway.complete_structured` mit
+  Task `triage`, Temperatur 0. Das Antwortschema wird je Aufruf gebaut, die erlaubten
+  Kategorie-Schlüssel stehen als `enum` darin. Ergebnis: Kategorie, Priorität 1–3 (1 = hoch), ein Satz
+  Begründung in der UI-Sprache des Nutzers. Die Mail steht als Daten zwischen `<<<`/`>>>`, Text gekürzt
+  auf `OLLAMAIL_TRIAGE_MAX_BODY_CHARS`.
+- **Lernen aus Korrekturen** (`feedback.py`): `PUT /triage/messages/{id}` speichert die Korrektur als
+  Ergebnis und als Beispiel (`triage_feedback`). In den Prompt kommen bis zu
+  `OLLAMAIL_TRIAGE_FEW_SHOT_EXAMPLES` Beispiele **nur desselben Nutzers** (Filter auf Nutzer *und* auf
+  eigene Postfächer). Gibt es mehr Kandidaten, wählt die Triage die ähnlichsten per Embedding
+  (Kosinus, Embeddings werden im Job nachberechnet und mit Modellname gespeichert); ohne
+  Embedding-Modell die neuesten. Absenderregeln schlägt `GET /triage/sender-rules/suggestions` vor,
+  sobald ein Absender mindestens `OLLAMAIL_TRIAGE_RULE_SUGGESTION_MIN_CORRECTIONS`-mal und immer in
+  dieselbe Kategorie korrigiert wurde.
+- **Zurückschreiben** (`writeback.py`, opt-in je Postfach, `PUT /triage/mailboxes/{id}/settings`):
+  `label` ruft `MailProvider.apply_label` mit `<prefix><key>` auf (IMAP-Keyword, Gmail-Label,
+  Graph-Kategorie) und entfernt vorher das alte Label; `move` verschiebt mit `MailProvider.move` in
+  einen vorhandenen Ordner dieses Namens. Neue Mails erledigt der Pipeline-Schritt; Korrekturen und
+  das nachträgliche Aktivieren arbeitet der minütliche Job `triage.write_back` ab
+  (`write_back_pending`).
+- **API** (`/triage`): Kategorien (CRUD, Reihenfolge, Ausblenden), Triage einer Mail lesen/korrigieren,
+  Inbox nach Kategorie gruppiert (`GET /triage/inbox`, Posteingangsordner der eigenen Postfächer),
+  Absenderregeln, Write-back-Einstellung je Postfach.
+- **Evaluierung:** `uv run python -m scripts.eval_triage --model qwen2.5:3b [--model …]` klassifiziert
+  einen synthetischen, gelabelten Datensatz (`scripts/triage_eval_dataset.json`, DE/EN) und gibt die
+  Genauigkeit je Modell aus (Kategorie, Priorität, Anteil Vorfilter, Fehlklassifikationen).
+
 ### 4.3 Todos
 
 - Extraktion: Titel, Beschreibung, Fälligkeit (falls genannt), Priorität, Link zur Quell-Mail/zum Thread.
@@ -462,6 +507,44 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - Antworten werden gestreamt (SSE) und enthalten **immer Zitate** mit Links auf die Quell-Mails.
 - Strikte Zugriffskontrolle: Retrieval nur über Postfächer, auf die der Nutzer Zugriff hat (Filter in SQL, nicht im Prompt).
 
+**Umsetzung des Index (`backend/app/search/`, #24):**
+
+- **Schritt `index`** (`@registry.step("index", version=1, queue="llm")` in `app.search.tasks`):
+  Chunks aus `body_main` (ohne Zitate/Signatur; leer → `body_text`) und aus Anhangstexten,
+  je Mail höchstens `OLLAMAIL_SEARCH_MAX_CHUNKS_PER_MESSAGE`. Jeder Chunk hat Kopfdaten als
+  Kontext (`From`, `Date`, `Subject`, ggf. `Attachment`), die mit eingebettet und (Gewicht B)
+  volltextindiziert werden. Grenzen folgen Absätzen, Zeilen, Sätzen, Wörtern; benachbarte Chunks
+  überlappen (`OLLAMAIL_SEARCH_CHUNK_SIZE`/`_OVERLAP`). Jede Mail hat mindestens einen Chunk,
+  damit Absender und Betreff immer auffindbar sind. Der Schritt ersetzt die Chunks einer Mail
+  (idempotent).
+- **Anhänge** (`app.search.extract`): PDF (`pypdf`), DOCX (Standardbibliothek: ZIP + XML, DTDs
+  abgelehnt), TXT, HTML. Je Datei ein Kindprozess (`python -m app.search._extract_child`) mit
+  leerer Umgebung (keine Secrets), `RLIMIT_AS`/`RLIMIT_CPU`, ohne Dateischreibrechte, nach
+  `OLLAMAIL_SEARCH_EXTRACTION_TIMEOUT` beendet. Ergebnisse als Statuscodes (`ok`, `too_large`,
+  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`). Kein OCR.
+- **Tabellen:** `search_chunks` (Text, `ts_config` `german`/`english`/`simple` aus der erkannten
+  Sprache, generierte `tsvector`-Spalte mit GIN-Index), `search_embeddings` (`chunk_id`, `model`,
+  `embedding vector(n)` mit HNSW-Index, Kosinus), `search_index_state` (aktives Modell). `n` kommt
+  aus `OLLAMAIL_SEARCH_EMBEDDING_DIMENSIONS`; zur Laufzeit gilt die Länge der Datenbankspalte.
+- **Embeddings** über `LLMGateway.embed` (Aufgabe `embeddings`) in Batches
+  (`OLLAMAIL_SEARCH_EMBED_BATCH_SIZE`, optional Pause), auf der Queue `llm` mit deren
+  Parallelität. Schlägt das Einbetten fehl, werden die Chunks ohne Vektor gespeichert; der Job
+  `search.fill_embeddings` ergänzt sie.
+- **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte vom aktiven Modell ab,
+  rechnet `search.fill_embeddings` alle Chunks batchweise neu; Anfragen nutzen bis zum Abschluss
+  das alte Modell (`LLMGateway.embed(model=...)`), dann wird umgeschaltet und aufgeräumt.
+  Dimensionswechsel: `python -m app.cli search resize` (`docs/OPERATIONS.md` 3.7).
+- **Suche:** `search(session, user_id, query, filters, embedder=..., settings=...)` in
+  `app.search.service` liefert Chunks (für #25) oder mit `per_message=True` die beste Stelle je
+  Mail (klassische Suche). Volltext: `websearch_to_tsquery` in allen drei Konfigurationen,
+  ODER-verknüpft, Rang `ts_rank_cd`. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
+  `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
+  (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
+  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang).
+- **Zugriff:** Jede Abfrage enthält `mailbox_id IN (readable_mailbox_ids(user_id))` aus
+  `app.search.access`, der einzigen Stelle dieser Regel. Heute: eigene Postfächer; Shared
+  Mailboxes werden dort mit #34 ergänzt.
+
 ## 5. Auth & Mandantenmodell
 
 - **Eine Organisation pro Instanz.** Rollen: `admin`, `user` (erweiterbar, z. B. `auditor`).
@@ -494,15 +577,23 @@ und PKCE-`code_verifier`) für OIDC (#30) und GitHub (#31). Sperre, Session und 
 sind für alle Provider gleich. Externe Provider stehen in `app.state.auth_providers`: fest per
 `register` oder als *Quelle* per `add_source` (z. B. OIDC-Provider aus der Datenbank, pro Anfrage
 gelesen, damit Änderungen sofort auf allen API-Instanzen gelten). `GET /api/auth/providers`
-listet sie für die Login-Seite, Redirect-Provider mit `login_path`.
+listet sie für die Login-Seite (Redirect-Provider mit `login_path`), zusätzlich die aktiven
+LDAP-Verzeichnisse aus der Datenbank.
 
-**Externe Logins** (`app/auth/redirect_flow.py`, `app/auth/provisioning.py`): Der Browser-Flow
-für Redirect-Provider (verschlüsseltes Einmal-Cookie mit `state`, `nonce`, PKCE-Verifier;
-Fehler als Redirect auf `/login?error=<code>`) und das Just-in-Time-Provisioning sind
-providerunabhängig. `provision_user` meldet bekannte Identitäten an und aktualisiert ihre Gruppen
-(`auth_identities.groups`), verknüpft vorhandene Nutzer nur über eine **verifizierte** E-Mail-Adresse
-und nur bei aktivierter Provider-Einstellung, legt sonst Nutzer mit Rolle `user` an und prüft die
-Domain-Allowlist. GitHub (#31) und LDAP (#32) nutzen dieselben Bausteine.
+**JIT-Provisioning** (`app/auth/provisioning.py`, für alle externen Provider):
+`provision_user(db, identity, policy, role=...)` meldet bekannte Identitäten an (Gruppen werden in
+`auth_identities.groups` aktualisiert, sofern der Provider sie speichert) oder legt den Nutzer beim
+ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben Adresse
+wird nur verknüpft, wenn der Provider es erlaubt (`link_by_email`) **und** die Adresse als
+verifiziert meldet; sonst 409 (`account-exists`), denn wer ein E-Mail-Attribut im externen
+Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Dazu kommen
+Domain-Allowlist und Abschalten der Kontoanlage je Provider. `role` kommt aus dem Gruppen-Mapping
+des Providers; `None` heißt, der Provider verwaltet keine Rollen. Kontoanlage und Rollenwechsel
+landen im Audit-Log. Fehler sind `ProvisioningError` (ein `ProblemError` mit statischem `code`).
+
+**Externe Logins im Browser** (`app/auth/redirect_flow.py`): Der Flow für Redirect-Provider
+(verschlüsseltes Einmal-Cookie mit `state`, `nonce`, PKCE-Verifier; Fehler als Redirect auf
+`/login?error=<code>`) ist providerunabhängig; GitHub (#31) nutzt ihn mit.
 
 **OIDC** (`app/auth/providers/oidc/`, Anleitung: [`auth/oidc.md`](auth/oidc.md)): Provider aus der
 Datenbank (`auth_oidc_providers`, Client-Secret als `EncryptedStr`, Admin-API unter
@@ -511,6 +602,11 @@ werden je Issuer gecacht; ID-Token-Prüfung mit `joserfc`, PKCE-/Client-Auth-Hel
 Presets für Entra ID (`tid`-Prüfung, Multi-Tenant nur mit Tenant-Allowlist), Google Workspace
 (`hd`), Keycloak, Authentik und generisch. `POST /api/auth/oidc/logout` liefert zusätzlich die
 URL für das RP-initiated Logout.
+
+**LDAP / Active Directory** (`app/auth/providers/ldap/`, Details: [`auth/ldap.md`](auth/ldap.md)):
+Verzeichnisse stehen in `auth_ldap_directories` (Einstellungen als JSONB, Bind-Passwort
+verschlüsselt) und werden über `/api/auth/ldap/directories` (nur Admins) gepflegt und getestet.
+Login über `POST /api/auth/login/ldap/{name}` mit denselben Rate-Limits wie der lokale Login.
 
 **Bootstrap:** `GET /api/setup/status` → `{"initialized": bool}`. `POST /api/setup` legt den ersten
 Admin an und meldet ihn an. Voraussetzung ist der Setup-Token (`OLLAMAIL_SETUP_TOKEN` oder per
@@ -568,6 +664,11 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
   `<Tag>_<Funktionsname>`.
 - Fehler: Problem Details → übersetzte Meldung (Toast bei Mutationen, inline bei Queries), 401 →
   Login-Seite. CSRF per Double-Submit (Cookie `ollamail_csrf`, Header `X-CSRF-Token`).
+- Anmeldung und Route-Guards: Der Root-Route-Guard lädt `GET /api/setup/status` und
+  `GET /api/auth/me`. Nicht eingerichtet → `/setup` (Erst-Admin), ohne Session →
+  `/login?redirect=…`; jede Route ist geschützt, außer sie ist ausdrücklich öffentlich (`/login`,
+  `/setup`). Admin-Seiten zeigen Nicht-Admins eine 403-Seite; durchgesetzt wird es in der API.
+  Externe Provider kommen dynamisch aus `GET /api/auth/providers`. Details: `frontend/README.md`.
 - Echtzeit über SSE (`GET /api/events`): JSON-Events `{"type": "<ressource>.<aktion>", …IDs}`, die
   das Frontend (`useEvents()`) in Query-Invalidierungen übersetzt. Details: `frontend/README.md`.
 - i18n (DE/EN), Dark/Light/System, PWA, Tastaturbedienung und Command Palette (⌘K).

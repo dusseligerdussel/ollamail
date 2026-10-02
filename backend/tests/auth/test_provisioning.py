@@ -4,6 +4,7 @@ import pytest
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import AuditAction
 from app.auth.models import Identity
 from app.auth.providers.base import VerifiedIdentity
 from app.auth.provisioning import (
@@ -17,6 +18,7 @@ from app.auth.provisioning import (
 )
 from app.core.errors import ProblemError
 from app.users.models import User, UserRole
+from tests.audit.conftest import audit_rows
 from tests.auth.conftest import make_local_user
 
 pytestmark = pytest.mark.db
@@ -203,5 +205,24 @@ def test_errors_are_problem_details() -> None:
     missing = ProvisioningError(ProvisioningErrorCode.EMAIL_MISSING)
 
     assert isinstance(conflict, ProblemError)
-    assert (conflict.status, conflict.type) == (409, "urn:ollamail:problem:email-conflict")
-    assert (missing.status, missing.type) == (403, "urn:ollamail:problem:email-missing")
+    # Problem types of the JSON login endpoints (LDAP, #32) stay stable.
+    assert (conflict.status, conflict.type) == (409, "urn:ollamail:problem:account-exists")
+    assert (missing.status, missing.type) == (403, "urn:ollamail:problem:missing-email")
+
+
+async def test_creation_and_role_changes_are_audited(db_session: AsyncSession) -> None:
+    created = await provision_user(db_session, _identity())
+    await provision_user(db_session, _identity(), role=UserRole.ADMIN)
+
+    (creation,) = await audit_rows(db_session, AuditAction.USER_CREATED)
+    (change,) = await audit_rows(db_session, AuditAction.USER_ROLE_CHANGED)
+    assert creation.target_id == str(created.user.id)
+    assert creation.details == {"role": "user", "provider": "oidc:corp"}
+    assert change.details == {"from_role": "user", "to_role": "admin", "provider": "oidc:corp"}
+
+
+async def test_groups_are_not_stored_when_the_provider_opts_out(db_session: AsyncSession) -> None:
+    await provision_user(db_session, _identity(), ProvisioningPolicy(store_groups=False))
+
+    identity = await db_session.scalar(select(Identity))
+    assert identity is not None and identity.groups == []

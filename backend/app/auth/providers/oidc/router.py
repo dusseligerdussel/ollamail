@@ -8,6 +8,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth import redirect_flow, service
 from app.auth.dependencies import AdminSessionDep, SettingsDep
 from app.auth.models import AuthSession
@@ -182,6 +183,16 @@ async def _record(db: AsyncSession, name: str) -> OIDCProviderRecord | None:
     return await db.scalar(select(OIDCProviderRecord).where(OIDCProviderRecord.name == name))
 
 
+async def _config_changed(db: AsyncSession, admin_id: Any, record_id: Any, change: str) -> None:
+    await audit.record(
+        db,
+        audit.Actor.user(admin_id),
+        audit.AuditAction.IDP_CONFIG_CHANGED,
+        audit.Target.of(audit.TargetType.IDP, record_id),
+        details={"kind": "oidc", "change": change},
+    )
+
+
 def _not_found() -> ProblemError:
     return ProblemError(404, detail="OIDC provider not found.")
 
@@ -269,6 +280,7 @@ async def create_oidc_provider(
     except IntegrityError:
         await db.rollback()
         raise taken from None
+    await _config_changed(db, admin.user_id, record.id, "created")
     await db.commit()
     await db.refresh(record)
     log.info("oidc_provider_created", provider_name=record.name, by_user_id=admin.user_id)
@@ -318,6 +330,7 @@ async def update_oidc_provider(
     except ProblemError:
         await db.rollback()
         raise
+    await _config_changed(db, admin.user_id, record.id, "updated")
     await db.commit()
     await db.refresh(record)
     log.info("oidc_provider_updated", provider_name=name, by_user_id=admin.user_id)
@@ -342,6 +355,7 @@ async def delete_oidc_provider(
     record = await _record(db, name)
     if record is None:
         raise _not_found()
+    await _config_changed(db, admin.user_id, record.id, "deleted")
     await db.delete(record)
     await db.commit()
     log.info("oidc_provider_deleted", provider_name=name, by_user_id=admin.user_id)

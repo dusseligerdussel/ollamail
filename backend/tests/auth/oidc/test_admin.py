@@ -7,7 +7,9 @@ from httpx import AsyncClient
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import AuditAction
 from app.users.models import UserRole
+from tests.audit.conftest import audit_rows
 from tests.auth.conftest import login, make_local_user
 from tests.auth.oidc.conftest import PUBLIC_URL, OIDCTestApp
 from tests.auth.oidc.mock_idp import CLIENT_SECRET, ISSUER
@@ -173,3 +175,21 @@ async def test_presets_are_listed(oidc: OIDCTestApp, db_session: AsyncSession) -
     assert set(presets) == {"generic", "entra", "google", "keycloak", "authentik"}
     assert presets["entra"]["fields"] == ["allowed_tenants"]
     assert presets["google"]["groups_claim"] is None
+
+
+async def test_configuration_changes_are_audited(
+    oidc: OIDCTestApp, db_session: AsyncSession
+) -> None:
+    client = await _admin(oidc, db_session)
+    await client.post(BASE, json=_body())
+    await client.patch(f"{BASE}/corp", json={"display_name": "Corporate"})
+    await client.delete(f"{BASE}/corp")
+
+    rows = await audit_rows(db_session, AuditAction.IDP_CONFIG_CHANGED)
+
+    assert [r.details for r in rows] == [
+        {"kind": "oidc", "change": "created"},
+        {"kind": "oidc", "change": "updated"},
+        {"kind": "oidc", "change": "deleted"},
+    ]
+    assert len({r.target_id for r in rows}) == 1
