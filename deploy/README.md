@@ -56,7 +56,7 @@ veröffentlicht sie in der GitHub Container Registry:
 | `1.2.3`, `1.2`, `1` | Git-Tag `v1.2.3` (`1` erst ab Version 1.0) |
 | `latest` | Neuestes stabiles Release (nicht bei Pre-Releases wie `v1.0.0-rc.1`) |
 | `0.0.1-test` | Pre-Release-Tag `v0.0.1-test` (nur dieser Tag) |
-| `edge` | Aktueller Stand von `main` – ungetestet, nicht für den Produktivbetrieb |
+| `edge` | Nächtlicher Build von `main` (nur wenn sich etwas geändert hat) – ungetestet, nicht für den Produktivbetrieb |
 | `sha-<commit>` | Jeder Build, unveränderlich |
 
 Die Version wählt `OLLAMAIL_VERSION` in `deploy/.env` (Standard `latest`). Für reproduzierbare

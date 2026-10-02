@@ -38,35 +38,28 @@ jobs:
       - uses: dorny/paths-filter@ceb8a2b8f2d89434be7ff52d3de7ec3738c5cc9d # v4.0.3
         id: filter
         with:
+          # A file counts for a filter only if it matches every pattern of it: one brace
+          # list of paths plus exclusions. Markdown changes (READMEs) never start a job.
+          predicate-quantifier: every
           filters: |
             backend:
-              - 'backend/**'
-              - '.github/workflows/ci.yml'
+              - '{backend/**,.github/workflows/ci.yml}'
+              - '!**/*.md'
             frontend:
-              - 'frontend/**'
-              - '.github/workflows/ci.yml'
+              - '{frontend/**,.github/workflows/ci.yml}'
+              - '!**/*.md'
             # Any backend change can alter the OpenAPI schema; also the generated files and
             # the generator itself (its version is pinned by the lockfile).
             api-client:
-              - 'backend/**'
-              - 'frontend/src/api/**'
-              - 'frontend/package.json'
-              - 'frontend/pnpm-lock.yaml'
-              - 'frontend/.pnpmfile.cjs'
-              - '.github/workflows/ci.yml'
+              - '{backend/**,frontend/src/api/**,frontend/package.json,frontend/pnpm-lock.yaml,frontend/.pnpmfile.cjs,.github/workflows/ci.yml}'
+              - '!**/*.md'
             e2e:
-              - 'backend/**'
-              - 'frontend/**'
-              - '.github/workflows/ci.yml'
-            # Images and the Compose stack; the job also runs on every push to main.
+              - '{backend/**,frontend/**,.github/workflows/ci.yml}'
+              - '!**/*.md'
+            # Images and the Compose stack, including the dependencies baked into the images.
             compose:
-              - 'deploy/**'
-              - 'backend/Dockerfile'
-              - 'backend/.dockerignore'
-              - 'frontend/Dockerfile'
-              - 'frontend/.dockerignore'
-              - 'frontend/caddy/**'
-              - '.github/workflows/ci.yml'
+              - '{deploy/**,backend/Dockerfile,backend/.dockerignore,backend/pyproject.toml,backend/uv.lock,frontend/Dockerfile,frontend/.dockerignore,frontend/caddy/**,frontend/package.json,frontend/pnpm-lock.yaml,.github/workflows/ci.yml}'
+              - '!**/*.md'
 
   backend:
     name: Backend
@@ -375,13 +368,14 @@ jobs:
           retention-days: 7
 
   # Builds both images and starts deploy/compose.yaml as in production (no Ollama), then
-  # checks UI, API, migrations and worker. Runs on main, for changes to images or deploy/,
-  # and on PRs with the label `ci:compose`.
+  # checks UI, API, migrations and worker. Runs for changes to images, their dependencies or
+  # deploy/, and on PRs with the label `ci:compose`. A full image build costs several runner
+  # minutes, so it no longer runs on every push to main.
   compose:
     name: Compose smoke test
     needs: changes
     if: >-
-      needs.changes.outputs.compose == 'true' || github.event_name == 'push' ||
+      needs.changes.outputs.compose == 'true' ||
       contains(github.event.pull_request.labels.*.name, 'ci:compose')
     runs-on: ubuntu-latest
     timeout-minutes: 30
