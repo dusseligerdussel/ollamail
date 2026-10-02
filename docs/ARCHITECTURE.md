@@ -84,7 +84,7 @@ class MailProvider(Protocol):  # app/mail/providers/base.py
     capabilities: ProviderCapabilities  # labels, push, server_threads, keywords
     async def list_folders(self) -> list[RemoteFolder]: ...
     def fetch_since(self, folder_id: str, cursor: SyncCursor | None, *, since: datetime | None = None
-                    ) -> AsyncIterator[SyncEvent]: ...  # MessageFetched | MessageUpdated | MessageDeleted | CursorAdvanced
+                    ) -> AsyncIterator[SyncEvent]: ...  # MessageFetched | MessageUpdated | MessageChanged | MessageDeleted | CursorAdvanced
     def watch(self, folder_id: str | None = None) -> AsyncIterator[ChangeEvent]: ...  # IMAP IDLE / Graph Webhooks / Gmail Push
     async def move(self, remote_ref: str, target_folder_id: str) -> str: ...  # neue Referenz (IMAP-UIDs ändern sich)
     async def set_flags(self, remote_ref: str, flags: frozenset[str]) -> None: ...
@@ -124,7 +124,7 @@ für Shared Mailboxes folgt mit #34.
 | Provider | Phase | Auth | Sync | Hinweise |
 |---|---|---|---|---|
 | IMAP/SMTP | MVP | Passwort/App-Passwort, XOAUTH2 vorbereitet | UIDVALIDITY/UID + `IDLE`, CONDSTORE/QRESYNC falls verfügbar | Funktioniert mit jedem Server |
-| Microsoft 365 | v1 | OAuth2 (Entra ID App, delegiert oder App-only mit Admin-Consent) | Graph Delta Query + Change Notifications | Shared Mailboxes über App-Permissions + `ApplicationAccessPolicy` |
+| Microsoft 365 | v1 (#37) | OAuth2 (Entra ID App, delegiert oder App-only mit Admin-Consent) | Graph Delta Query, Polling; Change Notifications optional | Shared Mailboxes über App-Permissions + RBAC for Applications / `ApplicationAccessPolicy` |
 | Gmail / Google Workspace | v1 | OAuth2, Workspace: Domain-wide Delegation | `history.list` + Pub/Sub Push (optional Polling) | Labels statt Ordner |
 
 Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`;
@@ -164,13 +164,38 @@ Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto
   wenn der Ordner keine Keywords erlaubt (`PERMANENTFLAGS` ohne `\*`), als Kopie in einen Ordner
   mit dem Label-Namen.
 
+#### Microsoft-365-Provider (`backend/app/mail/providers/graph*.py`)
+
+Design, App-Registrierung, Berechtigungsmodelle und Testanleitung:
+[`docs/providers/microsoft365.md`](providers/microsoft365.md). Kurzfassung:
+
+- **Auth** (`graph_auth.py`): delegiert per Authorization Code + PKCE (Connect-Flow in
+  `graph_router.py`: `POST /api/mail/graph/connect`, `GET /api/mail/graph/callback`) oder
+  App-only per Client Credentials für Shared Mailboxes. Entra-App aus `OLLAMAIL_MAIL_GRAPH_*`.
+  Tokens werden automatisch erneuert; rotierte Refresh-Tokens speichert der Provider sofort über
+  `MailboxConfig.save_credentials`.
+- **Client** (`graph_client.py`): unveränderliche IDs (`Prefer: IdType="ImmutableId"`),
+  Drosselung mit `Retry-After`, JSON-`$batch`, Fehler nur als Codes.
+- **Sync** (`graph.py`): Ordner rekursiv mit Rollen aus Well-known-Namen; Delta Query pro Ordner
+  (Cursor = `nextLink`/`deltaLink`), Initialimport mit MIME per `$batch`, danach
+  `MessageChanged`; `@removed` wird per `GET` als Verschieben oder Löschen erkannt.
+  Kategorien sind Keywords/Labels.
+- **Push:** Standard ist Polling. Mit `OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL` hält `watch()` eine
+  Subscription aktiv; `POST /api/mail/graph/notifications` (CSRF-frei, `clientState` per HMAC)
+  stößt nur `request_sync` an.
+
 #### Sync (`backend/app/mail/sync/`)
 
 - **`engine.sync_mailbox`** (providerunabhängig): Ordnerliste spiegeln (neue Ordner, auf dem
   Server gelöschte Ordner samt Mails löschen; Ordner mit ausgeschlossener Rolle aus
   `SyncSettings.excluded_roles` – Standard Papierkorb und Spam – werden angelegt, aber nicht
   synchronisiert), dann je Ordner (INBOX zuerst) `fetch_since` anwenden: `MessageFetched` →
-  `store_message`, `MessageUpdated` → Flags, `MessageDeleted` → `delete_messages`. Bei jedem
+  `store_message`, `MessageUpdated` → Flags/Ordner, `MessageDeleted` → `delete_messages`,
+  `MessageChanged` (Provider kann neu/geändert nicht unterscheiden, z. B. Graph Delta) → bekannt:
+  wie `MessageUpdated`, unbekannt: Quelle über `event.load()` laden und speichern. Liegt eine Mail
+  in keinem synchronisierten Ordner mehr (z. B. in den Papierkorb verschoben), wird sie gelöscht.
+  Provider können erneuerte Zugangsdaten über `MailboxConfig.save_credentials` speichern (eigene
+  Transaktion, unabhängig vom Sync-Commit). Bei jedem
   `CursorAdvanced` werden Mails, Änderungen und Cursor **in einer Transaktion** committet.
   Ungültiger Cursor → Mails des Ordners löschen und neu importieren.
 - **Status:** `SyncState.last_error` (nur Fehlercodes) und `last_synced_at` je Ordner; Fehler, die
