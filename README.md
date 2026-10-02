@@ -36,7 +36,8 @@ docker compose -f deploy/compose.yaml exec api python -m app.cli setup-token
 ```
 
 Dann <http://localhost:8080> öffnen, mit dem Setup-Code den ersten Admin anlegen und unter
-Einstellungen → Postfächer ein Postfach verbinden. Für den Zugriff über das Netz TLS davorsetzen
+Einstellungen → Postfächer ein Postfach verbinden. Die UI ist standardmäßig nur auf dem Host
+selbst erreichbar (`OLLAMAIL_HTTP_BIND=127.0.0.1`). Für den Zugriff über das Netz TLS davorsetzen
 (Sitzungs-Cookies sind `Secure`). Alles Weitere – fertige Images, Reverse Proxy, Backup,
 Updates, Fehlersuche – steht in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 

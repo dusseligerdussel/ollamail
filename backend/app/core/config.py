@@ -8,9 +8,11 @@ New modules add their settings here additively (new group or new fields) and doc
 them in ``deploy/.env.example``.
 """
 
+import ipaddress
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
+from urllib.parse import unquote, urlsplit
 
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -20,10 +22,17 @@ ENV_PREFIX = "OLLAMAIL_"
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 # Job queues, see app/worker.py.
 QueueName = Literal["sync", "llm", "tts", "ocr", "default"]
+# Placeholder password of earlier versions of deploy/.env.example; refused at start-up.
+PLACEHOLDER_DATABASE_PASSWORD = "change-me"
+# Minimum length of a configured OLLAMAIL_SETUP_TOKEN (`openssl rand -hex 16` gives 32).
+SETUP_TOKEN_MIN_LENGTH = 32
 
 
-def _config(group: str = "") -> SettingsConfigDict:
-    return SettingsConfigDict(env_prefix=f"{ENV_PREFIX}{group}", extra="ignore")
+def _config(group: str = "", *, secret: bool = False) -> SettingsConfigDict:
+    # ``secret``: validation errors must not echo the value (it may hold a password).
+    return SettingsConfigDict(
+        env_prefix=f"{ENV_PREFIX}{group}", extra="ignore", hide_input_in_errors=secret
+    )
 
 
 class LoggingSettings(BaseSettings):
@@ -44,7 +53,7 @@ class LoggingSettings(BaseSettings):
 class DatabaseSettings(BaseSettings):
     """``OLLAMAIL_DATABASE_*``"""
 
-    model_config = _config("DATABASE_")
+    model_config = _config("DATABASE_", secret=True)
 
     url: SecretStr = SecretStr("postgresql+asyncpg://ollamail:ollamail@localhost:5432/ollamail")
     pool_size: int = Field(default=5, ge=1)
@@ -59,11 +68,22 @@ class DatabaseSettings(BaseSettings):
             raise ValueError("must use the 'postgresql+asyncpg://' scheme")
         return value
 
+    @field_validator("url")
+    @classmethod
+    def _refuse_placeholder_password(cls, value: SecretStr) -> SecretStr:
+        password = urlsplit(value.get_secret_value()).password
+        if password is not None and unquote(password) == PLACEHOLDER_DATABASE_PASSWORD:
+            raise ValueError(
+                f"uses the placeholder password '{PLACEHOLDER_DATABASE_PASSWORD}'; "
+                "set a random POSTGRES_PASSWORD (see docs/OPERATIONS.md)"
+            )
+        return value
+
 
 class SecuritySettings(BaseSettings):
     """``OLLAMAIL_*`` (security)"""
 
-    model_config = _config()
+    model_config = _config(secret=True)
 
     # Master key for encrypting stored secrets (see docs/PRIVACY.md and app/core/crypto.py):
     # base64 of at least 32 random bytes. The app refuses to start without a valid key.
@@ -72,7 +92,8 @@ class SecuritySettings(BaseSettings):
     # `python -m app.cli rotate-keys` has re-encrypted everything with ``secret_key``.
     secret_keys_old: Annotated[list[SecretStr], NoDecode] = Field(default_factory=list)
     # Token required by ``POST /api/setup`` to create the first admin. If unset, one is
-    # derived from ``secret_key`` and logged at start-up while no user exists.
+    # derived from ``secret_key`` and logged at start-up while no user exists. A configured
+    # token needs at least ``SETUP_TOKEN_MIN_LENGTH`` characters.
     setup_token: SecretStr | None = None
 
     @field_validator("setup_token", mode="before")
@@ -81,6 +102,16 @@ class SecuritySettings(BaseSettings):
         # deploy/.env.example ships `OLLAMAIL_SETUP_TOKEN=`: empty means "derive one".
         if isinstance(value, str) and not value.strip():
             return None
+        return value
+
+    @field_validator("setup_token")
+    @classmethod
+    def _long_enough(cls, value: SecretStr | None) -> SecretStr | None:
+        if value is not None and len(value.get_secret_value().strip()) < SETUP_TOKEN_MIN_LENGTH:
+            raise ValueError(
+                f"must be at least {SETUP_TOKEN_MIN_LENGTH} characters "
+                "(e.g. `openssl rand -hex 16`), or empty to derive one"
+            )
         return value
 
     @field_validator("secret_keys_old", mode="before")
@@ -219,6 +250,35 @@ class MailSettings(BaseSettings):
     sync_batch_size: int = Field(default=50, ge=1, le=1000)
     # Keep one push connection (IMAP IDLE) per mailbox in the worker; otherwise poll only.
     watch_enabled: bool = True
+    # Mail servers (IMAP/SMTP) users may reach on internal addresses (loopback, RFC 1918,
+    # link-local, ULA, ...), comma-separated: host names (any address they resolve to) or
+    # IP addresses/CIDR ranges. Empty: only public addresses (app/mail/providers/network.py).
+    allowed_internal_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
+    # Connection tests (test, add, change connection) per user within 10 minutes.
+    connection_test_max_attempts: int = Field(default=20, ge=1)
+
+    @field_validator("allowed_internal_hosts", mode="before")
+    @classmethod
+    def _split_hosts(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
+
+    @field_validator("allowed_internal_hosts")
+    @classmethod
+    def _check_hosts(cls, value: list[str]) -> list[str]:
+        entries = []
+        for entry in value:
+            entry = entry.strip().rstrip(".").lower()
+            try:
+                ipaddress.ip_network(entry, strict=False)
+            except ValueError:
+                if not entry or "/" in entry or any(c.isspace() for c in entry):
+                    raise ValueError(
+                        f"not a host name, IP address or CIDR range: {entry!r}"
+                    ) from None
+            entries.append(entry)
+        return entries
 
 
 class GraphSettings(BaseSettings):

@@ -76,6 +76,12 @@ config:
   # OLLAMAIL_LLM_PROVIDER: openai_compatible
   # OLLAMAIL_LLM_BASE_URL: http://vllm.llm.svc.cluster.local:8000/v1
   # OLLAMAIL_LLM_PROFILE: cpu
+  # Mail servers (IMAP/SMTP) on internal addresses users may connect to: host names or
+  # CIDR ranges, comma-separated, e.g. an IMAP server in the cluster or LAN. Default: public
+  # addresses only (no cluster services, no private networks, no metadata endpoint).
+  # OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS: "imap.mail.svc.cluster.local,10.20.0.0/16"
+  # Connection tests per user within 10 minutes (default 20).
+  # OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS: "20"
 
 # Additional environment variables (EnvVar objects) for api, worker and the migration job.
 extraEnv: []
