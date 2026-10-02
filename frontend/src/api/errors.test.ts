@@ -3,7 +3,7 @@ import { beforeAll, describe, expect, it } from "vitest";
 
 import "@/i18n";
 
-import { ApiError, describeApiError, isProblemDetails } from "./errors";
+import { ApiError, describeApiError, isCsrfError, isProblemDetails } from "./errors";
 
 beforeAll(async () => {
   await i18n.changeLanguage("en");
@@ -56,5 +56,14 @@ describe("isProblemDetails", () => {
     expect(isProblemDetails("Bad gateway")).toBe(false);
     expect(isProblemDetails(null)).toBe(false);
     expect(isProblemDetails({ foo: 1 })).toBe(false);
+  });
+});
+
+describe("isCsrfError", () => {
+  it("recognises the backend's CSRF rejection only", () => {
+    expect(isCsrfError(new ApiError(403, { status: 403, error_code: "csrf_failed" }))).toBe(true);
+    expect(isCsrfError(new ApiError(403, { status: 403, detail: "invalid" }))).toBe(false);
+    expect(isCsrfError(new ApiError(401, { status: 401, error_code: "csrf_failed" }))).toBe(false);
+    expect(isCsrfError(new Error("csrf_failed"))).toBe(false);
   });
 });

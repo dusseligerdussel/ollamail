@@ -149,7 +149,8 @@ Beide schalten eine abgeschaltete lokale Anmeldung wieder ein ([`auth/admin.md`]
 
 **Cookies nur über HTTPS:** Sitzungs-Cookies sind `Secure`. Browser speichern sie über
 `http://<ip>:8080` nicht (Ausnahme `http://localhost`); die Anmeldung schlägt dann fehl. Also TLS
-davorsetzen oder – nur für Testinstallationen – `OLLAMAIL_AUTH_COOKIE_SECURE=false`.
+davorsetzen oder – nur für Testinstallationen – `OLLAMAIL_AUTH_COOKIE_SECURE=false`,
+siehe [2.6](#26-http-ohne-tls-testbetrieb).
 
 Für den Betrieb im Netz unbedingt TLS davorsetzen: [Abschnitt 4](#4-reverse-proxy-und-tls).
 
@@ -161,6 +162,27 @@ docker compose -f deploy/compose.yaml down      # Container stoppen, Daten bleib
 
 `down -v` löscht zusätzlich **alle Volumes inklusive Datenbank**. Nur verwenden, wenn die Daten
 wirklich weg sollen.
+
+### 2.6 HTTP ohne TLS (Testbetrieb)
+
+Sitzungs- und CSRF-Cookie sind standardmäßig `Secure` (`OLLAMAIL_AUTH_COOKIE_SECURE=true`).
+Über `http://<ip>:8080` oder einen anderen Hostnamen als `localhost` speichern Browser sie nicht.
+Jede Anfrage, die etwas ändert, lehnt die API dann mit `403` und `error_code: "csrf_failed"` ab:
+Setup und Anmeldung schlagen fehl. Setup- und Anmeldeseite zeigen in diesem Fall den Hinweis
+„Unverschlüsselte Verbindung (HTTP)“ bzw. „Der Browser hat das Sicherheits-Cookie nicht gesendet“.
+
+Lösung, in dieser Reihenfolge:
+
+1. **HTTPS einrichten** – Reverse Proxy mit TLS vor ollamail, siehe [Abschnitt 4](#4-reverse-proxy-und-tls).
+   Das ist auch im Heimnetz der empfohlene Weg.
+2. **Nur zum Ausprobieren** im eigenen, vertrauenswürdigen Netz: in `deploy/.env`
+   `OLLAMAIL_AUTH_COOKIE_SECURE=false` setzen und `docker compose -f deploy/compose.yaml up -d`
+   ausführen.
+
+Risiken von `OLLAMAIL_AUTH_COOKIE_SECURE=false`: Passwörter, Sitzungs-Cookies und alle Mail-Inhalte
+gehen unverschlüsselt durchs Netz. Wer den Verkehr mitlesen kann (geteiltes WLAN, kompromittiertes
+Gerät im Netz), kann Sitzungen übernehmen. Für den regulären Betrieb und für jede Erreichbarkeit
+aus dem Internet nicht geeignet; nach dem Test wieder auf `true` setzen.
 
 ## 3. Hardware-Profile und LLM
 
@@ -885,6 +907,7 @@ curl http://localhost:8080/api/readyz
 | `/api/readyz` liefert `503` mit `"database":"failed"` | Datenbank nicht erreichbar. `logs postgres` und `OLLAMAIL_DATABASE_URL` prüfen (Sonderzeichen im Passwort URL-kodieren). |
 | `migrate` zeigt `Exited (0)` | Normal: einmaliger Migrationslauf. |
 | `error from registry: unauthorized` / `pull access denied` für `ghcr.io/dusseligerdussel/ollamail-*` | Kein Zugriff auf die GHCR-Images oder es gibt noch kein Release für `OLLAMAIL_VERSION` (`latest` erst ab dem ersten Release). Lokal bauen ([2.3](#23-starten), Weg A) oder `docker login ghcr.io` ([`deploy/README.md`](../deploy/README.md#zugriff-auf-die-images)). |
+| Setup meldet einen falschen Code oder die Anmeldung schlägt über `http://<ip>:8080` fehl, Hinweis „Unverschlüsselte Verbindung“; API antwortet `403` mit `csrf_failed` | Browser verwerfen die `Secure`-Cookies über HTTP. HTTPS einrichten oder nur zum Testen `OLLAMAIL_AUTH_COOKIE_SECURE=false`, siehe [2.6](#26-http-ohne-tls-testbetrieb). |
 | `setup_pending` im Log ohne `setup_code` | `OLLAMAIL_SETUP_TOKEN` ist gesetzt; diesen Wert im Setup-Assistenten eingeben. |
 | `worker` startet ständig neu | `docker compose -f deploy/compose.yaml logs worker`; häufig ein ungültiger Wert in `OLLAMAIL_WORKER_QUEUES`. |
 | `toomanyrequests` / `429 Too Many Requests` beim Build oder Pull | Rate-Limit von Docker Hub. Mit `docker login` anmelden oder später erneut versuchen. |

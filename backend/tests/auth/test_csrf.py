@@ -5,7 +5,13 @@ from fastapi import FastAPI
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.csrf import CSRF_COOKIE, CSRF_HEADER, csrf_token_valid, issue_csrf_token
+from app.auth.csrf import (
+    CSRF_COOKIE,
+    CSRF_ERROR_CODE,
+    CSRF_HEADER,
+    csrf_token_valid,
+    issue_csrf_token,
+)
 from app.core.config import Settings
 from app.core.db import get_db
 from app.main import create_app
@@ -79,7 +85,16 @@ async def test_post_without_token_is_rejected(plain: AsyncClient) -> None:
 
     assert response.status_code == 403
     assert response.json()["detail"] == "CSRF token missing or invalid."
+    assert response.json()["error_code"] == CSRF_ERROR_CODE
     assert response.json()["request_id"] == response.headers["x-request-id"]
+
+
+async def test_post_without_cookie_is_rejected_with_csrf_code(plain: AsyncClient) -> None:
+    """What a browser on plain http:// sends: the Secure cookie was dropped (#142)."""
+    response = await plain.post("/setup", json={}, headers={CSRF_HEADER: "anything"})
+
+    assert response.status_code == 403
+    assert response.json()["error_code"] == CSRF_ERROR_CODE
 
 
 async def test_post_with_matching_token_passes(plain: AsyncClient) -> None:
@@ -125,6 +140,7 @@ async def test_cross_site_requests_are_rejected(plain: AsyncClient) -> None:
     )
 
     assert response.status_code == 403
+    assert response.json()["error_code"] == CSRF_ERROR_CODE
 
 
 async def test_login_rotates_the_token(plain: AsyncClient, db_session: AsyncSession) -> None:

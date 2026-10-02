@@ -1156,7 +1156,9 @@ Anfrage außer `GET`/`HEAD`/`OPTIONS`/`TRACE` muss den Wert des Cookies `ollamai
 `X-CSRF-Token` senden. Der Token ist `<nonce>.<HMAC(nonce, Session-Cookie)>`: an die Session
 gebunden, bei Login/Logout neu ausgestellt und von einer Subdomain aus nicht fälschbar. Fehlt das
 Cookie oder passt es nicht zur Session, setzt jede Antwort ein neues. `Sec-Fetch-Site: cross-site`
-wird zusätzlich abgewiesen.
+wird zusätzlich abgewiesen. Abgewiesene Anfragen bekommen `403` mit `error_code: "csrf_failed"`;
+Setup- und Anmeldeseite erklären damit den häufigsten Fall, ein über `http://` verworfenes
+`Secure`-Cookie ([`OPERATIONS.md` 2.6](OPERATIONS.md#26-http-ohne-tls-testbetrieb)).
 
 **Dependencies:** `get_current_session` (401), `require_admin` (403), `get_current_user` (ORM-Objekt)
 in `app/auth/dependencies.py`; `get_current_user_id` in `app/core/current_user.py`. Die DB-Session
