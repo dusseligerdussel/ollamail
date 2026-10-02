@@ -18,6 +18,7 @@ from app.todos.schemas import TodoCreate, TodoUpdate
 class TodoFilter:
     status: Sequence[TodoStatus] = ()
     mailbox_id: uuid.UUID | None = None
+    message_id: uuid.UUID | None = None
     # Inclusive bounds on the due date; todos without one are left out if either is set.
     due_before: date | None = None
     due_after: date | None = None
@@ -37,6 +38,8 @@ async def list_todos(
         query = query.where(Todo.status.in_(filters.status))
     if filters.mailbox_id is not None:
         query = query.where(Todo.mailbox_id == filters.mailbox_id)
+    if filters.message_id is not None:
+        query = query.where(Todo.message_id == filters.message_id)
     if filters.due_before is not None:
         query = query.where(Todo.due_date <= filters.due_before)
     if filters.due_after is not None:

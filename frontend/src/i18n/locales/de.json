@@ -84,9 +84,8 @@
     },
     "tasks": {
       "emptyTitle": "Keine Aufgaben",
-      "emptyDescription": "Aufgaben aus deinen Nachrichten werden hier aufgelistet.",
-      "emptyAction": "Zum Posteingang",
-      "noSelection": "Keine Aufgabe ausgewählt"
+      "emptyDescription": "Aufgaben aus deinen Mails erscheinen hier. Eigene legst du im Feld oben an.",
+      "emptyAction": "Zum Posteingang"
     },
     "digest": {
       "emptyTitle": "Noch kein Digest",
@@ -800,6 +799,48 @@
   "rootError": {
     "title": "ollamail konnte nicht geladen werden",
     "retry": "Erneut versuchen"
+  },
+  "tasks": {
+    "fromMail": "Aufgaben aus dieser Mail",
+    "addFromMail": "Aufgabe zu dieser Mail anlegen",
+    "showAll": "Alle Aufgaben",
+    "newTask": "Neue Aufgabe",
+    "newTaskPlaceholder": "Neue Aufgabe",
+    "title": "Titel",
+    "rename": "Titel bearbeiten",
+    "complete": "Als erledigt markieren",
+    "reopen": "Wieder öffnen",
+    "completeTask": "„{{title}}“ als erledigt markieren",
+    "reopenTask": "„{{title}}“ wieder öffnen",
+    "dismiss": "Verwerfen",
+    "dismissTask": "„{{title}}“ verwerfen",
+    "dismissed": "Aufgabe verworfen",
+    "undo": "Rückgängig",
+    "openMailShort": "Mail öffnen",
+    "openMail": "Mail zu „{{title}}“ öffnen",
+    "dueDate": "Fälligkeitsdatum",
+    "dueOn": "Fällig {{date}}",
+    "setDate": "Fälligkeitsdatum setzen",
+    "changeDate": "Fälligkeitsdatum ändern",
+    "date": {
+      "today": "Heute",
+      "tomorrow": "Morgen",
+      "nextWeek": "Nächste Woche",
+      "none": "Kein Datum",
+      "apply": "Setzen"
+    },
+    "groups": {
+      "overdue": "Überfällig",
+      "today": "Heute",
+      "upcoming": "Demnächst",
+      "someday": "Ohne Datum",
+      "done": "Erledigt"
+    },
+    "shortcuts": {
+      "new": "Neue Aufgabe",
+      "toggleDone": "Aufgabe erledigen oder wieder öffnen",
+      "date": "Fälligkeitsdatum ändern"
+    }
   },
   "mail": {
     "listLabel": "Nachrichten",
