@@ -234,7 +234,7 @@ function MailboxRow({
             {mailbox.sync_enabled ? t("mailboxes.pause") : t("mailboxes.resume")}
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem variant="destructive" onSelect={onRemove}>
+          <DropdownMenuItem onSelect={onRemove}>
             <Trash2 />
             {t("mailboxes.remove")}
           </DropdownMenuItem>

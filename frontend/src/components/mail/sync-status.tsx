@@ -23,7 +23,7 @@ function relative(value: string, locale: string, now = Date.now()) {
   for (const [unit, size] of steps) {
     if (Math.abs(seconds) >= size) return format.format(Math.round(seconds / size), unit);
   }
-  return format.format(0, "minute");
+  return format.format(0, "second");
 }
 
 /** One line: a status dot and what the sync is doing. Updated live through server events. */

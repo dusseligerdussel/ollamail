@@ -233,6 +233,7 @@ und `delete_mailbox`; sie baut nichts davon nach.
 | `GET /mailboxes/{id}/status` | Nur der Sync-Status |
 | `POST /mailboxes/{id}/sync` | Sync sofort anstoßen (202, `queued`); 409, wenn pausiert |
 | `GET/PATCH /mailboxes/{id}/folders` | Ordner mit Auswahl und Status je Ordner; Auswahl setzen |
+| `GET /mailboxes/providers` | Postfachtypen, die sich auf dieser Instanz anlegen lassen: `credentials` (Formular, z. B. IMAP) oder `oauth` mit `oauth_start_path`. OAuth-Typen erscheinen nur, wenn der Provider registriert und sein OAuth-Client konfiguriert ist (`app/mail/api/providers.py`, ein Eintrag je Provider) |
 
 - **Zugriff:** ausschließlich über `app/mail/api/access.py` (`get_mailbox`, `visible_to`,
   Berechtigungen `read`/`sync`/`manage`). Heute nur der Besitzer; #34 erweitert diese Funktionen
@@ -257,6 +258,29 @@ und `delete_mailbox`; sie baut nichts davon nach.
   (der Start der API hängt nicht an der Queue) und schließt sie beim Shutdown.
 - **Audit:** `mailbox.created` und `mailbox.deleted` (über `delete_mailbox`) mit dem Nutzer als
   Akteur, in derselben Transaktion wie die Änderung.
+
+#### Mail-Lese-API (`backend/app/mail/api/messages.py`)
+
+Grundlage der Inbox (#16). Zugriff wie bei der Postfach-API über `access.visible_to`: Mails fremder
+Postfächer antworten 404.
+
+| Endpunkt | Zweck |
+|---|---|
+| `GET /messages` | Eine Zeile je Mail, neueste zuerst, Keyset-Paging (`cursor`, `limit` ≤ 200), `total` für die virtualisierte Liste. Filter: `mailbox_id`, `folder_id` (ohne: Ordner mit Rolle `inbox`), `unread`. Ohne Bodies; nur ein Snippet aus `body_main` |
+| `GET /messages/{id}/thread` | Konversation der Mail, älteste zuerst (höchstens die neuesten 100), mit Empfängern, Text, sanitisiertem HTML (`body.html`, `body.blocked_images`) und Anhängen |
+| `GET /messages/{id}/body?external_images=true` | HTML mit externen Bildern – erst, wenn der Nutzer sie für diese Mail anfordert |
+| `PATCH /messages/{id}` | `{"seen": bool}`: gelesen/ungelesen. Sofort gespeichert, Event `message.updated`, Job `mail.write_flags` schreibt die Flags auf den Server |
+| `GET /messages/{id}/attachments/{attachment_id}` | Download (`Content-Disposition: attachment`, `application/octet-stream`, `nosniff`, CSP `sandbox`). `?inline=true` nur für PNG/JPEG/GIF/WebP (`cid:`-Bilder im HTML) |
+
+- **HTML:** immer serverseitig mit `sanitize_html` bereinigt; das Roh-HTML verlässt den Server nie.
+  `cid:`-Bilder zeigen auf `/api/messages/{id}/attachments/{aid}?inline=true`.
+- **Gelesen/ungelesen:** Quelle ist der gespeicherte Flag-Satz. `mail.write_flags` (Queue `sync`,
+  Lock je Mail) schreibt beim Ausführen den aktuellen Stand per `MailProvider.set_flags`; dauerhafte
+  Fehler (Mail weg, nur Lesezugriff, Anmeldung) werden als Code geloggt und verworfen,
+  Verbindungsfehler wiederholt.
+- **Anzeige im Frontend:** sandboxed `iframe` (`srcdoc`, ohne `allow-scripts`) mit eigener CSP
+  (`default-src 'none'`, Bilder nur `'self'`/`data:` bis zum Klick auf „Bilder laden“), siehe
+  `frontend/README.md`.
 
 ### 3.2 LLM-Provider
 
