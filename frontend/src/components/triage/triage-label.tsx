@@ -1,15 +1,43 @@
-import { createContext, type ReactNode, useContext } from "react";
+import { useQuery } from "@tanstack/react-query";
+import type { TFunction } from "i18next";
+import { createContext, type ReactNode, useContext, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
+import { type Category, triageQueryOptions } from "@/api/triage";
 import { cn } from "@/lib/utils";
 
-import { useCategoryName, useMessageTriage } from "./use-triage";
+import { useCategories, useCategoryName } from "./use-triage";
 
-const LabelsHidden = createContext(false);
+/** What all labels of a list share, loaded once instead of in every row (#111). */
+interface LabelContext {
+  hidden: boolean;
+  categories: Map<string, Category>;
+  categoryName: (category: Category) => string;
+  t: TFunction;
+}
 
-/** Hides the labels below, e.g. in the inbox grouped by category, where they repeat the group. */
+const LabelContext = createContext<LabelContext | null>(null);
+
+function useLabelContext(hidden: boolean): LabelContext {
+  const { t } = useTranslation();
+  const categoryName = useCategoryName();
+  const { data } = useCategories();
+  const categories = useMemo(
+    () => new Map((data ?? []).map((category) => [category.id, category])),
+    [data],
+  );
+  return useMemo(
+    () => ({ hidden, categories, categoryName, t }),
+    [hidden, categories, categoryName, t],
+  );
+}
+
+/**
+ * Wraps a list with labels: shares the categories with them and hides them if `hidden`, e.g. in
+ * the inbox grouped by category, where they repeat the group.
+ */
 export function HideTriageLabels({ hidden, children }: { hidden: boolean; children: ReactNode }) {
-  return <LabelsHidden value={hidden}>{children}</LabelsHidden>;
+  return <LabelContext value={useLabelContext(hidden)}>{children}</LabelContext>;
 }
 
 /**
@@ -17,15 +45,24 @@ export function HideTriageLabels({ hidden, children }: { hidden: boolean; childr
  * triaged yet or its category is hidden; high priority is set slightly stronger.
  */
 export function TriageLabel({ messageId }: { messageId: string }) {
-  const hidden = useContext(LabelsHidden);
-  if (hidden) return null;
-  return <Label messageId={messageId} />;
+  const shared = useContext(LabelContext);
+  if (shared?.hidden) return null;
+  return shared ? (
+    <Label messageId={messageId} context={shared} />
+  ) : (
+    <StandaloneLabel messageId={messageId} />
+  );
 }
 
-function Label({ messageId }: { messageId: string }) {
-  const { t } = useTranslation();
-  const categoryName = useCategoryName();
-  const { triage, category } = useMessageTriage(messageId);
+/** Outside of `HideTriageLabels`, a label loads the categories itself. */
+function StandaloneLabel({ messageId }: { messageId: string }) {
+  return <Label messageId={messageId} context={useLabelContext(false)} />;
+}
+
+function Label({ messageId, context }: { messageId: string; context: LabelContext }) {
+  const { t, categories, categoryName } = context;
+  const { data: triage } = useQuery(triageQueryOptions(messageId));
+  const category = triage?.category_id ? categories.get(triage.category_id) : undefined;
   if (!triage || !category || category.hidden) return null;
   const name = categoryName(category);
   const high = triage.priority === 1;

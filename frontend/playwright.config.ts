@@ -33,7 +33,7 @@ export default defineConfig({
       dependencies: ["setup"],
       use: chromium,
     },
-    // Frame-time measurements are only meaningful without parallel tests competing for the CPU.
+    // Main-thread measurements are only meaningful without parallel tests competing for the CPU.
     { name: "perf", grep: /@perf/, dependencies: ["chromium"], use: chromium },
   ],
   webServer: {

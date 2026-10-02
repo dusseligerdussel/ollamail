@@ -280,8 +280,6 @@ jobs:
       E2E_API: "1"
       E2E_IMAP: "1"
       E2E_PREVIEW: "1"
-      # Frame-time budget of the @perf scroll test; runners render without a GPU (p95 ~130 ms).
-      E2E_FRAME_BUDGET_MS: "200"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

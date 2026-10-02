@@ -15,6 +15,8 @@ export interface MockMail {
   delay?: number;
   /** Requests never answer (skeletons stay visible). */
   hang?: boolean;
+  /** Mock triage (#21) too: built-in categories and a label on every message. */
+  triage?: boolean;
 }
 
 export const NOW = new Date("2026-10-02T09:30:00Z");
@@ -249,6 +251,37 @@ function folderList() {
   }));
 }
 
+const categoryKeys = ["action_required", "info", "newsletter", "notification"] as const;
+
+function categoryId(index: number) {
+  return `0192e000-0000-7000-8000-${index.toString(16).padStart(12, "0")}`;
+}
+
+const categories = categoryKeys.map((key, index) => ({
+  id: categoryId(index),
+  name: key,
+  description: null,
+  builtin_key: key,
+  scope: "user",
+  hidden: false,
+  position: index,
+}));
+
+function triageResult(id: string) {
+  const index = Number.parseInt(id.split("-").at(-1) ?? "0", 16);
+  return {
+    message_id: id,
+    category_id: categoryId(index % categoryKeys.length),
+    priority: index % 5 === 0 ? 1 : 2,
+    reason: "Synthetic test reason.",
+    rule: null,
+    source: "llm",
+    model: "test",
+    prompt_version: 1,
+    updated_at: NOW.toISOString(),
+  };
+}
+
 function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, json: body });
 }
@@ -261,11 +294,23 @@ export async function mockMail(
     oauth = [],
     delay = 0,
     hang = false,
+    triage = false,
   }: MockMail = {},
 ) {
   const read = new Set<string>();
   const unread = new Set<string>();
   const wait = () => (delay ? new Promise((resolve) => setTimeout(resolve, delay)) : undefined);
+
+  if (triage) {
+    await page.route(
+      (url) => url.pathname === "/api/triage/categories" || url.pathname === "/api/triage/messages",
+      (route) => {
+        const url = new URL(route.request().url());
+        if (url.pathname === "/api/triage/categories") return json(route, categories);
+        return json(route, url.searchParams.getAll("ids").map(triageResult));
+      },
+    );
+  }
 
   await page.route(
     (url) => url.pathname.startsWith("/api/mailboxes") || url.pathname.startsWith("/api/messages"),
