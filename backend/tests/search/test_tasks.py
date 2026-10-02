@@ -2,11 +2,10 @@
 embedder. All data is synthetic."""
 
 import uuid
-from collections.abc import AsyncIterator, Iterator
 from pathlib import Path
 
 import pytest
-from sqlalchemy import func, select, text
+from sqlalchemy import func, select
 from typer.testing import CliRunner
 
 from app.ai.llm import EnvConfigResolver, LLMGateway, LLMTask
@@ -55,27 +54,6 @@ async def test_gateway_embedder_batches_and_overrides_the_model() -> None:
         ("embed-old", "embeddings")
     ]
     assert (await gateway.assignment(LLMTask.EMBEDDINGS)).model == "embed-new"
-
-
-@pytest.fixture
-def fake_embedder() -> Iterator[FakeEmbedder]:
-    embedder = FakeEmbedder()
-    with tasks.use_embedder(embedder):
-        yield embedder
-
-
-@pytest.fixture
-async def indexed(pipeline: Pipeline, tmp_path: Path) -> AsyncIterator[Pipeline]:
-    """The pipeline with a clean index state (jobs commit, so it is reset afterwards)."""
-
-    async def reset() -> None:
-        async with pipeline.database.sessionmaker() as session:
-            await session.execute(text("DELETE FROM search_index_state"))
-            await session.commit()
-
-    await reset()
-    yield pipeline
-    await reset()
 
 
 async def _index(pipeline: Pipeline, embedder: FakeEmbedder, message_id: uuid.UUID) -> None:

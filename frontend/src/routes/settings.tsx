@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarCheck, ChevronRight, LogOut, Mail, Tags } from "lucide-react";
+import { CalendarCheck, ChevronRight, LogOut, Mail, ShieldCheck, Tags } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -152,6 +152,19 @@ function AccountSection() {
           <TimeZoneSelect />
         </div>
       </SettingRow>
+      <Link
+        to="/settings/security"
+        className="flex items-center gap-3 rounded-b-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      >
+        <ShieldCheck aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+        <span className="min-w-0 flex-1">
+          <span className="block text-ui font-medium">{t("account.security.title")}</span>
+          <span className="block text-ui text-muted-foreground">
+            {t("account.security.linkDescription")}
+          </span>
+        </span>
+        <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      </Link>
     </SettingsSection>
   );
 }

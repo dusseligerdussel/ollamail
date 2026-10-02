@@ -19,7 +19,7 @@ ENV_PREFIX = "OLLAMAIL_"
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 # Job queues, see app/worker.py.
-QueueName = Literal["sync", "llm", "tts", "default"]
+QueueName = Literal["sync", "llm", "tts", "ocr", "default"]
 
 
 def _config(group: str = "") -> SettingsConfigDict:
@@ -353,6 +353,14 @@ class AuthSettings(BaseSettings):
     oidc_metadata_cache_seconds: int = Field(default=3600, ge=0)
     # Validity of invitation links for local accounts (admin user list), in hours.
     invitation_lifetime_hours: int = Field(default=7 * 24, ge=1, le=90 * 24)
+    # Second factor for local accounts (app/auth/mfa): minutes between the password and the
+    # second factor (or enrolling one) before the login has to start over.
+    mfa_pending_minutes: int = Field(default=5, ge=1, le=30)
+    # Passkeys (WebAuthn): relying party ID (the domain, e.g. mail.example.org) and the
+    # origins the browser may report (JSON list, e.g. ["https://mail.example.org"]).
+    # Unset: both derived from public_url. Without either, passkeys are unavailable.
+    webauthn_rp_id: str | None = None
+    webauthn_origins: list[str] = Field(default_factory=list)
 
     @field_validator("public_url")
     @classmethod
@@ -364,6 +372,26 @@ class AuthSettings(BaseSettings):
         if scheme not in {"https", "http"} or not rest or any(c in rest for c in "?#@"):
             raise ValueError("must be an http(s) URL like https://mail.example.org")
         return value
+
+    @field_validator("webauthn_rp_id")
+    @classmethod
+    def _check_rp_id(cls, value: str | None) -> str | None:
+        if not value or not value.strip():
+            return None
+        value = value.strip().lower()
+        if any(c in value for c in "/:?#@ "):
+            raise ValueError("must be a domain like mail.example.org")
+        return value
+
+    @field_validator("webauthn_origins")
+    @classmethod
+    def _check_origins(cls, value: list[str]) -> list[str]:
+        origins = [origin.strip().rstrip("/") for origin in value if origin.strip()]
+        for origin in origins:
+            scheme, _, rest = origin.partition("://")
+            if scheme not in {"https", "http"} or not rest or any(c in rest for c in "/?#@"):
+                raise ValueError("origins must look like https://mail.example.org")
+        return origins
 
     @model_validator(mode="after")
     def _idle_within_lifetime(self) -> "AuthSettings":
@@ -437,6 +465,19 @@ class SearchSettings(BaseSettings):
     attachment_max_chars: int = Field(default=200_000, ge=1000)
     extraction_timeout: float = Field(default=30.0, gt=0, le=600)
     extraction_max_memory_mb: int = Field(default=1024, ge=128)
+
+    # OCR of scanned attachments with Tesseract (docs/OPERATIONS.md, OCR): ``off``,
+    # ``pdf`` (PDF pages without text) or ``all`` (also PNG, JPEG and TIFF images).
+    # Runs as job on the ``ocr`` queue, in the same isolated process as the extraction.
+    ocr_mode: Literal["off", "pdf", "all"] = "pdf"
+    # Pages recognised per PDF at most (pages with a text layer do not count).
+    ocr_max_pages: int = Field(default=20, ge=1, le=1000)
+    # Tesseract language packs, ``+``-separated (the image contains ``deu`` and ``eng``).
+    ocr_languages: str = Field(default="deu+eng", pattern=r"^[a-z_]{3,16}(\+[a-z_]{3,16}){0,7}$")
+    # Run time limit of one attachment's OCR, in seconds.
+    ocr_timeout: float = Field(default=300.0, gt=0, le=3600)
+    # Parallel OCR jobs per worker process (``ocr`` queue); each uses one CPU core.
+    ocr_concurrency: int = Field(default=1, ge=1, le=64)
 
     # Retrieval: candidates per index (full text, vectors) before Reciprocal Rank Fusion,
     # and the RRF constant k (score = sum of 1 / (k + rank)).
@@ -578,7 +619,7 @@ class WorkerSettings(BaseSettings):
     # Queues this worker process consumes, comma-separated in the environment
     # (e.g. ``OLLAMAIL_WORKER_QUEUES=llm`` for a dedicated LLM worker).
     queues: Annotated[list[QueueName], NoDecode] = Field(
-        default=["sync", "llm", "tts", "default"], min_length=1
+        default=["sync", "llm", "tts", "ocr", "default"], min_length=1
     )
     # Parallel jobs for all consumed queues except ``llm`` (see ``LLMSettings.concurrency``).
     concurrency: int = Field(default=4, ge=1)

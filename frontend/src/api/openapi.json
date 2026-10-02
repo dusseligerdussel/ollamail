@@ -934,6 +934,9 @@
           "auth.login_failed",
           "auth.logout",
           "auth.session_revoked",
+          "auth.mfa_enabled",
+          "auth.mfa_disabled",
+          "auth.mfa_recovery_codes_generated",
           "user.created",
           "user.role_changed",
           "user.deactivated",
@@ -1181,6 +1184,11 @@
             "title": "Local Registration",
             "type": "boolean"
           },
+          "passkey_login": {
+            "default": false,
+            "title": "Passkey Login",
+            "type": "boolean"
+          },
           "providers": {
             "items": {
               "$ref": "#/components/schemas/AuthProviderInfo"
@@ -1209,6 +1217,10 @@
           "local_registration": {
             "title": "Local Registration",
             "type": "boolean"
+          },
+          "mfa_enforcement": {
+            "$ref": "#/components/schemas/MfaEnforcement",
+            "default": "off"
           },
           "provider_kinds": {
             "items": {
@@ -1239,6 +1251,16 @@
               }
             ],
             "title": "Local Login Enabled"
+          },
+          "mfa_enforcement": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MfaEnforcement"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
         "title": "AuthSettingsUpdate",
@@ -1547,6 +1569,21 @@
           "tasks"
         ],
         "title": "CloudUsage",
+        "type": "object"
+      },
+      "CodeRequest": {
+        "properties": {
+          "code": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code"
+        ],
+        "title": "CodeRequest",
         "type": "object"
       },
       "ConnectionTestResult": {
@@ -5238,6 +5275,151 @@
         "title": "MessageUpdate",
         "type": "object"
       },
+      "MfaChallenge": {
+        "description": "Answer of ``POST /auth/login`` (202) when the password was right but the login\nneeds a second step. No session exists yet; the step is bound to a short-lived cookie.",
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "methods": {
+            "items": {
+              "enum": [
+                "webauthn",
+                "totp",
+                "recovery"
+              ],
+              "type": "string"
+            },
+            "title": "Methods",
+            "type": "array"
+          },
+          "status": {
+            "enum": [
+              "mfa_required",
+              "mfa_enrollment_required"
+            ],
+            "title": "Status",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "methods",
+          "expires_at"
+        ],
+        "title": "MfaChallenge",
+        "type": "object"
+      },
+      "MfaEnforcement": {
+        "description": "Which local accounts must use a second factor (app/auth/mfa).",
+        "enum": [
+          "off",
+          "admins",
+          "all"
+        ],
+        "title": "MfaEnforcement",
+        "type": "string"
+      },
+      "MfaEnrolled": {
+        "properties": {
+          "recovery_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Codes"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "recovery_codes"
+        ],
+        "title": "MfaEnrolled",
+        "type": "object"
+      },
+      "MfaStatus": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "enforced": {
+            "title": "Enforced",
+            "type": "boolean"
+          },
+          "passkeys": {
+            "items": {
+              "$ref": "#/components/schemas/PasskeyRead"
+            },
+            "title": "Passkeys",
+            "type": "array"
+          },
+          "passkeys_configured": {
+            "title": "Passkeys Configured",
+            "type": "boolean"
+          },
+          "recovery_codes_remaining": {
+            "title": "Recovery Codes Remaining",
+            "type": "integer"
+          },
+          "totp": {
+            "title": "Totp",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available",
+          "enforced",
+          "passkeys_configured",
+          "totp",
+          "passkeys",
+          "recovery_codes_remaining"
+        ],
+        "title": "MfaStatus",
+        "type": "object"
+      },
+      "MfaVerifyRequest": {
+        "properties": {
+          "code": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Code",
+            "type": "string"
+          },
+          "method": {
+            "enum": [
+              "totp",
+              "recovery"
+            ],
+            "title": "Method",
+            "type": "string"
+          }
+        },
+        "required": [
+          "method",
+          "code"
+        ],
+        "title": "MfaVerifyRequest",
+        "type": "object"
+      },
       "OIDCConnectionTest": {
         "properties": {
           "authorization_endpoint": {
@@ -5949,6 +6131,121 @@
         "title": "OrganizationCategoryUpdate",
         "type": "object"
       },
+      "PasskeyAssertion": {
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "title": "Credential",
+            "type": "object"
+          }
+        },
+        "required": [
+          "credential"
+        ],
+        "title": "PasskeyAssertion",
+        "type": "object"
+      },
+      "PasskeyEnrolled": {
+        "properties": {
+          "passkey": {
+            "$ref": "#/components/schemas/PasskeyRead"
+          },
+          "recovery_codes": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Recovery Codes"
+          },
+          "user": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "recovery_codes",
+          "passkey"
+        ],
+        "title": "PasskeyEnrolled",
+        "type": "object"
+      },
+      "PasskeyRead": {
+        "properties": {
+          "backed_up": {
+            "title": "Backed Up",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "created_at",
+          "last_used_at",
+          "backed_up"
+        ],
+        "title": "PasskeyRead",
+        "type": "object"
+      },
+      "PasskeyRegistration": {
+        "properties": {
+          "credential": {
+            "additionalProperties": true,
+            "title": "Credential",
+            "type": "object"
+          },
+          "name": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "credential"
+        ],
+        "title": "PasskeyRegistration",
+        "type": "object"
+      },
       "ProfileRead": {
         "properties": {
           "chat_model": {
@@ -6209,6 +6506,22 @@
           "address"
         ],
         "title": "RecipientRead",
+        "type": "object"
+      },
+      "RecoveryCodes": {
+        "properties": {
+          "codes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Codes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "codes"
+        ],
+        "title": "RecoveryCodes",
         "type": "object"
       },
       "RegisterRequest": {
@@ -8804,6 +9117,29 @@
         "title": "TodoUpdate",
         "type": "object"
       },
+      "TotpSetup": {
+        "properties": {
+          "qr_svg": {
+            "title": "Qr Svg",
+            "type": "string"
+          },
+          "secret": {
+            "title": "Secret",
+            "type": "string"
+          },
+          "uri": {
+            "title": "Uri",
+            "type": "string"
+          }
+        },
+        "required": [
+          "secret",
+          "uri",
+          "qr_svg"
+        ],
+        "title": "TotpSetup",
+        "type": "object"
+      },
       "TriageCorrection": {
         "properties": {
           "category_id": {
@@ -10618,7 +10954,7 @@
         ]
       },
       "patch": {
-        "description": "Switch local login on or off. Switching it off is refused (409) unless another\nadmin access (external provider) keeps working.",
+        "description": "Switch local login on or off and set which local accounts need a second factor.\nSwitching local login off is refused (409) unless another admin access (external\nprovider) keeps working.",
         "operationId": "admin_update_auth_settings",
         "requestBody": {
           "content": {
@@ -12330,7 +12666,7 @@
     },
     "/auth/login": {
       "post": {
-        "description": "Sign in with a local account (unless an admin switched local login off).",
+        "description": "Sign in with a local account (unless an admin switched local login off).\n\nAccounts with a second factor (or that must set one up) get 202 and no session yet;\nthe login continues under ``/auth/mfa`` (app/auth/mfa/router.py).",
         "operationId": "auth_login",
         "requestBody": {
           "content": {
@@ -12352,6 +12688,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallenge"
+                }
+              }
+            },
+            "description": "Password correct, second step needed"
           },
           "401": {
             "description": "Wrong credentials"
@@ -12533,6 +12879,436 @@
         ]
       }
     },
+    "/auth/mfa": {
+      "get": {
+        "description": "Second factors of the own account.",
+        "operationId": "auth_get_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Status",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/cancel": {
+      "post": {
+        "description": "Abort a pending login (back to the password).",
+        "operationId": "auth_cancel",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Cancel",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/passkeys": {
+      "post": {
+        "description": "Store a new passkey after verifying the browser's response.",
+        "operationId": "auth_register_passkey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyRegistration"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PasskeyEnrolled"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "The passkey could not be verified"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "Passkeys are not configured, or 2FA not available for this account"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Register Passkey",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/passkeys/options": {
+      "post": {
+        "description": "WebAuthn creation options for a new passkey (``navigator.credentials.create``).",
+        "operationId": "auth_passkey_registration_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Auth Passkey Registration Options",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "Passkeys are not configured, or 2FA not available for this account"
+          }
+        },
+        "summary": "Passkey Registration Options",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/passkeys/{passkey_id}": {
+      "delete": {
+        "description": "Remove one of the own passkeys.",
+        "operationId": "auth_remove_passkey",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "passkey_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Passkey Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such passkey"
+          },
+          "409": {
+            "description": "2FA enforced"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Passkey",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/recovery-codes": {
+      "post": {
+        "description": "New recovery codes; the previous ones stop working.",
+        "operationId": "auth_regenerate_recovery_codes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RecoveryCodes"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "No second factor set up"
+          }
+        },
+        "summary": "Regenerate Recovery Codes",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/totp": {
+      "delete": {
+        "description": "Remove the authenticator app.",
+        "operationId": "auth_remove_totp",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Not set up"
+          },
+          "409": {
+            "description": "2FA enforced"
+          }
+        },
+        "summary": "Remove Totp",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/totp/confirm": {
+      "post": {
+        "description": "Activate the authenticator app with a current code. The first factor of an account\ncomes with recovery codes; during an enforced enrolment this also signs in.",
+        "operationId": "auth_confirm_totp",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CodeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaEnrolled"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Wrong code (mfa-invalid)"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
+          }
+        },
+        "summary": "Confirm Totp",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/totp/setup": {
+      "post": {
+        "description": "Start setting up an authenticator app: a new secret and its QR code.",
+        "operationId": "auth_setup_totp",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TotpSetup"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "Active"
+          }
+        },
+        "summary": "Setup Totp",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/verify": {
+      "post": {
+        "description": "Second step of the login with a TOTP code or a recovery code.",
+        "operationId": "auth_verify",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MfaVerifyRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Wrong code, or the pending sign-in expired (mfa-expired)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
+          }
+        },
+        "summary": "Verify",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/verify/passkey": {
+      "post": {
+        "description": "Second step of the login with a passkey.",
+        "operationId": "auth_verify_passkey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAssertion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Wrong code, or the pending sign-in expired (mfa-expired)"
+          },
+          "409": {
+            "description": "Passkeys are not configured, or 2FA not available for this account"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
+          }
+        },
+        "summary": "Verify Passkey",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/mfa/verify/passkey/options": {
+      "post": {
+        "description": "WebAuthn request options for the second step (``navigator.credentials.get``).",
+        "operationId": "auth_verify_passkey_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Auth Verify Passkey Options",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Wrong code, or the pending sign-in expired (mfa-expired)"
+          },
+          "409": {
+            "description": "Passkeys are not configured, or 2FA not available for this account"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
+          }
+        },
+        "summary": "Verify Passkey Options",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/oidc/logout": {
       "post": {
         "description": "End the current session like ``POST /auth/logout``. If it was started with an OIDC\nprovider that supports RP-initiated logout, ``redirect_url`` ends the IdP session too\n(the browser navigates there and comes back to the login page).",
@@ -12639,6 +13415,96 @@
           }
         },
         "summary": "Oidc Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/passkey/login": {
+      "post": {
+        "description": "Sign in with a passkey (counts as two factors: possession and user verification).",
+        "operationId": "auth_passkey_login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAssertion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Wrong code, or the pending sign-in expired (mfa-expired)"
+          },
+          "403": {
+            "description": "Local login is disabled"
+          },
+          "409": {
+            "description": "Passkeys are not configured, or 2FA not available for this account"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
+          }
+        },
+        "summary": "Passkey Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/passkey/options": {
+      "post": {
+        "description": "WebAuthn request options for signing in with a passkey instead of a password.",
+        "operationId": "auth_passkey_login_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Auth Passkey Login Options",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Wrong code, or the pending sign-in expired (mfa-expired)"
+          },
+          "403": {
+            "description": "Local login is disabled"
+          },
+          "409": {
+            "description": "Passkeys are not configured, or 2FA not available for this account"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
+          }
+        },
+        "summary": "Passkey Login Options",
         "tags": [
           "auth"
         ]

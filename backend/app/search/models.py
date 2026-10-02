@@ -53,6 +53,8 @@ TSV_EXPRESSION = (
 class ChunkSource:
     BODY = "body"
     ATTACHMENT = "attachment"
+    # Attachment text that includes recognised (OCR) pages; shown as "Attachment (OCR)".
+    ATTACHMENT_OCR = "attachment_ocr"
 
 
 class SearchChunk(Base):
@@ -78,7 +80,7 @@ class SearchChunk(Base):
     attachment_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("mail_attachments.id", ondelete="CASCADE"), index=True
     )
-    # ``ChunkSource``: body or attachment.
+    # ``ChunkSource``: body, attachment or attachment_ocr.
     source: Mapped[str] = mapped_column(String(16))
     # Position within the message, from 0 (body first, then attachments).
     ordinal: Mapped[int] = mapped_column(SmallInteger)

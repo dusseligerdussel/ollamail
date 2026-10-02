@@ -809,7 +809,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 
 ### 4.5 RAG („Frag deine Inbox“)
 
-- Chunking von Mail-Text und extrahiertem Anhangstext (PDF, DOCX, TXT; später OCR).
+- Chunking von Mail-Text und extrahiertem Anhangstext (PDF, DOCX, TXT, HTML; gescannte PDFs und Bilder per OCR).
 - **Hybrid-Retrieval**: Postgres-Volltextsuche (`tsvector`) + pgvector (HNSW), Fusion via Reciprocal Rank Fusion,
   optional Reranker.
 - Filter (Zeitraum, Absender, Ordner, Kategorie) werden aus der Frage extrahiert bzw. im UI gesetzt.
@@ -830,7 +830,22 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   abgelehnt), TXT, HTML. Je Datei ein Kindprozess (`python -m app.search._extract_child`) mit
   leerer Umgebung (keine Secrets), `RLIMIT_AS`/`RLIMIT_CPU`, ohne Dateischreibrechte, nach
   `OLLAMAIL_SEARCH_EXTRACTION_TIMEOUT` beendet. Ergebnisse als Statuscodes (`ok`, `too_large`,
-  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`). Kein OCR.
+  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`, `ocr_pending`).
+- **OCR** (#98, Tesseract, lokal): `OLLAMAIL_SEARCH_OCR_MODE` `off` / `pdf` (Standard) / `all`.
+  Der Schritt `index` erkennt nur, ob ein PDF Seiten ohne Textlayer, aber mit Bild hat (Modus
+  `detect` im Kindprozess, Status `ocr_pending`), indiziert den vorhandenen Textlayer sofort und
+  stellt den Job `search.ocr_attachment` auf die Queue `ocr` (eigene Job-Slots
+  `OLLAMAIL_SEARCH_OCR_CONCURRENCY`, niedrigste Priorität; gleicher Lock wie der `index`-Job der
+  Mail, startet also erst nach dessen Commit). Der Job liest das Anhang erneut im selben
+  isolierten Kindprozess (Modus `run`): Textlayer zuerst, nur Seiten ohne Text werden mit
+  `pypdfium2` als Graustufenbild (300 dpi, höchstens 40 Mpx) gerendert und an `tesseract`
+  (Kind des Kindprozesses, erbt leere Umgebung und Limits, Bild über stdin, Text über stdout)
+  gegeben, höchstens `OLLAMAIL_SEARCH_OCR_MAX_PAGES` Seiten. Bilder (PNG, JPEG, TIFF; nicht
+  inline) nur im Modus `all`. Bei Timeout (`OLLAMAIL_SEARCH_OCR_TIMEOUT`) wird die ganze
+  Prozessgruppe beendet. Ergebnis: Die Chunks des Anhangs werden ersetzt, mit Quelle
+  `attachment_ocr` („Anhang (OCR)“ in Treffern und Zitaten); Vektoren ergänzt
+  `search.fill_embeddings`. Der OCR-Job ruft nie das LLM auf. Fehler (`timeout`, `ocr_failed`,
+  `ocr_unavailable`) nur als Statuscode; der Textlayer bleibt dann im Index.
 - **Tabellen:** `search_chunks` (Text, `ts_config` `german`/`english`/`simple` aus der erkannten
   Sprache, generierte `tsvector`-Spalte mit GIN-Index), `search_embeddings` (`chunk_id`, `model`,
   `embedding vector(n)` mit HNSW-Index, Kosinus), `search_index_state` (aktives Modell). `n` kommt
@@ -849,7 +864,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   ODER-verknüpft, Rang `ts_rank_cd`. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
   `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
   (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
-  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang).
+  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang, mit oder ohne OCR).
 - **Zugriff:** Jede Abfrage enthält `mailbox_id IN (accessible_mailbox_ids(user_id))` aus
   `app.mail.access`, der einzigen Stelle dieser Regel (eigene und zugewiesene Shared Mailboxes).
 - **Kategorie-Filter** (`SearchFilters.category_ids`): Triage-Kategorie der Mail
@@ -1081,6 +1096,18 @@ damit Antwort und Laufzeit nichts verraten. Die Schlüssel sind HMACs von IP bzw
 Argon2id (RFC 9106, 64 MiB) läuft in einem Thread, höchstens vier Hashes gleichzeitig; veraltete
 Parameter werden beim Login aktualisiert. Hinter einem Reverse Proxy kommt die Client-IP aus
 `X-Forwarded-For` (uvicorn `--forwarded-allow-ips`).
+
+**Zweiter Faktor** (#96, `app/auth/mfa/`, Details: [`auth/mfa.md`](auth/mfa.md)): Lokale Konten
+können Passkeys (WebAuthn mit `webauthn`, auch ohne Passwort), eine Authenticator-App (TOTP mit
+`pyotp`, QR-Code lokal per `segno`) und einmal nutzbare Wiederherstellungscodes (nur als HMAC
+gespeichert) einrichten. Hat ein Konto einen Faktor, antwortet `POST /api/auth/login` nach dem
+Passwort mit 202 und **ohne Session**; der Zwischenzustand ist ein kurzlebiges, einmal nutzbares
+Cookie (`ollamail_mfa`, Tabelle `auth_mfa_pending`), das an genau diesen Login gebunden ist. Erst
+`/api/auth/mfa/verify*` startet die Session. Für den zweiten Schritt gelten IP-Limit, eine
+eigene Kontosperre und höchstens 5 Versuche je Zwischenzustand. Admins können 2FA für Admins oder
+alle lokalen Konten erzwingen (`auth_policy.mfa_enforcement`); dann wird der Faktor vor der ersten
+Session eingerichtet. RP-ID und Origins kommen aus der Konfiguration
+(`OLLAMAIL_AUTH_WEBAUTHN_*`, sonst `OLLAMAIL_AUTH_PUBLIC_URL`).
 
 **Sessions:** Cookie `ollamail_session` (`HttpOnly`, `Secure`, `SameSite=Lax`, 256 Bit Zufall);
 in der DB steht nur der SHA-256. Gültig bis `expires_at` (Lebensdauer) und solange die letzte

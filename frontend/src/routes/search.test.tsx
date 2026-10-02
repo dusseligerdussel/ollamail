@@ -161,6 +161,35 @@ describe("search", () => {
     );
   });
 
+  it("marks hits from scanned attachments as OCR", async () => {
+    mockSearchApi({
+      hits: [
+        hit(1, {
+          source: "attachment_ocr",
+          attachment_id: "0199e000-0000-7000-8000-0000000000b1",
+          attachment_filename: "scan-rechnung.pdf",
+        }),
+        hit(2, {
+          source: "attachment",
+          attachment_id: "0199e000-0000-7000-8000-0000000000b2",
+          attachment_filename: "rechnung.pdf",
+        }),
+      ],
+    });
+    await renderApp("/search");
+    await type("rechnung{Enter}");
+
+    const list = await screen.findByRole("list", { name: "Results" });
+    const [scan, text] = within(list).getAllByRole("listitem") as HTMLElement[];
+    expect(within(scan as HTMLElement).getByText("scan-rechnung.pdf")).toBeInTheDocument();
+    expect(within(scan as HTMLElement).getByText("(OCR)")).toHaveAttribute(
+      "title",
+      "Text recognised from a scan (OCR), may contain reading errors",
+    );
+    expect(within(text as HTMLElement).getByText("rechnung.pdf")).toBeInTheDocument();
+    expect(within(text as HTMLElement).queryByText("(OCR)")).not.toBeInTheDocument();
+  });
+
   it("opens a hit with the keyboard at the matching passage", async () => {
     const id = messageId(1);
     mockSearchApi({

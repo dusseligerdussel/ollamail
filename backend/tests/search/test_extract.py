@@ -25,9 +25,10 @@ def settings() -> SearchSettings:
         ("text/html", None, Kind.HTML),
         ("application/octet-stream", "Report.PDF", Kind.PDF),
         ("application/octet-stream", "notes.txt", Kind.TEXT),
-        ("application/octet-stream", "photo.jpg", None),
+        ("application/octet-stream", "photo.jpg", Kind.IMAGE),
         ("application/octet-stream", None, None),
-        ("image/png", "scan.pdf", None),
+        ("image/png", "scan.pdf", Kind.IMAGE),
+        ("image/gif", "anim.gif", None),
         ("application/msword", "old.doc", None),
     ],
 )
@@ -125,4 +126,10 @@ def test_child_gets_no_secrets_from_the_environment(monkeypatch: pytest.MonkeyPa
     env = extract._child_env()
 
     assert not any(key.startswith("OLLAMAIL") for key in env)
-    assert set(env) <= {"PATH", "LC_ALL", "PYTHONDONTWRITEBYTECODE", "PYTHONHASHSEED"}
+    assert set(env) <= {
+        "PATH",
+        "LC_ALL",
+        "PYTHONDONTWRITEBYTECODE",
+        "PYTHONHASHSEED",
+        "OMP_THREAD_LIMIT",
+    }

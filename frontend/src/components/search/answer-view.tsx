@@ -1,4 +1,4 @@
-import { CircleAlert, Info, Paperclip, Square } from "lucide-react";
+import { CircleAlert, Info, Square } from "lucide-react";
 import { Fragment, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,6 +11,7 @@ import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
 import { answerSegments, citedNumbers, parseSourceHeading } from "@/lib/search-text";
 import { cn } from "@/lib/utils";
 
+import { AttachmentSource, isAttachmentSource } from "./attachment-source";
 import type { AnswerPhase } from "./use-answer-stream";
 
 export type TurnSource = Pick<
@@ -224,11 +225,8 @@ function SourceItem({
               <span className="shrink-0 text-xs text-muted-foreground tabular-nums">{date}</span>
             )}
           </span>
-          {source.source === "attachment" && (
-            <span className="flex items-center gap-1 text-xs text-muted-foreground">
-              <Paperclip aria-hidden className="size-3 shrink-0" />
-              <span className="truncate">{heading.attachment || t("mail.unnamedAttachment")}</span>
-            </span>
+          {isAttachmentSource(source.source) && (
+            <AttachmentSource source={source.source} filename={heading.attachment} />
           )}
           <span className="line-clamp-2 text-muted-foreground [overflow-wrap:anywhere]">
             {source.snippet}

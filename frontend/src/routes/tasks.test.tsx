@@ -7,6 +7,7 @@ import { addDays, todayIn } from "@/lib/task-dates";
 import { backend, json, mockFetch, problem } from "@/test/fetch";
 import { messageId, testMailbox, testThread } from "@/test/mail";
 import { renderApp } from "@/test/render-app";
+import { testExportTarget, todoExportApi } from "@/test/todo-export";
 import { testTodo, todoId } from "@/test/todos";
 import { triageApi } from "@/test/triage";
 
@@ -18,16 +19,20 @@ interface TodoBackend {
   patchStatus?: number;
   /** PATCH requests wait for this promise (to observe the optimistic state). */
   patchGate?: Promise<void>;
+  /** Answers `/api/todo-export` (otherwise 404, so no export settings are cached). */
+  exportApi?: ReturnType<typeof todoExportApi>;
 }
 
 /** In-memory todo API on top of the default backend; records the requests that change data. */
-function mockTodoApi({ todos = [], patchStatus, patchGate }: TodoBackend = {}) {
+function mockTodoApi({ todos = [], patchStatus, patchGate, exportApi }: TodoBackend = {}) {
   const store = new Map(todos.map((todo) => [todo.id, todo]));
   const patches: { id: string; body: Record<string, unknown> }[] = [];
   const posts: Record<string, unknown>[] = [];
   const base = backend();
   const triage = triageApi();
   const fetchMock = mockFetch(async (request) => {
+    const exported = await exportApi?.handle(request);
+    if (exported) return exported;
     const url = new URL(request.url);
     const route = `${request.method} ${url.pathname}`;
     if (route === "GET /api/todos") {
@@ -153,6 +158,22 @@ describe("tasks page", () => {
     await act(async () => release());
     await waitFor(() => expect(api.store.get(todoId(2))?.status).toBe("done"));
     expect(titlesIn("Done")).toContain("Call the printer");
+  });
+
+  it("checks off a task while the export settings are cached", async () => {
+    // The settings live under ["todo", "export"]; updates must not treat them as a task list.
+    const exportApi = todoExportApi({ target: testExportTarget({ mode: "manual" }) });
+    const api = mockTodoApi({ todos: sample(), exportApi });
+    await renderApp("/tasks");
+    expect(
+      await screen.findByRole("button", { name: "Export “Book train” to “Tasks”" }),
+    ).toBeInTheDocument();
+
+    await userEvent.click(screen.getByRole("checkbox", { name: "Mark “Book train” as done" }));
+
+    await waitFor(() => expect(api.store.get(todoId(3))?.status).toBe("done"));
+    expect(api.patches).toEqual([{ id: todoId(3), body: { status: "done" } }]);
+    expect(titlesIn("Done")).toContain("Book train");
   });
 
   it("rolls the change back when the server rejects it", async () => {
