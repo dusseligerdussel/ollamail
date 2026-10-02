@@ -10,6 +10,150 @@
         "title": "ActorKind",
         "type": "string"
       },
+      "AnswerStatus": {
+        "enum": [
+          "answered",
+          "no_evidence"
+        ],
+        "title": "AnswerStatus",
+        "type": "string"
+      },
+      "AppliedFilters": {
+        "description": "Filters the search used: the UI filters, completed by those found in the question.",
+        "properties": {
+          "category_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Ids"
+          },
+          "extracted": {
+            "items": {
+              "enum": [
+                "mailbox_ids",
+                "category_ids",
+                "sender",
+                "since",
+                "until"
+              ],
+              "type": "string"
+            },
+            "title": "Extracted",
+            "type": "array"
+          },
+          "folder_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Ids"
+          },
+          "mailbox_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mailbox Ids"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          }
+        },
+        "title": "AppliedFilters",
+        "type": "object"
+      },
+      "AskRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "conversation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/RagFilters"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
+        "type": "object"
+      },
       "AuditAction": {
         "enum": [
           "auth.setup_completed",
@@ -466,6 +610,59 @@
         "title": "CategoryUpdate",
         "type": "object"
       },
+      "CitationRead": {
+        "properties": {
+          "attachment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachment Id"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "message_id",
+          "mailbox_id",
+          "attachment_id",
+          "source",
+          "heading",
+          "snippet"
+        ],
+        "title": "CitationRead",
+        "type": "object"
+      },
       "ConnectionTestResult": {
         "properties": {
           "error": {
@@ -495,6 +692,135 @@
           "ok"
         ],
         "title": "ConnectionTestResult",
+        "type": "object"
+      },
+      "ConversationMessage": {
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationRead"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedFilters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RagRole"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnswerStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "created_at",
+          "filters",
+          "status",
+          "citations"
+        ],
+        "title": "ConversationMessage",
+        "type": "object"
+      },
+      "ConversationRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationMessage"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at",
+          "messages"
+        ],
+        "title": "ConversationRead",
+        "type": "object"
+      },
+      "ConversationSummary": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversationSummary",
         "type": "object"
       },
       "DirectoryType": {
@@ -2393,6 +2719,106 @@
         },
         "title": "ProfileUpdate",
         "type": "object"
+      },
+      "RagFilters": {
+        "additionalProperties": false,
+        "description": "Filters set in the UI; each one narrows the mailboxes the user may read.",
+        "properties": {
+          "category_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Ids"
+          },
+          "folder_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Ids"
+          },
+          "mailbox_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mailbox Ids"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          }
+        },
+        "title": "RagFilters",
+        "type": "object"
+      },
+      "RagRole": {
+        "enum": [
+          "user",
+          "assistant"
+        ],
+        "title": "RagRole",
+        "type": "string"
       },
       "ReadinessStatus": {
         "properties": {
@@ -5625,6 +6051,545 @@
         "summary": "Sync Mailbox",
         "tags": [
           "mailboxes"
+        ]
+      }
+    },
+    "/rag/ask": {
+      "post": {
+        "description": "Ask a question about the own mails; the answer is streamed with citations.\n\nOnly mails of mailboxes the user may read are searched. Without ``conversation_id`` a\nnew conversation is started; the question and the answer are stored when the answer\nis complete.",
+        "operationId": "rag_ask",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "discriminator": {
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "description": "First event: IDs of the conversation and of the question and answer to be stored.",
+                      "properties": {
+                        "answer_id": {
+                          "format": "uuid",
+                          "title": "Answer Id",
+                          "type": "string"
+                        },
+                        "conversation_id": {
+                          "format": "uuid",
+                          "title": "Conversation Id",
+                          "type": "string"
+                        },
+                        "question_id": {
+                          "format": "uuid",
+                          "title": "Question Id",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "start",
+                          "default": "start",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "conversation_id",
+                        "question_id",
+                        "answer_id"
+                      ],
+                      "title": "StartEvent",
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "filters": {
+                          "description": "Filters the search used: the UI filters, completed by those found in the question.",
+                          "properties": {
+                            "category_ids": {
+                              "anyOf": [
+                                {
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "maxItems": 100,
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Category Ids"
+                            },
+                            "extracted": {
+                              "items": {
+                                "enum": [
+                                  "mailbox_ids",
+                                  "category_ids",
+                                  "sender",
+                                  "since",
+                                  "until"
+                                ],
+                                "type": "string"
+                              },
+                              "title": "Extracted",
+                              "type": "array"
+                            },
+                            "folder_ids": {
+                              "anyOf": [
+                                {
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "maxItems": 100,
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Folder Ids"
+                            },
+                            "mailbox_ids": {
+                              "anyOf": [
+                                {
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "maxItems": 100,
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Mailbox Ids"
+                            },
+                            "sender": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Sender"
+                            },
+                            "since": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Since"
+                            },
+                            "until": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Until"
+                            }
+                          },
+                          "title": "AppliedFilters",
+                          "type": "object"
+                        },
+                        "type": {
+                          "const": "filters",
+                          "default": "filters",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "filters"
+                      ],
+                      "title": "FiltersEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "The numbered sources the model answers from; citations refer to their numbers.",
+                      "properties": {
+                        "sources": {
+                          "items": {
+                            "description": "A retrieved chunk, passed to the model as source ``[number]``.",
+                            "properties": {
+                              "attachment_id": {
+                                "anyOf": [
+                                  {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "title": "Attachment Id"
+                              },
+                              "heading": {
+                                "title": "Heading",
+                                "type": "string"
+                              },
+                              "mailbox_id": {
+                                "format": "uuid",
+                                "title": "Mailbox Id",
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "format": "uuid",
+                                "title": "Message Id",
+                                "type": "string"
+                              },
+                              "number": {
+                                "title": "Number",
+                                "type": "integer"
+                              },
+                              "snippet": {
+                                "title": "Snippet",
+                                "type": "string"
+                              },
+                              "source": {
+                                "title": "Source",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "number",
+                              "message_id",
+                              "mailbox_id",
+                              "attachment_id",
+                              "source",
+                              "heading",
+                              "snippet"
+                            ],
+                            "title": "Source",
+                            "type": "object"
+                          },
+                          "title": "Sources",
+                          "type": "array"
+                        },
+                        "type": {
+                          "const": "sources",
+                          "default": "sources",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "sources"
+                      ],
+                      "title": "SourcesEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "Next piece of the answer. Citation markers ``[n]`` only name listed sources.",
+                      "properties": {
+                        "text": {
+                          "title": "Text",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "token",
+                          "default": "token",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ],
+                      "title": "TokenEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "Last event of a successful answer; it is stored in the conversation.",
+                      "properties": {
+                        "citations": {
+                          "items": {
+                            "type": "integer"
+                          },
+                          "title": "Citations",
+                          "type": "array"
+                        },
+                        "status": {
+                          "enum": [
+                            "answered",
+                            "no_evidence"
+                          ],
+                          "title": "AnswerStatus",
+                          "type": "string"
+                        },
+                        "ttft_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Ttft Ms"
+                        },
+                        "type": {
+                          "const": "done",
+                          "default": "done",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "status",
+                        "citations",
+                        "ttft_ms"
+                      ],
+                      "title": "DoneEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "Last event if no answer could be generated; nothing is stored.",
+                      "properties": {
+                        "code": {
+                          "title": "Code",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "error",
+                          "default": "error",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "code"
+                      ],
+                      "title": "ErrorEvent",
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Server-Sent Events stream; `data` of each event is one of these"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such conversation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ask",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/rag/conversations": {
+      "delete": {
+        "description": "Delete all own conversations.",
+        "operationId": "rag_delete_all_conversations",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Delete All Conversations",
+        "tags": [
+          "rag"
+        ]
+      },
+      "get": {
+        "description": "Own conversations, most recently used first.",
+        "operationId": "rag_list_conversations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationSummary"
+                  },
+                  "title": "Response Rag List Conversations",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Conversations",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/rag/conversations/{conversation_id}": {
+      "delete": {
+        "description": "Delete a conversation with its questions, answers and cited excerpts.",
+        "operationId": "rag_delete_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such conversation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Conversation",
+        "tags": [
+          "rag"
+        ]
+      },
+      "get": {
+        "operationId": "rag_get_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such conversation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Conversation",
+        "tags": [
+          "rag"
         ]
       }
     },

@@ -698,6 +698,75 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/rag/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask
+         * @description Ask a question about the own mails; the answer is streamed with citations.
+         *
+         *     Only mails of mailboxes the user may read are searched. Without ``conversation_id`` a
+         *     new conversation is started; the question and the answer are stored when the answer
+         *     is complete.
+         */
+        post: operations["rag_ask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Conversations
+         * @description Own conversations, most recently used first.
+         */
+        get: operations["rag_list_conversations"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete All Conversations
+         * @description Delete all own conversations.
+         */
+        delete: operations["rag_delete_all_conversations"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Conversation */
+        get: operations["rag_get_conversation"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Conversation
+         * @description Delete a conversation with its questions, answers and cited excerpts.
+         */
+        delete: operations["rag_delete_conversation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/readyz": {
         parameters: {
             query?: never;
@@ -1072,6 +1141,39 @@ export interface components {
          */
         ActorKind: "user" | "system" | "anonymous";
         /**
+         * AnswerStatus
+         * @enum {string}
+         */
+        AnswerStatus: "answered" | "no_evidence";
+        /**
+         * AppliedFilters
+         * @description Filters the search used: the UI filters, completed by those found in the question.
+         */
+        AppliedFilters: {
+            /** Category Ids */
+            category_ids?: string[] | null;
+            /** Extracted */
+            extracted?: ("mailbox_ids" | "category_ids" | "sender" | "since" | "until")[];
+            /** Folder Ids */
+            folder_ids?: string[] | null;
+            /** Mailbox Ids */
+            mailbox_ids?: string[] | null;
+            /** Sender */
+            sender?: string | null;
+            /** Since */
+            since?: string | null;
+            /** Until */
+            until?: string | null;
+        };
+        /** AskRequest */
+        AskRequest: {
+            /** Conversation Id */
+            conversation_id?: string | null;
+            filters?: components["schemas"]["RagFilters"];
+            /** Question */
+            question: string;
+        };
+        /**
          * AuditAction
          * @enum {string}
          */
@@ -1215,6 +1317,29 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /** CitationRead */
+        CitationRead: {
+            /** Attachment Id */
+            attachment_id: string | null;
+            /** Heading */
+            heading: string;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /** Number */
+            number: number;
+            /** Snippet */
+            snippet: string;
+            /** Source */
+            source: string;
+        };
         /** ConnectionTestResult */
         ConnectionTestResult: {
             /** Error */
@@ -1223,6 +1348,68 @@ export interface components {
             folders?: components["schemas"]["RemoteFolderRead"][];
             /** Ok */
             ok: boolean;
+        };
+        /** ConversationMessage */
+        ConversationMessage: {
+            /** Citations */
+            citations: components["schemas"]["CitationRead"][];
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            filters: components["schemas"]["AppliedFilters"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            role: components["schemas"]["RagRole"];
+            status: components["schemas"]["AnswerStatus"] | null;
+        };
+        /** ConversationRead */
+        ConversationRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Messages */
+            messages: components["schemas"]["ConversationMessage"][];
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ConversationSummary */
+        ConversationSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * DirectoryType
@@ -1920,6 +2107,29 @@ export interface components {
             /** Timezone */
             timezone?: string | null;
         };
+        /**
+         * RagFilters
+         * @description Filters set in the UI; each one narrows the mailboxes the user may read.
+         */
+        RagFilters: {
+            /** Category Ids */
+            category_ids?: string[] | null;
+            /** Folder Ids */
+            folder_ids?: string[] | null;
+            /** Mailbox Ids */
+            mailbox_ids?: string[] | null;
+            /** Sender */
+            sender?: string | null;
+            /** Since */
+            since?: string | null;
+            /** Until */
+            until?: string | null;
+        };
+        /**
+         * RagRole
+         * @enum {string}
+         */
+        RagRole: "user" | "assistant";
         /** ReadinessStatus */
         ReadinessStatus: {
             /** Checks */
@@ -4194,6 +4404,318 @@ export interface operations {
             };
             /** @description Syncing is paused */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rag_ask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskRequest"];
+            };
+        };
+        responses: {
+            /** @description Server-Sent Events stream; `data` of each event is one of these */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": {
+                        /**
+                         * Answer Id
+                         * Format: uuid
+                         */
+                        answer_id: string;
+                        /**
+                         * Conversation Id
+                         * Format: uuid
+                         */
+                        conversation_id: string;
+                        /**
+                         * Question Id
+                         * Format: uuid
+                         */
+                        question_id: string;
+                        /**
+                         * Type
+                         * @default start
+                         * @constant
+                         */
+                        type: "start";
+                    } | {
+                        /**
+                         * AppliedFilters
+                         * @description Filters the search used: the UI filters, completed by those found in the question.
+                         */
+                        filters: {
+                            /** Category Ids */
+                            category_ids?: string[] | null;
+                            /** Extracted */
+                            extracted?: ("mailbox_ids" | "category_ids" | "sender" | "since" | "until")[];
+                            /** Folder Ids */
+                            folder_ids?: string[] | null;
+                            /** Mailbox Ids */
+                            mailbox_ids?: string[] | null;
+                            /** Sender */
+                            sender?: string | null;
+                            /** Since */
+                            since?: string | null;
+                            /** Until */
+                            until?: string | null;
+                        };
+                        /**
+                         * Type
+                         * @default filters
+                         * @constant
+                         */
+                        type: "filters";
+                    } | {
+                        /** Sources */
+                        sources: {
+                            /** Attachment Id */
+                            attachment_id: string | null;
+                            /** Heading */
+                            heading: string;
+                            /**
+                             * Mailbox Id
+                             * Format: uuid
+                             */
+                            mailbox_id: string;
+                            /**
+                             * Message Id
+                             * Format: uuid
+                             */
+                            message_id: string;
+                            /** Number */
+                            number: number;
+                            /** Snippet */
+                            snippet: string;
+                            /** Source */
+                            source: string;
+                        }[];
+                        /**
+                         * Type
+                         * @default sources
+                         * @constant
+                         */
+                        type: "sources";
+                    } | {
+                        /** Text */
+                        text: string;
+                        /**
+                         * Type
+                         * @default token
+                         * @constant
+                         */
+                        type: "token";
+                    } | {
+                        /** Citations */
+                        citations: number[];
+                        /**
+                         * AnswerStatus
+                         * @enum {string}
+                         */
+                        status: "answered" | "no_evidence";
+                        /** Ttft Ms */
+                        ttft_ms: number | null;
+                        /**
+                         * Type
+                         * @default done
+                         * @constant
+                         */
+                        type: "done";
+                    } | {
+                        /** Code */
+                        code: string;
+                        /**
+                         * Type
+                         * @default error
+                         * @constant
+                         */
+                        type: "error";
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such conversation */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rag_list_conversations: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationSummary"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rag_delete_all_conversations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    rag_get_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such conversation */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rag_delete_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such conversation */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
