@@ -113,9 +113,13 @@
     "admin": {
       "security": "Security",
       "auditDescription": "Sign-ins, role changes, key rotation and other security events.",
-      "more": "Users, sign-in methods and mail providers will be managed here once these areas are available.",
+      "more": "Mail providers will be managed here once this area is available.",
       "ai": "Language models",
-      "aiDescription": "Providers, model per task, hardware profile and cloud access."
+      "aiDescription": "Providers, model per task, hardware profile and cloud access.",
+      "access": "Sign-in and users",
+      "signInDescription": "Identity providers, LDAP directories and local accounts.",
+      "roleMappingDescription": "Derive roles from the groups of your identity provider.",
+      "usersDescription": "Roles, deactivation, sessions and invitations."
     },
     "audit": {
       "title": "Audit log",
@@ -170,7 +174,11 @@
         "user": {
           "created": "User created",
           "role_changed": "Role changed",
-          "deleted": "User deleted"
+          "deleted": "User deleted",
+          "deactivated": "User deactivated",
+          "reactivated": "User reactivated",
+          "invited": "User invited",
+          "password_set": "Password set"
         },
         "idp": {
           "config_changed": "Sign-in provider changed"
@@ -317,6 +325,227 @@
         "saved": "Settings saved"
       },
       "default": "Default"
+    },
+    "signIn": {
+      "title": "Sign-in",
+      "back": "Back to admin",
+      "addProvider": "Add provider",
+      "methods": "Sign-in methods",
+      "local": "Local accounts",
+      "localDescription": "E-mail address and password stored in ollamail.",
+      "enabled": "Active",
+      "disabled": "Disabled",
+      "fromEnvironment": "Environment",
+      "enable": "Enable",
+      "disable": "Disable",
+      "adminAccess_one": "{{count}} administrator can currently sign in.",
+      "adminAccess_other": "{{count}} administrators can currently sign in.",
+      "emergency": "Emergency access if every sign-in fails: <code>python -m app.cli reset-password</code> in the api container.",
+      "emptyProviders": "No identity provider yet. Add Microsoft Entra ID, Google, OpenID Connect or LDAP so people can sign in with their existing account.",
+      "kinds": {
+        "oidc": "OpenID Connect",
+        "ldap": "LDAP / Active Directory",
+        "github": "GitHub",
+        "local": "Local account",
+        "other": "Other"
+      },
+      "disableLocal": {
+        "title": "Disable local sign-in?",
+        "description": "Afterwards people can only sign in through an identity provider. Local passwords stay stored and work again once local sign-in is enabled.",
+        "selfWarning": "You currently sign in with a local account only. Make sure you can sign in through an identity provider before you continue, otherwise you lock yourself out.",
+        "lockout": "Not possible: no administrator could sign in afterwards. First give an administrator access through an active identity provider.",
+        "confirm": "Disable local sign-in",
+        "cancel": "Cancel"
+      },
+      "lockout": "Not possible: no administrator could sign in afterwards.",
+      "provider": {
+        "type": "Type",
+        "key": "Key",
+        "issuer": "Issuer",
+        "clientId": "Client ID",
+        "servers": "Servers",
+        "baseDn": "User base DN",
+        "redirectUri": "Redirect URI",
+        "redirectUriHint": "Register this address as redirect URI (web platform) at the identity provider.",
+        "readOnly": "Configured in the environment (OLLAMAIL_AUTH_OIDC_PROVIDERS); change it there.",
+        "test": "Test connection",
+        "testing": "Testing…",
+        "testOk": "Connection works.",
+        "testOkOidc": "Discovery document and {{count}} signing keys loaded.",
+        "testFailed": "Connection failed: {{error}}",
+        "testSecretHint": "The client secret is checked at the first real sign-in.",
+        "serverOk": "{{latency}} ms",
+        "lookup": "Look up user",
+        "lookupLabel": "User name",
+        "lookupNotFound": "No such user in the directory.",
+        "lookupResult": "{{name}} · {{email}}",
+        "lookupGroups_one": "{{count}} group",
+        "lookupGroups_other": "{{count}} groups",
+        "lookupNotAllowed": "Not allowed to sign in (allowed groups).",
+        "remove": "Remove",
+        "removeConfirm": "Remove for good",
+        "removeHint": "Users stay; they can no longer sign in through this provider.",
+        "changed": "Provider updated",
+        "removed": "Provider removed",
+        "server": "Server",
+        "organizations": "Organisations",
+        "githubCheck": "GitHub has no connection test: client ID, secret and organisation membership are checked at the first sign-in."
+      },
+      "wizard": {
+        "title": "Add provider",
+        "step": "Step {{step}} of 3",
+        "chooseType": "Which service do your people sign in with?",
+        "back": "Back",
+        "next": "Save and continue",
+        "saving": "Saving…",
+        "activate": "Enable now",
+        "later": "Enable later",
+        "done": "Provider enabled",
+        "notAvailable": "Not available yet",
+        "presets": {
+          "entra": "Microsoft Entra ID",
+          "entraDescription": "Microsoft 365 work accounts",
+          "google": "Google Workspace",
+          "googleDescription": "Accounts of your Workspace domain",
+          "github": "GitHub",
+          "githubDescription": "Members of your organisation",
+          "oidc": "OpenID Connect",
+          "oidcDescription": "Keycloak, Authentik and other providers",
+          "ldap": "LDAP / Active Directory",
+          "ldapDescription": "Sign-in with directory user name and password",
+          "githubEnterprise": "GitHub Enterprise Server"
+        },
+        "fields": {
+          "displayName": "Name on the login page",
+          "name": "Key",
+          "nameHint": "Lower-case letters, digits and hyphens; part of the redirect URI. Cannot be changed later.",
+          "tenant": "Directory (tenant) ID",
+          "tenantHint": "Overview page of the app registration in Entra ID.",
+          "hostedDomain": "Workspace domain",
+          "hostedDomainHint": "Only accounts of this domain can sign in.",
+          "preset": "Product",
+          "issuer": "Issuer URL",
+          "clientId": "Client ID",
+          "clientSecret": "Client secret",
+          "clientSecretHint": "Stored encrypted. Leave empty for public clients (PKCE only).",
+          "directoryType": "Directory",
+          "serverUrl": "Server",
+          "serverUrlHint": "For example ldaps://dc1.example.org",
+          "tlsMode": "Encryption",
+          "bindDn": "Service account (bind DN)",
+          "bindPassword": "Service account password",
+          "userBaseDn": "Search base for users",
+          "organizations": "Allowed organisations",
+          "organizationsHint": "Organisation names, separated by commas. Empty: every GitHub account can sign in.",
+          "baseUrl": "GitHub Enterprise Server URL",
+          "baseUrlHint": "Leave empty for github.com."
+        },
+        "presetsOidc": {
+          "keycloak": "Keycloak",
+          "authentik": "Authentik",
+          "generic": "Other (OpenID Connect)"
+        },
+        "directoryTypes": {
+          "active_directory": "Active Directory",
+          "openldap": "OpenLDAP"
+        },
+        "tlsModes": {
+          "ldaps": "LDAPS",
+          "starttls": "StartTLS",
+          "none": "None (test setups only)"
+        },
+        "verifyOidc": "Register the redirect URI at the identity provider, then test the connection.",
+        "verifyLdap": "Test the connection and, optionally, look up a user before enabling the directory.",
+        "savedDisabled": "Saved, not enabled yet: nobody can sign in with it until you enable it.",
+        "verifyGithub": "Register the callback URL in the OAuth app at GitHub, then enable the provider."
+      }
+    },
+    "roleMapping": {
+      "title": "Role mapping",
+      "back": "Back to admin",
+      "enabled": "Derive roles from groups",
+      "enabledDescription": "At every sign-in through an identity provider the role is determined from the groups. Roles set by hand are overwritten for these users.",
+      "off": "Off",
+      "on": "On",
+      "defaultRole": "Default role",
+      "defaultRoleDescription": "For everyone no rule matches.",
+      "rules": "Rules",
+      "rulesHint": "Group as the provider reports it: Entra ID object ID, LDAP group DN, OIDC group name. Case does not matter.",
+      "group": "Group",
+      "provider": "Provider",
+      "role": "Role",
+      "allProviders": "All providers",
+      "addRule": "Add rule",
+      "removeRule": "Remove rule",
+      "noRules": "No rules yet. Everyone gets the default role.",
+      "save": "Save",
+      "saving": "Saving…",
+      "saved": "Role mapping saved",
+      "lastAdminHint": "The last active administrator is never demoted at sign-in.",
+      "duplicate": "Each group can only have one rule per provider.",
+      "test": "Try it",
+      "testDescription": "Which role would a sign-in with these groups get (saved rules)?",
+      "testGroups": "Groups, one per line",
+      "testRun": "Check",
+      "testResult": "Role: {{role}}",
+      "testMatched": "Matching rules: {{groups}}",
+      "testNoMatch": "No rule matches; default role.",
+      "testOff": "Role mapping is off; roles stay as they are.",
+      "general": "General"
+    },
+    "users": {
+      "title": "Users",
+      "back": "Back to admin",
+      "invite": "Invite user",
+      "count_one": "{{count}} user",
+      "count_other": "{{count}} users",
+      "columns": {
+        "user": "User",
+        "role": "Role",
+        "signIn": "Sign-in",
+        "status": "Status",
+        "lastLogin": "Last sign-in",
+        "actions": "Actions"
+      },
+      "status": {
+        "active": "Active",
+        "inactive": "Deactivated",
+        "invited": "Invited"
+      },
+      "you": "You",
+      "never": "Never",
+      "sessions_one": "{{count}} session",
+      "sessions_other": "{{count}} sessions",
+      "actionsFor": "Actions for {{name}}",
+      "makeAdmin": "Make administrator",
+      "makeUser": "Remove administrator role",
+      "deactivate": "Deactivate",
+      "reactivate": "Reactivate",
+      "revokeSessions": "Sign out everywhere",
+      "newInvitation": "New invitation link",
+      "updated": "User updated",
+      "sessionsRevoked": "Sessions ended",
+      "noMailAccess": "Administrators manage accounts but never see other people's mail.",
+      "lockout": "Not possible: no administrator could sign in afterwards. First make another user an administrator.",
+      "roleManaged": "Role mapping is on: roles of users who sign in through an identity provider are set at their next sign-in.",
+      "self": {
+        "demoteTitle": "Remove your own administrator role?",
+        "deactivateTitle": "Deactivate your own account?",
+        "warning": "You lose access to the admin area immediately and cannot undo this yourself.",
+        "confirm": "Continue",
+        "cancel": "Cancel"
+      },
+      "inviteSheet": {
+        "title": "Invite user",
+        "description": "Creates a local account. Pass the link on; the person sets their own password.",
+        "language": "Language",
+        "submit": "Create invitation",
+        "submitting": "Creating…",
+        "linkTitle": "Invitation link",
+        "linkDescription": "Valid until {{date}}. It is shown only once; you can create a new one at any time.",
+        "done": "Done",
+        "localDisabled": "Local sign-in is disabled; invited users could not sign in."
+      }
     }
   },
   "notFound": {
@@ -377,6 +606,17 @@
       "providersDescription": "Connect Microsoft Entra ID, Google, GitHub or LDAP so that others can sign in with their existing account. You can do this later in the admin area.",
       "providersAction": "Set up identity provider",
       "continue": "Continue to inbox"
+    },
+    "invite": {
+      "title": "Set your password",
+      "description": "You were invited to ollamail as {{email}}.",
+      "loading": "Checking invitation…",
+      "invalid": "This invitation link is invalid or has expired. Ask your administrator for a new one.",
+      "confirm": "Repeat password",
+      "mismatch": "The passwords do not match.",
+      "submit": "Set password and sign in",
+      "submitting": "Signing in…",
+      "toLogin": "Go to sign-in"
     }
   },
   "account": {
@@ -593,5 +833,10 @@
       "token_exchange_failed": "The sign-in could not be completed. Please try again.",
       "offline_access_missing": "Permanent access was not granted. Please try again and allow it."
     }
+  },
+  "copy": {
+    "copy": "Copy",
+    "copied": "Copied",
+    "label": "Copy {{label}}"
   }
 }

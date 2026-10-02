@@ -13,6 +13,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DigestRouteImport } from './routes/digest'
 import { Route as InboxRouteImport } from './routes/inbox'
+import { Route as InviteRouteImport } from './routes/invite'
 import { Route as LoginRouteImport } from './routes/login'
 import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
@@ -20,6 +21,9 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as AdminAiRouteImport } from './routes/admin_.ai'
 import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
+import { Route as AdminRoleMappingRouteImport } from './routes/admin_.role-mapping'
+import { Route as AdminSignInRouteImport } from './routes/admin_.sign-in'
+import { Route as AdminUsersRouteImport } from './routes/admin_.users'
 import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
 import { Route as SettingsMailboxesNewRouteImport } from './routes/settings_.mailboxes_.new'
 
@@ -41,6 +45,11 @@ const DigestRoute = DigestRouteImport.update({
 const InboxRoute = InboxRouteImport.update({
   id: '/inbox',
   path: '/inbox',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const InviteRoute = InviteRouteImport.update({
+  id: '/invite',
+  path: '/invite',
   getParentRoute: () => rootRouteImport,
 } as any)
 const LoginRoute = LoginRouteImport.update({
@@ -78,6 +87,21 @@ const AdminAuditRoute = AdminAuditRouteImport.update({
   path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRoleMappingRoute = AdminRoleMappingRouteImport.update({
+  id: '/admin_/role-mapping',
+  path: '/admin/role-mapping',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminSignInRoute = AdminSignInRouteImport.update({
+  id: '/admin_/sign-in',
+  path: '/admin/sign-in',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const AdminUsersRoute = AdminUsersRouteImport.update({
+  id: '/admin_/users',
+  path: '/admin/users',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsMailboxesRoute = SettingsMailboxesRouteImport.update({
   id: '/settings_/mailboxes',
   path: '/settings/mailboxes',
@@ -94,6 +118,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
   '/inbox': typeof InboxRoute
+  '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -101,6 +126,9 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof TasksRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/role-mapping': typeof AdminRoleMappingRoute
+  '/admin/sign-in': typeof AdminSignInRoute
+  '/admin/users': typeof AdminUsersRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
@@ -109,6 +137,7 @@ export interface FileRoutesByTo {
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
   '/inbox': typeof InboxRoute
+  '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -116,6 +145,9 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/role-mapping': typeof AdminRoleMappingRoute
+  '/admin/sign-in': typeof AdminSignInRoute
+  '/admin/users': typeof AdminUsersRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
@@ -125,6 +157,7 @@ export interface FileRoutesById {
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
   '/inbox': typeof InboxRoute
+  '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
   '/search': typeof SearchRoute
   '/settings': typeof SettingsRoute
@@ -132,6 +165,9 @@ export interface FileRoutesById {
   '/tasks': typeof TasksRoute
   '/admin_/ai': typeof AdminAiRoute
   '/admin_/audit': typeof AdminAuditRoute
+  '/admin_/role-mapping': typeof AdminRoleMappingRoute
+  '/admin_/sign-in': typeof AdminSignInRoute
+  '/admin_/users': typeof AdminUsersRoute
   '/settings_/mailboxes': typeof SettingsMailboxesRoute
   '/settings_/mailboxes_/new': typeof SettingsMailboxesNewRoute
 }
@@ -142,6 +178,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/digest'
     | '/inbox'
+    | '/invite'
     | '/login'
     | '/search'
     | '/settings'
@@ -149,6 +186,9 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/role-mapping'
+    | '/admin/sign-in'
+    | '/admin/users'
     | '/settings/mailboxes'
     | '/settings/mailboxes/new'
   fileRoutesByTo: FileRoutesByTo
@@ -157,6 +197,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/digest'
     | '/inbox'
+    | '/invite'
     | '/login'
     | '/search'
     | '/settings'
@@ -164,6 +205,9 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/role-mapping'
+    | '/admin/sign-in'
+    | '/admin/users'
     | '/settings/mailboxes'
     | '/settings/mailboxes/new'
   id:
@@ -172,6 +216,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/digest'
     | '/inbox'
+    | '/invite'
     | '/login'
     | '/search'
     | '/settings'
@@ -179,6 +224,9 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin_/ai'
     | '/admin_/audit'
+    | '/admin_/role-mapping'
+    | '/admin_/sign-in'
+    | '/admin_/users'
     | '/settings_/mailboxes'
     | '/settings_/mailboxes_/new'
   fileRoutesById: FileRoutesById
@@ -188,6 +236,7 @@ export interface RootRouteChildren {
   AdminRoute: typeof AdminRoute
   DigestRoute: typeof DigestRoute
   InboxRoute: typeof InboxRoute
+  InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
   SearchRoute: typeof SearchRoute
   SettingsRoute: typeof SettingsRoute
@@ -195,6 +244,9 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   AdminAiRoute: typeof AdminAiRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminRoleMappingRoute: typeof AdminRoleMappingRoute
+  AdminSignInRoute: typeof AdminSignInRoute
+  AdminUsersRoute: typeof AdminUsersRoute
   SettingsMailboxesRoute: typeof SettingsMailboxesRoute
   SettingsMailboxesNewRoute: typeof SettingsMailboxesNewRoute
 }
@@ -227,6 +279,13 @@ declare module '@tanstack/react-router' {
       path: '/inbox'
       fullPath: '/inbox'
       preLoaderRoute: typeof InboxRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/invite': {
+      id: '/invite'
+      path: '/invite'
+      fullPath: '/invite'
+      preLoaderRoute: typeof InviteRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/login': {
@@ -278,6 +337,27 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/role-mapping': {
+      id: '/admin_/role-mapping'
+      path: '/admin/role-mapping'
+      fullPath: '/admin/role-mapping'
+      preLoaderRoute: typeof AdminRoleMappingRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/sign-in': {
+      id: '/admin_/sign-in'
+      path: '/admin/sign-in'
+      fullPath: '/admin/sign-in'
+      preLoaderRoute: typeof AdminSignInRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/admin_/users': {
+      id: '/admin_/users'
+      path: '/admin/users'
+      fullPath: '/admin/users'
+      preLoaderRoute: typeof AdminUsersRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings_/mailboxes': {
       id: '/settings_/mailboxes'
       path: '/settings/mailboxes'
@@ -300,6 +380,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoute: AdminRoute,
   DigestRoute: DigestRoute,
   InboxRoute: InboxRoute,
+  InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,
   SearchRoute: SearchRoute,
   SettingsRoute: SettingsRoute,
@@ -307,6 +388,9 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   AdminAiRoute: AdminAiRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminRoleMappingRoute: AdminRoleMappingRoute,
+  AdminSignInRoute: AdminSignInRoute,
+  AdminUsersRoute: AdminUsersRoute,
   SettingsMailboxesRoute: SettingsMailboxesRoute,
   SettingsMailboxesNewRoute: SettingsMailboxesNewRoute,
 }

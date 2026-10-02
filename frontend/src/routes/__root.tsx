@@ -28,6 +28,8 @@ export const Route = createRootRouteWithContext<RouterContext>()({
       if (path !== "/setup") throw redirect({ to: "/setup", replace: true });
       return;
     }
+    // Invitation links work with or without a session (the token is the credential).
+    if (path === "/invite") return;
     const user = await queryClient.ensureQueryData(currentUserQueryOptions);
     if (path === "/setup") {
       throw redirect({ to: user ? "/inbox" : "/login", replace: true });

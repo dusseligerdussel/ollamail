@@ -6,7 +6,8 @@ ersten Login wird der Nutzer in ollamail angelegt (Just-in-Time-Provisioning); d
 über Gruppen gesteuert werden.
 
 Code: `backend/app/auth/providers/ldap/`, Provisioning: `backend/app/auth/provisioning.py`.
-Die Admin-Oberfläche folgt mit #33; bis dahin wird über die API konfiguriert.
+Eingerichtet wird unter Admin → Anmeldung → Anbieter hinzufügen (Assistent mit Verbindungstest
+und Benutzersuche, siehe [`admin.md`](admin.md)) oder über die API.
 
 ## Ablauf einer Anmeldung
 
@@ -151,6 +152,10 @@ Felder ohne Angabe übernehmen den Wert des Presets von `directory_type`.
 - Ist `admin_groups` gesetzt, wird die Rolle **bei jedem Login** aus den Gruppen abgeleitet (auch
   zurückgestuft). Ist es leer, bekommen neue Nutzer die Rolle `user`, und Rollenänderungen in
   ollamail bleiben erhalten.
+- Für alle Anbieter einheitlich lässt sich die Rolle auch über die zentrale **Rollen-Zuordnung**
+  steuern (Admin → Rollen-Zuordnung, [`admin.md`](admin.md#3-rollen-zuordnung-gruppen--rollen));
+  Regeln verwenden dort die Gruppen-DNs. Ist sie aktiv, zählt `admin_groups` wie eine passende
+  Admin-Regel. Der letzte aktive Admin wird beim Login nie herabgestuft.
 - Gruppen werden nicht gespeichert, nur bei der Anmeldung ausgewertet.
 - Die primäre AD-Gruppe (`primaryGroupID`, meist „Domain Users“) taucht in `member` nicht auf
   und kann deshalb nicht in `allowed_groups`/`admin_groups` verwendet werden.
