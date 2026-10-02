@@ -3,10 +3,8 @@
 Handbuch für Admins, die ollamail selbst betreiben: Installation, Hardware, Reverse Proxy,
 Backup/Restore, Updates, Datenschutz und Fehlersuche.
 
-> **Projektstatus:** ollamail ist im frühen Aufbau. Lauffähig sind heute der Compose-Stack,
-> die Datenbank mit Migrationen, die API mit Health-Endpunkten, lokale Anmeldung (API) und die
-> UI-Shell. Mail-Sync, KI-Funktionen, externe Identity-Provider und Worker gibt es noch nicht. Was noch nicht existiert, ist in diesem
-> Dokument mit **geplant (#nr)** markiert und verweist auf das zugehörige Issue.
+> **Projektstatus:** Vorbereitung auf die erste Version `v0.1.0`. Funktionsumfang und bekannte
+> Einschränkungen stehen im [`CHANGELOG.md`](../CHANGELOG.md).
 
 Referenz für Dienste, Profile, Volumes und Entwicklungsmodus: [`deploy/README.md`](../deploy/README.md).
 Betrieb auf Kubernetes mit dem Helm-Chart: [`operations/kubernetes.md`](operations/kubernetes.md).
@@ -38,8 +36,10 @@ Alle Einstellungen: [`deploy/.env.example`](../deploy/.env.example).
 Der Basis-Stack (UI, API, PostgreSQL) ist schlank. Den Großteil von CPU, RAM und Speicher
 benötigt später das LLM, siehe [Abschnitt 3](#3-hardware-profile-und-llm).
 
-Vorgebaute Images gibt es noch nicht (Multi-Arch-Images über GHCR: **geplant (#10)**). Die Images
-werden beim ersten Start auf dem Host gebaut, für dessen Architektur.
+Die Release-Pipeline baut Multi-Arch-Images (amd64/arm64) für die GitHub Container Registry
+(GHCR), siehe [`deploy/README.md`](../deploy/README.md#images). Solange es kein Release gibt und
+die Pakete nicht öffentlich sind, werden die Images beim ersten Start auf dem Host gebaut (für
+dessen Architektur), siehe [2.3](#23-starten).
 
 ## 2. Installation
 
@@ -63,7 +63,7 @@ In `deploy/.env` mindestens setzen:
 
 | Variable | Wert |
 |---|---|
-| `OLLAMAIL_SECRET_KEY` | Zufälliger Master-Key, z. B. Ausgabe von `openssl rand -base64 32`. Wird ab #6 zum Verschlüsseln gespeicherter Zugangsdaten verwendet. **Sicher aufbewahren**, siehe [Abschnitt 7](#7-schlüsselverwaltung). |
+| `OLLAMAIL_SECRET_KEY` | Zufälliger Master-Key, z. B. Ausgabe von `openssl rand -base64 32`. Verschlüsselt gespeicherte Zugangsdaten; ohne gültigen Key startet die API nicht. **Sicher aufbewahren**, siehe [Abschnitt 7](#7-schlüsselverwaltung). |
 | `POSTGRES_PASSWORD` | Datenbank-Passwort, z. B. `openssl rand -hex 24`. Hex vermeidet Sonderzeichen, die in `OLLAMAIL_DATABASE_URL` URL-kodiert werden müssten. |
 
 Wichtig:
@@ -77,17 +77,39 @@ Wichtig:
 
 ### 2.3 Starten
 
+`deploy/compose.yaml` zieht standardmäßig fertige Images aus GHCR (`OLLAMAIL_VERSION`, Standard
+`latest`). Zwei Wege:
+
+**A – Lokal bauen** (immer möglich, nötig solange es kein Release gibt oder die GHCR-Pakete nicht
+öffentlich sind):
+
 ```sh
-docker compose -f deploy/compose.yaml up -d --build
+docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml up -d --build
 ```
+
+Der erste Build dauert einige Minuten. `compose.build.yaml` muss dann bei **jedem**
+`docker compose`-Aufruf mit angegeben werden, der Images startet (`up`, `run`, `create`); alle
+anderen Befehle in diesem Dokument funktionieren auch mit nur `-f deploy/compose.yaml`.
+Tipp: `export COMPOSE_FILE=deploy/compose.yaml:deploy/compose.build.yaml` in der Shell setzen und
+`-f …` weglassen.
+
+**B – Vorgebaute Images** (ab dem ersten Release, Zugriff auf die Pakete vorausgesetzt):
+
+```sh
+# in deploy/.env eine feste Version eintragen, z. B. OLLAMAIL_VERSION=0.1.0
+docker compose -f deploy/compose.yaml pull
+docker compose -f deploy/compose.yaml up -d
+```
+
+`docker compose -f deploy/compose.yaml up -d --build` allein baut **nicht**: `compose.yaml`
+enthält keine Build-Kontexte. Ohne Zugriff auf die Images bricht der Start mit
+`error from registry: unauthorized` ab, siehe [Abschnitt 10](#10-troubleshooting).
 
 Beim Start passiert der Reihe nach:
 
 1. `postgres` startet und wird `healthy`.
 2. `migrate` führt `alembic upgrade head` aus und beendet sich (Status `Exited (0)` ist korrekt).
-3. `api` startet, danach `frontend`.
-
-Der erste Build dauert einige Minuten.
+3. `api` und `worker` starten, nach einer gesunden `api` auch `frontend`.
 
 ### 2.4 Prüfen
 
@@ -100,7 +122,7 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | Endpunkt | Bedeutung |
 |---|---|
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
-| `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Heute wird nur `database` geprüft; Prüfungen für Queue und LLM kommen mit #7 und #17. |
+| `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Geprüft wird `database`, mit `OLLAMAIL_LLM_READINESS_CHECK=true` zusätzlich `llm` (alle zugewiesenen Modelle vorhanden). |
 
 Die UI ist unter `http://<host>:8080` erreichbar. Identity-Provider (Entra ID, Google, OIDC,
 LDAP/Active Directory), Rollen-Zuordnung und Nutzer verwaltet der Admin unter Admin → Anmeldung
@@ -112,11 +134,12 @@ bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
 ist ein Setup-Token nötig – `OLLAMAIL_SETUP_TOKEN` oder, falls leer, ein aus `OLLAMAIL_SECRET_KEY`
 abgeleiteter Wert. Die API schreibt ihn beim Start ins Log (Event `setup_pending`, Feld
-`setup_code`), solange die Instanz nicht eingerichtet ist:
+`setup_code`), solange die Instanz nicht eingerichtet ist. Ist `OLLAMAIL_SETUP_TOKEN` gesetzt,
+steht der Token nicht im Log. Eine der beiden Varianten genügt:
 
 ```sh
 docker compose -f deploy/compose.yaml logs api | grep setup_pending
-docker compose -f deploy/compose.yaml run --rm --no-deps api python -m app.cli setup-token
+docker compose -f deploy/compose.yaml exec api python -m app.cli setup-token
 ```
 
 Nach dem Setup ist der Token wertlos. Notfallzugang ohne UI (z. B. ausgesperrt oder IdP
@@ -141,10 +164,13 @@ wirklich weg sollen.
 
 ## 3. Hardware-Profile und LLM
 
-> Die LLM-Anbindung ist **geplant (#17)**, Modellwahl je Aufgabe im Admin-UI **geplant (#18)**.
-> Die Anwendung ruft heute noch kein LLM auf; `OLLAMAIL_LLM_BASE_URL` steht bereits in
-> `.env.example`, wird aber erst mit #17 ausgewertet. Die Compose-Profile für Ollama existieren
-> schon und können vorbereitend genutzt werden.
+Triage, Aufgaben, Embeddings, „Frag deine Inbox“, Antwortentwürfe und Digest nutzen ein LLM.
+Standard ist das mitgelieferte Ollama (`OLLAMAIL_LLM_BASE_URL=http://ollama:11434`) mit dem
+Profil `cpu`. Ohne erreichbares LLM laufen Mail-Sync und Volltextsuche trotzdem; die
+KI-Schritte werden mehrfach wiederholt, Vektoren für die Suche ergänzt der Job
+`search.fill_embeddings` später. Mails, deren Schritte endgültig fehlgeschlagen sind, holt
+`python -m app.cli processing reprocess` nach (siehe `--help`). Modelle je Aufgabe, Profil und
+Parallelität ändert der Admin zur Laufzeit unter Admin → KI.
 
 ollamail läuft auch ohne GPU. Eine GPU beschleunigt nur, sie ist keine Voraussetzung.
 
@@ -162,22 +188,37 @@ und gemessene Durchsätze folgen mit den Benchmarks aus Triage (#20); TTS siehe
 
 Für Embeddings ist ein mehrsprachiges Modell wie `bge-m3` vorgesehen.
 
-Empfehlung für CPU-only (Planungsgrundlage, gilt ab #17/#28): Triage und Aufgaben-Extraktion mit
-einem kleinen Modell laufen lassen, den Daily Digest in die Nacht legen.
+Standardmodelle der Profile (`OLLAMAIL_LLM_PROFILE`, überschreibbar mit
+`OLLAMAIL_LLM_DEFAULT_CHAT_MODEL` / `OLLAMAIL_LLM_DEFAULT_EMBEDDING_MODEL`):
+
+| `OLLAMAIL_LLM_PROFILE` | Chat-Modell | Embedding-Modell | Kontext |
+|---|---|---|---|
+| `cpu` (Standard) | `qwen2.5:3b` | `bge-m3` | 8.192 Tokens |
+| `gpu-consumer` | `qwen2.5:14b` | `bge-m3` | 16.384 Tokens |
+| `gpu-server` | `qwen2.5:32b` | `bge-m3` | 32.768 Tokens |
+
+Empfehlung für CPU-only: Triage und Aufgaben-Extraktion mit einem kleinen Modell laufen lassen,
+den Daily Digest in die Nacht legen.
 
 ### 3.2 CPU-only (Profil `ollama-cpu`)
 
 ```sh
 docker compose -f deploy/compose.yaml --profile ollama-cpu up -d
-docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull <modell>
+# Modelle des Profils `cpu` laden (einmalig, landen im Volume `ollama-models`)
+docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull qwen2.5:3b
+docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull bge-m3
 ```
+
+Alternativ lädt die API fehlende Modelle beim Start selbst, wenn
+`OLLAMAIL_LLM_PULL_MISSING_MODELS=true` gesetzt ist. Mit `OLLAMAIL_LLM_READINESS_CHECK=true`
+meldet `/api/readyz` fehlende Modelle als `"llm":"failed"`.
 
 Ollama ist nur im internen Compose-Netz unter `http://ollama:11434` erreichbar, der Port wird nicht
 veröffentlicht. Modelle liegen im Volume `ollama-models`.
 
-Das Profil muss bei **jedem** `docker compose`-Aufruf mit angegeben werden, der den Dienst
-betreffen soll (`up`, `down`, `exec`, `logs`). Alternativ `COMPOSE_PROFILES=ollama-cpu` in der
-Shell setzen.
+Das Profil muss bei `up` und `down` mit angegeben werden, sonst wird der Dienst nicht gestartet
+bzw. nicht gestoppt (`exec` und `logs` auf einen laufenden Dienst gehen auch ohne). Alternativ
+`COMPOSE_PROFILES=ollama-cpu` in der Shell oder in `deploy/.env` setzen.
 
 ### 3.3 Consumer-GPU (Profil `ollama-gpu`)
 
@@ -198,13 +239,23 @@ starten – beide melden sich im Netz als `ollama`.
 
 ### 3.4 Server-GPU mit vLLM
 
-**Geplant (#17):** Anbindung OpenAI-kompatibler Endpunkte. vLLM läuft dann als eigener Dienst
-(eigener Host oder eigene Compose-Datei, nicht Teil von `deploy/compose.yaml`) und wird über seine
-OpenAI-kompatible API angebunden. Die genaue Konfiguration wird mit #17/#18 hier ergänzt.
+vLLM (oder LM Studio, LocalAI, llama.cpp-Server) läuft als eigener Dienst (eigener Host oder
+eigene Compose-Datei, nicht Teil von `deploy/compose.yaml`) und wird über seine
+OpenAI-kompatible API angebunden:
+
+```sh
+OLLAMAIL_LLM_PROVIDER=openai_compatible
+OLLAMAIL_LLM_BASE_URL=http://<vllm-host>:8000/v1
+OLLAMAIL_LLM_PROFILE=gpu-server
+```
+
+Weitere Endpunkte (z. B. Embeddings weiter über Ollama) per `OLLAMAIL_LLM_ENDPOINTS` und
+`OLLAMAIL_LLM_TASK_<AUFGABE>_ENDPOINT`, siehe `deploy/.env.example` und
+[`ARCHITECTURE.md`](ARCHITECTURE.md#32-llm-provider).
 
 ### 3.5 Externer Ollama-Server
 
-Ohne Ollama-Profil kann ein vorhandener Ollama-Server genutzt werden (wirksam ab #17):
+Ohne Ollama-Profil kann ein vorhandener Ollama-Server genutzt werden:
 
 - Anderer Host: `OLLAMAIL_LLM_BASE_URL=http://<host>:11434`
 - Ollama direkt auf dem Docker-Host: `OLLAMAIL_LLM_BASE_URL=http://host.docker.internal:11434`.
@@ -360,7 +411,7 @@ Anforderungen an den Proxy:
 - `Host`, `X-Forwarded-For` und `X-Forwarded-Proto` setzen. Der interne Caddy übernimmt
   `X-Forwarded-*` nur von privaten Netzen (RFC 1918, Loopback); ein Proxy auf demselben Host oder
   im selben LAN erfüllt das.
-- **Server-Sent Events** (Live-Updates, gestreamte Antworten; geplant mit #7 und #25):
+- **Server-Sent Events** (Live-Updates, gestreamte Antworten von „Frag deine Inbox“):
   Antwort-Pufferung abschalten und lange Verbindungen erlauben. Der interne Caddy nutzt dafür
   bereits `flush_interval -1` und 1 h Timeout – der äußere Proxy muss mindestens genauso großzügig
   sein.
@@ -563,41 +614,80 @@ Für einen vollständigen Test auch das Daten-Volume einspielen (wie in 5.2, Vol
 
 ## 6. Updates und Migrationen
 
-### 6.1 Update aus dem Repository
+Vor **jedem** Update ein vollständiges Backup ziehen ([5.1](#51-backup-erstellen)): Migrationen
+lassen sich nicht automatisch zurückdrehen, das Backup ist der einzige Weg zurück.
+
+### 6.1 Update mit vorgebauten Images
 
 ```sh
 # 1. Backup (Abschnitt 5.1)
 
-# 2. Neue Version holen
-git pull
+# 2. Neue Version in deploy/.env eintragen, z. B. OLLAMAIL_VERSION=0.2.0
+#    (Release-Notes lesen: neue oder geänderte Einstellungen, Hinweise zum Upgrade)
 
-# 3. Neu bauen und starten
-docker compose -f deploy/compose.yaml up -d --build
+# 3. Images holen und neu starten
+docker compose -f deploy/compose.yaml pull
+docker compose -f deploy/compose.yaml up -d --wait
+curl http://localhost:8080/api/readyz
 ```
 
+Mit `OLLAMAIL_VERSION=latest` holt `pull` jeweils das neueste stabile Release. Für
+reproduzierbare Installationen eine feste Version eintragen; `edge` ist ungetestet und nicht für
+den Produktivbetrieb.
+
+### 6.2 Update bei lokalem Build
+
+```sh
+# 1. Backup (Abschnitt 5.1)
+
+# 2. Neue Version holen (Tag oder main)
+git fetch --tags
+git checkout v0.2.0
+
+# 3. Neu bauen und starten
+docker compose -f deploy/compose.yaml -f deploy/compose.build.yaml up -d --build --wait
+curl http://localhost:8080/api/readyz
+```
+
+### 6.3 Migrationen und Konfiguration
+
 Datenbank-Migrationen laufen **automatisch**: Der Dienst `migrate` führt vor jedem Start von
-`api`/`worker` `alembic upgrade head` aus. Schlägt eine Migration fehl, starten `api` und
-`frontend` nicht; die Ursache steht in `docker compose -f deploy/compose.yaml logs migrate`.
+`api`/`worker` `alembic upgrade head` aus. Schlägt eine Migration fehl, starten `api`, `worker`
+und `frontend` nicht; die Ursache steht in `docker compose -f deploy/compose.yaml logs migrate`.
+Alle ausstehenden Migrationen laufen in einer Transaktion; schlägt eine fehl, bleibt die
+Datenbank auf dem alten Stand. Zurück geht es dann wie in [6.4](#64-rollback-auf-die-vorherige-version).
 
 Aktuellen Schema-Stand anzeigen:
 
 ```sh
-docker compose -f deploy/compose.yaml run --rm migrate alembic current
+docker compose -f deploy/compose.yaml run --rm --no-deps migrate alembic current
 ```
 
 Neue Variablen in `deploy/.env.example` nach jedem Update mit der eigenen `deploy/.env`
-vergleichen, z. B. mit `diff deploy/.env.example deploy/.env`.
+vergleichen, z. B. mit `diff deploy/.env.example deploy/.env`. Fehlende Variablen fallen auf den
+Standardwert aus dem Code zurück.
 
-**Zurück auf eine ältere Version:** Einen automatischen Downgrade-Weg gibt es nicht. Ältere Version
-auschecken und das Backup von **vor** dem Update einspielen (Abschnitt 5.2).
+### 6.4 Rollback auf die vorherige Version
 
-### 6.2 Vorgebaute Images
+Einen Downgrade-Befehl gibt es nicht. Eine ältere Version kann ein neueres Schema nicht lesen;
+zurück geht es nur mit dem Backup von **vor** dem Update:
 
-**Geplant (#10):** Multi-Arch-Images (amd64/arm64) in der GitHub Container Registry. Die
-Variablen `OLLAMAIL_API_IMAGE` und `OLLAMAIL_FRONTEND_IMAGE` existieren bereits in
-`deploy/.env.example`; Tags und Update-Ablauf (`pull` statt `--build`) werden mit #10 hier ergänzt.
+```sh
+# 1. Stack stoppen
+docker compose -f deploy/compose.yaml down
 
-### 6.3 Drittanbieter-Images
+# 2. Alte Version wählen: OLLAMAIL_VERSION in deploy/.env zurücksetzen
+#    bzw. bei lokalem Build `git checkout <alte-version>`
+
+# 3. Datenbank-Volume leeren (löscht die aktuelle Datenbank!) und Backup einspielen,
+#    wie in Abschnitt 5.2 ab Schritt 2
+docker volume rm ollamail_postgres-data
+```
+
+Änderungen seit dem Backup (neue Mails, Aufgaben, Einstellungen) gehen dabei verloren; neue Mails
+holt der Sync beim nächsten Start erneut vom Mailserver.
+
+### 6.5 Drittanbieter-Images
 
 PostgreSQL (`POSTGRES_IMAGE`, Standard `pgvector/pgvector:pg16`) und Ollama (`OLLAMA_IMAGE`) sind
 über Variablen in `deploy/.env` festgelegt. Ein Wechsel der **PostgreSQL-Hauptversion** (z. B. 16 → 17)
@@ -607,25 +697,24 @@ starten, Backup einspielen (Abschnitt 5).
 ## 7. Schlüsselverwaltung
 
 `OLLAMAIL_SECRET_KEY` ist der Master-Key für die Verschlüsselung gespeicherter Zugangsdaten
-(Postfach-Passwörter, OAuth-Tokens, IdP-Secrets; Verfahren siehe [`PRIVACY.md`](PRIVACY.md)).
+(Postfach-Passwörter, OAuth-Tokens, IdP-Secrets; Envelope-Encryption mit AES-256-GCM, Verfahren
+siehe [`PRIVACY.md`](PRIVACY.md)). Ohne gültigen Key startet `api` nicht.
 
-- Das Krypto-Modul ist **geplant (#6)**; heute speichert ollamail noch keine Secrets. Den Key
-  trotzdem **jetzt** erzeugen und sichern – sobald #6 aktiv ist, gilt:
 - Geht der Key verloren, sind gespeicherte Zugangsdaten nicht mehr lesbar. Postfächer und
   Identity-Provider müssen dann neu eingerichtet werden.
-- Den Key nach der Einrichtung nicht einfach in `.env` austauschen.
+- Den Key nach der Einrichtung nicht einfach in `.env` austauschen, sondern rotieren.
 
-**Key-Rotation** ist **geplant (#6)**. Ablauf und Befehle werden mit #6 hier dokumentiert.
+**Key-Rotation:** Ablauf mit `OLLAMAIL_SECRET_KEYS_OLD` und `python -m app.cli rotate-keys` in
+[`deploy/README.md`](../deploy/README.md#master-key-und-key-rotation).
 
 ## 8. Skalierung
 
-Heute läuft genau eine API-Instanz; Hintergrundjobs gibt es noch nicht.
-
-**Geplant (#7):** Der `worker` (Procrastinate, Queue in PostgreSQL) übernimmt Mail-Sync,
-KI-Verarbeitung und TTS. Vorgesehen sind mehrere Worker-Instanzen und nach Jobtyp getrennte Queues
-(`sync`, `llm`, `tts`), sodass z. B. ein Worker nur LLM-Jobs auf einem GPU-Host abarbeitet. Bis
-dahin startet `worker` nur mit `--profile worker` und bricht mangels Code ab. Konkrete Befehle
-folgen mit #7.
+Es läuft eine API-Instanz. Der `worker` (Procrastinate, Queue in PostgreSQL) übernimmt Mail-Sync,
+KI-Verarbeitung, OCR und TTS und startet immer mit. Die Jobs sind nach Typ auf Queues verteilt
+(`sync`, `llm`, `tts`, `ocr`, `default`); `OLLAMAIL_WORKER_QUEUES` legt fest, welche ein Worker
+abarbeitet, sodass z. B. ein eigener Worker nur LLM-Jobs auf einem GPU-Host übernimmt. Mehr
+Instanzen: `docker compose -f deploy/compose.yaml up -d --scale worker=2`, Details in
+[`deploy/README.md`](../deploy/README.md#worker-skalieren).
 
 **Mail-Sync (IMAP):** Jeder Worker, der die Queue `sync` abarbeitet, hält zusätzlich eine
 Datenbankverbindung für die Verteilung der Postfächer (Advisory-Locks) und pro überwachtem
@@ -669,26 +758,26 @@ verarbeitet. Die vollständige Liste aller Tabellen und Dateien mit Löschweg st
 | Datenkategorie | Speicherort | Status |
 |---|---|---|
 | Nutzerkonten, Rollen | PostgreSQL (`postgres-data`): `users`, `auth_identities` (Passwörter als Argon2id-Hash) | aktiv |
-| Gruppen | PostgreSQL: `auth_identities.groups` (Gruppen-Claims des IdP beim letzten Login, z. B. Entra-Gruppen-IDs) | aktiv (OIDC); LDAP liest Gruppen bei jedem Login und speichert sie nicht; GitHub geplant (#31) |
+| Gruppen | PostgreSQL: `auth_identities.groups` (Gruppen-Claims des IdP beim letzten Login, z. B. Entra-Gruppen-IDs) | aktiv (OIDC, SAML, GitHub-Teams als `<org>/<team>`); LDAP liest Gruppen bei jedem Login und speichert sie nicht |
 | IdP-Konfiguration (OIDC) | PostgreSQL: `auth_oidc_providers` (Client-Secret verschlüsselt mit `OLLAMAIL_SECRET_KEY`) oder Umgebung (`OLLAMAIL_AUTH_OIDC_PROVIDERS`) | aktiv |
 | Sessions | PostgreSQL: `auth_sessions` (nur SHA-256 des Cookie-Tokens, Browser-Kennung gekürzt); abgelaufene stündlich gelöscht | aktiv |
 | Login-Zähler (Rate-Limit, Sperre) | PostgreSQL: `auth_rate_limits` (nur HMAC von IP bzw. E-Mail-Adresse); stündlich bereinigt | aktiv |
-| Postfach-Zugangsdaten, OAuth-Tokens, IdP-Secrets | PostgreSQL, verschlüsselt mit `OLLAMAIL_SECRET_KEY` | geplant (#6, #15) |
-| E-Mails (Header, Inhalte, Metadaten) | PostgreSQL | geplant (#13, #14) |
-| Anhänge | Daten-Volume (`ollamail-data`) | geplant (#13) |
-| Triage: Kategorie, Priorität, Begründung (ein Satz) je Mail | PostgreSQL (`triage_results`), gelöscht mit der Mail | vorhanden (#20) |
+| Postfach-Zugangsdaten, OAuth-Tokens, IdP-Secrets | PostgreSQL (`mail_mailboxes.credentials`, Provider-Tabellen), verschlüsselt mit `OLLAMAIL_SECRET_KEY` | aktiv |
+| E-Mails (Header, Inhalte, Metadaten), Threads, Ordner | PostgreSQL (`mail_messages`, `mail_threads`, `mail_folders`, …) | aktiv |
+| Anhänge | Daten-Volume (`ollamail-data`), Metadaten in `mail_attachments` | aktiv |
+| Triage: Kategorie, Priorität, Begründung (ein Satz) je Mail | PostgreSQL (`triage_results`), gelöscht mit der Mail | aktiv |
 | Triage-Korrekturen (Few-Shot-Beispiele, nur für denselben Nutzer; Embeddings als Zahlenvektor) | PostgreSQL (`triage_feedback`), gelöscht mit Mail oder Nutzer | vorhanden (#20) |
 | Kategorien, Absenderregeln (Adresse oder Domain), Einstellungen je Nutzer/Postfach | PostgreSQL (`triage_categories`, `triage_category_preferences`, `triage_sender_rules`, `triage_mailbox_settings`) | vorhanden (#20) |
-| KI-Ergebnisse: Aufgaben | PostgreSQL | geplant (#22) |
+| KI-Ergebnisse: Aufgaben | PostgreSQL (`todos`) | aktiv |
 | Suchindex: Text-Abschnitte von Mails und Anhängen, Volltextindex, Embeddings | PostgreSQL: `search_chunks`, `search_embeddings` (pgvector); hängen per `ON DELETE CASCADE` an Mail, Anhang und Postfach | vorhanden (#24) |
-| Chat-Verläufe („Frag deine Inbox“) | PostgreSQL | geplant (#25) |
-| Daily Digest: Text und Audio | PostgreSQL bzw. Daten-Volume | geplant (#28) |
+| Chat-Verläufe („Frag deine Inbox“) | PostgreSQL (`rag_conversations`, `rag_messages`, `rag_citations`) | aktiv |
+| Daily Digest: Text und Audio | PostgreSQL (`digests`, `digest_user_settings`) bzw. Daten-Volume; nach `OLLAMAIL_DIGEST_RETENTION_DAYS` gelöscht | aktiv |
 | Antwortentwürfe (Empfänger, Betreff, Text, Anweisung), Signatur | PostgreSQL: `reply_drafts`, `reply_draft_settings`; gelöscht mit Nutzer, Postfach oder nach `OLLAMAIL_DRAFTS_RETENTION_DAYS` ohne Änderung (Job `drafts.purge`) | aktiv (#92) |
 | Audit-Log (Ereignistyp, Zeitpunkt, Nutzer- bzw. Objekt-ID, Codes und Zähler; keine Inhalte, Betreffzeilen oder Adressen) | PostgreSQL: `audit_events`, append-only; Aufbewahrung über Admin → Aufbewahrung bzw. `OLLAMAIL_AUDIT_RETENTION_DAYS` (Job `privacy.retention`) | aktiv |
 | Datenexporte der Nutzer (ZIP mit allen eigenen Daten) | PostgreSQL: `privacy_exports`; Daten-Volume `exports/<user_id>/`; nach `OLLAMAIL_PRIVACY_EXPORT_EXPIRY_HOURS` gelöscht | aktiv (#36) |
 | Aufbewahrungsfristen | PostgreSQL: `privacy_retention_settings` (keine personenbezogenen Daten) | aktiv (#36) |
-| Aufgaben-Export: Ziel, Server-URL, Benutzername, Passwort bzw. Google-Refresh-Token (verschlüsselt), Liste, Modus je Nutzer; Verweise auf die exportierten Aufgaben | PostgreSQL: `todo_export_targets` (Zugangsdaten verschlüsselt mit `OLLAMAIL_SECRET_KEY`), `todos.external_refs` | aktiv, nur mit `OLLAMAIL_TODOS_EXPORT_SINKS` (#40, Google Tasks #102) |
-| Job-Queue | PostgreSQL | geplant (#7) |
+| Aufgaben-Export: Ziel, Server-URL, Benutzername, Passwort bzw. Google-Refresh-Token (verschlüsselt), Liste, Modus je Nutzer; Verweise auf die exportierten Aufgaben | PostgreSQL: `todo_export_targets` (Zugangsdaten verschlüsselt mit `OLLAMAIL_SECRET_KEY`), `todos.external_refs` | aktiv, nur mit `OLLAMAIL_TODOS_EXPORT_SINKS` (#40, Microsoft To Do #101, Google Tasks #102) |
+| Job-Queue (nur IDs und Parameter, keine Mail-Inhalte) | PostgreSQL (`procrastinate_*`) | aktiv |
 | Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
 | TTS-Stimmen (keine personenbezogenen Daten) | Daten-Volume, `tts/voices/<engine>/` | vorhanden (#27) |
@@ -703,15 +792,16 @@ Deine Daten) sind aktiv (#36); Details in [`PRIVACY.md`](PRIVACY.md#betroffenenr
 ```
 Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) ──▶ api ──▶ PostgreSQL
                                                                    ▲
-                       worker (geplant #7) ────────────────────────┘
+                       worker ─────────────────────────────────────┘
                          │
                          ├──▶ Mailserver: IMAP (#14) / Gmail API (#38) / Microsoft Graph (#37)
-                         ├──▶ LLM: Ollama im Compose-Netz oder eigener Server (geplant #17)
+                         ├──▶ LLM: Ollama im Compose-Netz oder eigener Server
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
-                         └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
+                         └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true
 
 worker ──▶ CalDAV-Server des Nutzers: nur mit OLLAMAIL_TODOS_EXPORT_SINKS=caldav (#40)
 worker ──▶ tasks.googleapis.com / oauth2.googleapis.com: nur mit OLLAMAIL_TODOS_EXPORT_SINKS=gtasks (#102)
+worker ──▶ graph.microsoft.com (Microsoft To Do): nur mit OLLAMAIL_TODOS_EXPORT_SINKS=mstodo (#101)
 
 api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30), GitHub OAuth2 (#31), SAML 2.0 (#94; Metadaten-URL des IdP)
 api ──▶ login.microsoftonline.com / Graph: nur beim Verbinden eines Microsoft-365-Postfachs (#37)
@@ -764,7 +854,7 @@ Microsoft ──▶ api: Change Notifications nur mit OLLAMAIL_MAIL_GRAPH_NOTIFI
   Einführung beteiligt werden (in Deutschland u. a. § 87 Abs. 1 Nr. 6 BetrVG).
 - **Betroffene Dritte:** E-Mails enthalten personenbezogene Daten der Kommunikationspartner. Der
   Umfang lässt sich über Postfach- und Ordnerauswahl und den Erstimport-Zeitraum begrenzen
-  (`OLLAMAIL_MAIL_INITIAL_SYNC_DAYS`, Standard 90 Tage; wirksam ab #14).
+  (`OLLAMAIL_MAIL_INITIAL_SYNC_DAYS`, Standard 90 Tage).
 
 ## 10. Troubleshooting
 
@@ -783,7 +873,9 @@ curl http://localhost:8080/api/readyz
 | `password authentication failed for user "ollamail"` (in `logs migrate`/`api`) | `POSTGRES_PASSWORD` wurde nach dem ersten Start geändert. Altes Passwort wieder eintragen oder das Passwort in der Datenbank anpassen: `docker compose -f deploy/compose.yaml exec postgres psql -U ollamail -d ollamail -c "ALTER USER ollamail PASSWORD '<neu>'"` (Nutzer/DB-Name ggf. an `POSTGRES_USER`/`POSTGRES_DB` anpassen). |
 | `/api/readyz` liefert `503` mit `"database":"failed"` | Datenbank nicht erreichbar. `logs postgres` und `OLLAMAIL_DATABASE_URL` prüfen (Sonderzeichen im Passwort URL-kodieren). |
 | `migrate` zeigt `Exited (0)` | Normal: einmaliger Migrationslauf. |
-| `worker` startet nicht / `No module named 'app.worker'` | Der Worker existiert noch nicht (#7). `--profile worker` weglassen. |
+| `error from registry: unauthorized` / `pull access denied` für `ghcr.io/dusseligerdussel/ollamail-*` | Kein Zugriff auf die GHCR-Images oder es gibt noch kein Release für `OLLAMAIL_VERSION` (`latest` erst ab dem ersten Release). Lokal bauen ([2.3](#23-starten), Weg A) oder `docker login ghcr.io` ([`deploy/README.md`](../deploy/README.md#zugriff-auf-die-images)). |
+| `setup_pending` im Log ohne `setup_code` | `OLLAMAIL_SETUP_TOKEN` ist gesetzt; diesen Wert im Setup-Assistenten eingeben. |
+| `worker` startet ständig neu | `docker compose -f deploy/compose.yaml logs worker`; häufig ein ungültiger Wert in `OLLAMAIL_WORKER_QUEUES`. |
 | `toomanyrequests` / `429 Too Many Requests` beim Build oder Pull | Rate-Limit von Docker Hub. Mit `docker login` anmelden oder später erneut versuchen. |
 | `failed to bind host port … address already in use` oder `port is already allocated` | Port 8080 ist belegt. `OLLAMAIL_HTTP_PORT` in `deploy/.env` ändern. |
 | UI lädt hinter dem Reverse Proxy, Live-Updates bleiben aus | Pufferung im äußeren Proxy aktiv. Abschnitt 4 (SSE). |
