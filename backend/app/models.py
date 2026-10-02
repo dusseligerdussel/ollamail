@@ -17,6 +17,7 @@ from app.processing import models as processing_models
 from app.rag import models as rag_models
 from app.search import models as search_models
 from app.todos import models as todo_models
+from app.todos.export import models as todo_export_models
 from app.triage import models as triage_models
 from app.users import models as user_models
 
@@ -34,6 +35,7 @@ __all__ = [
     "processing_models",
     "rag_models",
     "search_models",
+    "todo_export_models",
     "todo_models",
     "triage_models",
     "user_models",

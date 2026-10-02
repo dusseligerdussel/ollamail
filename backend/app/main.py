@@ -45,6 +45,7 @@ from app.privacy.router import admin_router as privacy_admin_router
 from app.privacy.router import router as privacy_router
 from app.rag.router import router as rag_router
 from app.search.router import router as search_router
+from app.todos.export.router import router as todo_export_router
 from app.todos.router import router as todos_router
 from app.triage.router import router as triage_router
 from app.users.router import router as users_router
@@ -115,6 +116,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_admin_router)
     app.include_router(invitations_router)
     app.include_router(todos_router)
+    app.include_router(todo_export_router)
     app.include_router(triage_router)
     app.include_router(audit_router)
     app.include_router(ai_settings_router)
