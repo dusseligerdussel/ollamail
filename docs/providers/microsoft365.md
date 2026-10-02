@@ -14,8 +14,9 @@ gebraucht.
 - **Self-Hosting ohne öffentliche URL ist der Normalfall:** Polling ist Standard. Change
   Notifications (Webhooks) sind optional und nur mit öffentlich erreichbarer URL möglich.
 - Tokens verschlüsselt (`mail_mailboxes.credentials`, `EncryptedJSON`), automatischer Refresh.
+- Antworten senden (`createReply` + `send`, #92, siehe Abschnitt 4).
 - Nicht in diesem Schritt: Frontend (folgt mit der Postfach-UI), Admin-UI für die Entra-App
-  (vorerst nur Umgebungsvariablen), Mail-Versand.
+  (vorerst nur Umgebungsvariablen).
 
 ## 2. App-Registrierung in Entra ID
 
@@ -32,10 +33,11 @@ getrennt freigegeben werden sollen.
 2. *Certificates & secrets* → *New client secret*. Wert in `OLLAMAIL_MAIL_GRAPH_CLIENT_SECRET`.
    Ablaufdatum notieren; ein abgelaufenes Secret führt zu `authentication_failed`.
 3. *API permissions* → *Microsoft Graph*:
-   - **Delegiert** (Nutzer verbindet sein Postfach): `Mail.ReadWrite`, `User.Read`,
-     `offline_access`; für freigegebene Postfächer zusätzlich `Mail.ReadWrite.Shared`.
-   - **Application** (App-only, Shared Mailboxes/Rollout): `Mail.ReadWrite`, danach
-     *Grant admin consent*.
+   - **Delegiert** (Nutzer verbindet sein Postfach): `Mail.ReadWrite`, `Mail.Send`, `User.Read`,
+     `offline_access`; für freigegebene Postfächer zusätzlich `Mail.ReadWrite.Shared` und
+     `Mail.Send.Shared`.
+   - **Application** (App-only, Shared Mailboxes/Rollout): `Mail.ReadWrite`, zum Senden
+     `Mail.Send`, danach *Grant admin consent*.
 4. Umgebungsvariablen (siehe `deploy/.env.example`):
 
 | Variable | Bedeutung |
@@ -45,6 +47,7 @@ getrennt freigegeben werden sollen.
 | `OLLAMAIL_MAIL_GRAPH_TENANT_ID` | Tenant-ID. Standard `organizations` (alle Arbeitskonten); für App-only ist eine konkrete Tenant-ID Pflicht. |
 | `OLLAMAIL_MAIL_GRAPH_REDIRECT_URI` | Redirect-URI wie registriert. Leer: aus der Anfrage abgeleitet (`<schema>://<host>/api/mail/graph/callback`). |
 | `OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL` | Öffentliche URL für Change Notifications. Leer (Standard): nur Polling. |
+| `OLLAMAIL_MAIL_GRAPH_SEND_ENABLED` | `Mail.Send` beim Verbinden anfordern, damit Antworten gesendet werden können (Standard `true`, siehe Abschnitt 4). `false`: Postfächer werden nur mit Lese-/Schreibzugriff verbunden, Senden liefert `send_not_permitted`. |
 | `OLLAMAIL_MAIL_GRAPH_AUTHORITY`, `OLLAMAIL_MAIL_GRAPH_API_URL` | Login- und Graph-Endpunkt (nationale Clouds, Tests). |
 | `OLLAMAIL_MAIL_GRAPH_TIMEOUT`, `OLLAMAIL_MAIL_GRAPH_MAX_RETRIES` | Timeout je Anfrage, Wiederholungen bei Drosselung. |
 
@@ -121,7 +124,33 @@ Hat ein Nutzer in Exchange *Full Access* auf ein Postfach, kann er es selbst ver
 (`shared_mailbox` beim Connect, Scope `Mail.ReadWrite.Shared`). Das Postfach gehört dann dem
 Nutzer (nicht `is_shared`); Zugriff endet, wenn Exchange die Berechtigung entzieht.
 
-## 4. Token-Handling (`graph_auth.py`)
+## 4. Senden von Antworten (#92)
+
+Antworten aus `app/drafts` sendet `GraphProvider.send` mit zwei Aufrufen: `POST
+/messages/{id}/createReply` (bzw. `createReplyAll`) auf der beantworteten Mail mit Empfängern,
+Betreff und Text des Entwurfs, dann `POST /messages/{draft-id}/send`. Exchange setzt
+`In-Reply-To`/`References`, hält die Antwort in der Konversation und legt sie in „Gesendete
+Elemente“ ab. Schlägt `send` fehl, wird die erzeugte Antwort wieder gelöscht. Gesendet wird ohne
+automatische Wiederholung (auch nicht nach Drosselung), damit keine Mail doppelt rausgeht.
+
+**Berechtigungen:**
+
+- **Delegiert:** Beim Verbinden werden zusätzlich `Mail.Send` (bzw. `Mail.Send.Shared` für ein
+  freigegebenes Postfach) angefordert. Der Sync erneuert seine Tokens weiter mit den bisherigen
+  Scopes; nur zum Senden holt der Provider ein Token mit `Mail.Send`. Postfächer, die **vor**
+  dieser Version verbunden wurden, synchronisieren also unverändert, senden aber erst nach
+  einem erneuten Verbinden (sonst `send_not_permitted`). Hat der Tenant Nutzer-Consent
+  abgeschaltet, muss der Admin `Mail.Send` (delegiert) freigeben.
+- **App-only:** Anwendungsberechtigung `Mail.Send` mit Admin-Consent. Wie `Mail.ReadWrite` gilt
+  sie ohne Einschränkung für **jedes** Postfach des Tenants – mit RBAC for Applications die
+  Rolle `Application Mail.Send` auf denselben Management Scope beschränken
+  (`New-ManagementRoleAssignment -App <client-id> -Role "Application Mail.Send"
+  -CustomResourceScope "ollamail-mailboxes"`) bzw. die `ApplicationAccessPolicy` gilt auch für
+  `Mail.Send`. Shared Mailboxes sind in ollamail vorerst nur lesbar; Senden aus ihnen lehnt die
+  API ab (403 `read_only`).
+- `OLLAMAIL_MAIL_GRAPH_SEND_ENABLED=false` schaltet das Anfordern und das Senden ab.
+
+## 5. Token-Handling (`graph_auth.py`)
 
 - **Refresh:** Vor jeder Anfrage wird geprüft, ob der Access-Token noch mindestens 5 Minuten
   gilt; sonst Refresh (`grant_type=refresh_token`). Antwortet Graph mit 401, wird einmal
@@ -143,7 +172,7 @@ Die Token-Hilfen sind bewusst klein und Graph-spezifisch (Microsoft-Endpunkte, P
 `.default`-Scope). Eine gemeinsame OAuth-Basis mit Gmail (#38) lohnt sich, sobald beide
 Provider auf `main` sind; der Rückruf `save_credentials` ist bereits provider-neutral.
 
-## 5. Synchronisation
+## 6. Synchronisation
 
 ### 5.1 Ordner
 
@@ -228,7 +257,7 @@ Requests ohne Änderungen sind billig.
   neuer Versuch erfolgt beim nächsten Neustart der Überwachung (Worker-Neustart, geänderte
   Postfach-Einstellungen).
 
-## 6. Aktionen
+## 7. Aktionen
 
 | Interface | Graph |
 |---|---|
@@ -236,7 +265,7 @@ Requests ohne Änderungen sind billig.
 | `set_flags(ref, flags)` | `PATCH /messages/{id}` mit `isRead`, `flag.flagStatus`, `categories` |
 | `apply_label` / `remove_label` | Kategorie hinzufügen/entfernen (`PATCH categories`) |
 
-## 7. Fehler, Drosselung, Batching
+## 8. Fehler, Drosselung, Batching
 
 - **429/503/504:** Warten gemäß `Retry-After` (höchstens 120 s je Versuch, sonst exponentiell),
   bis `OLLAMAIL_MAIL_GRAPH_MAX_RETRIES`; danach `ConnectionFailedError` (`throttled`) → der Job
@@ -247,7 +276,7 @@ Requests ohne Änderungen sind billig.
 - `$batch` für MIME-Abrufe und Ordnerrollen (max. 20 Anfragen je Batch, Graph-Limit).
 - Graph erlaubt 4 parallele Anfragen je Postfach und App; der Provider arbeitet sequentiell.
 
-## 8. Datenschutz
+## 9. Datenschutz
 
 - Delegiert: Zugriff nur auf das eigene Postfach. App-only: nur mit RBAC for Applications /
   Application Access Policy (siehe 3.2) – das ist in der Betreiber-Doku Pflicht.
@@ -257,14 +286,15 @@ Requests ohne Änderungen sind billig.
 - Löschung: Postfach löschen entfernt Tokens, Mails, Anhänge; eine aktive Subscription läuft
   spätestens nach ihrer Laufzeit ab.
 
-## 9. Tests
+## 10. Tests
 
 - **Contract-Tests** (`backend/tests/mail/test_graph_*.py`): synthetische Graph-Antworten mit
   `respx` (Struktur wie in der Graph-Doku, Daten frei erfunden, `example.com`). Abgedeckt:
   Ordner und Rollen, Initial-Delta mit Paging, Fortsetzen, inkrementelle Änderungen, Verschieben,
   Löschen, ungültiger Delta-Token, `$batch` inkl. Teil-Drosselung, 429 mit `Retry-After`,
   Token-Refresh inkl. Speichern, App-only-Token, Aktionen, Subscriptions, Webhook-Endpunkt,
-  Connect-Flow.
+  Connect-Flow, Senden (`test_graph_send.py`: `createReply`/`createReplyAll` + `send`, Token
+  mit `Mail.Send`, fehlende Berechtigung, keine Wiederholung).
 - Engine-Tests für `MessageChanged` und „kein synchronisierter Ordner“.
 
 ### Manuelle Testanleitung mit einem M365-Developer-Tenant

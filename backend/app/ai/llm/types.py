@@ -16,6 +16,7 @@ class LLMTask(StrEnum):
     TODOS = "todos"
     DIGEST = "digest"
     RAG_CHAT = "rag_chat"
+    REPLY_DRAFT = "reply_draft"
     EMBEDDINGS = "embeddings"
 
 

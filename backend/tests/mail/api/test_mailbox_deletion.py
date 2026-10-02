@@ -16,6 +16,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import AuditAction
+from app.drafts.models import ReplyDraft
 from app.mail.models import Attachment, Mailbox, Message, Thread
 from app.mail.storage import AttachmentStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
@@ -147,6 +148,14 @@ async def test_delete_removes_all_rows_and_files(
                 thread_id=message.thread_id,
                 title="Send the report",
             ),
+            ReplyDraft(
+                user_id=mailbox.owner_user_id,
+                mailbox_id=mailbox_id,
+                message_id=message.id,
+                thread_id=message.thread_id,
+                subject="Re: report",
+                body="Draft",
+            ),
         ]
     )
     await db_session.commit()
@@ -162,6 +171,7 @@ async def test_delete_removes_all_rows_and_files(
         "message_processing",
         "processing_mailbox_settings",
         "todos",
+        "reply_drafts",
     ):
         assert filled[table] > baseline[table], table
     paths = list(

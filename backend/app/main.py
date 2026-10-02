@@ -34,6 +34,7 @@ from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
 from app.digest.router import feed_router as digest_feed_router
 from app.digest.router import router as digests_router
+from app.drafts.router import router as drafts_router
 from app.mail.api.messages import providers_router as mailbox_providers_router
 from app.mail.api.messages import router as messages_router
 from app.mail.api.router import router as mailboxes_router
@@ -44,6 +45,9 @@ from app.mail.providers.graph_router import router as graph_router
 from app.privacy.router import admin_router as privacy_admin_router
 from app.privacy.router import router as privacy_router
 from app.rag.router import router as rag_router
+from app.scim.admin_router import router as scim_admin_router
+from app.scim.router import CSRF_EXEMPT_PREFIX as SCIM_PATH_PREFIX
+from app.scim.router import router as scim_router
 from app.search.router import router as search_router
 from app.todos.export.router import router as todo_export_router
 from app.todos.router import router as todos_router
@@ -104,7 +108,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     install_error_handlers(app)
     # Added first, so it runs inside RequestContextMiddleware (403s carry a request ID).
-    app.add_middleware(CSRFMiddleware, settings=settings, exempt_paths=[NOTIFICATIONS_PATH])
+    app.add_middleware(
+        CSRFMiddleware, settings=settings, exempt_paths=[NOTIFICATIONS_PATH, SCIM_PATH_PREFIX]
+    )
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router)
     app.include_router(events_router)
@@ -131,9 +137,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(digests_router)
     app.include_router(digest_feed_router)
     app.include_router(rag_router)
+    app.include_router(drafts_router)
     app.include_router(search_router)
     app.include_router(privacy_router)
     app.include_router(privacy_admin_router)
+    app.include_router(scim_router)
+    app.include_router(scim_admin_router)
     oidc.install(app, settings)
     github.install(app)
     return app

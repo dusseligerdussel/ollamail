@@ -6,6 +6,7 @@ import {
   KeyRound,
   type LucideIcon,
   Mails,
+  RefreshCw,
   ScrollText,
   Tags,
   UserCog,
@@ -54,6 +55,12 @@ function AdminPage() {
                 icon={Users}
                 title={t("pages.users.title")}
                 description={t("pages.admin.usersDescription")}
+              />
+              <AdminLink
+                to="/admin/scim"
+                icon={RefreshCw}
+                title={t("pages.scim.title")}
+                description={t("pages.admin.scimDescription")}
               />
             </div>
           </section>
@@ -152,6 +159,7 @@ function AdminLink({
     | "/admin/sign-in"
     | "/admin/role-mapping"
     | "/admin/users"
+    | "/admin/scim"
     | "/admin/retention"
     | "/admin/shared-mailboxes";
   icon: LucideIcon;

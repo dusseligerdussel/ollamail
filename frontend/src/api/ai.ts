@@ -16,7 +16,14 @@ export type LLMProfile = components["schemas"]["ProfileRead"]["name"];
 export type LLMProviderKind = AIProvider["kind"];
 
 /** Display order of the tasks (same as the backend's `LLMTask`). */
-export const llmTasks: LLMTask[] = ["triage", "todos", "digest", "rag_chat", "embeddings"];
+export const llmTasks: LLMTask[] = [
+  "triage",
+  "todos",
+  "digest",
+  "rag_chat",
+  "reply_draft",
+  "embeddings",
+];
 
 export const aiSettingsQueryOptions = queryOptions({
   queryKey: ["ai", "settings"],
