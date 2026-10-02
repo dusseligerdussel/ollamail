@@ -208,6 +208,17 @@
           "kind": {
             "$ref": "#/components/schemas/AuthProviderKind"
           },
+          "login_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login Path"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -253,6 +264,67 @@
           "providers"
         ],
         "title": "AuthProviders",
+        "type": "object"
+      },
+      "AutodiscoverRequest": {
+        "properties": {
+          "address": {
+            "maxLength": 320,
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "title": "Address",
+            "type": "string"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "title": "AutodiscoverRequest",
+        "type": "object"
+      },
+      "AutodiscoverResult": {
+        "properties": {
+          "suggestions": {
+            "items": {
+              "$ref": "#/components/schemas/AutodiscoverSuggestion"
+            },
+            "title": "Suggestions",
+            "type": "array"
+          }
+        },
+        "required": [
+          "suggestions"
+        ],
+        "title": "AutodiscoverResult",
+        "type": "object"
+      },
+      "AutodiscoverSuggestion": {
+        "properties": {
+          "hints": {
+            "items": {
+              "$ref": "#/components/schemas/Hint"
+            },
+            "title": "Hints",
+            "type": "array"
+          },
+          "provider_settings": {
+            "additionalProperties": true,
+            "title": "Provider Settings",
+            "type": "object"
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MailboxType"
+          }
+        },
+        "required": [
+          "type",
+          "provider_settings",
+          "source",
+          "hints"
+        ],
+        "title": "AutodiscoverSuggestion",
         "type": "object"
       },
       "CategoryCreate": {
@@ -394,6 +466,37 @@
         "title": "CategoryUpdate",
         "type": "object"
       },
+      "ConnectionTestResult": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/RemoteFolderRead"
+            },
+            "title": "Folders",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "ConnectionTestResult",
+        "type": "object"
+      },
       "DirectoryType": {
         "enum": [
           "active_directory",
@@ -401,6 +504,185 @@
         ],
         "title": "DirectoryType",
         "type": "string"
+      },
+      "FolderKind": {
+        "enum": [
+          "folder",
+          "label"
+        ],
+        "title": "FolderKind",
+        "type": "string"
+      },
+      "FolderRead": {
+        "properties": {
+          "excluded_by_role": {
+            "title": "Excluded By Role",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "import_pending": {
+            "title": "Import Pending",
+            "type": "boolean"
+          },
+          "kind": {
+            "$ref": "#/components/schemas/FolderKind"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "message_count": {
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "remote_id": {
+            "title": "Remote Id",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FolderRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sync_enabled": {
+            "title": "Sync Enabled",
+            "type": "boolean"
+          },
+          "synced": {
+            "title": "Synced",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "remote_id",
+          "name",
+          "kind",
+          "role",
+          "sync_enabled",
+          "excluded_by_role",
+          "synced",
+          "last_synced_at",
+          "last_error",
+          "import_pending",
+          "message_count"
+        ],
+        "title": "FolderRead",
+        "type": "object"
+      },
+      "FolderRole": {
+        "description": "Special-use roles (RFC 6154 for IMAP, well-known folders in Graph, system labels\nin Gmail).",
+        "enum": [
+          "inbox",
+          "sent",
+          "drafts",
+          "trash",
+          "junk",
+          "archive",
+          "all"
+        ],
+        "title": "FolderRole",
+        "type": "string"
+      },
+      "FolderSelection": {
+        "properties": {
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "sync_enabled": {
+            "title": "Sync Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "sync_enabled"
+        ],
+        "title": "FolderSelection",
+        "type": "object"
+      },
+      "FolderSelectionUpdate": {
+        "properties": {
+          "folders": {
+            "items": {
+              "$ref": "#/components/schemas/FolderSelection"
+            },
+            "maxItems": 10000,
+            "minItems": 1,
+            "title": "Folders",
+            "type": "array"
+          }
+        },
+        "required": [
+          "folders"
+        ],
+        "title": "FolderSelectionUpdate",
+        "type": "object"
+      },
+      "GmailOAuthStart": {
+        "properties": {
+          "login_hint": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login Hint"
+          }
+        },
+        "title": "GmailOAuthStart",
+        "type": "object"
+      },
+      "GmailOAuthStartResponse": {
+        "properties": {
+          "authorization_url": {
+            "title": "Authorization Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "title": "GmailOAuthStartResponse",
+        "type": "object"
       },
       "GraphConnectRequest": {
         "properties": {
@@ -472,6 +754,18 @@
         ],
         "title": "HealthStatus",
         "type": "object"
+      },
+      "Hint": {
+        "description": "Machine-readable notes for the UI (translated there).",
+        "enum": [
+          "app_password",
+          "enable_imap",
+          "oauth_required",
+          "mail_password",
+          "guessed"
+        ],
+        "title": "Hint",
+        "type": "string"
       },
       "InboxGroup": {
         "properties": {
@@ -1083,6 +1377,286 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "LogoutResult": {
+        "properties": {
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          }
+        },
+        "required": [
+          "redirect_url"
+        ],
+        "title": "LogoutResult",
+        "type": "object"
+      },
+      "MailboxConnection": {
+        "description": "Everything needed to connect to a mailbox.",
+        "properties": {
+          "address": {
+            "maxLength": 320,
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "title": "Address",
+            "type": "string"
+          },
+          "credentials": {
+            "additionalProperties": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "maxProperties": 16,
+            "title": "Credentials",
+            "type": "object"
+          },
+          "provider_settings": {
+            "additionalProperties": true,
+            "title": "Provider Settings",
+            "type": "object"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MailboxType"
+          }
+        },
+        "required": [
+          "type",
+          "address"
+        ],
+        "title": "MailboxConnection",
+        "type": "object"
+      },
+      "MailboxCreate": {
+        "properties": {
+          "address": {
+            "maxLength": 320,
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
+            "title": "Address",
+            "type": "string"
+          },
+          "credentials": {
+            "additionalProperties": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "maxProperties": 16,
+            "title": "Credentials",
+            "type": "object"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "provider_settings": {
+            "additionalProperties": true,
+            "title": "Provider Settings",
+            "type": "object"
+          },
+          "sync_enabled": {
+            "default": true,
+            "title": "Sync Enabled",
+            "type": "boolean"
+          },
+          "sync_settings": {
+            "$ref": "#/components/schemas/SyncSettings"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MailboxType"
+          }
+        },
+        "required": [
+          "type",
+          "address"
+        ],
+        "title": "MailboxCreate",
+        "type": "object"
+      },
+      "MailboxDeleted": {
+        "description": "Confirmation of a removal: the mailbox and all data derived from it (mails,\nattachments and their files, threads, folders, sync state, processing results, todos,\ntriage results, search index) are deleted.",
+        "properties": {
+          "attachments": {
+            "title": "Attachments",
+            "type": "integer"
+          },
+          "deleted": {
+            "const": true,
+            "default": true,
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "messages": {
+            "title": "Messages",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mailbox_id",
+          "messages",
+          "attachments"
+        ],
+        "title": "MailboxDeleted",
+        "type": "object"
+      },
+      "MailboxRead": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "has_credentials": {
+            "title": "Has Credentials",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_shared": {
+            "title": "Is Shared",
+            "type": "boolean"
+          },
+          "provider_settings": {
+            "additionalProperties": true,
+            "title": "Provider Settings",
+            "type": "object"
+          },
+          "status": {
+            "$ref": "#/components/schemas/MailboxSyncStatus"
+          },
+          "sync_enabled": {
+            "title": "Sync Enabled",
+            "type": "boolean"
+          },
+          "sync_settings": {
+            "$ref": "#/components/schemas/SyncSettings"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MailboxType"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "display_name",
+          "address",
+          "is_shared",
+          "provider_settings",
+          "has_credentials",
+          "sync_enabled",
+          "sync_settings",
+          "status",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "MailboxRead",
+        "type": "object"
+      },
+      "MailboxSyncStatus": {
+        "description": "``phase`` summarises the fields: ``paused`` (sync disabled), ``error`` (the last sync\nfailed for the whole mailbox), ``syncing`` (a sync job is queued or running),\n``pending`` (never synced), ``importing`` (initial import of some folder unfinished),\nelse ``idle``.",
+        "properties": {
+          "folders_failed": {
+            "title": "Folders Failed",
+            "type": "integer"
+          },
+          "folders_imported": {
+            "title": "Folders Imported",
+            "type": "integer"
+          },
+          "folders_total": {
+            "title": "Folders Total",
+            "type": "integer"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Synced At"
+          },
+          "message_count": {
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "phase": {
+            "enum": [
+              "paused",
+              "pending",
+              "importing",
+              "syncing",
+              "idle",
+              "error"
+            ],
+            "title": "Phase",
+            "type": "string"
+          },
+          "sync_queued": {
+            "title": "Sync Queued",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "phase",
+          "last_synced_at",
+          "last_error",
+          "sync_queued",
+          "folders_total",
+          "folders_imported",
+          "folders_failed",
+          "message_count"
+        ],
+        "title": "MailboxSyncStatus",
+        "type": "object"
+      },
       "MailboxTriageSettings": {
         "properties": {
           "write_back": {
@@ -1093,6 +1667,619 @@
           "write_back"
         ],
         "title": "MailboxTriageSettings",
+        "type": "object"
+      },
+      "MailboxType": {
+        "enum": [
+          "imap",
+          "graph",
+          "gmail"
+        ],
+        "title": "MailboxType",
+        "type": "string"
+      },
+      "MailboxUpdate": {
+        "description": "Fields to change; omitted fields stay. Changed connection settings or credentials\nare tested before they are saved. ``sync_enabled`` pauses or resumes syncing.",
+        "properties": {
+          "credentials": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "maxLength": 16384,
+                  "type": "string"
+                },
+                "maxProperties": 16,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Credentials"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "provider_settings": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Settings"
+          },
+          "sync_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Enabled"
+          },
+          "sync_settings": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SyncSettingsUpdate"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "MailboxUpdate",
+        "type": "object"
+      },
+      "OIDCPreset": {
+        "enum": [
+          "generic",
+          "entra",
+          "google",
+          "keycloak",
+          "authentik"
+        ],
+        "title": "OIDCPreset",
+        "type": "string"
+      },
+      "OIDCPresetRead": {
+        "properties": {
+          "docs": {
+            "title": "Docs",
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "groups_claim": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Claim"
+          },
+          "issuer_template": {
+            "title": "Issuer Template",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/OIDCPreset"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scopes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "preset",
+          "label",
+          "issuer_template",
+          "scopes",
+          "groups_claim",
+          "fields",
+          "docs"
+        ],
+        "title": "OIDCPresetRead",
+        "type": "object"
+      },
+      "OIDCProviderCreate": {
+        "properties": {
+          "allowed_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "allowed_tenants": {
+            "default": [],
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Tenants",
+            "type": "array"
+          },
+          "auto_provision": {
+            "default": true,
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "client_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "groups_claim": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "groups",
+            "title": "Groups Claim"
+          },
+          "hosted_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Hosted Domains",
+            "type": "array"
+          },
+          "issuer": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "link_by_email": {
+            "default": false,
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 32,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+            "title": "Name",
+            "type": "string"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/OIDCPreset",
+            "default": "generic"
+          },
+          "scopes": {
+            "default": [
+              "openid",
+              "email",
+              "profile"
+            ],
+            "items": {
+              "pattern": "^[\\x21\\x23-\\x5b\\x5d-\\x7e]{1,64}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Scopes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "display_name",
+          "issuer",
+          "client_id",
+          "name"
+        ],
+        "title": "OIDCProviderCreate",
+        "type": "object"
+      },
+      "OIDCProviderRead": {
+        "properties": {
+          "allowed_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "allowed_tenants": {
+            "default": [],
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Tenants",
+            "type": "array"
+          },
+          "auto_provision": {
+            "default": true,
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "client_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "groups_claim": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "groups",
+            "title": "Groups Claim"
+          },
+          "has_client_secret": {
+            "title": "Has Client Secret",
+            "type": "boolean"
+          },
+          "hosted_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Hosted Domains",
+            "type": "array"
+          },
+          "issuer": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "link_by_email": {
+            "default": false,
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/OIDCPreset",
+            "default": "generic"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "redirect_uri": {
+            "title": "Redirect Uri",
+            "type": "string"
+          },
+          "scopes": {
+            "default": [
+              "openid",
+              "email",
+              "profile"
+            ],
+            "items": {
+              "pattern": "^[\\x21\\x23-\\x5b\\x5d-\\x7e]{1,64}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Scopes",
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "env",
+              "db"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "display_name",
+          "issuer",
+          "client_id",
+          "name",
+          "provider",
+          "source",
+          "has_client_secret",
+          "redirect_uri",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OIDCProviderRead",
+        "type": "object"
+      },
+      "OIDCProviderUpdate": {
+        "description": "Fields to change; omitted fields stay. ``client_secret: null`` removes the secret.",
+        "properties": {
+          "allowed_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 254,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Domains"
+          },
+          "allowed_tenants": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Tenants"
+          },
+          "auto_provision": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Provision"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "groups_claim": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Claim"
+          },
+          "hosted_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 254,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hosted Domains"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          },
+          "link_by_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link By Email"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OIDCPreset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scopes": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[\\x21\\x23-\\x5b\\x5d-\\x7e]{1,64}$",
+                  "type": "string"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scopes"
+          }
+        },
+        "title": "OIDCProviderUpdate",
         "type": "object"
       },
       "OrganizationCategoryCreate": {
@@ -1323,6 +2510,52 @@
         "title": "RegisterRequest",
         "type": "object"
       },
+      "RemoteFolderRead": {
+        "description": "A folder as reported by the server (connection test).",
+        "properties": {
+          "kind": {
+            "$ref": "#/components/schemas/FolderKind"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "parent_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parent Id"
+          },
+          "remote_id": {
+            "title": "Remote Id",
+            "type": "string"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/FolderRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "remote_id",
+          "name",
+          "kind",
+          "role",
+          "parent_id"
+        ],
+        "title": "RemoteFolderRead",
+        "type": "object"
+      },
       "SenderRuleCreate": {
         "properties": {
           "category_id": {
@@ -1526,6 +2759,125 @@
           "initialized"
         ],
         "title": "SetupStatus",
+        "type": "object"
+      },
+      "Source": {
+        "enum": [
+          "known",
+          "guess"
+        ],
+        "title": "Source",
+        "type": "string"
+      },
+      "SyncRequestResult": {
+        "properties": {
+          "queued": {
+            "title": "Queued",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "queued"
+        ],
+        "title": "SyncRequestResult",
+        "type": "object"
+      },
+      "SyncSettings": {
+        "description": "``Mailbox.sync_settings``. Unset values fall back to instance settings.",
+        "properties": {
+          "excluded_folders": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Excluded Folders",
+            "type": "array"
+          },
+          "excluded_roles": {
+            "items": {
+              "$ref": "#/components/schemas/FolderRole"
+            },
+            "title": "Excluded Roles",
+            "type": "array"
+          },
+          "initial_sync_days": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Sync Days"
+          },
+          "poll_interval_seconds": {
+            "default": 300,
+            "minimum": 30.0,
+            "title": "Poll Interval Seconds",
+            "type": "integer"
+          }
+        },
+        "title": "SyncSettings",
+        "type": "object"
+      },
+      "SyncSettingsUpdate": {
+        "description": "Changes to ``SyncSettings``; omitted fields stay, ``initial_sync_days: null`` falls\nback to the instance default. The import period applies to folders whose initial\nimport has not started yet.",
+        "properties": {
+          "excluded_folders": {
+            "anyOf": [
+              {
+                "items": {
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Folders"
+          },
+          "excluded_roles": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/FolderRole"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Excluded Roles"
+          },
+          "initial_sync_days": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Initial Sync Days"
+          },
+          "poll_interval_seconds": {
+            "anyOf": [
+              {
+                "minimum": 30.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Poll Interval Seconds"
+          }
+        },
+        "title": "SyncSettingsUpdate",
         "type": "object"
       },
       "TargetType": {
@@ -2145,6 +3497,265 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/auth/oidc/presets": {
+      "get": {
+        "description": "Presets with defaults for the provider form (see docs/auth/oidc.md).",
+        "operationId": "admin_list_oidc_presets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OIDCPresetRead"
+                  },
+                  "title": "Response Admin List Oidc Presets",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Oidc Presets",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/oidc/providers": {
+      "get": {
+        "description": "All OIDC providers (secrets are never returned).",
+        "operationId": "admin_list_oidc_providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OIDCProviderRead"
+                  },
+                  "title": "Response Admin List Oidc Providers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Oidc Providers",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Add an OIDC provider. The client secret is stored encrypted.",
+        "operationId": "admin_create_oidc_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OIDCProviderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OIDCProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Name taken"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Create Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/oidc/providers/{name}": {
+      "delete": {
+        "description": "Remove an OIDC provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "operationId": "admin_delete_oidc_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "Configured in the environment"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "admin_get_oidc_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OIDCProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "Change an OIDC provider. Omitted fields stay as they are.",
+        "operationId": "admin_update_oidc_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OIDCProviderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OIDCProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "Configured in the environment"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Update Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/audit/events": {
       "get": {
         "description": "Audit events, newest first.",
@@ -3025,6 +4636,117 @@
         ]
       }
     },
+    "/auth/oidc/logout": {
+      "post": {
+        "description": "End the current session like ``POST /auth/logout``. If it was started with an OIDC\nprovider that supports RP-initiated logout, ``redirect_url`` ends the IdP session too\n(the browser navigates there and comes back to the login page).",
+        "operationId": "auth_oidc_logout",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Oidc Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/oidc/{name}/callback": {
+      "get": {
+        "description": "Redirect target of the IdP: validates the response and signs the user in.",
+        "operationId": "auth_oidc_callback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to return_to (signed in), or to /login?error=<code>"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oidc Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/oidc/{name}/login": {
+      "get": {
+        "description": "Start the login with an OIDC provider (browser navigation, not fetch).",
+        "operationId": "auth_oidc_login",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "return_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Return To"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to the IdP, or to /login?error=<code>"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oidc Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/providers": {
       "get": {
         "description": "Sign-in options for the login page.",
@@ -3303,6 +5025,135 @@
         ]
       }
     },
+    "/mail/gmail/oauth/callback": {
+      "get": {
+        "description": "Redirect target registered at Google; finishes connecting the mailbox.",
+        "operationId": "mail_gmail_oauth_callback",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Back to the app with the result in the query"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Gmail Oauth Callback",
+        "tags": [
+          "mail"
+        ]
+      }
+    },
+    "/mail/gmail/oauth/start": {
+      "post": {
+        "description": "Start connecting a Gmail mailbox: open the returned URL in the browser.",
+        "operationId": "mail_start_gmail_oauth",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GmailOAuthStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GmailOAuthStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "503": {
+            "description": "Gmail OAuth is not configured"
+          }
+        },
+        "summary": "Start Gmail Oauth",
+        "tags": [
+          "mail"
+        ]
+      }
+    },
     "/mail/graph/connect": {
       "post": {
         "description": "Start connecting a Microsoft 365 mailbox; the client navigates to the returned URL.",
@@ -3342,6 +5193,524 @@
         "summary": "Connect Graph Mailbox",
         "tags": [
           "mail"
+        ]
+      }
+    },
+    "/mailboxes": {
+      "get": {
+        "description": "The user's mailboxes with their sync status.",
+        "operationId": "mailboxes_list_mailboxes",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxRead"
+                  },
+                  "title": "Response Mailboxes List Mailboxes",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Mailboxes",
+        "tags": [
+          "mailboxes"
+        ]
+      },
+      "post": {
+        "description": "Add a mailbox. The connection is tested first; then the initial import starts\n(unless ``sync_enabled`` is false).",
+        "operationId": "mailboxes_create_mailbox",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MailboxCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "Mailbox already added"
+          },
+          "422": {
+            "description": "Invalid request, unavailable mailbox type or failed connection test"
+          }
+        },
+        "summary": "Create Mailbox",
+        "tags": [
+          "mailboxes"
+        ]
+      }
+    },
+    "/mailboxes/autodiscover": {
+      "post": {
+        "description": "Connection suggestions for an address (known providers, else guesses from the\ndomain). Offline; nothing is looked up or stored. The address travels in the body so\nit never appears in access logs.",
+        "operationId": "mailboxes_autodiscover",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AutodiscoverRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AutodiscoverResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Autodiscover",
+        "tags": [
+          "mailboxes"
+        ]
+      }
+    },
+    "/mailboxes/test": {
+      "post": {
+        "description": "Connect and list the folders without saving anything. A failed test is a normal\nresult (``ok: false`` with an error code), not an HTTP error.",
+        "operationId": "mailboxes_test_mailbox_connection",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MailboxConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConnectionTestResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Invalid request, unavailable mailbox type or failed connection test"
+          }
+        },
+        "summary": "Test Mailbox Connection",
+        "tags": [
+          "mailboxes"
+        ]
+      }
+    },
+    "/mailboxes/{mailbox_id}": {
+      "delete": {
+        "description": "Remove the mailbox and everything derived from it: mails, attachments (including\nthe files), threads, folders, sync state, processing results, todos, triage results\nand the search index. Hard delete; returns what was removed as confirmation.",
+        "operationId": "mailboxes_delete_mailbox",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxDeleted"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Mailbox",
+        "tags": [
+          "mailboxes"
+        ]
+      },
+      "get": {
+        "operationId": "mailboxes_get_mailbox",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mailbox",
+        "tags": [
+          "mailboxes"
+        ]
+      },
+      "patch": {
+        "description": "Rename, change connection settings or credentials (tested before saving), change\nthe import period or excluded folder roles, pause (``sync_enabled: false``) or resume\nsyncing.",
+        "operationId": "mailboxes_update_mailbox",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MailboxUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "description": "Invalid request, unavailable mailbox type or failed connection test"
+          }
+        },
+        "summary": "Update Mailbox",
+        "tags": [
+          "mailboxes"
+        ]
+      }
+    },
+    "/mailboxes/{mailbox_id}/folders": {
+      "get": {
+        "description": "Folders known from the last sync, with selection and per-folder sync status.\nBefore the first sync, use the folder list of the connection test.",
+        "operationId": "mailboxes_list_folders",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FolderRead"
+                  },
+                  "title": "Response Mailboxes List Folders",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Folders",
+        "tags": [
+          "mailboxes"
+        ]
+      },
+      "patch": {
+        "description": "Choose which folders are synced. Deselected folders keep their stored mails;\nnewly selected folders are imported with the next sync (requested right away).",
+        "operationId": "mailboxes_select_folders",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/FolderSelectionUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/FolderRead"
+                  },
+                  "title": "Response Mailboxes Select Folders",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Select Folders",
+        "tags": [
+          "mailboxes"
+        ]
+      }
+    },
+    "/mailboxes/{mailbox_id}/status": {
+      "get": {
+        "description": "Sync status only (cheap to poll as a fallback to SSE).",
+        "operationId": "mailboxes_get_mailbox_status",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxSyncStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mailbox Status",
+        "tags": [
+          "mailboxes"
+        ]
+      }
+    },
+    "/mailboxes/{mailbox_id}/sync": {
+      "post": {
+        "description": "Start a sync now. Progress arrives as ``mailbox.sync`` events.",
+        "operationId": "mailboxes_sync_mailbox",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncRequestResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "409": {
+            "description": "Syncing is paused"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Sync Mailbox",
+        "tags": [
+          "mailboxes"
         ]
       }
     },

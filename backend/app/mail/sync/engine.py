@@ -18,6 +18,14 @@ An invalid cursor (``CursorInvalidError``, e.g. a new IMAP ``UIDVALIDITY``) dele
 folder's messages and imports the folder again. Folders that disappeared on the server are
 deleted with their messages.
 
+Providers with a mailbox-wide change log (``capabilities.mailbox_cursor``, e.g. Gmail) are
+synced with one ``fetch_since(MAILBOX_SCOPE, ...)`` per run; the cursor lives in the
+mailbox-level ``SyncState``. Only messages in at least one selected folder are stored; a
+stored message that leaves the last selected folder is deleted. Their references are
+stable, so an invalid cursor does not wipe the mailbox: the time window is imported again
+(known messages are only updated) and stored messages of the window that the server no
+longer returned are deleted afterwards (``_sync_scope`` with ``reconcile``).
+
 Status: ``SyncState.last_error``/``last_synced_at`` per folder; errors that concern the
 whole mailbox (authentication, connection, configuration) go to the mailbox-level row
 (``folder_id IS NULL``), which also records the last complete sync. Only error codes are
@@ -43,6 +51,7 @@ from app.mail.hooks import message_stored
 from app.mail.models import Folder, FolderRole, Mailbox, Message, SyncState
 from app.mail.models import message_folders as message_folders_table
 from app.mail.providers.base import (
+    MAILBOX_SCOPE,
     AuthenticationError,
     ConfigurationError,
     ConnectionFailedError,
@@ -112,6 +121,10 @@ class MailboxSync:
 
     async def run(self) -> SyncStats:
         folders = await self.sync_folders()
+        if self.provider.capabilities.mailbox_cursor:
+            # Folder-level errors concern the whole mailbox here: they propagate.
+            await self.sync_mailbox_scope(frozenset(remote_id for _, remote_id in folders))
+            return self.stats
         for folder_id, remote_id in folders:
             try:
                 await self.sync_folder(folder_id, remote_id)
@@ -198,7 +211,7 @@ class MailboxSync:
 
     async def sync_folder(self, folder_id: uuid.UUID, remote_id: str) -> None:
         try:
-            await self._sync_folder(folder_id, remote_id)
+            await self._sync_scope(folder_id, remote_id)
         except CursorInvalidError:
             await self.session.rollback()
             log.warning(
@@ -207,18 +220,50 @@ class MailboxSync:
                 folder_id=str(folder_id),
             )
             await self._delete_folder_messages(folder_id)
-            await self.session.execute(
-                update(SyncState)
-                .where(SyncState.mailbox_id == self.mailbox_id, SyncState.folder_id == folder_id)
-                .values(cursor={})
-            )
-            await self.session.commit()
-            await self._sync_folder(folder_id, remote_id)
+            await self._reset_cursor(folder_id)
+            await self._sync_scope(folder_id, remote_id)
+
+    async def sync_mailbox_scope(self, selected: frozenset[str]) -> None:
+        """Sync a provider with a mailbox-wide change log; ``selected`` are the remote IDs
+        of the folders whose messages are stored."""
+        try:
+            await self._sync_scope(None, MAILBOX_SCOPE, selected)
+        except CursorInvalidError:
+            await self.session.rollback()
+            log.warning("mail_sync_cursor_invalid", mailbox_id=str(self.mailbox_id))
+            await self._reset_cursor(None)
+            await self._sync_scope(None, MAILBOX_SCOPE, selected)
+
+    async def _reset_cursor(self, folder_id: uuid.UUID | None) -> None:
+        await self.session.execute(
+            update(SyncState)
+            .where(SyncState.mailbox_id == self.mailbox_id, SyncState.folder_id == folder_id)
+            .values(cursor={})
+        )
+        await self.session.commit()
 
     async def _state(self, folder_id: uuid.UUID | None) -> SyncState:
         return await _sync_state(self.session, self.mailbox_id, folder_id)
 
-    async def _sync_folder(self, folder_id: uuid.UUID, remote_id: str) -> None:
+    async def _has_messages(self) -> bool:
+        return bool(
+            await self.session.scalar(select(exists().where(Message.mailbox_id == self.mailbox_id)))
+        )
+
+    async def _sync_scope(
+        self,
+        folder_id: uuid.UUID | None,
+        remote_id: str,
+        selected: frozenset[str] | None = None,
+    ) -> None:
+        """Apply ``fetch_since(remote_id)``; the cursor is stored in the state of
+        ``folder_id`` (``None``: mailbox-wide). With ``selected`` (mailbox-wide change log)
+        only messages in one of these folders are kept.
+
+        Mailbox-wide without a cursor but with stored messages means resync (``reconcile``):
+        intermediate cursors are not stored, so an interrupted resync starts over, and
+        afterwards stored messages of the time window that were not returned are deleted.
+        """
         state = await self._state(folder_id)
         folders = {
             f.remote_id: f
@@ -228,6 +273,12 @@ class MailboxSync:
         }
         cursor = SyncCursor(dict(state.cursor)) if state.cursor else None
         since = None if cursor else self.now() - timedelta(days=self.initial_days)
+        reconcile = selected is not None and cursor is None and await self._has_messages()
+        seen: set[str] = set()
+        final: SyncCursor | None = None
+
+        def wanted(folder_ids: Iterable[str]) -> bool:
+            return selected is None or any(f in selected for f in folder_ids)
 
         new_ids: list[tuple[uuid.UUID, bool]] = []
         updates: dict[str, MessageUpdated] = {}
@@ -235,10 +286,22 @@ class MailboxSync:
 
         async def store(raw: RawMessage, known: uuid.UUID | None, initial: bool) -> None:
             updates.pop(raw.remote_ref, None)
+            if not wanted(raw.folder_ids):
+                if known is not None:
+                    deletes.append(raw.remote_ref)
+                return
+            seen.add(raw.remote_ref)
             message = await store_message(self.session, self.mailbox_id, raw, self.storage, folders)
             self.stats.fetched += 1
             if known is None:
                 new_ids.append((message.id, initial))
+
+        def update(event: MessageUpdated) -> None:
+            if event.folder_ids is not None and not wanted(event.folder_ids):
+                updates.pop(event.remote_ref, None)
+                deletes.append(event.remote_ref)
+            else:
+                updates[event.remote_ref] = event
 
         async for event in self.provider.fetch_since(remote_id, cursor, since=since):
             if isinstance(event, MessageFetched):
@@ -246,9 +309,14 @@ class MailboxSync:
                 await store(raw, await self._known(raw.remote_ref), event.initial)
             elif isinstance(event, MessageChanged):
                 if await self._known(event.remote_ref) is not None:
-                    updates[event.remote_ref] = MessageUpdated(
-                        event.remote_ref, flags=event.flags, folder_ids=event.folder_ids
+                    seen.add(event.remote_ref)
+                    update(
+                        MessageUpdated(
+                            event.remote_ref, flags=event.flags, folder_ids=event.folder_ids
+                        )
                     )
+                    continue
+                if event.folder_ids is not None and not wanted(event.folder_ids):
                     continue
                 try:
                     raw = await event.load()
@@ -256,13 +324,16 @@ class MailboxSync:
                     continue
                 await store(raw, None, False)
             elif isinstance(event, MessageUpdated):
-                updates[event.remote_ref] = event
+                update(event)
             elif isinstance(event, MessageDeleted):
                 updates.pop(event.remote_ref, None)
                 deletes.append(event.remote_ref)
             elif isinstance(event, CursorAdvanced):
                 deletes.extend(await self._apply_updates(updates.values(), folders))
-                state.cursor = event.cursor.data
+                if reconcile:
+                    final = event.cursor
+                else:
+                    state.cursor = event.cursor.data
                 state.last_synced_at = self.now()
                 state.last_error = None
                 if new_ids:
@@ -280,6 +351,25 @@ class MailboxSync:
                 new_ids, deletes = [], []
                 updates.clear()
                 self._release_messages()
+        if reconcile and final is not None and since is not None:
+            await self._delete_unseen(seen, since)
+            state = await self._state(folder_id)
+            state.cursor = final.data
+            await self.session.commit()
+
+    async def _delete_unseen(self, seen: set[str], since: datetime) -> None:
+        """Resync: delete stored messages received since ``since`` that the server did not
+        return (commits)."""
+        refs = await self.session.scalars(
+            select(Message.remote_ref).where(
+                Message.mailbox_id == self.mailbox_id, Message.received_at >= since
+            )
+        )
+        gone = [ref for ref in refs if ref not in seen]
+        if gone:
+            self.stats.deleted += await delete_messages(
+                self.session, self.mailbox_id, gone, self.storage
+            )
 
     async def _known(self, remote_ref: str) -> uuid.UUID | None:
         return await self.session.scalar(

@@ -1,7 +1,7 @@
 """API tests: Microsoft 365 connect flow and change notifications (database needed)."""
 
 import uuid
-from collections.abc import Iterator
+from collections.abc import AsyncIterator, Iterator
 from typing import Any
 from urllib.parse import parse_qs, urlsplit
 
@@ -15,13 +15,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit.models import audit_events
 from app.core.config import DatabaseSettings, SecuritySettings, Settings
 from app.core.crypto import generate_key, set_keyring
+from app.core.db import get_db
+from app.mail.api.router import get_sync_requester
 from app.mail.models import Mailbox, MailboxType
 from app.mail.providers import graph_router
 from app.mail.providers.graph_auth import code_challenge
 from app.mail.providers.graph_router import FLOW_COOKIE, ConnectFlow, seal, unseal
 from app.mail.providers.graph_webhook import client_state
+from app.main import create_app
 from tests.auth.conftest import login, make_local_user
-from tests.conftest import TEST_DATABASE_URL
+from tests.conftest import TEST_DATABASE_URL, api_client
 from tests.mail.graph_helpers import GRAPH_HOST, TOKEN_URL, graph_settings, token_response
 
 pytestmark = pytest.mark.db
@@ -47,16 +50,29 @@ def settings() -> Iterator[Settings]:
 
 
 @pytest.fixture
-def requested() -> Iterator[list[uuid.UUID]]:
-    calls: list[uuid.UUID] = []
+def requested() -> list[uuid.UUID]:
+    return []
 
-    async def request_sync(mailbox_id: uuid.UUID) -> None:
-        calls.append(mailbox_id)
 
-    original = graph_router._request_sync
-    graph_router._request_sync = request_sync  # type: ignore[assignment]
-    yield calls
-    graph_router._request_sync = original  # type: ignore[assignment]
+@pytest.fixture
+async def db_client(
+    settings: Settings, db_session: AsyncSession, requested: list[uuid.UUID]
+) -> AsyncIterator[AsyncClient]:
+    """Like the shared ``db_client``, with the job queue replaced by a recorder."""
+    app = create_app(settings)
+
+    async def override_get_db() -> AsyncIterator[AsyncSession]:
+        yield db_session
+
+    async def record_sync(mailbox_id: uuid.UUID) -> bool:
+        requested.append(mailbox_id)
+        return True
+
+    app.dependency_overrides[get_db] = override_get_db
+    app.dependency_overrides[get_sync_requester] = lambda: record_sync
+    async with api_client(app) as http:
+        yield http
+    await app.state.database.dispose()
 
 
 async def signed_in(db_client: AsyncClient, db_session: AsyncSession, email: str) -> uuid.UUID:

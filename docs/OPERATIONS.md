@@ -586,6 +586,15 @@ eine öffentlich erreichbare URL (`OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL`). Einri
 Entra-App, Berechtigungen und Einschränkung von App-only-Zugriff:
 [`docs/providers/microsoft365.md`](providers/microsoft365.md).
 
+**Mail-Sync (Gmail / Google Workspace):** Einrichtung (OAuth-Client, Scopes, Google-Verifizierung,
+Domain-wide Delegation, optional Pub/Sub) und manuelle Testanleitung in
+[`providers/gmail.md`](providers/gmail.md). Es ist keine öffentliche URL nötig: Der
+OAuth-Redirect muss nur vom Browser erreichbar sein, Änderungen holt der Worker standardmäßig per
+Polling (`poll_interval_seconds`, Standard 5 Minuten) über die Gmail-API ab. Ausgehend braucht der
+Worker HTTPS zu `gmail.googleapis.com` und `oauth2.googleapis.com` (bei Pub/Sub zusätzlich
+`pubsub.googleapis.com`). Die Service-Account-Schlüsseldatei (`OLLAMAIL_GMAIL_SERVICE_ACCOUNT_FILE`)
+als Docker-Secret einbinden, nie ins Image oder Repo.
+
 Was heute schon gilt: Jeder API- bzw. Worker-Prozess öffnet bis zu
 `OLLAMAIL_DATABASE_POOL_SIZE + OLLAMAIL_DATABASE_MAX_OVERFLOW` Datenbankverbindungen (Standard
 5 + 10). Beim Hochskalieren darauf achten, dass die Summe unter `max_connections` von PostgreSQL
@@ -602,7 +611,8 @@ verarbeitet.
 | Datenkategorie | Speicherort | Status |
 |---|---|---|
 | Nutzerkonten, Rollen | PostgreSQL (`postgres-data`): `users`, `auth_identities` (Passwörter als Argon2id-Hash) | aktiv |
-| Gruppen | PostgreSQL | geplant (#30–#33) |
+| Gruppen | PostgreSQL: `auth_identities.groups` (Gruppen-Claims des IdP beim letzten Login, z. B. Entra-Gruppen-IDs) | aktiv (OIDC); LDAP liest Gruppen bei jedem Login und speichert sie nicht; GitHub geplant (#31) |
+| IdP-Konfiguration (OIDC) | PostgreSQL: `auth_oidc_providers` (Client-Secret verschlüsselt mit `OLLAMAIL_SECRET_KEY`) oder Umgebung (`OLLAMAIL_AUTH_OIDC_PROVIDERS`) | aktiv |
 | Sessions | PostgreSQL: `auth_sessions` (nur SHA-256 des Cookie-Tokens, Browser-Kennung gekürzt); abgelaufene stündlich gelöscht | aktiv |
 | Login-Zähler (Rate-Limit, Sperre) | PostgreSQL: `auth_rate_limits` (nur HMAC von IP bzw. E-Mail-Adresse); stündlich bereinigt | aktiv |
 | Postfach-Zugangsdaten, OAuth-Tokens, IdP-Secrets | PostgreSQL, verschlüsselt mit `OLLAMAIL_SECRET_KEY` | geplant (#6, #15) |
@@ -632,12 +642,12 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                                                                    ▲
                        worker (geplant #7) ────────────────────────┘
                          │
-                         ├──▶ Mailserver: IMAP (#14) / Microsoft Graph (#37) / Gmail API (geplant #38)
+                         ├──▶ Mailserver: IMAP (#14) / Gmail API (#38) / Microsoft Graph (#37)
                          ├──▶ LLM: Ollama im Compose-Netz oder eigener Server (geplant #17)
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
 
-api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (geplant #30, #31)
+api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30; GitHub OAuth2 geplant #31)
 api ──▶ login.microsoftonline.com / Graph: nur beim Verbinden eines Microsoft-365-Postfachs (#37)
 Microsoft ──▶ api: Change Notifications nur mit OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL (#37)
 ```

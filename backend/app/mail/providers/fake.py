@@ -8,8 +8,9 @@
 It behaves like a server with a change log: ``fetch_since`` without a cursor returns the
 folder's current content, with a cursor only the changes after it. ``labels=True`` makes
 it behave like Gmail (a message can be in several folders, ``move`` keeps the reference),
-otherwise like IMAP (``move`` assigns a new reference). Every server-side action is
-recorded in ``actions`` for assertions.
+otherwise like IMAP (``move`` assigns a new reference). ``mailbox_cursor=True`` adds a
+mailbox-wide change log like Gmail's ``historyId`` (``fetch_since(MAILBOX_SCOPE, ...)``).
+Every server-side action is recorded in ``actions`` for assertions.
 """
 
 import asyncio
@@ -21,6 +22,7 @@ from typing import Any, Literal
 
 from app.mail.models import FolderKind
 from app.mail.providers.base import (
+    MAILBOX_SCOPE,
     ChangeEvent,
     CursorAdvanced,
     CursorInvalidError,
@@ -67,10 +69,15 @@ class FakeMailProvider:
         *,
         labels: bool = False,
         push: bool = True,
+        mailbox_cursor: bool = False,
     ) -> None:
         self.config = config
         self.capabilities = ProviderCapabilities(
-            labels=labels, push=push, server_threads=labels, keywords=True
+            labels=labels,
+            push=push,
+            server_threads=labels,
+            keywords=True,
+            mailbox_cursor=mailbox_cursor,
         )
         self.actions: list[_Action] = []
         self.closed = False
@@ -135,11 +142,13 @@ class FakeMailProvider:
     async def fetch_since(
         self, folder_id: str, cursor: SyncCursor | None, *, since: datetime | None = None
     ) -> AsyncIterator[SyncEvent]:
-        self._require_folder(folder_id)
+        scope = self.capabilities.mailbox_cursor and folder_id == MAILBOX_SCOPE
+        if not scope:
+            self._require_folder(folder_id)
         current = self._state.log[-1].seq if self._state.log else 0
         if cursor is None:
             for message in list(self._state.messages.values()):
-                if folder_id not in message.folder_ids:
+                if not scope and folder_id not in message.folder_ids:
                     continue
                 if since and message.received_at and message.received_at < since:
                     continue
@@ -149,7 +158,7 @@ class FakeMailProvider:
                 raise CursorInvalidError()
             after = int(cursor.data.get("seq", 0))
             for change in [c for c in self._state.log if c.seq > after]:
-                event = self._event_for(change, folder_id)
+                event = self._scope_event(change) if scope else self._event_for(change, folder_id)
                 if event is not None:
                     yield event
         yield CursorAdvanced(SyncCursor({"epoch": self._epoch, "seq": current}))
@@ -236,6 +245,14 @@ class FakeMailProvider:
             for folder_id in folder_ids:
                 if watched is None or watched == folder_id:
                     queue.put_nowait(ChangeEvent(folder_id))
+
+    def _scope_event(self, change: _Change) -> SyncEvent:
+        message = self._state.messages.get(change.remote_ref)
+        if change.kind == "deleted" or message is None:
+            return MessageDeleted(change.remote_ref)
+        if change.kind == "added":
+            return MessageFetched(message)
+        return MessageUpdated(change.remote_ref, flags=message.flags, folder_ids=message.folder_ids)
 
     def _event_for(self, change: _Change, folder_id: str) -> SyncEvent | None:
         if folder_id not in change.folder_ids:

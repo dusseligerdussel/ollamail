@@ -12,6 +12,10 @@ absorbed by the data types:
   persist the cursor only after the preceding changes are stored, so syncing is resumable
   and idempotent. Providers that cannot tell new from changed messages yield
   ``MessageChanged``; the caller then loads the source only for unknown messages.
+* **Mailbox-wide change logs.** Providers with ``capabilities.mailbox_cursor`` (Gmail
+  ``historyId``) track changes for the whole mailbox: the sync calls ``fetch_since`` once
+  with ``MAILBOX_SCOPE`` instead of once per folder. Their ``remote_ref``s must be stable
+  (they survive moves and an invalid cursor).
 * **Push.** ``watch`` wraps IMAP ``IDLE``, Graph change notifications and Gmail Pub/Sub. It
   only signals *that* something changed; the caller then runs ``fetch_since``. Providers
   without push raise ``NotImplementedError`` and the caller falls back to polling.
@@ -27,6 +31,9 @@ from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
 
 from app.mail.models import FolderKind, FolderRole, MailboxType
+
+# ``folder_id`` of ``fetch_since`` for providers with ``capabilities.mailbox_cursor``.
+MAILBOX_SCOPE = "*"
 
 
 class Flag(enum.StrEnum):
@@ -50,6 +57,9 @@ class ProviderCapabilities:
     server_threads: bool = False
     # Arbitrary keywords can be stored in the flag set (IMAP ``PERMANENTFLAGS \\*``).
     keywords: bool = False
+    # One change log for the whole mailbox (Gmail ``historyId``): ``fetch_since`` is called
+    # with ``MAILBOX_SCOPE`` and the cursor is stored per mailbox, not per folder.
+    mailbox_cursor: bool = False
 
 
 # Stores new credentials of the mailbox (e.g. refreshed OAuth tokens), encrypted.
@@ -83,7 +93,10 @@ class RemoteFolder:
 
 @dataclass(frozen=True, slots=True)
 class SyncCursor:
-    """Opaque provider state; ``data`` must be JSON-serialisable (``SyncState.cursor``)."""
+    """Opaque provider state; ``data`` must be JSON-serialisable (``SyncState.cursor``).
+
+    Providers that import in batches keep pending import work under the key ``"import"``;
+    the mailbox API reports such folders as still importing."""
 
     data: dict[str, Any] = field(default_factory=dict)
 
@@ -204,7 +217,8 @@ class MailProvider(Protocol):
     ) -> AsyncIterator[SyncEvent]:
         """Yield changes in ``folder_id`` after ``cursor``. Without a cursor this is an
         initial import, limited to messages received after ``since``. The last event is
-        always ``CursorAdvanced``."""
+        always ``CursorAdvanced``. With ``capabilities.mailbox_cursor`` ``folder_id`` is
+        ``MAILBOX_SCOPE`` and the events cover all folders."""
         ...
 
     def watch(self, folder_id: str | None = None) -> AsyncIterator[ChangeEvent]:

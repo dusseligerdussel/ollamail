@@ -15,7 +15,6 @@
   only if its ``clientState`` verifies, and it only queues a sync of that mailbox.
 """
 
-import asyncio
 import base64
 import binascii
 import hmac
@@ -24,7 +23,6 @@ import os
 import secrets
 import time
 import uuid
-from collections.abc import Awaitable, Callable
 from dataclasses import asdict, dataclass
 from typing import Annotated
 from urllib.parse import quote, urlencode
@@ -47,6 +45,7 @@ from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.ids import uuid7
 from app.core.logging import get_logger
+from app.mail.api.router import SyncRequester, get_sync_requester
 from app.mail.models import Mailbox, MailboxType
 from app.mail.providers.base import AuthenticationError, ProviderError
 from app.mail.providers.graph_auth import (
@@ -72,7 +71,6 @@ _MAX_NOTIFICATION_BYTES = 1024 * 1024
 _DEFAULT_RETURN = "/"
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
-RequestSync = Callable[[uuid.UUID], Awaitable[object]]
 
 
 class GraphConnectRequest(BaseModel):
@@ -341,22 +339,6 @@ async def graph_callback(
 
 # -- change notifications -------------------------------------------------------------------
 
-_queue_lock = asyncio.Lock()
-
-
-async def _request_sync(mailbox_id: uuid.UUID) -> None:
-    # The API process does not keep the job queue open; open it for this defer only.
-    from app.mail.sync.tasks import request_sync
-    from app.worker import app as worker_app
-
-    async with _queue_lock, worker_app.open_async():
-        await request_sync(mailbox_id)
-
-
-def get_sync_requester() -> RequestSync:
-    """Queues ``mail.sync_mailbox``; overridden in tests."""
-    return _request_sync
-
 
 @router.post(
     "/notifications",
@@ -366,7 +348,7 @@ def get_sync_requester() -> RequestSync:
 )
 async def graph_notifications(
     request: Request,
-    request_sync: Annotated[RequestSync, Depends(get_sync_requester)],
+    request_sync: Annotated[SyncRequester, Depends(get_sync_requester)],
     validation_token: Annotated[str | None, Query(alias="validationToken")] = None,
 ) -> Response:
     settings = get_settings_from_app(request)

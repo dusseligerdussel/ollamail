@@ -41,6 +41,9 @@ class AuthProviderInfo(BaseModel):
     name: str
     display_name: str
     kind: AuthProviderKind
+    # Redirect providers: path below the API root that starts the login (browser navigation,
+    # optional query parameter ``return_to`` with a relative UI path).
+    login_path: str | None = None
 
 
 class AuthProviders(BaseModel):
