@@ -752,6 +752,26 @@ export interface paths {
         patch: operations["digests_update_digest_settings"];
         trace?: never;
     };
+    "/digests/voices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Digest Voices
+         * @description Voices for the digest: installed ones plus the default voice of each language.
+         */
+        get: operations["digests_list_digest_voices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/digests/{digest_id}": {
         parameters: {
             query?: never;
@@ -2279,6 +2299,23 @@ export interface components {
          * @enum {string}
          */
         DigestTrigger: "scheduled" | "manual";
+        /**
+         * DigestVoice
+         * @description A voice to offer in the digest settings.
+         */
+        DigestVoice: {
+            /** Default */
+            default: boolean;
+            /** Id */
+            id: string;
+            /** Installed */
+            installed: boolean;
+            /**
+             * Language
+             * @enum {string}
+             */
+            language: "de" | "en";
+        };
         /**
          * DirectoryType
          * @enum {string}
@@ -5930,6 +5967,33 @@ export interface operations {
             };
             /** @description Invalid value or mailbox */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_list_digest_voices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestVoice"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

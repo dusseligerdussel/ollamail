@@ -2031,6 +2031,39 @@
         "title": "DigestTrigger",
         "type": "string"
       },
+      "DigestVoice": {
+        "description": "A voice to offer in the digest settings.",
+        "properties": {
+          "default": {
+            "title": "Default",
+            "type": "boolean"
+          },
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "installed": {
+            "title": "Installed",
+            "type": "boolean"
+          },
+          "language": {
+            "enum": [
+              "de",
+              "en"
+            ],
+            "title": "Language",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "language",
+          "default",
+          "installed"
+        ],
+        "title": "DigestVoice",
+        "type": "object"
+      },
       "DirectoryType": {
         "enum": [
           "active_directory",
@@ -8339,6 +8372,35 @@
           }
         },
         "summary": "Update Digest Settings",
+        "tags": [
+          "digests"
+        ]
+      }
+    },
+    "/digests/voices": {
+      "get": {
+        "description": "Voices for the digest: installed ones plus the default voice of each language.",
+        "operationId": "digests_list_digest_voices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DigestVoice"
+                  },
+                  "title": "Response Digests List Digest Voices",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Digest Voices",
         "tags": [
           "digests"
         ]
