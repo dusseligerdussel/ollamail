@@ -179,6 +179,14 @@ class MailSettings(BaseSettings):
 
     # Default time window for the initial import of a mailbox (data minimisation).
     initial_sync_days: int = Field(default=90, ge=1)
+    # Admin flag: allow unencrypted IMAP connections and unverified TLS certificates.
+    allow_insecure_connections: bool = False
+    # Seconds to wait for a mail server response before the connection is dropped.
+    imap_timeout: float = Field(default=60.0, gt=0)
+    # Messages fetched (and committed) per batch; an interrupted sync resumes per batch.
+    sync_batch_size: int = Field(default=50, ge=1, le=1000)
+    # Keep one push connection (IMAP IDLE) per mailbox in the worker; otherwise poll only.
+    watch_enabled: bool = True
 
 
 class TTSSettings(BaseSettings):
@@ -252,6 +260,29 @@ class ProcessingSettings(BaseSettings):
     requeue_batch_size: int = Field(default=500, ge=1)
 
 
+class TodosSettings(BaseSettings):
+    """``OLLAMAIL_TODOS_*`` (todo extraction, app/todos/)"""
+
+    model_config = _config("TODOS_")
+
+    # Pipeline step on/off; the API for manual todos stays available.
+    extraction_enabled: bool = True
+    # Triage categories (keys, case-insensitive) whose mails are not searched for todos,
+    # comma-separated in the environment. Mails without a triage result are processed.
+    skip_categories: Annotated[list[str], NoDecode] = Field(
+        default=["newsletter", "notification", "spam"]
+    )
+    # Extracted todos below this model confidence (0-1) are discarded.
+    min_confidence: float = Field(default=0.5, ge=0, le=1)
+
+    @field_validator("skip_categories", mode="before")
+    @classmethod
+    def _split(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip().lower() for part in value.split(",") if part.strip()]
+        return value
+
+
 class WorkerSettings(BaseSettings):
     """``OLLAMAIL_WORKER_*``"""
 
@@ -286,6 +317,7 @@ class Settings(BaseModel):
     mail: MailSettings = Field(default_factory=MailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
+    todos: TodosSettings = Field(default_factory=TodosSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
 
