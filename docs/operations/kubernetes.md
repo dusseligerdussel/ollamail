@@ -479,7 +479,8 @@ startet sie aber nicht neu.
 ## 13. Test und CI
 
 Der Workflow [`.github/workflows/helm.yml`](../../.github/workflows/helm.yml) läuft bei
-Änderungen am Chart, an den Dockerfiles, an den Migrationen oder am Workflow selbst:
+Änderungen am Chart, an den Dockerfiles oder am Workflow selbst (Migrationen prüft der
+E2E-Job in `ci.yml`):
 
 1. `helm lint --strict` mit Standardwerten und allen Dateien unter `deploy/helm/ci/`.
 2. `helm template` mit Standardwerten, den kind-Werten und

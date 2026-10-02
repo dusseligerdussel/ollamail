@@ -2,13 +2,13 @@ name: Helm
 
 # Helm chart (deploy/helm/ollamail): lint, render, schema validation and an install test
 # in a kind cluster with images built from the same commit. Separate from ci.yml so it only
-# runs when the chart, the images or this workflow change.
+# runs when the chart, the images or this workflow change. Migrations are covered by the
+# E2E job in ci.yml; they do not need a kind cluster.
 on:
   pull_request:
     paths:
       - "deploy/helm/**"
       - "backend/Dockerfile"
-      - "backend/migrations/**"
       - "frontend/Dockerfile"
       - "frontend/caddy/**"
       - ".github/workflows/helm.yml"
@@ -17,7 +17,6 @@ on:
     paths:
       - "deploy/helm/**"
       - "backend/Dockerfile"
-      - "backend/migrations/**"
       - "frontend/Dockerfile"
       - "frontend/caddy/**"
       - ".github/workflows/helm.yml"

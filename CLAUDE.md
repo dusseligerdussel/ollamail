@@ -100,8 +100,8 @@ Ein Issue ist erst fertig, wenn:
 - [ ] Frontend: `pnpm lint && pnpm typecheck && pnpm test` grün.
 - [ ] E2E: `pnpm e2e` grün (gemockte Specs; neue Abläufe bekommen eine Spec). Die CI führt die
       Suite zusätzlich gegen den echten Stack aus (Job „E2E“, siehe `frontend/README.md`).
-- [ ] Bei Änderungen an `deploy/` oder den Dockerfiles: Job „Compose smoke test“ grün (läuft
-      automatisch; für andere PRs per Label `ci:compose`).
+- [ ] Bei Änderungen an `deploy/`, den Dockerfiles oder den Abhängigkeiten: Job „Compose smoke test“
+      grün (läuft automatisch; für andere PRs per Label `ci:compose`).
 - [ ] Neue Logik hat Tests (Unit; bei API-Endpunkten mindestens ein Integrationstest).
 - [ ] Neue Settings sind in `deploy/.env.example` dokumentiert.
 - [ ] Datenschutz-Check aus `docs/PRIVACY.md` bedacht (keine Mail-Inhalte in Logs, Verschlüsselung von Secrets, Löschbarkeit).
