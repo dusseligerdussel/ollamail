@@ -79,7 +79,7 @@ function RetentionRow({
               {" · "}
               <button
                 type="button"
-                className="underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="underline underline-offset-2 outline-none hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/80"
                 onClick={onReset}
               >
                 {t("pages.retention.reset")}

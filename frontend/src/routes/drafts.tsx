@@ -167,7 +167,7 @@ function DraftRow({
   );
   const rowClass = cn(
     "block min-w-0 flex-1 px-4 py-2.5 text-left text-ui outline-none md:px-5",
-    "focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset",
+    "focus-visible:ring-[3px] focus-visible:ring-ring/80 focus-visible:ring-inset",
   );
 
   return (

@@ -154,7 +154,7 @@ function AccountSection() {
       </SettingRow>
       <Link
         to="/settings/security"
-        className="flex items-center gap-3 rounded-b-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex items-center gap-3 rounded-b-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
       >
         <ShieldCheck aria-hidden className="size-4 shrink-0 text-muted-foreground" />
         <span className="min-w-0 flex-1">
@@ -181,7 +181,7 @@ function SettingsPage() {
           <SettingsSection id="settings-mailboxes" title={t("mailboxes.title")} className="mt-8">
             <Link
               to="/settings/mailboxes"
-              className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
             >
               <Mail aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">
@@ -200,7 +200,7 @@ function SettingsPage() {
           >
             <Link
               to="/settings/categories"
-              className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
             >
               <Tags aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">
@@ -215,7 +215,7 @@ function SettingsPage() {
           <SettingsSection id="settings-task-export" title={t("taskExport.title")} className="mt-8">
             <Link
               to="/settings/task-export"
-              className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
             >
               <CalendarCheck aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">

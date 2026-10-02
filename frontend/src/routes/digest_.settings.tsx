@@ -37,7 +37,7 @@ const controlClass = "w-full sm:w-72";
 // Segmented control as in the account settings.
 const groupClass = "h-8 rounded-md bg-muted p-0.5";
 const itemClass =
-  "h-7 flex-1 rounded-[calc(var(--radius)-3px)] px-2 text-ui font-normal text-muted-foreground hover:bg-transparent hover:text-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs dark:data-[state=on]:bg-input";
+  "h-7 flex-1 rounded-[calc(var(--radius)-3px)] px-2 text-ui font-normal text-muted-foreground hover:bg-transparent hover:text-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs dark:data-[state=on]:bg-input/30";
 
 function SettingRow({
   label,

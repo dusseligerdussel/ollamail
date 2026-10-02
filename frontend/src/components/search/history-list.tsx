@@ -116,7 +116,7 @@ export function HistoryList({ activeId, onDeleted, empty }: HistoryListProps) {
               to="/search"
               search={{ conversation: conversation.id }}
               aria-current={conversation.id === activeId ? "true" : undefined}
-              className="flex min-w-0 flex-1 items-baseline gap-3 py-2.5 pl-4 text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset md:pl-5"
+              className="flex min-w-0 flex-1 items-baseline gap-3 py-2.5 pl-4 text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80 focus-visible:ring-inset md:pl-5"
             >
               <span className="min-w-0 flex-1 truncate">{conversation.title}</span>
               <time

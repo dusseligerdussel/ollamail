@@ -46,8 +46,10 @@ Helfer `expectNoA11yViolations` in `e2e/a11y.ts`) in den Zuständen „mit Daten
 Hell/Dunkel × Desktop (1440 px)/Handy (390 px), „Fehler“ (alle Anfragen 500) und „Laden“ (keine
 Antwort) in Hell/Desktop und Dunkel/Handy, dazu Anmelde-, Setup-, Einladungs- und 403-Seite sowie
 geöffnete Dialoge, Sheets, Menüs und die Command Palette. Neue Routen gehören in die Liste
-`routes`, neue Dialoge/Sheets in `overlays`. Die Admin-API mockt `e2e/mock-admin.ts`
+`routes` (`e2e/app-states.ts`), neue Dialoge/Sheets in `overlays`. Die Admin-API mockt `e2e/mock-admin.ts`
 (`{ empty: true }` für leere Zustände). Feature-Specs nutzen denselben Helfer für ihre Abläufe.
+`e2e/reflow.spec.ts` prüft Reflow (320 px), 200 % Zoom, Textabstände und reduzierte Bewegung;
+`src/design-tokens.test.ts` den Kontrast der Design-Tokens. Bericht: `docs/accessibility.md`.
 
 Lokal gegen den echten Stack (wie der CI-Job „E2E“ in `.github/workflows/ci.yml`):
 

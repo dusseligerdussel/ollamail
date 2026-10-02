@@ -358,7 +358,7 @@ function DigestRow({
         data-active={active || undefined}
         className={cn(
           "flex flex-col justify-center gap-0.5 border-b border-border/60 px-4 py-2.5 text-ui outline-none",
-          "hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset",
+          "hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80 focus-visible:ring-inset",
           "data-active:shadow-[inset_2px_0_0_var(--ring)]",
           selected && "bg-accent hover:bg-accent",
         )}
@@ -402,7 +402,7 @@ function MiniPlayer({
       <button
         type="button"
         onClick={() => onOpen(loaded.id)}
-        className="flex min-w-0 flex-1 flex-col items-start rounded-md px-1 text-left text-ui outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex min-w-0 flex-1 flex-col items-start rounded-md px-1 text-left text-ui outline-none focus-visible:ring-[3px] focus-visible:ring-ring/80"
       >
         <span className="w-full truncate font-medium">{loaded.title}</span>
         <span className="text-xs text-muted-foreground tabular-nums">

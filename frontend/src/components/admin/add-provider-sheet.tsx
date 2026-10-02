@@ -167,7 +167,7 @@ function ChooseType({
               type="button"
               disabled={!available}
               onClick={() => onChoose(id)}
-              className="flex w-full items-center gap-3 rounded-lg border px-3.5 py-3 text-left outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
+              className="flex w-full items-center gap-3 rounded-lg border px-3.5 py-3 text-left outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80 disabled:cursor-not-allowed disabled:opacity-60 disabled:hover:bg-transparent"
             >
               <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">
