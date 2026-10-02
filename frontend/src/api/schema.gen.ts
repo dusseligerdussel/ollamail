@@ -4,6 +4,56 @@
  */
 
 export interface paths {
+    "/admin/auth/github/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Github Providers
+         * @description All GitHub providers (secrets are never returned).
+         */
+        get: operations["admin_list_github_providers"];
+        put?: never;
+        /**
+         * Create Github Provider
+         * @description Add a GitHub provider. The client secret is stored encrypted.
+         */
+        post: operations["admin_create_github_provider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/github/providers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Github Provider */
+        get: operations["admin_get_github_provider"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Github Provider
+         * @description Remove a GitHub provider. Users and their linked identities are kept; sessions
+         *     started with the provider stay valid until they expire or are revoked.
+         */
+        delete: operations["admin_delete_github_provider"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Github Provider
+         * @description Change a GitHub provider. Omitted fields stay as they are.
+         */
+        patch: operations["admin_update_github_provider"];
+        trace?: never;
+    };
     "/admin/auth/oidc/presets": {
         parameters: {
             query?: never;
@@ -217,6 +267,46 @@ export interface paths {
          * @description Recompute the hash chain to detect changed or removed entries.
          */
         get: operations["audit_verify"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/github/{name}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Github Callback
+         * @description Redirect target of GitHub: checks the response and membership, signs the user in.
+         */
+        get: operations["auth_github_callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/github/{name}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Github Login
+         * @description Start the login with a GitHub provider (browser navigation, not fetch).
+         */
+        get: operations["auth_github_login"];
         put?: never;
         post?: never;
         delete?: never;
@@ -666,6 +756,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mail/graph/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect Graph Mailbox
+         * @description Start connecting a Microsoft 365 mailbox; the client navigates to the returned URL.
+         */
+        post: operations["mail_connect_graph_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mailboxes": {
         parameters: {
             query?: never;
@@ -824,6 +934,75 @@ export interface paths {
          */
         post: operations["mailboxes_sync_mailbox"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ask
+         * @description Ask a question about the own mails; the answer is streamed with citations.
+         *
+         *     Only mails of mailboxes the user may read are searched. Without ``conversation_id`` a
+         *     new conversation is started; the question and the answer are stored when the answer
+         *     is complete.
+         */
+        post: operations["rag_ask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag/conversations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Conversations
+         * @description Own conversations, most recently used first.
+         */
+        get: operations["rag_list_conversations"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete All Conversations
+         * @description Delete all own conversations.
+         */
+        delete: operations["rag_delete_all_conversations"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/rag/conversations/{conversation_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Conversation */
+        get: operations["rag_get_conversation"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Conversation
+         * @description Delete a conversation with its questions, answers and cited excerpts.
+         */
+        delete: operations["rag_delete_conversation"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1336,6 +1515,39 @@ export interface components {
             role?: components["schemas"]["UserRole"] | null;
         };
         /**
+         * AnswerStatus
+         * @enum {string}
+         */
+        AnswerStatus: "answered" | "no_evidence";
+        /**
+         * AppliedFilters
+         * @description Filters the search used: the UI filters, completed by those found in the question.
+         */
+        AppliedFilters: {
+            /** Category Ids */
+            category_ids?: string[] | null;
+            /** Extracted */
+            extracted?: ("mailbox_ids" | "category_ids" | "sender" | "since" | "until")[];
+            /** Folder Ids */
+            folder_ids?: string[] | null;
+            /** Mailbox Ids */
+            mailbox_ids?: string[] | null;
+            /** Sender */
+            sender?: string | null;
+            /** Since */
+            since?: string | null;
+            /** Until */
+            until?: string | null;
+        };
+        /** AskRequest */
+        AskRequest: {
+            /** Conversation Id */
+            conversation_id?: string | null;
+            filters?: components["schemas"]["RagFilters"];
+            /** Question */
+            question: string;
+        };
+        /**
          * AuditAction
          * @enum {string}
          */
@@ -1494,6 +1706,29 @@ export interface components {
             /** Name */
             name?: string | null;
         };
+        /** CitationRead */
+        CitationRead: {
+            /** Attachment Id */
+            attachment_id: string | null;
+            /** Heading */
+            heading: string;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /** Number */
+            number: number;
+            /** Snippet */
+            snippet: string;
+            /** Source */
+            source: string;
+        };
         /** ConnectionTestResult */
         ConnectionTestResult: {
             /** Error */
@@ -1502,6 +1737,68 @@ export interface components {
             folders?: components["schemas"]["RemoteFolderRead"][];
             /** Ok */
             ok: boolean;
+        };
+        /** ConversationMessage */
+        ConversationMessage: {
+            /** Citations */
+            citations: components["schemas"]["CitationRead"][];
+            /** Content */
+            content: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            filters: components["schemas"]["AppliedFilters"] | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            role: components["schemas"]["RagRole"];
+            status: components["schemas"]["AnswerStatus"] | null;
+        };
+        /** ConversationRead */
+        ConversationRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Messages */
+            messages: components["schemas"]["ConversationMessage"][];
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ConversationSummary */
+        ConversationSummary: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
         };
         /**
          * DirectoryType
@@ -1563,6 +1860,138 @@ export interface components {
             /** Folders */
             folders: components["schemas"]["FolderSelection"][];
         };
+        /** GitHubProviderCreate */
+        GitHubProviderCreate: {
+            /**
+             * Allowed Domains
+             * @default []
+             */
+            allowed_domains: string[];
+            /**
+             * Allowed Organizations
+             * @default []
+             */
+            allowed_organizations: string[];
+            /**
+             * Allowed Teams
+             * @default []
+             */
+            allowed_teams: string[];
+            /**
+             * Auto Provision
+             * @default true
+             */
+            auto_provision: boolean;
+            /** Base Url */
+            base_url?: string | null;
+            /** Client Id */
+            client_id: string;
+            /** Client Secret */
+            client_secret: string;
+            /**
+             * Display Name
+             * @default GitHub
+             */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Link By Email
+             * @default false
+             */
+            link_by_email: boolean;
+            /** Name */
+            name: string;
+        };
+        /** GitHubProviderRead */
+        GitHubProviderRead: {
+            /**
+             * Allowed Domains
+             * @default []
+             */
+            allowed_domains: string[];
+            /**
+             * Allowed Organizations
+             * @default []
+             */
+            allowed_organizations: string[];
+            /**
+             * Allowed Teams
+             * @default []
+             */
+            allowed_teams: string[];
+            /**
+             * Auto Provision
+             * @default true
+             */
+            auto_provision: boolean;
+            /** Base Url */
+            base_url?: string | null;
+            /** Client Id */
+            client_id: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Display Name
+             * @default GitHub
+             */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Has Client Secret */
+            has_client_secret: boolean;
+            /**
+             * Link By Email
+             * @default false
+             */
+            link_by_email: boolean;
+            /** Name */
+            name: string;
+            /** Provider */
+            provider: string;
+            /** Redirect Uri */
+            redirect_uri: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * GitHubProviderUpdate
+         * @description Fields to change; omitted fields stay. ``base_url: null`` switches to github.com.
+         */
+        GitHubProviderUpdate: {
+            /** Allowed Domains */
+            allowed_domains?: string[] | null;
+            /** Allowed Organizations */
+            allowed_organizations?: string[] | null;
+            /** Allowed Teams */
+            allowed_teams?: string[] | null;
+            /** Auto Provision */
+            auto_provision?: boolean | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Client Id */
+            client_id?: string | null;
+            /** Client Secret */
+            client_secret?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Link By Email */
+            link_by_email?: boolean | null;
+        };
         /** GmailOAuthStart */
         GmailOAuthStart: {
             /** Login Hint */
@@ -1570,6 +1999,18 @@ export interface components {
         };
         /** GmailOAuthStartResponse */
         GmailOAuthStartResponse: {
+            /** Authorization Url */
+            authorization_url: string;
+        };
+        /** GraphConnectRequest */
+        GraphConnectRequest: {
+            /** Return To */
+            return_to?: string | null;
+            /** Shared Mailbox */
+            shared_mailbox?: string | null;
+        };
+        /** GraphConnectResponse */
+        GraphConnectResponse: {
             /** Authorization Url */
             authorization_url: string;
         };
@@ -2257,6 +2698,29 @@ export interface components {
             /** Timezone */
             timezone?: string | null;
         };
+        /**
+         * RagFilters
+         * @description Filters set in the UI; each one narrows the mailboxes the user may read.
+         */
+        RagFilters: {
+            /** Category Ids */
+            category_ids?: string[] | null;
+            /** Folder Ids */
+            folder_ids?: string[] | null;
+            /** Mailbox Ids */
+            mailbox_ids?: string[] | null;
+            /** Sender */
+            sender?: string | null;
+            /** Since */
+            since?: string | null;
+            /** Until */
+            until?: string | null;
+        };
+        /**
+         * RagRole
+         * @enum {string}
+         */
+        RagRole: "user" | "assistant";
         /** ReadinessStatus */
         ReadinessStatus: {
             /** Checks */
@@ -2761,6 +3225,262 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    admin_list_github_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitHubProviderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_create_github_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitHubProviderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitHubProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Name taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_get_github_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitHubProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_delete_github_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_github_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GitHubProviderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GitHubProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     admin_list_oidc_presets: {
         parameters: {
             query?: never;
@@ -3455,6 +4175,66 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    auth_github_callback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to return_to (signed in), or to /login?error=<code> */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_github_login: {
+        parameters: {
+            query?: {
+                return_to?: string | null;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to GitHub, or to /login?error=<code> */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -4547,6 +5327,39 @@ export interface operations {
             };
         };
     };
+    mail_connect_graph_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraphConnectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphConnectResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     mailboxes_list_mailboxes: {
         parameters: {
             query?: never;
@@ -5009,6 +5822,318 @@ export interface operations {
             };
             /** @description Syncing is paused */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rag_ask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskRequest"];
+            };
+        };
+        responses: {
+            /** @description Server-Sent Events stream; `data` of each event is one of these */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": {
+                        /**
+                         * Answer Id
+                         * Format: uuid
+                         */
+                        answer_id: string;
+                        /**
+                         * Conversation Id
+                         * Format: uuid
+                         */
+                        conversation_id: string;
+                        /**
+                         * Question Id
+                         * Format: uuid
+                         */
+                        question_id: string;
+                        /**
+                         * Type
+                         * @default start
+                         * @constant
+                         */
+                        type: "start";
+                    } | {
+                        /**
+                         * AppliedFilters
+                         * @description Filters the search used: the UI filters, completed by those found in the question.
+                         */
+                        filters: {
+                            /** Category Ids */
+                            category_ids?: string[] | null;
+                            /** Extracted */
+                            extracted?: ("mailbox_ids" | "category_ids" | "sender" | "since" | "until")[];
+                            /** Folder Ids */
+                            folder_ids?: string[] | null;
+                            /** Mailbox Ids */
+                            mailbox_ids?: string[] | null;
+                            /** Sender */
+                            sender?: string | null;
+                            /** Since */
+                            since?: string | null;
+                            /** Until */
+                            until?: string | null;
+                        };
+                        /**
+                         * Type
+                         * @default filters
+                         * @constant
+                         */
+                        type: "filters";
+                    } | {
+                        /** Sources */
+                        sources: {
+                            /** Attachment Id */
+                            attachment_id: string | null;
+                            /** Heading */
+                            heading: string;
+                            /**
+                             * Mailbox Id
+                             * Format: uuid
+                             */
+                            mailbox_id: string;
+                            /**
+                             * Message Id
+                             * Format: uuid
+                             */
+                            message_id: string;
+                            /** Number */
+                            number: number;
+                            /** Snippet */
+                            snippet: string;
+                            /** Source */
+                            source: string;
+                        }[];
+                        /**
+                         * Type
+                         * @default sources
+                         * @constant
+                         */
+                        type: "sources";
+                    } | {
+                        /** Text */
+                        text: string;
+                        /**
+                         * Type
+                         * @default token
+                         * @constant
+                         */
+                        type: "token";
+                    } | {
+                        /** Citations */
+                        citations: number[];
+                        /**
+                         * AnswerStatus
+                         * @enum {string}
+                         */
+                        status: "answered" | "no_evidence";
+                        /** Ttft Ms */
+                        ttft_ms: number | null;
+                        /**
+                         * Type
+                         * @default done
+                         * @constant
+                         */
+                        type: "done";
+                    } | {
+                        /** Code */
+                        code: string;
+                        /**
+                         * Type
+                         * @default error
+                         * @constant
+                         */
+                        type: "error";
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such conversation */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rag_list_conversations: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationSummary"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rag_delete_all_conversations: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    rag_get_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConversationRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such conversation */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    rag_delete_conversation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                conversation_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such conversation */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

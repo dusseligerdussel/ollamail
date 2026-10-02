@@ -189,6 +189,46 @@ class MailSettings(BaseSettings):
     watch_enabled: bool = True
 
 
+class GraphSettings(BaseSettings):
+    """``OLLAMAIL_MAIL_GRAPH_*`` (Microsoft 365 via Graph, docs/providers/microsoft365.md)"""
+
+    model_config = _config("MAIL_GRAPH_")
+
+    # Entra ID app registration. Without a client ID, Microsoft 365 mailboxes are disabled.
+    client_id: str | None = None
+    client_secret: SecretStr | None = None
+    # Tenant for sign-in and app-only tokens: a tenant ID, or "organizations" (any work
+    # account, delegated only). App-only mailboxes need a real tenant ID.
+    tenant_id: str = "organizations"
+    # Redirect URI registered in Entra ID; unset: <scheme>://<host>/api/mail/graph/callback.
+    redirect_uri: str | None = None
+    # Public URL of /api/mail/graph/notifications for change notifications (webhooks).
+    # Unset (default): polling only, no inbound connections from Microsoft.
+    notification_url: str | None = None
+    # Endpoints; change only for national clouds or tests.
+    authority: str = "https://login.microsoftonline.com"
+    api_url: str = "https://graph.microsoft.com/v1.0"
+    # Seconds per request and retries after throttling (429/503, honouring Retry-After).
+    timeout: float = Field(default=60.0, gt=0)
+    max_retries: int = Field(default=5, ge=0, le=20)
+
+    @field_validator("redirect_uri", "notification_url", "authority", "api_url", mode="before")
+    @classmethod
+    def _url(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        if not value.strip():
+            return None
+        value = value.strip().rstrip("/")
+        if not value.startswith(("https://", "http://")):
+            raise ValueError("must be an http(s) URL")
+        return value
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_id)
+
+
 class GmailSettings(BaseSettings):
     """``OLLAMAIL_GMAIL_*`` (Gmail / Google Workspace provider, docs/providers/gmail.md)"""
 
@@ -402,6 +442,34 @@ class SearchSettings(BaseSettings):
         return self
 
 
+class RagSettings(BaseSettings):
+    """``OLLAMAIL_RAG_*`` ("ask your inbox", app/rag/)"""
+
+    model_config = _config("RAG_")
+
+    # Extract filters (period, sender, mailbox, category) and a standalone search query
+    # from the question with the LLM. Off: the question is searched as typed, only the
+    # filters set in the UI apply.
+    filter_extraction_enabled: bool = True
+    # Chunks retrieved per question; the best ones that fit the context window are passed
+    # to the model as numbered sources.
+    retrieval_limit: int = Field(default=12, ge=1, le=100)
+    # Rerank the retrieved chunks with the chat model before answering. ``None`` (default)
+    # follows the hardware profile: on for GPU profiles, off for ``cpu``.
+    reranker_enabled: bool | None = None
+    # Chunks handed to the reranker (it picks ``retrieval_limit`` of them).
+    rerank_candidates: int = Field(default=24, ge=2, le=100)
+    # Upper bound for the answer, in tokens.
+    max_answer_tokens: int = Field(default=1024, ge=64, le=8192)
+    # Earlier questions and answers of the conversation passed to the model (follow-ups).
+    history_turns: int = Field(default=3, ge=0, le=20)
+    # Characters of a mail chunk stored and shown as excerpt of a citation.
+    snippet_chars: int = Field(default=400, ge=50, le=4000)
+    # Days a conversation is kept after its last question; 0 keeps conversations until the
+    # user deletes them. Enforced by the daily job ``rag.purge_conversations``.
+    history_retention_days: int = Field(default=90, ge=0)
+
+
 class TodosSettings(BaseSettings):
     """``OLLAMAIL_TODOS_*`` (todo extraction, app/todos/)"""
 
@@ -466,10 +534,12 @@ class Settings(BaseModel):
     storage: StorageSettings = Field(default_factory=StorageSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     mail: MailSettings = Field(default_factory=MailSettings)
+    graph: GraphSettings = Field(default_factory=GraphSettings)
     gmail: GmailSettings = Field(default_factory=GmailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
+    rag: RagSettings = Field(default_factory=RagSettings)
 
     todos: TodosSettings = Field(default_factory=TodosSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)

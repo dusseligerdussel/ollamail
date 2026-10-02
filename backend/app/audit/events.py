@@ -27,7 +27,7 @@ class AuditAction(enum.StrEnum):
     USER_PASSWORD_SET = "user.password_set"
     USER_DELETED = "user.deleted"  # planned: account deletion
     # Sign-in providers
-    # LDAP (#32), OIDC (#30), local login switch and group → role mapping (#33)
+    # LDAP (#32), OIDC (#30), GitHub (#31), local login switch and group → role mapping (#33)
     IDP_CONFIG_CHANGED = "idp.config_changed"
     # AI settings, including enabling cloud providers
     AI_SETTINGS_CHANGED = "ai.settings_changed"  # planned: admin LLM settings

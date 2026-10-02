@@ -7,7 +7,9 @@ planted from a sibling subdomain does not validate, and it changes on every logi
 logout. Requests the browser marks as cross-site (``Sec-Fetch-Site``) are rejected as
 well. The session cookie additionally uses ``SameSite=Lax``.
 
-The middleware covers the whole app (closed by default). Responses get a fresh cookie when
+The middleware covers the whole app (closed by default). ``exempt_paths`` lists the few
+endpoints that are called by other servers without cookies and authenticate requests
+themselves (e.g. Microsoft Graph change notifications). Responses get a fresh cookie when
 the request had none or one bound to a different session.
 """
 
@@ -15,6 +17,7 @@ import base64
 import hashlib
 import hmac
 import secrets
+from collections.abc import Iterable
 
 from starlette.datastructures import MutableHeaders
 from starlette.requests import Request
@@ -73,9 +76,10 @@ def set_csrf_cookie(response: Response, settings: Settings, session_token: str |
 
 
 class CSRFMiddleware:
-    def __init__(self, app: ASGIApp, settings: Settings) -> None:
+    def __init__(self, app: ASGIApp, settings: Settings, exempt_paths: Iterable[str] = ()) -> None:
         self.app = app
         self.settings = settings
+        self.exempt_paths = frozenset(exempt_paths)
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] != "http":
@@ -99,7 +103,7 @@ class CSRFMiddleware:
                     headers.append("set-cookie", carrier.headers["set-cookie"])
             await send(message)
 
-        if request.method not in SAFE_METHODS:
+        if request.method not in SAFE_METHODS and not self._exempt(scope):
             header_token = request.headers.get(CSRF_HEADER)
             cross_site = request.headers.get("sec-fetch-site") == "cross-site"
             matches = (
@@ -114,3 +118,12 @@ class CSRFMiddleware:
                 return
 
         await self.app(scope, receive, send_with_cookie)
+
+    def _exempt(self, scope: Scope) -> bool:
+        if not self.exempt_paths:
+            return False
+        path: str = scope["path"]
+        root_path: str = scope.get("root_path", "")
+        if root_path and path.startswith(root_path):
+            path = path[len(root_path) :]
+        return path in self.exempt_paths
