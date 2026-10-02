@@ -103,7 +103,8 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 
 Die UI ist unter `http://<host>:8080` erreichbar. Identity-Provider (Entra ID, Google, OIDC,
 LDAP/Active Directory), Rollen-Zuordnung und Nutzer verwaltet der Admin unter Admin → Anmeldung
-bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)).
+bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)) und SAML
+([`auth/saml.md`](auth/saml.md)).
 
 **Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
@@ -653,7 +654,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
 
-api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30; GitHub OAuth2 geplant #31)
+api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30), GitHub OAuth2 (#31), SAML 2.0 (#94; Metadaten-URL des IdP)
 api ──▶ login.microsoftonline.com / Graph: nur beim Verbinden eines Microsoft-365-Postfachs (#37)
 Microsoft ──▶ api: Change Notifications nur mit OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL (#37)
 ```
