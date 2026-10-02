@@ -24,6 +24,7 @@ const actionGroups = {
   "mailbox.deleted": "mailboxes",
   "data.exported": "data",
   "data.deleted": "data",
+  "data.retention_changed": "data",
   "crypto.keys_rotated": "operations",
   "audit.exported": "operations",
 } as const satisfies Record<AuditAction, string>;

@@ -115,7 +115,8 @@
       "auditDescription": "Anmeldungen, Rollenänderungen, Schlüsselrotation und weitere Sicherheitsereignisse.",
       "more": "Benutzer, Anmeldeverfahren und Mail-Provider werden hier verwaltet, sobald diese Bereiche verfügbar sind.",
       "ai": "Sprachmodelle",
-      "aiDescription": "Provider, Modelle je Aufgabe, Hardware-Profil und Cloud-Freigabe."
+      "aiDescription": "Provider, Modelle je Aufgabe, Hardware-Profil und Cloud-Freigabe.",
+      "retentionDescription": "Wie lange Mails, Anhänge, Suchindex, Fragen-Verläufe, Digests und Audit-Log aufbewahrt werden."
     },
     "audit": {
       "title": "Audit-Log",
@@ -185,7 +186,8 @@
         },
         "data": {
           "exported": "Daten exportiert",
-          "deleted": "Daten gelöscht"
+          "deleted": "Daten gelöscht",
+          "retention_changed": "Aufbewahrung geändert"
         },
         "crypto": {
           "keys_rotated": "Schlüssel rotiert"
@@ -317,6 +319,51 @@
         "saved": "Einstellungen gespeichert"
       },
       "default": "Standard"
+    },
+    "retention": {
+      "title": "Aufbewahrung",
+      "back": "Zurück zur Verwaltung",
+      "section": "Aufbewahrungsfristen",
+      "job": "Tägliche Löschung",
+      "custom": "Angepasst",
+      "days": "Tage",
+      "forever": "unbegrenzt",
+      "defaultDays_one": "Standard: {{count}} Tag",
+      "defaultDays_other": "Standard: {{count}} Tage",
+      "defaultForever": "Standard: unbegrenzt",
+      "reset": "Standard verwenden",
+      "hint": "0 bewahrt die Daten unbegrenzt auf. Gelöschte Daten lassen sich nicht wiederherstellen.",
+      "save": "Speichern",
+      "saved": "Aufbewahrungsfristen gespeichert.",
+      "shortMailWarning": "Kürzer als der Erstimport neuer Postfächer ({{days}} Tage): Ein vollständiger Neuabgleich importiert ältere Mails, die in der folgenden Nacht wieder gelöscht werden.",
+      "neverRun": "Noch nicht gelaufen. Daten, die älter als die Fristen sind, werden jede Nacht gelöscht, inklusive Dateien.",
+      "lastRun": "Letzter Lauf {{date}}: {{mails}} Mails, {{attachments}} Anhänge, {{chunks}} Suchindex-Einträge und {{events}} Audit-Einträge gelöscht.",
+      "fields": {
+        "mail_days": {
+          "label": "Mails",
+          "description": "Mit Anhängen, Suchindex und Triage-Ergebnissen, nach Empfangsdatum."
+        },
+        "attachment_days": {
+          "label": "Anhänge",
+          "description": "Nur die Anhangsdateien; die Mail bleibt."
+        },
+        "search_index_days": {
+          "label": "Suchindex",
+          "description": "Ältere Mails werden von Suche und Fragen nicht mehr gefunden."
+        },
+        "rag_history_days": {
+          "label": "Fragen-Verläufe",
+          "description": "Gespräche, ab der letzten Frage."
+        },
+        "digest_days": {
+          "label": "Digests",
+          "description": "Zusammenfassungen mit Audiodateien. Mindestens ein Tag."
+        },
+        "audit_days": {
+          "label": "Audit-Log",
+          "description": "Sicherheitsereignisse. Die Hash-Kette bleibt ab dem ältesten verbleibenden Eintrag prüfbar."
+        }
+      }
     }
   },
   "notFound": {
@@ -408,5 +455,32 @@
   "rootError": {
     "title": "ollamail konnte nicht geladen werden",
     "retry": "Erneut versuchen"
+  },
+  "privacy": {
+    "section": "Deine Daten",
+    "export": {
+      "title": "Daten exportieren",
+      "description": "ZIP mit Profil, Kategorien, Korrekturen, Aufgaben, Digests inklusive Audio und Fragen-Verläufen. Der Download-Link gilt {{hours}} Stunden.",
+      "request": "Export anfordern",
+      "list": "Exporte",
+      "item": "Export vom {{date}}",
+      "running": "Wird erstellt …",
+      "ready": "{{size}} · verfügbar bis {{date}}",
+      "failed": "Export fehlgeschlagen. Bitte erneut anfordern.",
+      "download": "Herunterladen",
+      "deleteLabel": "{{name}} löschen"
+    },
+    "delete": {
+      "title": "Konto löschen",
+      "description": "Löscht dein Konto mit allen Postfächern, Mails, Aufgaben, Digests und Fragen-Verläufen. Das lässt sich nicht rückgängig machen.",
+      "disabled": "Konten löscht ein Administrator. Wende dich an ihn, wenn dein Konto entfernt werden soll.",
+      "open": "Konto löschen …",
+      "confirmTitle": "Konto endgültig löschen?",
+      "confirmDescription": "Alle Postfächer, Mails, Anhänge, Aufgaben, Digests, Fragen-Verläufe und Exporte werden sofort gelöscht. Die Mails bleiben in deinen Mail-Konten erhalten. Exportiere deine Daten vorher, wenn du sie behalten möchtest.",
+      "confirmLabel": "Gib zur Bestätigung deine E-Mail-Adresse {{email}} ein",
+      "cancel": "Abbrechen",
+      "confirm": "Konto löschen",
+      "lastAdmin": "Du bist der letzte Administrator. Mache zuerst einen anderen Nutzer zum Administrator."
+    }
   }
 }

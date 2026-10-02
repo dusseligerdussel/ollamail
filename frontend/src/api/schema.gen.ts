@@ -236,6 +236,51 @@ export interface paths {
         patch: operations["admin_update_oidc_provider"];
         trace?: never;
     };
+    "/admin/privacy/retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Retention
+         * @description Effective retention periods, their environment defaults and the last run.
+         */
+        get: operations["privacy_get_retention"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Retention
+         * @description Change retention periods; ``null`` resets one to the environment default. Applies
+         *     from the next run of the retention jobs.
+         */
+        patch: operations["privacy_update_retention"];
+        trace?: never;
+    };
+    "/admin/privacy/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete User
+         * @description Delete a user with all their data and files (Art. 17). Not reversible.
+         */
+        delete: operations["privacy_delete_user"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/status": {
         parameters: {
             query?: never;
@@ -1060,6 +1105,96 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/privacy/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Account Privacy
+         * @description Whether the own account can be deleted here, and how long exports stay available.
+         */
+        get: operations["privacy_get_account_privacy"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Account
+         * @description Delete the own account with all data (mailboxes, mails, todos, digests, ...) and
+         *     files. Confirmed by entering the account's e-mail address. Not reversible.
+         */
+        delete: operations["privacy_delete_account"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Exports
+         * @description The own data exports that have not expired, newest first.
+         */
+        get: operations["privacy_list_exports"];
+        put?: never;
+        /**
+         * Request Export
+         * @description Start an export of the own data (ZIP with JSON and digest audio) as a background
+         *     job. While one is in progress, that one is returned.
+         */
+        post: operations["privacy_request_export"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/exports/{export_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Export
+         * @description Delete an own export and its file before it expires.
+         */
+        delete: operations["privacy_delete_export"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/exports/{export_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Export
+         * @description Download a finished export before it expires. Only its owner can.
+         */
+        get: operations["privacy_download_export"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/rag/ask": {
         parameters: {
             query?: never;
@@ -1665,6 +1800,24 @@ export interface components {
             cloud: components["schemas"]["CloudUsage"][];
         };
         /**
+         * AccountDeletion
+         * @description Confirmation of the own account's deletion: the account's e-mail address.
+         */
+        AccountDeletion: {
+            /** Confirm Email */
+            confirm_email: string;
+        };
+        /**
+         * AccountPrivacyRead
+         * @description What the account page offers.
+         */
+        AccountPrivacyRead: {
+            /** Export Expiry Hours */
+            export_expiry_hours: number;
+            /** Self Delete Enabled */
+            self_delete_enabled: boolean;
+        };
+        /**
          * ActorKind
          * @enum {string}
          */
@@ -1706,7 +1859,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -1949,6 +2102,28 @@ export interface components {
              */
             updated_at: string;
         };
+        /** DataExportRead */
+        DataExportRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Size */
+            size: number | null;
+            status: components["schemas"]["ExportStatus"];
+        };
         /**
          * DigestLength
          * @enum {string}
@@ -2136,6 +2311,11 @@ export interface components {
          * @enum {string}
          */
         DirectoryType: "active_directory" | "openldap";
+        /**
+         * ExportStatus
+         * @enum {string}
+         */
+        ExportStatus: "pending" | "running" | "ready" | "failed";
         /** FeedCreated */
         FeedCreated: {
             /**
@@ -3080,6 +3260,92 @@ export interface components {
             remote_id: string;
             role: components["schemas"]["FolderRole"] | null;
         };
+        /**
+         * RetentionRun
+         * @description Counters of the last run of the retention job.
+         */
+        RetentionRun: {
+            /**
+             * Attachments
+             * @default 0
+             */
+            attachments: number;
+            /**
+             * Audit Events
+             * @default 0
+             */
+            audit_events: number;
+            /**
+             * Finished At
+             * Format: date-time
+             */
+            finished_at: string;
+            /**
+             * Mails
+             * @default 0
+             */
+            mails: number;
+            /**
+             * Search Chunks
+             * @default 0
+             */
+            search_chunks: number;
+            /**
+             * Threads
+             * @default 0
+             */
+            threads: number;
+        };
+        /**
+         * RetentionSettingsRead
+         * @description Effective retention, the environment defaults and the last run.
+         */
+        RetentionSettingsRead: {
+            defaults: components["schemas"]["RetentionValues"];
+            /** Initial Sync Days */
+            initial_sync_days: number;
+            last_run: components["schemas"]["RetentionRun"] | null;
+            /** Overridden */
+            overridden: string[];
+            values: components["schemas"]["RetentionValues"];
+        };
+        /**
+         * RetentionSettingsUpdate
+         * @description New values; ``null`` resets a field to the environment default. Omitted fields
+         *     keep their value.
+         */
+        RetentionSettingsUpdate: {
+            /** Attachment Days */
+            attachment_days?: number | null;
+            /** Audit Days */
+            audit_days?: number | null;
+            /** Digest Days */
+            digest_days?: number | null;
+            /** Mail Days */
+            mail_days?: number | null;
+            /** Rag History Days */
+            rag_history_days?: number | null;
+            /** Search Index Days */
+            search_index_days?: number | null;
+        };
+        /**
+         * RetentionValues
+         * @description Retention in days per data category; 0 keeps the data.
+         */
+        RetentionValues: {
+            /** Attachment Days */
+            attachment_days: number;
+            /** Audit Days */
+            audit_days: number;
+            /** Digest Days */
+            digest_days: number;
+            /** Mail Days */
+            mail_days: number;
+            /** Rag History Days */
+            rag_history_days: number;
+            /** Search Index Days */
+            search_index_days: number;
+        };
         /** SenderRuleCreate */
         SenderRuleCreate: {
             /**
@@ -3423,6 +3689,18 @@ export interface components {
              * @default UTC
              */
             timezone: string;
+        };
+        /** UserDeletionResult */
+        UserDeletionResult: {
+            /** Deleted */
+            deleted: boolean;
+            /** Mailboxes */
+            mailboxes: number;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
         };
         /** UserRead */
         UserRead: {
@@ -4396,6 +4674,146 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    privacy_get_retention: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_update_retention: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetentionSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    privacy_delete_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDeletionResult"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Last active administrator */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -6434,6 +6852,225 @@ export interface operations {
             };
             /** @description Syncing is paused */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    privacy_get_account_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountPrivacyRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_delete_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountDeletion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Self-deletion is disabled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Last active administrator */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Confirmation does not match */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_list_exports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_request_export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_delete_export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such export */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    privacy_download_export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ZIP file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such export */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -1,5 +1,5 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronRight, Cpu, ScrollText } from "lucide-react";
+import { Archive, ChevronRight, Cpu, ScrollText } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Forbidden } from "@/components/forbidden";
@@ -35,6 +35,19 @@ function AdminPage() {
                   <span className="block text-ui font-medium">{t("pages.audit.title")}</span>
                   <span className="block text-ui text-muted-foreground">
                     {t("pages.admin.auditDescription")}
+                  </span>
+                </span>
+                <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              </Link>
+              <Link
+                to="/admin/retention"
+                className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              >
+                <Archive aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+                <span className="min-w-0 flex-1">
+                  <span className="block text-ui font-medium">{t("pages.retention.title")}</span>
+                  <span className="block text-ui text-muted-foreground">
+                    {t("pages.admin.retentionDescription")}
                   </span>
                 </span>
                 <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
