@@ -426,6 +426,8 @@ function DigestDetail({
 }) {
   const { t } = useTranslation();
   const digest = useQuery(digestQueryOptions(digestId));
+  // Without a back button the list is shown next to it, with the page's `h1`.
+  const headingLevel = onBack ? 1 : 2;
   const back = onBack && (
     <Button variant="ghost" size="icon-sm" onClick={onBack} aria-label={t("digest.back")}>
       <ArrowLeft />
@@ -435,7 +437,7 @@ function DigestDetail({
   if (digest.isPending) {
     return (
       <>
-        <PageHeader title={t("nav.digest")} leading={back} />
+        <PageHeader title={t("nav.digest")} leading={back} headingLevel={headingLevel} />
         <DetailSkeleton />
       </>
     );
@@ -443,14 +445,14 @@ function DigestDetail({
   if (digest.isError) {
     return (
       <>
-        <PageHeader title={t("nav.digest")} leading={back} />
+        <PageHeader title={t("nav.digest")} leading={back} headingLevel={headingLevel} />
         <InlineError error={digest.error} className="m-4" />
       </>
     );
   }
   return (
     <>
-      <PageHeader title={digest.data.title} leading={back} />
+      <PageHeader title={digest.data.title} leading={back} headingLevel={headingLevel} />
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 md:px-6">
           <DigestBody digest={digest.data} onRetry={onRetry} retryDisabled={retryDisabled} />

@@ -60,6 +60,6 @@ test("add a mailbox on the IMAP test server → its mails appear in the inbox", 
     await expect(messages.getByText(subject)).toBeVisible();
   }
   await messages.getByText(subjects[1] ?? "").click();
-  await expect(page.getByRole("heading", { level: 1, name: subjects[1] })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: subjects[1] })).toBeVisible();
   await expect(page.getByRole("article").getByText("Synthetic body 1.")).toBeVisible();
 });

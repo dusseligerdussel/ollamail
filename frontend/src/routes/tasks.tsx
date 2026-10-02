@@ -70,6 +70,17 @@ function TasksPage() {
     },
     () => usable && toggleDone(usable),
   );
+  // `e` (done) as everywhere in the app (docs/DESIGN.md); unlike `x` it never reopens a task.
+  useShortcut(
+    {
+      id: "tasks.done",
+      keys: "e",
+      group: "list",
+      description: t("tasks.shortcuts.done"),
+      enabled: !!usable && usable.status !== "done",
+    },
+    () => usable && toggleDone(usable),
+  );
   useShortcut(
     {
       id: "tasks.date",

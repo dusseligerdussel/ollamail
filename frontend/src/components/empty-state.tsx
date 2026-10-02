@@ -1,6 +1,7 @@
 import type { LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { cn } from "@/lib/utils";
 
 interface EmptyStateProps {
@@ -22,6 +23,8 @@ export function EmptyState({
   headingLevel = 2,
   className,
 }: EmptyStateProps) {
+  // A level-1 empty state is the whole page (403, 404).
+  useDocumentTitle(headingLevel === 1 ? title : undefined);
   const Heading = headingLevel === 1 ? "h1" : "h2";
   return (
     <div

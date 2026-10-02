@@ -4,6 +4,8 @@ import type { TFunction } from "i18next";
 import { Paperclip } from "lucide-react";
 import {
   createContext,
+  type FocusEvent,
+  type KeyboardEvent,
   memo,
   type ReactNode,
   useCallback,
@@ -39,6 +41,8 @@ interface MessageListProps {
   selectedId?: string;
   /** Keyboard position (`j`/`k`), -1 for none. */
   activeIndex: number;
+  /** Arrow keys, Home/End and focusing a row move the keyboard position. */
+  onActiveIndexChange?: (index: number) => void;
   /** Search params of a row link (keeps the filters, opens the message). */
   linkSearch: (message: MessageSummary) => Record<string, unknown>;
   /**
@@ -62,6 +66,7 @@ export function MessageList({
   fetchNextPage,
   selectedId,
   activeIndex,
+  onActiveIndexChange,
   linkSearch,
   groupHeader,
 }: MessageListProps) {
@@ -133,6 +138,51 @@ export function MessageList({
     if (activeRow >= 0) virtualizer.scrollToIndex(activeRow, { align: "auto" });
   }, [activeRow, virtualizer]);
 
+  // Roving tab stop: only one row is in the tab order, so Tab leaves the list instead of
+  // walking through thousands of rows. While focus is in the list it follows `j`/`k`.
+  const selectedIndex = useMemo(
+    () => (selectedId ? items.findIndex((message) => message.id === selectedId) : -1),
+    [items, selectedId],
+  );
+  const preferredStop = activeIndex >= 0 ? activeIndex : Math.max(selectedIndex, 0);
+  useEffect(() => {
+    const list = scrollRef.current;
+    if (activeIndex < 0 || !list?.contains(document.activeElement)) return;
+    // The row may only be rendered after the virtualizer has scrolled to it.
+    let frame = 0;
+    let attempts = 0;
+    const focusRow = () => {
+      const row = list.querySelector<HTMLElement>(`[data-message-index="${activeIndex}"]`);
+      if (row) row.focus({ preventScroll: true });
+      else if (++attempts < 10) frame = requestAnimationFrame(focusRow);
+    };
+    focusRow();
+    return () => cancelAnimationFrame(frame);
+  }, [activeIndex]);
+
+  const rowIndex = (target: EventTarget) => {
+    const row = (target as HTMLElement).closest?.("[data-message-index]");
+    return row ? Number(row.getAttribute("data-message-index")) : -1;
+  };
+  const onKeyDown = (event: KeyboardEvent<HTMLUListElement>) => {
+    const index = rowIndex(event.target);
+    if (index < 0 || !onActiveIndexChange || event.altKey || event.ctrlKey || event.metaKey) return;
+    const last = items.length - 1;
+    const next = {
+      ArrowDown: Math.min(index + 1, last),
+      ArrowUp: Math.max(index - 1, 0),
+      Home: 0,
+      End: last,
+    }[event.key];
+    if (next === undefined) return;
+    event.preventDefault();
+    onActiveIndexChange(next);
+  };
+  const onFocus = (event: FocusEvent<HTMLUListElement>) => {
+    const index = rowIndex(event.target);
+    if (index >= 0 && index !== activeIndex) onActiveIndexChange?.(index);
+  };
+
   // What all rows share, so each row neither subscribes to i18n and the user itself nor
   // re-renders while scrolling (rows are memoised and only get stable props).
   const { i18n } = useTranslation();
@@ -145,11 +195,22 @@ export function MessageList({
     [t, i18n.language, timezone],
   );
 
+  // Scrolled away from it, the first rendered row takes over, so Tab still reaches the list.
+  const renderedMessages = virtualItems
+    .map((item) => rows[item.index])
+    .filter((row) => row?.type === "message")
+    .map((row) => row.index);
+  const tabStop = renderedMessages.includes(preferredStop)
+    ? preferredStop
+    : (renderedMessages[0] ?? preferredStop);
+
   return (
     <RowContext value={rowContext}>
       <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" data-testid="message-list">
         <ul
           aria-label={t("mail.listLabel")}
+          onKeyDown={onKeyDown}
+          onFocus={onFocus}
           className="relative w-full"
           style={{ height: virtualizer.getTotalSize() }}
         >
@@ -179,9 +240,11 @@ export function MessageList({
                 {message ? (
                   <MessageRow
                     message={message}
+                    index={index}
                     oneLine={oneLine}
                     selected={message.id === selectedId}
                     active={index === activeIndex}
+                    tabStop={index === tabStop}
                     linkSearch={linkSearch}
                   />
                 ) : (
@@ -211,15 +274,19 @@ function useRowContext() {
 
 const MessageRow = memo(function MessageRow({
   message,
+  index,
   oneLine,
   selected,
   active,
+  tabStop,
   linkSearch,
 }: {
   message: MessageSummary;
+  index: number;
   oneLine: boolean;
   selected: boolean;
   active: boolean;
+  tabStop: boolean;
   linkSearch: (message: MessageSummary) => Record<string, unknown>;
 }) {
   const { t, formatDate } = useRowContext();
@@ -232,6 +299,8 @@ const MessageRow = memo(function MessageRow({
       to="/inbox"
       search={linkSearch(message)}
       aria-current={selected ? "true" : undefined}
+      tabIndex={tabStop ? 0 : -1}
+      data-message-index={index}
       data-active={active || undefined}
       data-unread={message.unread || undefined}
       className={cn(
