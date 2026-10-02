@@ -3,6 +3,8 @@
 ``mail.sync_mailbox`` syncs one mailbox. Jobs for the same mailbox never run in parallel
 (``lock``) and at most one waits in the queue (``queueing_lock``), so ``request_sync`` can
 be called as often as changes are noticed (push, polling, API).
+
+``mail.write_flags`` writes read/unread changes made in the app back to the server.
 """
 
 import uuid
@@ -12,6 +14,7 @@ from procrastinate.exceptions import AlreadyEnqueued
 
 from app.core.config import get_settings
 from app.core.db import Database
+from app.mail.flags import write_flags
 from app.mail.storage import AttachmentStorage
 from app.mail.sync.engine import sync_mailbox
 from app.worker import DEFAULT_RETRY, app, resource_lock
@@ -45,3 +48,16 @@ async def request_sync(mailbox_id: uuid.UUID) -> bool:
     except AlreadyEnqueued:
         return False
     return True
+
+
+@app.task(name="mail.write_flags", queue="sync", retry=DEFAULT_RETRY)
+async def write_flags_job(message_id: str) -> None:
+    async with _database().sessionmaker() as session:
+        await write_flags(session, uuid.UUID(message_id))
+
+
+async def request_flag_write(message_id: uuid.UUID) -> None:
+    """Queue writing the stored flags of a message to the server. Jobs of one message run
+    one after another and each writes the state at the time it runs."""
+    lock = resource_lock("message_flags", message_id)
+    await write_flags_job.configure(lock=lock).defer_async(message_id=str(message_id))

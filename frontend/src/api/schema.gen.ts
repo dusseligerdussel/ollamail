@@ -1075,6 +1075,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mailboxes/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Mailbox Providers
+         * @description Mailbox types that can be added on this instance and how they are connected.
+         *     OAuth types appear only if their OAuth client is configured.
+         */
+        get: operations["mailboxes_list_mailbox_providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mailboxes/test": {
         parameters: {
             query?: never;
@@ -1185,6 +1206,110 @@ export interface paths {
          * @description Start a sync now. Progress arrives as ``mailbox.sync`` events.
          */
         post: operations["mailboxes_sync_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Messages
+         * @description Messages of the user's mailboxes, newest first, one row per message. Pages with
+         *     ``cursor``; ``total`` counts all matching messages.
+         */
+        get: operations["messages_list_messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Message
+         * @description Mark read or unread. Stored at once, written back to the server by a job.
+         */
+        patch: operations["messages_update_message"];
+        trace?: never;
+    };
+    "/messages/{message_id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Attachment
+         * @description The attachment file. Downloaded (``Content-Disposition: attachment``) unless
+         *     ``inline=true`` and it is a raster image (for ``cid:`` images in the mail).
+         */
+        get: operations["messages_download_attachment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/{message_id}/body": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Message Body
+         * @description Sanitised HTML; with ``external_images=true`` remote images are kept (the user
+         *     chose to load them for this message).
+         */
+        get: operations["messages_get_message_body"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/{message_id}/thread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Thread
+         * @description The conversation of a message, oldest first (at most the newest 100 messages).
+         *     HTML comes sanitised with external images removed.
+         */
+        get: operations["messages_get_thread"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1881,6 +2006,13 @@ export interface components {
          * @enum {string}
          */
         ActorKind: "user" | "system" | "anonymous";
+        /** AddressRead */
+        AddressRead: {
+            /** Address */
+            address: string;
+            /** Name */
+            name?: string | null;
+        };
         /** AdminAccess */
         AdminAccess: {
             /** Own Providers */
@@ -1965,6 +2097,22 @@ export interface components {
             filters?: components["schemas"]["RagFilters"];
             /** Question */
             question: string;
+        };
+        /** AttachmentRead */
+        AttachmentRead: {
+            /** Content Type */
+            content_type: string;
+            /** Filename */
+            filename: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Inline */
+            is_inline: boolean;
+            /** Size */
+            size: number;
         };
         /**
          * AuditAction
@@ -2984,6 +3132,20 @@ export interface components {
             /** Messages */
             messages: number;
         };
+        /**
+         * MailboxProviderRead
+         * @description A mailbox type that can be added on this instance.
+         */
+        MailboxProviderRead: {
+            /**
+             * Connect
+             * @enum {string}
+             */
+            connect: "credentials" | "oauth";
+            /** Oauth Start Path */
+            oauth_start_path?: string | null;
+            type: components["schemas"]["MailboxType"];
+        };
         /** MailboxRead */
         MailboxRead: {
             /** Address */
@@ -3075,6 +3237,108 @@ export interface components {
             /** Sync Enabled */
             sync_enabled?: boolean | null;
             sync_settings?: components["schemas"]["SyncSettingsUpdate"] | null;
+        };
+        /**
+         * MessageBody
+         * @description Sanitised HTML of a message. External images are removed unless requested.
+         */
+        MessageBody: {
+            /** Blocked Images */
+            blocked_images: number;
+            /** Html */
+            html: string | null;
+        };
+        /** MessageDetail */
+        MessageDetail: {
+            /** Attachments */
+            attachments: components["schemas"]["AttachmentRead"][];
+            body: components["schemas"]["MessageBody"];
+            /** Cc */
+            cc: components["schemas"]["AddressRead"][];
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /** Flagged */
+            flagged: boolean;
+            /** Has Attachments */
+            has_attachments: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /** Reply To */
+            reply_to: components["schemas"]["AddressRead"][];
+            sender: components["schemas"]["AddressRead"] | null;
+            /** Sent At */
+            sent_at: string | null;
+            /** Snippet */
+            snippet: string;
+            /** Subject */
+            subject: string;
+            /** Text */
+            text: string;
+            /** Thread Id */
+            thread_id: string | null;
+            /** To */
+            to: components["schemas"]["AddressRead"][];
+            /** Unread */
+            unread: boolean;
+        };
+        /** MessagePage */
+        MessagePage: {
+            /** Items */
+            items: components["schemas"]["MessageSummary"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
+        /**
+         * MessageSummary
+         * @description One row of the inbox list.
+         */
+        MessageSummary: {
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /** Flagged */
+            flagged: boolean;
+            /** Has Attachments */
+            has_attachments: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            sender: components["schemas"]["AddressRead"] | null;
+            /** Snippet */
+            snippet: string;
+            /** Subject */
+            subject: string;
+            /** Thread Id */
+            thread_id: string | null;
+            /** Unread */
+            unread: boolean;
+        };
+        /** MessageUpdate */
+        MessageUpdate: {
+            /** Seen */
+            seen: boolean;
         };
         /** OIDCConnectionTest */
         OIDCConnectionTest: {
@@ -3657,6 +3921,23 @@ export interface components {
             /** Provider */
             provider: string | null;
             task: components["schemas"]["LLMTask"];
+        };
+        /**
+         * ThreadRead
+         * @description A conversation, oldest message first. A message without thread is its own thread.
+         */
+        ThreadRead: {
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /** Messages */
+            messages: components["schemas"]["MessageDetail"][];
+            /** Subject */
+            subject: string;
+            /** Thread Id */
+            thread_id: string | null;
         };
         /**
          * TlsMode
@@ -6913,6 +7194,33 @@ export interface operations {
             };
         };
     };
+    mailboxes_list_mailbox_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxProviderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     mailboxes_test_mailbox_connection: {
         parameters: {
             query?: never;
@@ -7263,6 +7571,237 @@ export interface operations {
             };
             /** @description Syncing is paused */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    messages_list_messages: {
+        parameters: {
+            query?: {
+                mailbox_id?: string | null;
+                /** @description Default: the inbox folders of all mailboxes */
+                folder_id?: string | null;
+                /** @description Only unread (true) or read (false) */
+                unread?: boolean | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagePage"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    messages_update_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageSummary"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    messages_download_attachment: {
+        parameters: {
+            query?: {
+                inline?: boolean;
+            };
+            header?: never;
+            path: {
+                message_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    messages_get_message_body: {
+        parameters: {
+            query?: {
+                external_images?: boolean;
+            };
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    messages_get_thread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

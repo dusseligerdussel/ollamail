@@ -133,6 +133,40 @@ data: {"type":"message.synced","message_id":"…","mailbox_id":"…"}
 - Nach einem Verbindungsabbruch verbindet sich der Browser selbst neu; danach werden alle Queries neu
   geladen, weil verpasste Events nicht nachgeliefert werden.
 
+### Postfächer und Inbox (#16)
+
+API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
+
+- **Postfächer** (`/settings/mailboxes`, `/settings/mailboxes/new`): Provider-Auswahl aus
+  `GET /api/mailboxes/providers` – OAuth-Provider (Google, Microsoft 365) erscheinen nur, wenn das
+  Backend sie als konfiguriert meldet. IMAP-Formular mit Autodiscovery (beim Verlassen des
+  Adressfelds) und Verbindungstest; Fehler kommen als `error_code` und werden über
+  `mailboxes.errors.<code>` übersetzt. OAuth: `POST <oauth_start_path>` mit `return_to`, danach
+  ganze Seitennavigation zum Anbieter; das Ergebnis (`?graph=…` bzw. Gmails `/?mailbox_connected=…`)
+  zeigt die Postfachliste einmal als Toast. Sync-Status live über die Events `mailbox.sync` und
+  `mailbox.changed`, Ordnerauswahl im Sheet, Entfernen mit Bestätigung.
+- **Inbox** (`/inbox`): Filter und geöffnete Mail stehen in der URL (`mailbox`, `folder`,
+  `unread`, `message`). Die Liste ist mit TanStack Virtual virtualisiert (Zeilenhöhe `h-row`, auf
+  Handys zweizeilig) und lädt Seiten nach, solange gescrollt wird; `total` sorgt für die richtige
+  Scrollhöhe. Öffnen markiert als gelesen (einmal je Öffnen), `u` schaltet um. Tasten: `j`/`k`,
+  `Enter`/`o`, `Esc`, `u`; Aktionen auch in der Command Palette.
+- **Mail-HTML** zeigt `MailBodyFrame`: `iframe` mit `srcdoc`, `sandbox` **ohne** `allow-scripts`
+  (`allow-same-origin` nur, damit die Höhe gemessen und `cid:`-Bilder mit Cookie geladen werden
+  können), eigene CSP (`default-src 'none'`, Bilder nur `'self'`/`data:`), kein Referrer, Links in
+  neuem Tab. Externe Bilder lädt erst „Bilder laden“ (`GET /messages/{id}/body?external_images=true`).
+  Mail-HTML ist für hellen Hintergrund geschrieben und bleibt deshalb hell (im dunklen Theme als
+  „Papier“).
+- **Slots** für Triage-Label (#21) und „Aufgaben aus dieser Mail“ (#23): `src/components/mail/slots.tsx`.
+- **E2E:** `e2e/inbox.spec.ts` (gemockt, `e2e/mock-mail.ts`: 10.000 Mails scrollen, Tastatur,
+  blockierte Bilder, Mobil, axe). `e2e/mailbox.spec.ts` gegen echte API, Worker und den
+  IMAP-Testserver der Backend-Tests:
+
+  ```sh
+  # backend/: OLLAMAIL_SETUP_TOKEN=e2e OLLAMAIL_AUTH_COOKIE_SECURE=false \
+  #   OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS=true … uv run uvicorn app.main:app  (+ python -m app.worker)
+  E2E_API=1 E2E_IMAP=1 E2E_SETUP_TOKEN=e2e pnpm e2e e2e/mailbox.spec.ts
+  ```
+
 ## Design-System und App-Shell
 
 Grundlage ist `docs/DESIGN.md`.

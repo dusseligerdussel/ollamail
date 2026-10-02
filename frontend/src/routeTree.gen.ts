@@ -24,6 +24,8 @@ import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
 import { Route as AdminRoleMappingRouteImport } from './routes/admin_.role-mapping'
 import { Route as AdminSignInRouteImport } from './routes/admin_.sign-in'
 import { Route as AdminUsersRouteImport } from './routes/admin_.users'
+import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
+import { Route as SettingsMailboxesNewRouteImport } from './routes/settings_.mailboxes_.new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -100,6 +102,16 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsMailboxesRoute = SettingsMailboxesRouteImport.update({
+  id: '/settings_/mailboxes',
+  path: '/settings/mailboxes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsMailboxesNewRoute = SettingsMailboxesNewRouteImport.update({
+  id: '/settings_/mailboxes_/new',
+  path: '/settings/mailboxes/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -117,6 +129,8 @@ export interface FileRoutesByFullPath {
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
+  '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -134,6 +148,8 @@ export interface FileRoutesByTo {
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
+  '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -152,6 +168,8 @@ export interface FileRoutesById {
   '/admin_/role-mapping': typeof AdminRoleMappingRoute
   '/admin_/sign-in': typeof AdminSignInRoute
   '/admin_/users': typeof AdminUsersRoute
+  '/settings_/mailboxes': typeof SettingsMailboxesRoute
+  '/settings_/mailboxes_/new': typeof SettingsMailboxesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -171,6 +189,8 @@ export interface FileRouteTypes {
     | '/admin/role-mapping'
     | '/admin/sign-in'
     | '/admin/users'
+    | '/settings/mailboxes'
+    | '/settings/mailboxes/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -188,6 +208,8 @@ export interface FileRouteTypes {
     | '/admin/role-mapping'
     | '/admin/sign-in'
     | '/admin/users'
+    | '/settings/mailboxes'
+    | '/settings/mailboxes/new'
   id:
     | '__root__'
     | '/'
@@ -205,6 +227,8 @@ export interface FileRouteTypes {
     | '/admin_/role-mapping'
     | '/admin_/sign-in'
     | '/admin_/users'
+    | '/settings_/mailboxes'
+    | '/settings_/mailboxes_/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -223,6 +247,8 @@ export interface RootRouteChildren {
   AdminRoleMappingRoute: typeof AdminRoleMappingRoute
   AdminSignInRoute: typeof AdminSignInRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  SettingsMailboxesRoute: typeof SettingsMailboxesRoute
+  SettingsMailboxesNewRoute: typeof SettingsMailboxesNewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -332,6 +358,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings_/mailboxes': {
+      id: '/settings_/mailboxes'
+      path: '/settings/mailboxes'
+      fullPath: '/settings/mailboxes'
+      preLoaderRoute: typeof SettingsMailboxesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings_/mailboxes_/new': {
+      id: '/settings_/mailboxes_/new'
+      path: '/settings/mailboxes/new'
+      fullPath: '/settings/mailboxes/new'
+      preLoaderRoute: typeof SettingsMailboxesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -351,6 +391,8 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoleMappingRoute: AdminRoleMappingRoute,
   AdminSignInRoute: AdminSignInRoute,
   AdminUsersRoute: AdminUsersRoute,
+  SettingsMailboxesRoute: SettingsMailboxesRoute,
+  SettingsMailboxesNewRoute: SettingsMailboxesNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

@@ -42,6 +42,10 @@ class AttachmentStorage:
             raise
         return relative
 
+    def path(self, relative: str) -> Path:
+        """Absolute path of a stored file (for streaming responses)."""
+        return self._resolve(relative)
+
     def read(self, relative: str) -> bytes:
         return self._resolve(relative).read_bytes()
 
