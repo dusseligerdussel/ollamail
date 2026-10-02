@@ -5,6 +5,7 @@ import {
   Cpu,
   KeyRound,
   type LucideIcon,
+  Mails,
   ScrollText,
   UserCog,
   Users,
@@ -55,6 +56,19 @@ function AdminPage() {
               />
             </div>
           </section>
+          <section aria-labelledby="admin-mail" className="mb-6">
+            <h2 id="admin-mail" className="mb-2 text-xs font-medium text-muted-foreground">
+              {t("pages.admin.mail")}
+            </h2>
+            <div className="divide-y rounded-lg border">
+              <AdminLink
+                to="/admin/shared-mailboxes"
+                icon={Mails}
+                title={t("pages.sharedMailboxes.title")}
+                description={t("pages.admin.sharedMailboxesDescription")}
+              />
+            </div>
+          </section>
           <section aria-labelledby="admin-security">
             <h2 id="admin-security" className="mb-2 text-xs font-medium text-muted-foreground">
               {t("pages.admin.security")}
@@ -101,7 +115,6 @@ function AdminPage() {
               </Link>
             </div>
           </section>
-          <p className="mt-6 text-ui text-muted-foreground">{t("pages.admin.more")}</p>
         </div>
       </div>
     </>
@@ -114,7 +127,12 @@ function AdminLink({
   title,
   description,
 }: {
-  to: "/admin/sign-in" | "/admin/role-mapping" | "/admin/users" | "/admin/retention";
+  to:
+    | "/admin/sign-in"
+    | "/admin/role-mapping"
+    | "/admin/users"
+    | "/admin/retention"
+    | "/admin/shared-mailboxes";
   icon: LucideIcon;
   title: string;
   description: string;

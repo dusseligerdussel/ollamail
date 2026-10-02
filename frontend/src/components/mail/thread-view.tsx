@@ -31,7 +31,8 @@ interface ThreadViewProps {
   /** The message opened from the list; its read state is toggled in the header. */
   messageId: string;
   unread: boolean;
-  onToggleUnread: () => void;
+  /** Missing for read-only (shared) mailboxes: read state cannot be changed there. */
+  onToggleUnread?: () => void;
   /** Back to the list (stacked mobile layout only). */
   onBack?: () => void;
 }
@@ -54,15 +55,21 @@ export function ThreadView({ thread, messageId, unread, onToggleUnread, onBack }
           )
         }
         actions={
-          <Button
-            variant="ghost"
-            size="icon-sm"
-            onClick={onToggleUnread}
-            aria-label={unread ? t("mail.markRead") : t("mail.markUnread")}
-            title={unread ? t("mail.markRead") : t("mail.markUnread")}
-          >
-            {unread ? <MailOpen /> : <Mail />}
-          </Button>
+          onToggleUnread ? (
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              onClick={onToggleUnread}
+              aria-label={unread ? t("mail.markRead") : t("mail.markUnread")}
+              title={unread ? t("mail.markRead") : t("mail.markUnread")}
+            >
+              {unread ? <MailOpen /> : <Mail />}
+            </Button>
+          ) : (
+            <span className="text-xs text-muted-foreground" title={t("mail.readOnlyHint")}>
+              {t("mail.readOnly")}
+            </span>
+          )
         }
       />
       <div className="flex-1 overflow-y-auto">

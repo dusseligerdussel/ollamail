@@ -24,7 +24,11 @@ import { PageHeader } from "@/components/page-header";
 import { useShortcut } from "@/components/shortcuts/shortcut-provider";
 import { SplitView } from "@/components/split-view";
 import { Button } from "@/components/ui/button";
-import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
+import {
+  NativeSelect,
+  NativeSelectOptGroup,
+  NativeSelectOption,
+} from "@/components/ui/native-select";
 import { Toggle } from "@/components/ui/toggle";
 import { useListNavigation } from "@/hooks/use-list-navigation";
 import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
@@ -107,6 +111,12 @@ function InboxPage() {
     if (index >= 0) setActiveIndex(index);
   }, [selectedId, items, setActiveIndex]);
 
+  // Users of a shared mailbox may only read it; read state belongs to the mailbox.
+  const canAct = useCallback(
+    (mailboxId: string | undefined) =>
+      !!mailboxes.data?.find((mailbox) => mailbox.id === mailboxId)?.permissions.includes("act"),
+    [mailboxes.data],
+  );
   const setSeen = useSetSeen();
   const thread = useQuery({ ...threadQueryOptions(selectedId ?? ""), enabled: !!selectedId });
   const openedMessage = thread.data?.messages.find((message) => message.id === selectedId);
@@ -117,13 +127,19 @@ function InboxPage() {
   const markedRead = useRef<string | undefined>(undefined);
   useEffect(() => {
     if (!openedMessage || markedRead.current === openedMessage.id) return;
+    if (!canAct(openedMessage.mailbox_id)) return;
     markedRead.current = openedMessage.id;
     if (openedMessage.unread) setSeen.mutate({ messageId: openedMessage.id, seen: true });
-  }, [openedMessage, setSeen]);
+  }, [openedMessage, setSeen, canAct]);
 
-  const toggleTarget = selectedId
-    ? { id: selectedId, unread: openedUnread }
-    : items[activeIndex] && { id: items[activeIndex].id, unread: items[activeIndex].unread };
+  const target = selectedId
+    ? { id: selectedId, unread: openedUnread, mailbox: thread.data?.mailbox_id }
+    : items[activeIndex] && {
+        id: items[activeIndex].id,
+        unread: items[activeIndex].unread,
+        mailbox: items[activeIndex].mailbox_id,
+      };
+  const toggleTarget = target && canAct(target.mailbox) ? target : undefined;
   const toggleUnread = useCallback(() => {
     if (toggleTarget) setSeen.mutate({ messageId: toggleTarget.id, seen: toggleTarget.unread });
   }, [toggleTarget, setSeen]);
@@ -201,6 +217,9 @@ function InboxPage() {
   useCommands(commands);
 
   const noMailboxes = mailboxes.data?.length === 0;
+  const sharedMailbox = mailboxes.data?.find(
+    (mailbox) => mailbox.id === search.mailbox && mailbox.is_shared,
+  );
   const importing = mailboxes.data?.some((mailbox) => ACTIVE_PHASES.has(mailbox.status.phase));
 
   let listContent: ReactNode;
@@ -289,7 +308,7 @@ function InboxPage() {
         thread={thread.data}
         messageId={selectedId}
         unread={openedUnread}
-        onToggleUnread={toggleUnread}
+        onToggleUnread={canAct(thread.data.mailbox_id) ? toggleUnread : undefined}
         onBack={split ? undefined : close}
       />
     );
@@ -302,7 +321,8 @@ function InboxPage() {
       list={
         <>
           <PageHeader
-            title={t("nav.inbox")}
+            // A shared mailbox opened from the navigation shows its own name.
+            title={sharedMailbox?.display_name ?? t("nav.inbox")}
             meta={total > 0 ? new Intl.NumberFormat().format(total) : undefined}
           />
           {!noMailboxes && <FilterBar search={search} onUnreadChange={setUnreadFilter} />}
@@ -329,6 +349,8 @@ function FilterBar({
     enabled: !!search.mailbox,
   });
   const synced = folders.data?.filter((folder) => folder.synced && folder.role !== "inbox") ?? [];
+  const own = mailboxes.data?.filter((mailbox) => !mailbox.is_shared) ?? [];
+  const shared = mailboxes.data?.filter((mailbox) => mailbox.is_shared) ?? [];
 
   return (
     <div className="flex shrink-0 items-center gap-2 border-b px-4 py-2 md:px-5">
@@ -347,11 +369,32 @@ function FilterBar({
         }
       >
         <NativeSelectOption value="">{t("mail.allMailboxes")}</NativeSelectOption>
-        {mailboxes.data?.map((mailbox) => (
-          <NativeSelectOption key={mailbox.id} value={mailbox.id}>
-            {mailbox.display_name}
-          </NativeSelectOption>
-        ))}
+        {shared.length === 0 ? (
+          own.map((mailbox) => (
+            <NativeSelectOption key={mailbox.id} value={mailbox.id}>
+              {mailbox.display_name}
+            </NativeSelectOption>
+          ))
+        ) : (
+          <>
+            {own.length > 0 && (
+              <NativeSelectOptGroup label={t("mail.ownMailboxes")}>
+                {own.map((mailbox) => (
+                  <NativeSelectOption key={mailbox.id} value={mailbox.id}>
+                    {mailbox.display_name}
+                  </NativeSelectOption>
+                ))}
+              </NativeSelectOptGroup>
+            )}
+            <NativeSelectOptGroup label={t("mail.sharedMailboxes")}>
+              {shared.map((mailbox) => (
+                <NativeSelectOption key={mailbox.id} value={mailbox.id}>
+                  {mailbox.display_name}
+                </NativeSelectOption>
+              ))}
+            </NativeSelectOptGroup>
+          </>
+        )}
       </NativeSelect>
       {search.mailbox && (
         <NativeSelect

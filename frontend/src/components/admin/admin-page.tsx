@@ -9,6 +9,7 @@ import { Button } from "@/components/ui/button";
 export function AdminSubPage({
   title,
   backLabel,
+  backTo = "/admin",
   meta,
   actions,
   wide = false,
@@ -16,6 +17,8 @@ export function AdminSubPage({
 }: {
   title: string;
   backLabel: string;
+  /** Parent page; default the admin overview. */
+  backTo?: "/admin" | "/admin/shared-mailboxes";
   meta?: ReactNode;
   actions?: ReactNode;
   /** Full width (tables) instead of the narrow settings column. */
@@ -30,7 +33,7 @@ export function AdminSubPage({
         actions={actions}
         leading={
           <Button asChild size="icon-sm" variant="ghost">
-            <Link to="/admin" aria-label={backLabel}>
+            <Link to={backTo} aria-label={backLabel}>
               <ArrowLeft />
             </Link>
           </Button>
