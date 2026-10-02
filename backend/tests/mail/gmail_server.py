@@ -97,6 +97,8 @@ class GmailServer:
     acked: list[str] = field(default_factory=list)
     nacked: list[str] = field(default_factory=list)
     watch_calls: list[dict[str, Any]] = field(default_factory=list)
+    # IDs of messages sent with ``messages.send``.
+    sent: list[str] = field(default_factory=list)
     _ids: Any = field(default_factory=lambda: itertools.count(1))
     _labels_seq: Any = field(default_factory=lambda: itertools.count(1))
 
@@ -241,6 +243,13 @@ class GmailServer:
             return httpx.Response(
                 200, json={"historyId": str(self.history_id), "expiration": "1790604800000"}
             )
+        if path == "/messages/send" and method == "POST":
+            # Like Gmail: the message is filed under SENT, in the given thread.
+            body = json.loads(request.content)
+            raw = base64.urlsafe_b64decode(body["raw"] + "=" * (-len(body["raw"]) % 4))
+            message_id = self.add_message(raw, ["SENT"], thread_id=body.get("threadId"))
+            self.sent.append(message_id)
+            return httpx.Response(200, json=self.messages[message_id].ref())
         match = re.fullmatch(r"/messages/([^/]+)/(modify|trash)", path)
         if match and method == "POST":
             message = self.messages.get(match.group(1))

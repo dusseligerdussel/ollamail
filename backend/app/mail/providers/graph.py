@@ -21,6 +21,12 @@ the engine loads the source only for unknown messages). ``@removed`` is checked 
 GET: a message that still exists was moved (``MessageUpdated`` with its new folder),
 otherwise it is deleted.
 
+Sending (``send``): ``createReply`` (``createReplyAll``) on the answered message with the
+recipients, subject and plain-text body of the draft, then ``send``; Exchange threads the
+reply and keeps it in "Sent Items". Delegated mailboxes use a token with ``Mail.Send``
+(requested when connecting, see ``graph_auth.delegated_scopes``); app-only access needs the
+``Mail.Send`` application permission. Without it sending fails with ``send_not_permitted``.
+
 Push: with ``OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL`` ``watch`` keeps a change-notification
 subscription alive (the notifications themselves arrive at ``graph_router``); without it,
 ``watch`` raises ``NotImplementedError`` and the watcher polls.
@@ -43,6 +49,7 @@ from app.core.config import GraphSettings, MailSettings, SecuritySettings, get_s
 from app.core.logging import get_logger
 from app.mail.models import FolderRole, MailboxType
 from app.mail.providers.base import (
+    AuthenticationError,
     ChangeEvent,
     ConfigurationError,
     ConnectionFailedError,
@@ -55,10 +62,14 @@ from app.mail.providers.base import (
     MessageFetched,
     MessageNotFoundError,
     MessageUpdated,
+    OutgoingAddress,
+    OutgoingReply,
     ProviderCapabilities,
     ProviderError,
     RawMessage,
     RemoteFolder,
+    SendError,
+    SentMessage,
     SyncCursor,
     SyncEvent,
 )
@@ -221,31 +232,46 @@ class GraphProvider:
             # Client credentials need the tenant that granted the admin consent.
             raise ConfigurationError(code="graph_tenant_required")
         self._auth_http = httpx.AsyncClient(timeout=settings.timeout, transport=transport)
+        self._tenant = tenant
+        self._transport = transport
+        # Another user's mailbox needs the ``.Shared`` scopes.
+        self._shared = (
+            self.base != "/me"
+            and (self.mailbox_settings.user or "").lower() != config.address.lower()
+        )
+        self.client = self._client(send=False)
+        self._send_client: GraphClient | None = None
+
+    def _client(self, *, send: bool) -> GraphClient:
         if self.mailbox_settings.auth == "application":
-            token: TokenGetter = AppTokens(settings, self._auth_http, tenant=tenant, clock=clock)
+            # The app token carries every granted application permission (``.default``).
+            token: TokenGetter = AppTokens(
+                self.settings, self._auth_http, tenant=self._tenant, clock=self._clock
+            )
         else:
             token = DelegatedTokens(
-                settings,
+                self.settings,
                 self._auth_http,
-                config.credentials,
-                tenant=tenant,
-                # Another user's mailbox needs Mail.ReadWrite.Shared.
-                shared=self.base != "/me"
-                and (self.mailbox_settings.user or "").lower() != config.address.lower(),
-                save=config.save_credentials,
-                clock=clock,
+                self.config.credentials,
+                tenant=self._tenant,
+                shared=self._shared,
+                send=send,
+                save=self.config.save_credentials,
+                clock=self._clock,
             )
-        self.client = GraphClient(
-            api_url=settings.api_url,
+        return GraphClient(
+            api_url=self.settings.api_url,
             token=token,
-            timeout=settings.timeout,
-            max_retries=settings.max_retries,
-            transport=transport,
-            sleep=sleep,
+            timeout=self.settings.timeout,
+            max_retries=self.settings.max_retries,
+            transport=self._transport,
+            sleep=self._sleep,
         )
 
     async def aclose(self) -> None:
         await self.client.aclose()
+        if self._send_client is not None:
+            await self._send_client.aclose()
         await self._auth_http.aclose()
 
     async def verify(self) -> None:
@@ -544,6 +570,64 @@ class GraphProvider:
                 self._message(remote_ref),
                 {"categories": [c for c in categories if c != label]},
             )
+
+    # -- sending --------------------------------------------------------------------------
+
+    async def _send_request(self, path: str, json_body: Any = None) -> httpx.Response:
+        if not self.settings.send_enabled:
+            raise SendError(code="send_not_permitted")
+        if self._send_client is None:
+            self._send_client = self._client(send=True)
+        try:
+            return await self._send_client.request("POST", path, json_body=json_body, retry=False)
+        except GraphNotFoundError:
+            raise MessageNotFoundError() from None
+        except AuthenticationError:
+            # No Mail.Send consent (or app permission), or the grant was revoked.
+            raise SendError(code="send_not_permitted") from None
+        except ConnectionFailedError:
+            raise
+        except ProviderError as exc:
+            raise SendError(code="message_refused") from exc
+
+    async def send(self, reply: OutgoingReply) -> SentMessage:
+        """``createReply``/``createReplyAll`` with the draft's content, then ``send``. The
+        reply draft is removed again if sending fails."""
+        if reply.in_reply_to_ref is None:
+            raise SendError(code="original_missing")
+        action = "createReplyAll" if reply.reply_all else "createReply"
+        message = {
+            "subject": reply.subject,
+            "toRecipients": _recipients(reply.to),
+            "ccRecipients": _recipients(reply.cc),
+            "body": {"contentType": "text", "content": reply.body_text},
+        }
+        response = await self._send_request(
+            f"{self._message(reply.in_reply_to_ref)}/{action}", {"message": message}
+        )
+        data = response.json()
+        draft_id = data.get("id") if isinstance(data, dict) else None
+        if not isinstance(draft_id, str):
+            raise SendError(code="invalid_response")
+        try:
+            await self._send_request(f"{self._message(draft_id)}/send")
+        except ProviderError:
+            with contextlib.suppress(ProviderError):
+                assert self._send_client is not None
+                await self._send_client.request("DELETE", self._message(draft_id), retry=False)
+            raise
+        internet_id = data.get("internetMessageId")
+        return SentMessage(
+            remote_ref=draft_id,
+            message_id=internet_id if isinstance(internet_id, str) else None,
+        )
+
+
+def _recipients(addresses: Iterable[OutgoingAddress]) -> list[dict[str, Any]]:
+    return [
+        {"emailAddress": {"address": a.address, **({"name": a.name} if a.name else {})}}
+        for a in addresses
+    ]
 
 
 @dataclass(frozen=True, slots=True)

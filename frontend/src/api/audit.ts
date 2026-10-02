@@ -33,6 +33,7 @@ const actionGroups = {
   "mailbox.shared": "mailboxes",
   "mailbox.unshared": "mailboxes",
   "mailbox.deleted": "mailboxes",
+  "mail.sent": "mailboxes",
   "data.exported": "data",
   "data.deleted": "data",
   "data.retention_changed": "data",

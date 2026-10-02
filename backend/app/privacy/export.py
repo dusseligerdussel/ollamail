@@ -10,6 +10,7 @@ Contents (``manifest.json`` lists them):
 * ``digests.json`` and ``digests/<digest_id>.<format>``: digest settings (without the
   feed token), digests with scripts, and their audio files
 * ``conversations.json``: "ask your inbox" conversations with answers and citations
+* ``reply_drafts.json``: drafting settings (signature, style examples) and own reply drafts
 
 Every query is filtered by the exporting user (``user_id`` or the owner of the mailbox),
 so an export never contains data of other users. Mails themselves are not part of the
@@ -36,6 +37,7 @@ from sqlalchemy.orm import selectinload
 from app.auth.models import AuthSession, Identity
 from app.digest.models import Digest, DigestUserSettings
 from app.digest.storage import DigestStorage
+from app.drafts.models import DraftSettings, ReplyDraft
 from app.mail.models import Mailbox, Message
 from app.rag.models import RagConversation, RagMessage
 from app.todos.models import Todo
@@ -327,6 +329,40 @@ async def _conversations(session: AsyncSession, user_id: uuid.UUID) -> list[dict
     ]
 
 
+async def _reply_drafts(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
+    settings = await session.scalar(select(DraftSettings).where(DraftSettings.user_id == user_id))
+    drafts = await session.scalars(
+        select(ReplyDraft).where(ReplyDraft.user_id == user_id).order_by(ReplyDraft.created_at)
+    )
+    return {
+        "settings": _row(settings, ("signature", "style_examples")) if settings else None,
+        "drafts": [
+            _row(
+                draft,
+                (
+                    "id",
+                    "status",
+                    "mailbox_id",
+                    "message_id",
+                    "reply_all",
+                    "to",
+                    "cc",
+                    "subject",
+                    "body",
+                    "quote_original",
+                    "instruction",
+                    "language",
+                    "model",
+                    "sent_at",
+                    "created_at",
+                    "updated_at",
+                ),
+            )
+            for draft in drafts
+        ],
+    }
+
+
 async def collect(
     session: AsyncSession, user_id: uuid.UUID, digest_storage: DigestStorage
 ) -> ExportContent:
@@ -344,6 +380,7 @@ async def collect(
     content.documents["todos.json"] = await _todos(session, user_id)
     content.documents["digests.json"] = await _digests(session, user_id, digest_storage, content)
     content.documents["conversations.json"] = await _conversations(session, user_id)
+    content.documents["reply_drafts.json"] = await _reply_drafts(session, user_id)
     return content
 
 

@@ -204,6 +204,9 @@
           "deleted": "Mailbox removed",
           "unshared": "Mailbox access revoked"
         },
+        "mail": {
+          "sent": "Mail sent"
+        },
         "data": {
           "exported": "Data exported",
           "deleted": "Data deleted",
@@ -225,6 +228,7 @@
         "todos": "Tasks",
         "digest": "Digest",
         "rag_chat": "Questions to the inbox",
+        "reply_draft": "Reply drafts",
         "embeddings": "Search index"
       },
       "taskDescriptions": {
@@ -232,6 +236,7 @@
         "todos": "Finds tasks in mail.",
         "digest": "Writes the daily summary.",
         "rag_chat": "Answers questions with sources from the mail.",
+        "reply_draft": "Writes reply drafts; sent only by the user.",
         "embeddings": "Computes vectors for search (embedding model)."
       },
       "cloud": {
