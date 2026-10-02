@@ -71,7 +71,7 @@ backend/app/
   digest/        Tageszusammenfassung, TTS, Podcast-Feed
   rag/           Hybrid-Retrieval, Chat, Zitate
   admin/         Instanz-Einstellungen, Auth-Provider, Audit-Log, Statistiken
-  audit/         Audit-Events
+  audit/         Audit-Log: record(), append-only Tabelle mit Hash-Kette, Admin-API (Liste, CSV)
   worker.py      Procrastinate-App und Task-Registrierung
 ```
 

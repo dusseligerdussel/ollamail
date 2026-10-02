@@ -26,7 +26,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
 | Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
 | Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
-| Audit-Log | Login, Rollenänderung, IdP-Konfiguration, Postfach hinzugefügt/entfernt, Export, Löschung |
+| Audit-Log | Append-only und hash-verkettet: Login (Erfolg/Fehlschlag), Logout, Setup, Session-Widerruf, Nutzer angelegt, Rollenänderung, IdP- und KI-Einstellungen, Postfach angelegt/entfernt/freigegeben, Export, Löschung, Key-Rotation. Nur IDs und Codes, keine Inhalte (siehe unten) |
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. Die eingebaute Telemetrie von ONNX Runtime (von Piper genutzt) ist per `ORT_DISABLE_TELEMETRY=1` abgeschaltet, im Code und im Image (Test: `tests/ai/tts/test_piper.py`) |
@@ -67,6 +67,45 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
 - **Startprüfung:** Ohne oder mit zu schwachem Master-Key (kein Base64, < 32 Bytes, offensichtlich
   nicht zufällig) startet die API nicht. Keys und Klartexte erscheinen nie in Logs oder
   Fehlermeldungen; geloggt wird nur eine nicht umkehrbare Key-ID.
+
+### Audit-Log im Detail
+
+Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
+
+- **Schreiben:** `audit.record(db, actor, action, target, details)` in derselben Transaktion wie die
+  protokollierte Änderung. Akteur ist ein Nutzer (ID), `system` (CLI, Jobs) oder `anonymous`
+  (fehlgeschlagener Login).
+- **Keine Inhalte:** `details` akzeptiert nur flache Werte (IDs, Zähler, Flags, Codes wie
+  `reason: locked`). Schlüssel, die der Log-Filter als sensibel einstuft (`email`, `subject`,
+  `to`, …), Texte mit `@` oder Zeilenumbruch, lange Texte, Floats und Verschachtelung werden
+  abgelehnt. Fehlgeschlagene Logins speichern die eingegebene Adresse **nicht**.
+- **Keine Fremdschlüssel:** Nutzer- und Postfach-IDs sind pseudonyme Verweise. Namen werden erst
+  beim Lesen ergänzt und verschwinden mit dem Nutzer; Löschen eines Nutzers ändert das Log nicht.
+- **Append-only:** Ein Trigger verbietet `UPDATE`, `DELETE` und `TRUNCATE` für alle Rollen.
+  Die Aufbewahrungsfrist (`OLLAMAIL_AUDIT_RETENTION_DAYS`, Standard 365 Tage) setzt #36 über
+  eine dokumentierte Ausnahme durch.
+- **Manipulationserkennung:** Jede Zeile enthält den SHA-256 ihrer Vorgängerin und ihren eigenen
+  (`prev_hash`, `hash`). `GET /api/audit/verify` rechnet die Kette nach und meldet die erste
+  geänderte oder fehlende Zeile. Grenze: Das Entfernen der *neuesten* Zeilen durch jemanden mit
+  direktem Datenbankzugriff erkennt die Kette allein nicht.
+- **Zugriff:** Nur Admins (`/api/audit/*`, Admin-Bereich „Audit-Log“: filterbare Liste und
+  CSV-Export). Jeder Export wird selbst protokolliert (`audit.exported`). Der CSV-Export
+  entschärft Zellen, die mit `=`, `+`, `-` oder `@` beginnen.
+
+| Ereignistyp | Ausgelöst durch | Status |
+|---|---|---|
+| `auth.setup_completed` | Ersteinrichtung (`POST /api/setup`) | aktiv |
+| `auth.login_succeeded`, `auth.login_failed` | Lokaler Login (Fehlschlag mit `reason`: `invalid_credentials`, `locked`) | aktiv; OIDC/LDAP mit #30, #32 |
+| `auth.logout`, `auth.session_revoked` | Logout, Beenden eigener Sitzungen | aktiv |
+| `user.created` | Admin legt Nutzer an, Selbstregistrierung, `app.cli create-admin` | aktiv |
+| `user.role_changed`, `user.deleted` | Nutzerverwaltung | geplant (#33) |
+| `idp.config_changed` | IdP-/LDAP-Konfiguration | geplant (#30, #32) |
+| `ai.settings_changed` | KI-Einstellungen inkl. Cloud-Freigabe (`details.cloud_enabled`) | geplant |
+| `mailbox.created`, `mailbox.shared` | Postfach-API, Shared Mailboxes | geplant (#15) |
+| `mailbox.deleted` | `app.mail.service.delete_mailbox` | aktiv |
+| `data.exported`, `data.deleted` | Datenexport, Lösch- und Aufbewahrungsjobs | geplant (#36) |
+| `crypto.keys_rotated` | `python -m app.cli rotate-keys` (mit Zählern) | aktiv |
+| `audit.exported` | CSV-Export des Audit-Logs | aktiv |
 
 ## Betroffenenrechte & Löschkonzept
 

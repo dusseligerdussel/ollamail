@@ -558,7 +558,7 @@ verarbeitet.
 | Embeddings und Volltextindex | PostgreSQL (pgvector) | geplant (#24) |
 | Chat-Verläufe („Frag deine Inbox“) | PostgreSQL | geplant (#25) |
 | Daily Digest: Text und Audio | PostgreSQL bzw. Daten-Volume | geplant (#28) |
-| Audit-Log | PostgreSQL | geplant (#35) |
+| Audit-Log (Ereignistyp, Zeitpunkt, Nutzer- bzw. Objekt-ID, Codes und Zähler; keine Inhalte, Betreffzeilen oder Adressen) | PostgreSQL: `audit_events`, append-only; Aufbewahrung `OLLAMAIL_AUDIT_RETENTION_DAYS` (Durchsetzung #36) | aktiv |
 | Job-Queue | PostgreSQL | geplant (#7) |
 | Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
