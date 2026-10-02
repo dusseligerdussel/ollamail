@@ -9,7 +9,8 @@ metadata:
     {{- include "ollamail.componentLabels" (dict "root" . "component" "test") | nindent 4 }}
   annotations:
     helm.sh/hook: test
-    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+    # Kept until the next test run, so `helm test --logs` can read it.
+    helm.sh/hook-delete-policy: before-hook-creation
 spec:
   restartPolicy: Never
   automountServiceAccountToken: false
