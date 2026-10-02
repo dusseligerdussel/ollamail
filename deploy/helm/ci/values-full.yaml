@@ -49,7 +49,7 @@ worker:
   groups:
     - name: main
       replicaCount: 2
-      queues: [sync, tts, default]
+      queues: [sync, tts, ocr, default]
     - name: llm
       queues: [llm]
       llmMaxConcurrency: 8

@@ -29,7 +29,7 @@ from app.search.extract import Extraction, Kind, Ocr, detect_kind, extract_text
 from app.search.models import ChunkSource, SearchChunk, SearchEmbedding
 from app.search.service import SearchFilters, index_message, search
 from app.worker import app
-from tests.processing.conftest import Pipeline
+from tests.processing.conftest import Pipeline, run_worker
 from tests.search.conftest import FakeEmbedder, MailData
 from tests.search.documents import make_pdf, make_scan, make_scan_pdf
 
@@ -484,12 +484,7 @@ async def test_pipeline_recognises_a_scan_end_to_end(
             await enqueue_processing(message_id)
             # Index (llm), then OCR (ocr), then the embeddings of the OCR chunks (llm).
             for _ in range(10):
-                await app.run_worker_async(
-                    queues=["default", "llm", "sync", "ocr"],
-                    wait=False,
-                    install_signal_handlers=False,
-                    listen_notify=False,
-                )
+                await run_worker(["default", "llm", "sync", "ocr"])
                 if await pipeline.pending_jobs() == 0:
                     break
         assert await pipeline.pending_jobs() == 0, await pipeline.execute(
