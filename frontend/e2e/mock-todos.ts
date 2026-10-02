@@ -22,7 +22,9 @@ function day(offset: number) {
   return date.toISOString().slice(0, 10);
 }
 
-function todo(index: number, fields: Record<string, unknown>) {
+type MockTodo = Record<string, unknown> & { id: string; status: string; due_date: string | null };
+
+function todo(index: number, fields: Record<string, unknown>): MockTodo {
   return {
     id: todoId(index),
     title: `Task ${index}`,
