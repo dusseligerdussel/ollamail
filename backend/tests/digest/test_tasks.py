@@ -13,7 +13,7 @@ from app.digest.models import Digest, DigestStatus, DigestUserSettings
 from app.digest.storage import DigestStorage
 from app.worker import TASK_MODULES, app
 from tests.digest.conftest import FakeLLM, FakeTTS, make_llm, make_tts, utc
-from tests.processing.conftest import Pipeline
+from tests.processing.conftest import Pipeline, run_worker
 from tests.processing.conftest import pipeline as pipeline
 
 # Friday, 2 October 2026, 07:00 in UTC (the test user's time zone).
@@ -73,12 +73,7 @@ async def test_scheduled_digest_end_to_end(
         await tasks.schedule_digests(timestamp=int((SLOT + timedelta(seconds=80)).timestamp()))
         # Text job, then the audio job it queues.
         for _ in range(2):
-            await app.run_worker_async(
-                queues=["llm", "tts"],
-                wait=False,
-                install_signal_handlers=False,
-                listen_notify=False,
-            )
+            await run_worker(queues=["llm", "tts"])
 
     [digest] = await _digests(pipeline)
     assert digest.status is DigestStatus.READY
