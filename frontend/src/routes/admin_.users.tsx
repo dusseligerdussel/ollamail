@@ -23,6 +23,7 @@ import {
 import { pageNavigation } from "@/api/auth";
 import { describeApiError } from "@/api/errors";
 import type { UserDeletionResult } from "@/api/privacy";
+import { SCIM_PROVIDER } from "@/api/scim";
 import { AdminSubPage } from "@/components/admin/admin-page";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { DeleteUserDialog } from "@/components/admin/delete-user-dialog";
@@ -264,6 +265,7 @@ function useFormatters() {
       user.last_login_at ? date.format(new Date(user.last_login_at)) : t("pages.users.never"),
     provider: (key: string) => {
       if (providerKind(key) === "local") return t("pages.signIn.kinds.local");
+      if (key === SCIM_PROVIDER) return t("pages.scim.providerLabel");
       return names.get(key) ?? key;
     },
   };

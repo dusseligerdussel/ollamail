@@ -26,8 +26,17 @@ class AuditAction(enum.StrEnum):
     # Local password set: invitation accepted, CLI reset-password.
     USER_PASSWORD_SET = "user.password_set"
     USER_DELETED = "user.deleted"  # account deletion by the user or an admin (app/privacy)
+    # Profile attributes changed by SCIM provisioning (#95): names of the fields only.
+    USER_UPDATED = "user.updated"
+    # Groups pushed by SCIM provisioning (#95) and their members.
+    GROUP_CREATED = "group.created"
+    GROUP_UPDATED = "group.updated"
+    GROUP_DELETED = "group.deleted"
+    GROUP_MEMBER_ADDED = "group.member_added"
+    GROUP_MEMBER_REMOVED = "group.member_removed"
     # Sign-in providers
-    # LDAP (#32), OIDC (#30), GitHub (#31), local login switch and group → role mapping (#33)
+    # LDAP (#32), OIDC (#30), GitHub (#31), local login switch and group → role mapping (#33),
+    # SCIM switch and tokens (#95)
     IDP_CONFIG_CHANGED = "idp.config_changed"
     # AI settings, including enabling cloud providers
     AI_SETTINGS_CHANGED = "ai.settings_changed"  # planned: admin LLM settings
@@ -76,6 +85,7 @@ class TargetType(enum.StrEnum):
     MAILBOX = "mailbox"
     IDP = "idp"
     SETTINGS = "settings"
+    GROUP = "group"
 
 
 @dataclass(frozen=True)
