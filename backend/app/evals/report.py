@@ -91,6 +91,7 @@ def render_markdown(report: Report) -> str:
         f"- Judge model: {run.get('judge_model') or '-'}",
         "- Deadline per model call: "
         + ", ".join(f"{task} {_num(s, 0)} s" for task, s in run.get("call_timeouts", {}).items()),
+        *([f"- Note: {run['note']}"] if run.get("note") else []),
         "",
         "## Summary",
         "",

@@ -125,4 +125,99 @@ auf der CPU des Runners, Standard 60 Mails; Bericht als Artefakt und in der Zusa
 
 ## 4. Ergebnisse
 
-<!-- results -->
+### 4.1 Messung vom 2. Oktober 2026 (nur CPU)
+
+**Umgebung:** Agent-Container, 4 vCPUs (Intel Xeon @ 2,80 GHz), 16 GB RAM, **keine GPU**.
+Ollama 0.35.0 in Docker, Profil `cpu` (Kontext 8192 Tokens), Embeddings
+`granite-embedding-multilingual:278m`. Chat-Modelle: `qwen2.5:3b` (Q4_K_M, Standardmodell des
+Profils `cpu`) und `llama3.2:1b` (Q4_0). `ollama.com` war aus der Umgebung nicht erreichbar; die
+Modelle stammen als GGUF aus den `ai/*`-Repositories von Docker Hub und wurden mit
+`ollama create` importiert. `bge-m3` (Standard-Embedding des Profils) gab es dort nicht.
+Frist je Aufruf: 120 s. Vollständige Berichte (Markdown und JSON):
+[`model-evals/2026-10-02-cpu/`](model-evals/2026-10-02-cpu/).
+
+| Lauf | Umfang | Code-Stand |
+|---|---|---|
+| `qwen2.5:3b`, Triage, Todos, Digest | **voller Datensatz** (200 Mails) | vor #133 (ohne Antwortlimit) |
+| `qwen2.5:3b`, RAG | **Stichprobe**: 24 der 60 Fragen, alle 200 Mails indexiert | nach #133 |
+| `llama3.2:1b`, alle Stufen | **Stichprobe**: 30 Mails, 12 Fragen (Index nur dieser 30 Mails) | nach #133 |
+
+Der volle Lauf für `qwen2.5:3b` brauchte für Triage, Todos und Digest 2 h 25 min. Um das Zeitbudget
+einzuhalten, wurde er vor der RAG-Stufe beendet (Endpunkt bewusst gestoppt, die RAG-Werte dieses
+Laufs sind verworfen); RAG und `llama3.2:1b` wurden danach als Stichproben gemessen. Die
+Stichproben sind klein, ihre Werte schwanken entsprechend; die RAG-Werte von `llama3.2:1b` sind
+wegen des kleineren Index nicht mit denen von `qwen2.5:3b` vergleichbar.
+
+| Metrik | `qwen2.5:3b` | `llama3.2:1b` (Stichprobe) |
+|---|---|---|
+| Triage: Accuracy (davon nur Modell) | **61,0 %** (56,4 %), 200 Mails | **13,3 %** (3,7 %), 30 Mails |
+| Triage: Priorität richtig | 58,0 % | 23,3 % |
+| Vorfilter (ohne Modell) | 21 Mails, alle richtig | 3 Mails, alle richtig |
+| Todos: Precision / Recall / F1 | 24,4 % / 63,3 % / 35,2 % (60 erwartet, 156 erkannt) | 29,4 % / 76,9 % / 42,6 % (13 erwartet, 34 erkannt) |
+| Todos: Frist richtig (bei erkannten) | 52,6 % von 38 | 50,0 % von 10 |
+| **Todos: Timeouts** | **38 von 124 Aufrufen (30,6 %)** | 0 von 13 |
+| Digest: wichtige Mails referenziert | 27,9 % (10 Digests) | 58,3 % (8 Digests) |
+| Digest: Fristen wichtiger Mails genannt | 90,2 % | 12,5 % |
+| RAG: Recall@1 / @3 | 85 % / 90 % (24 Fragen) | 75 % / 75 % (12 Fragen) |
+| RAG: Antwort korrekt (Regeln) | 90 % (18 von 20) | 50 % (2 von 4) |
+| RAG: Fragen ohne Antwort richtig abgelehnt | 50 % (2 von 4) | 87,5 % (7 von 8) |
+| RAG: erwartete Quelle zitiert | 65 % | 0 % |
+| LLM-Judge | nicht gemessen | nicht gemessen |
+
+Geschwindigkeit (Mittel je Aufruf; „verarbeitet“ = Prompt- und Antwort-Tokens je Sekunde):
+
+| Task | `qwen2.5:3b` | `llama3.2:1b` |
+|---|---|---|
+| Triage | 9,5 s (p95 12,3 s), 75 tok/s verarbeitet, 4,6 tok/s erzeugt | 3,9 s, 186 tok/s verarbeitet, 10,6 tok/s erzeugt |
+| Todos | 46,3 s (Median 14,1 s, p95 120 s = Timeout) | 10,1 s (p95 23,2 s) |
+| Digest | 40,2 s je Aufruf, 129 s je Digest | 17,4 s je Aufruf, 39 s je Digest |
+| RAG | erstes Token nach 56 s, Antwort nach 60 s | erstes Token nach 15 s, Antwort nach 24 s |
+| Embeddings (200 Mails indexieren) | 35 s | – |
+
+### 4.2 Befunde
+
+- **Timeouts bei der Aufgaben-Erkennung (`qwen2.5:3b`, 4 vCPUs): 30,6 % der Aufrufe.** Ohne
+  Antwortlimit erzeugte das Modell bei fast jeder dritten Mail Text, bis die Frist ablief (im
+  Ollama-Log rund 2 000 Tokens ohne fertiges JSON). Jeder solche Aufruf belegt den LLM-Slot für
+  die volle Frist; im Betrieb hätte er ohne Frist 300 s gedauert und wäre danach wiederholt
+  worden. Gemeldet als #132, seit #133 begrenzt das Gateway die Antwort (Todos: 800 Tokens) und
+  die Dauer (Profil `cpu`: 180 s). Ob das die Timeouts beseitigt, misst #134; die Zahlen hier sind
+  der Stand **vor** #133.
+- **Triage:** `qwen2.5:3b` trennt Newsletter (86 %), Benachrichtigungen (96 %), Info (75 %) und
+  „Aktion nötig“ (75 %) brauchbar, erkennt aber „Warten auf“ fast nie (1 von 24, meist als „Info“)
+  und Spam kaum (3 von 20; 7 Spam-Mails, darunter Phishing und Prompt-Injection, als „wichtig“).
+  `llama3.2:1b` ordnet fast alles als „Info“ ein und ist für die Triage unbrauchbar.
+- **Todos:** Beide Modelle finden viele erwartete Aufgaben, erzeugen aber zwei- bis dreimal so
+  viele Aufgaben wie erwartet (niedrige Precision). Fristen stimmen nur zur Hälfte.
+- **Digest:** Bei `qwen2.5:3b` sind die `[n]`-Referenzen auf wichtige Mails entweder fast
+  vollständig (3 Digests) oder fehlen ganz (7 Digests); die Fristen nennt der Text trotzdem fast
+  immer. Die Regel misst nur Referenzen und Fristen, nicht ob der Text inhaltlich stimmt.
+- **RAG:** Mit `qwen2.5:3b` findet die Hybrid-Suche die richtige Mail meist an erster Stelle, und
+  die Antworten enthalten die erwarteten Fakten. Schwach ist das Ablehnen: Bei 2 von 4 Fragen ohne
+  Antwort im Postfach antwortete das Modell trotzdem mit Zitat. Auf CPU dauert die erste Antwort
+  rund eine Minute.
+
+### 4.3 Empfehlung für CPU-Hosts
+
+- Mit 4 vCPUs ist `qwen2.5:3b` für alle Tasks zusammen grenzwertig: Die Prompt-Verarbeitung
+  (≈ 70–75 Tokens/s) dominiert, eine Mail braucht für Triage und Todos zusammen im Mittel fast
+  eine Minute, RAG-Antworten etwa eine Minute. Für die Triage allein reicht es.
+- **Antwortlimit und Frist gesetzt lassen** (#133: `OLLAMAIL_LLM_TASK_TODOS_MAX_TOKENS`,
+  `OLLAMAIL_LLM_CALL_TIMEOUT`); ohne sie blockierten im Test 30 % der Todo-Aufrufe den Worker.
+- **Kürzerer Kontext** (`OLLAMAIL_LLM_CONTEXT_TOKENS=4096`) senkt Speicherbedarf und die Zeit pro
+  langem Prompt; die Mails des Datensatzes passen hinein. Die Wirkung auf Qualität und Timeouts
+  ist **nicht gemessen** (Kandidat für #134).
+- **Kein 1B-Modell für die Triage:** `llama3.2:1b` ist zwei- bis dreimal schneller, aber in der
+  Triage unbrauchbar. Ein kleineres Modell kommt höchstens für einzelne Tasks infrage (Todos,
+  Digest), was die Stichprobe nicht belastbar zeigt.
+- Wer RAG und Todos im Alltag nutzen will, plant mehr CPU-Kerne oder eine GPU ein (Profil
+  `gpu-consumer`).
+
+### 4.4 Nicht gemessen
+
+- **GPU-Hardware** (`gpu-consumer`, `gpu-server`): keine Messungen; die Profil-Modelle dafür
+  (`qwen2.5:14b`, `qwen2.5:32b`) sind nicht bewertet.
+- `bge-m3` als Embedding-Modell (nicht verfügbar), stattdessen `granite-embedding-multilingual`.
+- Der LLM-Judge und das Reranking (im Profil `cpu` aus).
+- RAG mit allen 60 Fragen und `llama3.2:1b` auf dem vollen Datensatz.
+- Vorher/Nachher von #133: #134.

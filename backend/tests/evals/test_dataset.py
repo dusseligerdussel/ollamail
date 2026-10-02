@@ -97,3 +97,13 @@ def test_subset_keeps_the_mix_and_drops_orphaned_questions() -> None:
     assert {m.language for m in german.mails} == {"de"}
     assert {q.language for q in german.questions} == {"de"}
     assert DATASET.subset() == Dataset(mails=DATASET.mails, questions=DATASET.questions)
+
+
+def test_question_sample_keeps_all_mails_and_the_mix() -> None:
+    sample = DATASET.sample_questions(25)
+    assert len(sample.questions) == 25
+    assert sample.mails == DATASET.mails
+    assert {q.language for q in sample.questions} == {"de", "en"}
+    assert any(q.no_answer for q in sample.questions)
+    assert any(not q.no_answer for q in sample.questions)
+    assert DATASET.sample_questions(0) == DATASET

@@ -118,6 +118,15 @@ class Dataset(BaseModel):
         ]
         return Dataset(mails=mails, questions=questions)
 
+    def sample_questions(self, count: int) -> "Dataset":
+        """Evenly spaced sample of ``count`` questions (keeps the mix of languages and of
+        questions with and without answer); all mails stay, so retrieval is unchanged."""
+        if not 0 < count < len(self.questions):
+            return self
+        step = len(self.questions) / count
+        questions = [self.questions[int(i * step)] for i in range(count)]
+        return Dataset(mails=self.mails, questions=questions)
+
 
 def load_dataset(mails: Path = MAILS_FILE, questions: Path = QUESTIONS_FILE) -> Dataset:
     return Dataset(

@@ -55,6 +55,9 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     )
     parser.add_argument("--limit", type=int, help="evenly spaced sample of N mails")
     parser.add_argument(
+        "--questions", type=int, help="evenly spaced sample of N RAG questions (all mails)"
+    )
+    parser.add_argument(
         "--no-prefilter", action="store_true", help="send every mail to the triage model"
     )
     parser.add_argument(
@@ -74,6 +77,8 @@ def main(argv: Sequence[str] | None = None) -> int:
     dataset = load_dataset().subset(
         languages=set(args.language) if args.language else None, limit=args.limit
     )
+    if args.questions:
+        dataset = dataset.sample_questions(args.questions)
     options = RunOptions(
         models=args.model or [None],
         stages=args.stage or STAGES,
