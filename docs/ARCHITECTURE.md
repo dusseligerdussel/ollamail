@@ -410,6 +410,14 @@ Das Gateway erledigt pro Aufruf:
    Fehlertyp. Prompts und Antworten werden **nie** erfasst. Fehlermeldungen enthalten keine
    Response-Bodies, weil manche Server die Anfrage darin zurückspiegeln.
 
+**Modell-Evaluierung** (`backend/app/evals/`, #122): `uv run python -m app.evals --model … [--model …]`
+misst Triage, Todos, Digest und RAG über einen synthetischen Datensatz (200 Mails DE/EN, 60 Fragen,
+`app/evals/data/`) mit den Prompts und dem `LLMGateway` der Features (`EnvConfigResolver`); die
+RAG-Stufe indexiert in einer zurückgerollten Transaktion einer separaten Datenbank und nutzt
+`RagService`. Bericht als Markdown und JSON, nur IDs und Zahlen. Läuft nicht in `ci-ok`, nur manuell
+(Workflow „Model evals“). Ausführung und gemessene Ergebnisse:
+[`operations/model-evals.md`](operations/model-evals.md).
+
 Readiness: Mit `OLLAMAIL_LLM_READINESS_CHECK=true` prüft `/readyz` (Check `llm`), ob alle zugewiesenen
 Modelle auf ihren Endpunkten verfügbar sind. Der Check ist standardmäßig aus, weil die API auch ohne
 LLM nutzbar bleibt (Postfächer, Todos, Einstellungen). Mit `OLLAMAIL_LLM_PULL_MISSING_MODELS=true`
@@ -630,6 +638,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Evaluierung:** `uv run python -m scripts.eval_triage --model qwen2.5:3b [--model …]` klassifiziert
   einen synthetischen, gelabelten Datensatz (`scripts/triage_eval_dataset.json`, DE/EN) und gibt die
   Genauigkeit je Modell aus (Kategorie, Priorität, Anteil Vorfilter, Fehlklassifikationen).
+  Umfassender (größerer Datensatz, Konfusionsmatrix, Latenz): `python -m app.evals` (§3.2).
 
 ### 4.3 Todos
 
@@ -686,7 +695,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Evaluierung:** `python -m app.todos.evaluation [--model NAME ...]` läuft mit dem echten Prompt
   gegen den konfigurierten Endpunkt über `app/todos/eval_cases.json` (synthetische DE/EN-Mails mit
   erwarteten Todos, Fristen, Updates und Erledigt-Vorschlägen) und gibt je Modell Precision, Recall
-  und Trefferquote der Fristen aus. Neue Fälle im selben Format ergänzen.
+  und Trefferquote der Fristen aus. Neue Fälle im selben Format ergänzen. Über den großen
+  Datensatz mit Fuzzy-Match der Titel: `python -m app.evals --stage todos` (§3.2).
 - **Export** (`backend/app/todos/export/`, #40): Aufgaben landen in der Aufgabenliste, mit der
   der Nutzer ohnehin arbeitet. Umgesetzt sind CalDAV (VTODO), Microsoft To Do (Graph, #101)
   und Google Tasks (#102).
