@@ -10,6 +10,11 @@ test.beforeEach(async ({ page }) => {
   await page.clock.setFixedTime(NOW);
   await mockApi(page);
   await mockMail(page);
+  // Triage (#21) is not part of these tests: no categories, no results.
+  await page.route(
+    (url) => url.pathname.startsWith("/api/triage/"),
+    (route) => route.fulfill({ json: [] }),
+  );
 });
 
 async function expectNoA11yViolations(page: Page) {

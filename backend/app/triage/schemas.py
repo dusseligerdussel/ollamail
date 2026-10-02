@@ -6,6 +6,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
+from app.mail.api.message_schemas import MessageSummary
 from app.triage.models import TriageSource, WriteBackMode
 
 CategoryScope = Literal["organization", "user"]
@@ -107,6 +108,32 @@ class InboxGroup(BaseModel):
     category: CategoryRead | None
     total: int
     messages: list[InboxMessage]
+
+
+class TriagedMessage(MessageSummary):
+    """A row of the inbox list ordered by category."""
+
+    # Visible category; ``None``: not triaged yet, or in a hidden or deleted category.
+    category_id: uuid.UUID | None
+    # 1 = high, 2 = normal, 3 = low; ``None`` while the message is not triaged yet.
+    priority: int | None
+
+
+class CategoryCount(BaseModel):
+    # ``None``: the uncategorised messages.
+    category_id: uuid.UUID | None
+    total: int
+
+
+class TriagedMessagePage(BaseModel):
+    items: list[TriagedMessage]
+    # Pass as ``offset`` for the next page; ``null`` on the last page.
+    next_offset: int | None
+    # Messages matching the filter (all pages).
+    total: int
+    # Messages per visible category in the user's order, then the uncategorised ones;
+    # without the category filter.
+    groups: list[CategoryCount]
 
 
 class SenderRuleCreate(BaseModel):

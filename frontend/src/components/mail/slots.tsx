@@ -1,5 +1,9 @@
+import { MessageTasks } from "@/components/tasks/message-tasks";
+import { TriageLabel } from "@/components/triage/triage-label";
+import { TriageReason } from "@/components/triage/triage-reason";
+
 /**
- * Extension points of the mail views. They render nothing yet; the features fill them:
+ * Extension points of the mail views, filled by the features:
  *
  * - `TriageLabelSlot` (#21): the triage category of a message, in the list row and above the
  *   thread. Keep it a single, quiet label (`docs/DESIGN.md`).
@@ -9,14 +13,12 @@
  * inbox stable when the content arrives.
  */
 
-import { MessageTasks } from "@/components/tasks/message-tasks";
-
 interface SlotProps {
   messageId: string;
 }
 
-export function TriageLabelSlot(_: SlotProps & { compact?: boolean }) {
-  return null;
+export function TriageLabelSlot({ messageId, compact }: SlotProps & { compact?: boolean }) {
+  return compact ? <TriageLabel messageId={messageId} /> : <TriageReason messageId={messageId} />;
 }
 
 export function MessageTasksSlot({ messageId }: SlotProps) {

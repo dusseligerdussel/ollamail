@@ -98,7 +98,16 @@ describe("useEvents", () => {
 
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mailbox"] });
     expect(invalidate).toHaveBeenCalledWith({ queryKey: ["message", "list"] });
-    expect(invalidate).toHaveBeenCalledTimes(2);
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["message", "triage", "inbox"] });
+    expect(invalidate).toHaveBeenCalledTimes(3);
+  });
+
+  it("refreshes categories, not threads, when a message is triaged", () => {
+    renderHook(() => useEvents(), { wrapper });
+
+    MockEventSource.last.emit("message", { type: "message.triaged", message_id: "m1" });
+
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: ["message", "triage"] });
   });
 
   it("receives named SSE events for registered types", () => {

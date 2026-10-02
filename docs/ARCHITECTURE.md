@@ -585,7 +585,18 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   (`write_back_pending`).
 - **API** (`/triage`): Kategorien (CRUD, Reihenfolge, Ausblenden), Triage einer Mail lesen/korrigieren,
   Inbox nach Kategorie gruppiert (`GET /triage/inbox`, Posteingangsordner der eigenen Postfächer),
-  Absenderregeln, Write-back-Einstellung je Postfach.
+  Absenderregeln, Write-back-Einstellung je Postfach. Für die UI (#21): `GET /triage/messages?ids=…`
+  liefert die Triage vieler Mails auf einmal (sichtbare Listenzeilen), `GET /triage/inbox/messages`
+  die Inbox als eine Liste sortiert nach Kategorie (Reihenfolge des Nutzers, ohne Kategorie zuletzt),
+  Priorität und Datum, mit Filter auf eine Kategorie (`category=<id>|none`), Seiten per `offset` und
+  der Anzahl je Kategorie (`groups`).
+- **Events:** `message.triaged` (`message_id`, `mailbox_id`) an den Besitzer des Postfachs, sobald der
+  Schritt `triage` eine Kategorie gespeichert hat oder der Nutzer sie korrigiert. Die UI lädt daraufhin
+  nur Labels und die Inbox nach Kategorie neu.
+- **UI** (#21, `frontend/src/components/triage/`): Label in der Listenzeile, Begründungszeile über dem
+  Thread, Korrektur per Klick, Command Palette oder `c` + Ziffer, Inbox-Ansicht nach Kategorie
+  (`/inbox?category=all|<id>|none`), Einstellungen → Kategorien, Verwaltung → Kategorien der
+  Organisation. Details: `frontend/README.md`.
 - **Evaluierung:** `uv run python -m scripts.eval_triage --model qwen2.5:3b [--model …]` klassifiziert
   einen synthetischen, gelabelten Datensatz (`scripts/triage_eval_dataset.json`, DE/EN) und gibt die
   Genauigkeit je Modell aus (Kategorie, Priorität, Anteil Vorfilter, Fehlklassifikationen).
@@ -697,6 +708,11 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **API** (angemeldet, nur eigene Digests, fremde = 404): `GET /api/digests`,
   `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft), `GET/DELETE
   /api/digests/{id}`, `GET /api/digests/{id}/audio.{mp3|opus}` (Range-Requests, Web-Player).
+  `GET /api/digests/voices` listet die wählbaren Stimmen (installierte plus Standardstimme je
+  Sprache, mit `default`/`installed`).
+- **Web-UI** (#29, `frontend/README.md`): Seite `/digest` mit Player (Media Session API,
+  Tastatur), Transkript mit Links auf die Mails und Archiv; Einstellungen und Feed-URL (einmalig
+  angezeigt, mit QR-Code) unter `/digest/settings`.
 - **Podcast-Feed:** `POST /api/digests/feed` erzeugt ein zufälliges Token (256 Bit) und liefert
   einmalig die URL `/api/feeds/{token}.xml`; gespeichert wird nur der SHA-256-Hash. Erneutes
   `POST` ersetzt, `DELETE /api/digests/feed` widerruft das Token; alte URLs liefern danach 404.

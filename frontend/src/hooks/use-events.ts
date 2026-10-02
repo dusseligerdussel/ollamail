@@ -25,9 +25,11 @@ export type InvalidationRule = (event: ServerEvent) => QueryKey[];
  */
 export const invalidationRules: Record<string, InvalidationRule> = {
   // Sync progress changes the mailbox status and brings new mails into the inbox.
-  "mailbox.sync": () => [["mailbox"], ["message", "list"]],
+  "mailbox.sync": () => [["mailbox"], ["message", "list"], ["message", "triage", "inbox"]],
   // A removed or reconfigured mailbox changes which mails are listed.
   "mailbox.changed": () => [["mailbox"], ["message"]],
+  // A message got its category (#21): labels and the inbox by category, not the threads.
+  "message.triaged": () => [["message", "triage"]],
 };
 
 export function defaultInvalidation(event: ServerEvent): QueryKey[] {

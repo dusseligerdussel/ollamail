@@ -8,6 +8,7 @@ import { backend, json, mockFetch, problem } from "@/test/fetch";
 import { messageId, testMailbox, testThread } from "@/test/mail";
 import { renderApp } from "@/test/render-app";
 import { testTodo, todoId } from "@/test/todos";
+import { triageApi } from "@/test/triage";
 
 const today = todayIn("UTC");
 
@@ -25,6 +26,7 @@ function mockTodoApi({ todos = [], patchStatus, patchGate }: TodoBackend = {}) {
   const patches: { id: string; body: Record<string, unknown> }[] = [];
   const posts: Record<string, unknown>[] = [];
   const base = backend();
+  const triage = triageApi();
   const fetchMock = mockFetch(async (request) => {
     const url = new URL(request.url);
     const route = `${request.method} ${url.pathname}`;
@@ -67,7 +69,7 @@ function mockTodoApi({ todos = [], patchStatus, patchGate }: TodoBackend = {}) {
     const thread = /^GET \/api\/messages\/([^/]+)\/thread$/.exec(route);
     if (thread?.[1]) return json(testThread(Number.parseInt(thread[1].slice(-12), 16)));
     if (route.startsWith("PATCH /api/messages/")) return json({});
-    return base(request);
+    return (await triage.handle(request)) ?? base(request);
   });
   return { store, patches, posts, fetchMock };
 }

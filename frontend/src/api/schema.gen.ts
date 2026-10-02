@@ -928,6 +928,26 @@ export interface paths {
         patch: operations["digests_update_digest_settings"];
         trace?: never;
     };
+    "/digests/voices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Digest Voices
+         * @description Voices for the digest: installed ones plus the default voice of each language.
+         */
+        get: operations["digests_list_digest_voices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/digests/{digest_id}": {
         parameters: {
             query?: never;
@@ -1716,6 +1736,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/triage/inbox/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Inbox Messages
+         * @description Inbox messages ordered by category (user's order, uncategorised last), then
+         *     priority, then newest first; with the number of messages per category.
+         */
+        get: operations["triage_list_inbox_messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/triage/mailboxes/{mailbox_id}/settings": {
         parameters: {
             query?: never;
@@ -1731,6 +1772,27 @@ export interface paths {
          *     labels the messages triaged so far, in batches.
          */
         put: operations["triage_update_mailbox_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/triage/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Triage
+         * @description Triage of several messages at once (e.g. the visible rows of a list). Messages that
+         *     are not triaged yet, or not the user's, are left out.
+         */
+        get: operations["triage_list_triage"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -2373,6 +2435,13 @@ export interface components {
             source: components["schemas"]["Source"];
             type: components["schemas"]["MailboxType"];
         };
+        /** CategoryCount */
+        CategoryCount: {
+            /** Category Id */
+            category_id: string | null;
+            /** Total */
+            total: number;
+        };
         /** CategoryCreate */
         CategoryCreate: {
             /**
@@ -2733,6 +2802,23 @@ export interface components {
          * @enum {string}
          */
         DigestTrigger: "scheduled" | "manual";
+        /**
+         * DigestVoice
+         * @description A voice to offer in the digest settings.
+         */
+        DigestVoice: {
+            /** Default */
+            default: boolean;
+            /** Id */
+            id: string;
+            /** Installed */
+            installed: boolean;
+            /**
+             * Language
+             * @enum {string}
+             */
+            language: "de" | "en";
+        };
         /**
          * DirectoryType
          * @enum {string}
@@ -4343,6 +4429,55 @@ export interface components {
          * @enum {string}
          */
         TriageSource: "rule" | "sender_rule" | "llm" | "user";
+        /**
+         * TriagedMessage
+         * @description A row of the inbox list ordered by category.
+         */
+        TriagedMessage: {
+            /** Category Id */
+            category_id: string | null;
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /** Flagged */
+            flagged: boolean;
+            /** Has Attachments */
+            has_attachments: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /** Priority */
+            priority: number | null;
+            sender: components["schemas"]["AddressRead"] | null;
+            /** Snippet */
+            snippet: string;
+            /** Subject */
+            subject: string;
+            /** Thread Id */
+            thread_id: string | null;
+            /** Unread */
+            unread: boolean;
+        };
+        /** TriagedMessagePage */
+        TriagedMessagePage: {
+            /** Groups */
+            groups: components["schemas"]["CategoryCount"][];
+            /** Items */
+            items: components["schemas"]["TriagedMessage"][];
+            /** Next Offset */
+            next_offset: number | null;
+            /** Total */
+            total: number;
+        };
         /**
          * UserCreate
          * @description A new local account (admin).
@@ -7184,6 +7319,33 @@ export interface operations {
             };
         };
     };
+    digests_list_digest_voices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestVoice"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     digests_get_digest: {
         parameters: {
             query?: never;
@@ -9332,6 +9494,48 @@ export interface operations {
             };
         };
     };
+    triage_list_inbox_messages: {
+        parameters: {
+            query?: {
+                mailbox_id?: string | null;
+                /** @description Only unread (true) or read (false) */
+                unread?: boolean | null;
+                /** @description One visible category, or `none` for the uncategorised messages */
+                category?: string | "none" | null;
+                offset?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriagedMessagePage"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown or hidden category */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     triage_get_mailbox_settings: {
         parameters: {
             query?: never;
@@ -9410,6 +9614,44 @@ export interface operations {
             };
             /** @description Not found or not yours */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_list_triage: {
+        parameters: {
+            query: {
+                ids: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriageRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
