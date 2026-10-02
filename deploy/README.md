@@ -57,6 +57,11 @@ veröffentlicht sie in der GitHub Container Registry:
 - `ghcr.io/dusseligerdussel/ollamail-api` – Backend (`api`, `worker`, `migrate`)
 - `ghcr.io/dusseligerdussel/ollamail-frontend` – UI und Reverse Proxy
 
+Jede Plattform wird nativ auf einem eigenen Runner gebaut (arm64 auf `ubuntu-24.04-arm`, ohne
+QEMU-Emulation) und per Digest gepusht; ein Merge-Job pro Image erzeugt daraus das
+Multi-Arch-Manifest und setzt die Tags. Ein manueller Lauf (*Actions → Release → Run workflow*)
+ohne `push` baut und prüft nur.
+
 | Tag | Quelle |
 |---|---|
 | `1.2.3`, `1.2`, `1` | Git-Tag `v1.2.3` (`1` erst ab Version 1.0) |
