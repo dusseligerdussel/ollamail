@@ -24,9 +24,10 @@ class LargeMailbox:
 async def seed_large_mailbox(
     session: AsyncSession, messages: int, account: Account | None = None
 ) -> LargeMailbox:
-    """``account`` (default: a new user with one mailbox) gets ``messages`` messages, 95 % in the inbox (the rest in the
-    archive), every fifth unread, 1 % without a received date, 90 % triaged into the
-    built-in categories with priorities 1-3. Bodies are a few KB, like real mails."""
+    """``account`` (default: a new user with one mailbox) gets ``messages`` messages, 95 %
+    in the inbox (the rest in the archive), every fifth unread, 1 % without a received date,
+    90 % triaged into the built-in categories with priorities 1-3. Bodies are a few KB, like
+    real mails."""
     account = account or await make_account(session)
     archive = Folder(
         mailbox_id=account.mailbox.id, remote_id="Archive", name="Archive", role=FolderRole.ARCHIVE

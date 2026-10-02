@@ -42,9 +42,7 @@ MAX_ROWS_PER_PAGE = 5_000
 async def large(db_client: AsyncClient, db_session: AsyncSession) -> LargeMailbox:
     user = await make_local_user(db_session, "perf@example.org")
     assert (await login(db_client, user.email)).status_code == 200
-    return await seed_large_mailbox(
-        db_session, MESSAGES, await account_for(db_session, user)
-    )
+    return await seed_large_mailbox(db_session, MESSAGES, await account_for(db_session, user))
 
 
 class Statements:
@@ -124,7 +122,7 @@ async def _walk(
         query = {**params, "limit": 100} | ({"cursor": cursor} if cursor else {})
         body, plans, elapsed = await _page(client, session, path, query)
         if number in (1, pages):
-            print(f"{path} {params} page {number}: {elapsed:.1f} ms")  # noqa: T201
+            print(f"{path} {params} page {number}: {elapsed:.1f} ms")
             _assert_keyset_page(plans)
             assert (body["total"] is None) == (number > 1)
         assert len(body["items"]) == 100
