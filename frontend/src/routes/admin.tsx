@@ -84,7 +84,7 @@ function AdminPage() {
             <div className="divide-y rounded-lg border">
               <Link
                 to="/admin/audit"
-                className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
               >
                 <ScrollText aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1">
@@ -110,7 +110,7 @@ function AdminPage() {
             <div className="divide-y rounded-lg border">
               <Link
                 to="/admin/ai"
-                className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
               >
                 <Cpu aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1">
@@ -130,7 +130,7 @@ function AdminPage() {
             <div className="divide-y rounded-lg border">
               <Link
                 to="/admin/categories"
-                className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
               >
                 <Tags aria-hidden className="size-4 shrink-0 text-muted-foreground" />
                 <span className="min-w-0 flex-1">
@@ -169,7 +169,7 @@ function AdminLink({
   return (
     <Link
       to={to}
-      className="flex items-center gap-3 px-4 py-3.5 outline-none first:rounded-t-lg last:rounded-b-lg hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      className="flex items-center gap-3 px-4 py-3.5 outline-none first:rounded-t-lg last:rounded-b-lg hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
     >
       <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       <span className="min-w-0 flex-1">

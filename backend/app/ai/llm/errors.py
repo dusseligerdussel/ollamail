@@ -13,6 +13,12 @@ class LLMUnavailableError(LLMError):
     """Endpoint unreachable, timed out or failed with a server error (retry later)."""
 
 
+class LLMTimeoutError(LLMUnavailableError):
+    """The endpoint was reachable but the call took too long: the HTTP read timeout or the
+    call deadline (``OLLAMAIL_LLM_CALL_TIMEOUT``) expired. Retrying the same input is
+    likely to time out again, so callers should retry it at most a few times."""
+
+
 class LLMRequestError(LLMError):
     """The endpoint rejected the request (4xx)."""
 

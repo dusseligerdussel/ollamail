@@ -358,7 +358,7 @@ function DigestRow({
         data-active={active || undefined}
         className={cn(
           "flex flex-col justify-center gap-0.5 border-b border-border/60 px-4 py-2.5 text-ui outline-none",
-          "hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset",
+          "hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80 focus-visible:ring-inset",
           "data-active:shadow-[inset_2px_0_0_var(--ring)]",
           selected && "bg-accent hover:bg-accent",
         )}
@@ -402,7 +402,7 @@ function MiniPlayer({
       <button
         type="button"
         onClick={() => onOpen(loaded.id)}
-        className="flex min-w-0 flex-1 flex-col items-start rounded-md px-1 text-left text-ui outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex min-w-0 flex-1 flex-col items-start rounded-md px-1 text-left text-ui outline-none focus-visible:ring-[3px] focus-visible:ring-ring/80"
       >
         <span className="w-full truncate font-medium">{loaded.title}</span>
         <span className="text-xs text-muted-foreground tabular-nums">
@@ -426,6 +426,8 @@ function DigestDetail({
 }) {
   const { t } = useTranslation();
   const digest = useQuery(digestQueryOptions(digestId));
+  // Without a back button the list is shown next to it, with the page's `h1`.
+  const headingLevel = onBack ? 1 : 2;
   const back = onBack && (
     <Button variant="ghost" size="icon-sm" onClick={onBack} aria-label={t("digest.back")}>
       <ArrowLeft />
@@ -435,7 +437,7 @@ function DigestDetail({
   if (digest.isPending) {
     return (
       <>
-        <PageHeader title={t("nav.digest")} leading={back} />
+        <PageHeader title={t("nav.digest")} leading={back} headingLevel={headingLevel} />
         <DetailSkeleton />
       </>
     );
@@ -443,14 +445,14 @@ function DigestDetail({
   if (digest.isError) {
     return (
       <>
-        <PageHeader title={t("nav.digest")} leading={back} />
+        <PageHeader title={t("nav.digest")} leading={back} headingLevel={headingLevel} />
         <InlineError error={digest.error} className="m-4" />
       </>
     );
   }
   return (
     <>
-      <PageHeader title={digest.data.title} leading={back} />
+      <PageHeader title={digest.data.title} leading={back} headingLevel={headingLevel} />
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto flex w-full max-w-3xl flex-col gap-6 px-4 py-5 md:px-6">
           <DigestBody digest={digest.data} onRetry={onRetry} retryDisabled={retryDisabled} />

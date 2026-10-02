@@ -85,7 +85,7 @@ function GroupHeader({ name, param, count }: { name: string; param: string; coun
           to="/inbox"
           search={(previous) => ({ ...previous, category: param, message: undefined })}
           title={t("triage.view.showOnly", { category: name })}
-          className="rounded-sm outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="rounded-sm outline-none hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/80"
         >
           {name}
         </Link>

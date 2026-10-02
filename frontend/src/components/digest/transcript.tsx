@@ -57,7 +57,7 @@ export function Transcript({
                           search={{ message: reference.message_id }}
                           aria-label={t("digest.openMail", { ref })}
                           title={t("digest.openMail", { ref })}
-                          className="mx-px inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-1 align-text-top text-[0.6875rem] leading-none text-muted-foreground tabular-nums outline-none hover:border-ring hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                          className="mx-px inline-flex h-4 min-w-4 items-center justify-center rounded-sm border px-1 align-text-top text-[0.6875rem] leading-none text-muted-foreground tabular-nums outline-none hover:border-ring hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/80"
                         >
                           {ref}
                         </Link>

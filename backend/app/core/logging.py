@@ -138,6 +138,27 @@ def strip_exception_values(_: WrappedLogger, __: str, event_dict: EventDict) -> 
     return event_dict
 
 
+def render_exception_text(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
+    """Turn the sanitised exception dicts into plain text for the console renderer.
+
+    ``ConsoleRenderer`` expects a string; it would fail on the list and drop the record.
+    """
+    exceptions = event_dict.get("exception")
+    if isinstance(exceptions, list):
+        lines = []
+        for exc in exceptions:
+            if not isinstance(exc, dict):
+                continue
+            for frame in exc.get("frames", []):
+                lines.append(
+                    f'  File "{frame.get("filename")}", line {frame.get("lineno")}, '
+                    f"in {frame.get('name')}"
+                )
+            lines.append(str(exc.get("exc_type", "Exception")))
+        event_dict["exception"] = "\n".join(lines)
+    return event_dict
+
+
 def _drop_color_message(_: WrappedLogger, __: str, event_dict: EventDict) -> EventDict:
     # uvicorn duplicates its message with ANSI colors in an extra field.
     event_dict.pop("color_message", None)
@@ -154,11 +175,11 @@ def _shared_processors() -> list[Processor]:
 
 
 def build_formatter(settings: LoggingSettings) -> structlog.stdlib.ProcessorFormatter:
-    renderer: Processor
+    renderers: list[Processor]
     if settings.format == "json":
-        renderer = structlog.processors.JSONRenderer()
+        renderers = [structlog.processors.JSONRenderer()]
     else:
-        renderer = structlog.dev.ConsoleRenderer(colors=False)
+        renderers = [render_exception_text, structlog.dev.ConsoleRenderer(colors=False)]
     return structlog.stdlib.ProcessorFormatter(
         foreign_pre_chain=[
             *_shared_processors(),
@@ -170,7 +191,7 @@ def build_formatter(settings: LoggingSettings) -> structlog.stdlib.ProcessorForm
             structlog.processors.ExceptionRenderer(ExceptionDictTransformer(show_locals=False)),
             strip_exception_values,
             drop_sensitive_fields,
-            renderer,
+            *renderers,
         ],
     )
 

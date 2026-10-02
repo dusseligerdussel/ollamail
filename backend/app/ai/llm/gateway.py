@@ -1,15 +1,21 @@
 """Entry point for features: ``await llm.complete_structured(LLMTask.TRIAGE, ...)``.
 
 The gateway resolves endpoint and model per task, enforces the cloud switch, fits
-prompts into the context window, validates structured output and records metrics.
-Features never talk to a provider directly.
+prompts into the context window, bounds answer length and call duration, validates
+structured output and records metrics. Features never talk to a provider directly.
 """
 
+import asyncio
 import dataclasses
 import math
 import time
-from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
-from contextlib import AbstractAsyncContextManager, nullcontext
+from collections.abc import AsyncGenerator, AsyncIterator, Awaitable, Callable, Sequence
+from contextlib import (
+    AbstractAsyncContextManager,
+    aclosing,
+    asynccontextmanager,
+    nullcontext,
+)
 
 from fastapi import Request
 from pydantic import BaseModel
@@ -21,6 +27,7 @@ from app.ai.llm.errors import (
     CloudLLMDisabledError,
     LLMError,
     LLMNotReadyError,
+    LLMTimeoutError,
     StructuredOutputUnsupportedError,
 )
 from app.ai.llm.limiter import DynamicLimiter
@@ -44,11 +51,32 @@ def create_provider(endpoint: EndpointConfig) -> LLMProvider:
     )
 
 
-def _reserve_tokens(options: GenerationOptions | None, context_tokens: int) -> int:
+def _reserve_tokens(options: GenerationOptions | None, assignment: ModelAssignment) -> int:
     """Room left for the answer when fitting the prompt."""
     if options is not None and options.max_tokens is not None:
         return options.max_tokens
-    return min(1024, context_tokens // 4)
+    return min(assignment.max_output_tokens, assignment.context_tokens // 4)
+
+
+def _deadline_exceeded(seconds: float) -> LLMTimeoutError:
+    # No prompt or output in the message (docs/PRIVACY.md).
+    return LLMTimeoutError(f"LLM call exceeded its deadline of {seconds:g} s")
+
+
+@asynccontextmanager
+async def _deadline(seconds: float | None) -> AsyncIterator[None]:
+    """Cancel the enclosed call after ``seconds`` and raise :class:`LLMTimeoutError`."""
+    if seconds is None:
+        yield
+        return
+    timeout = asyncio.timeout(seconds)
+    try:
+        async with timeout:
+            yield
+    except TimeoutError as exc:
+        if timeout.expired():
+            raise _deadline_exceeded(seconds) from exc
+        raise
 
 
 class LLMGateway:
@@ -128,12 +156,14 @@ class LLMGateway:
     ) -> tuple[list[ChatMessage], GenerationOptions]:
         context = assignment.context_tokens
         fitted = fit_messages(
-            messages, context_tokens=context, reserve_tokens=_reserve_tokens(options, context)
+            messages, context_tokens=context, reserve_tokens=_reserve_tokens(options, assignment)
         )
         base = options or GenerationOptions()
         merged = GenerationOptions(
             temperature=base.temperature,
-            max_tokens=base.max_tokens,
+            # Every call is bounded: without a limit a small model may generate until the
+            # context window is full (#132).
+            max_tokens=base.max_tokens or assignment.max_output_tokens,
             context_tokens=base.context_tokens or context,
         )
         return fitted, merged
@@ -150,7 +180,7 @@ class LLMGateway:
         fitted, opts = self._prepare(assignment, messages, options)
         started = time.perf_counter()
         try:
-            async with self._slot():
+            async with self._slot(), _deadline(assignment.call_timeout):
                 result = await provider.complete(fitted, model=assignment.model, options=opts)
         except Exception as exc:
             self._record(assignment, "complete", prompt_version, started, error=exc)
@@ -169,7 +199,8 @@ class LLMGateway:
         language: str | None = None,
     ) -> T:
         """Validated instance of ``schema``; raises :class:`LLMOutputError` if the model
-        does not produce valid output within the configured retries."""
+        does not produce valid output within the configured retries. The call deadline
+        covers all attempts."""
         assignment, provider = await self._select(task)
         fitted, opts = self._prepare(assignment, messages, options)
         retries = await self._resolver.structured_output_retries()
@@ -177,7 +208,7 @@ class LLMGateway:
         native = assignment.endpoint.structured_output == "native" and key not in self._prompt_only
         started = time.perf_counter()
         try:
-            async with self._slot():
+            async with self._slot(), _deadline(assignment.call_timeout):
                 result = await self._structured(
                     provider, assignment, fitted, schema, opts, native, retries, language
                 )
@@ -254,8 +285,16 @@ class LLMGateway:
         streamed_chars = 0
         error: BaseException | None = None
         try:
-            async with self._slot():
-                async for chunk in provider.stream(fitted, model=assignment.model, options=opts):
+            async with (
+                self._slot(),
+                aclosing(
+                    self._bounded_stream(
+                        provider.stream(fitted, model=assignment.model, options=opts),
+                        assignment.call_timeout,
+                    )
+                ) as chunks,
+            ):
+                async for chunk in chunks:
                     streamed_chars += len(chunk)
                     yield chunk
         except BaseException as exc:
@@ -265,6 +304,33 @@ class LLMGateway:
             # Streams carry no usage data; the answer size is estimated.
             usage = Usage(completion_tokens=math.ceil(streamed_chars / CHARS_PER_TOKEN))
             self._record(assignment, "stream", prompt_version, started, error=error, usage=usage)
+
+    @staticmethod
+    async def _bounded_stream(
+        chunks: AsyncIterator[str], seconds: float | None
+    ) -> AsyncGenerator[str]:
+        """``chunks`` until the deadline, then :class:`LLMTimeoutError`. Only the wait for
+        the next chunk is timed out, so the consumer's own awaits between chunks are
+        never cancelled; the time the consumer takes still counts towards the deadline."""
+        deadline = None if seconds is None else asyncio.get_running_loop().time() + seconds
+        try:
+            while True:
+                timeout = asyncio.timeout_at(deadline)
+                try:
+                    async with timeout:
+                        chunk = await anext(chunks)
+                except StopAsyncIteration:
+                    return
+                except TimeoutError as exc:
+                    if seconds is None or not timeout.expired():
+                        raise
+                    raise _deadline_exceeded(seconds) from exc
+                yield chunk
+        finally:
+            # Closes the HTTP stream of the provider.
+            aclose = getattr(chunks, "aclose", None)
+            if aclose is not None:
+                await aclose()
 
     async def assignment(self, task: LLMTask) -> ModelAssignment:
         """Endpoint and model currently serving ``task`` (e.g. to tag stored embeddings)."""

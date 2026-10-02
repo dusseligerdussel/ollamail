@@ -23,6 +23,17 @@ from app.core.config import (
 
 DEFAULT_ENDPOINT = "default"
 
+# Built-in answer limits per task, used unless ``OLLAMAIL_LLM_TASK_<TASK>_MAX_TOKENS`` or
+# ``OLLAMAIL_LLM_MAX_OUTPUT_TOKENS`` is set. Todos: ten todos with description fit.
+TASK_MAX_TOKENS: dict[LLMTask, int] = {LLMTask.TODOS: 800}
+# Tasks with long prompts or answers get a multiple of the profile's call timeout, unless
+# ``OLLAMAIL_LLM_TASK_<TASK>_CALL_TIMEOUT`` or ``OLLAMAIL_LLM_CALL_TIMEOUT`` is set.
+CALL_TIMEOUT_FACTORS: dict[LLMTask, float] = {
+    LLMTask.DIGEST: 2.0,
+    LLMTask.RAG_CHAT: 2.0,
+    LLMTask.REPLY_DRAFT: 2.0,
+}
+
 
 @dataclass(frozen=True, slots=True)
 class EndpointConfig:
@@ -45,6 +56,10 @@ class ModelAssignment:
     endpoint: EndpointConfig
     model: str
     context_tokens: int
+    # Answer limit when the feature sets none (Ollama ``num_predict``, OpenAI ``max_tokens``).
+    max_output_tokens: int = 1024
+    # Seconds one call may take in total; ``None``: no deadline (embeddings).
+    call_timeout: float | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -114,6 +129,7 @@ class ResolvedConfig:
             settings.cloud_enabled if overrides.cloud_enabled is None else overrides.cloud_enabled
         )
         self.concurrency = overrides.concurrency or settings.concurrency
+        self.call_timeout = settings.call_timeout or profile.call_timeout
 
     def env_task(self, task: LLMTask) -> TaskOverride:
         """Model and endpoint the environment assigns to ``task``, if any."""
@@ -121,6 +137,27 @@ class ResolvedConfig:
             endpoint=getattr(self.settings, f"task_{task.value}_endpoint"),
             model=getattr(self.settings, f"task_{task.value}_model"),
         )
+
+    def max_output_tokens(self, task: LLMTask) -> int:
+        """Answer limit: task setting → global setting (if set) → built-in task default."""
+        configured: int | None = getattr(self.settings, f"task_{task.value}_max_tokens", None)
+        if configured is not None:
+            return configured
+        if "max_output_tokens" in self.settings.model_fields_set:
+            return self.settings.max_output_tokens
+        return TASK_MAX_TOKENS.get(task, self.settings.max_output_tokens)
+
+    def task_call_timeout(self, task: LLMTask) -> float | None:
+        """Deadline per call: task setting → global setting (if set) → profile times task
+        factor. Embeddings have none (bounded by the HTTP timeout)."""
+        if task is LLMTask.EMBEDDINGS:
+            return None
+        configured: float | None = getattr(self.settings, f"task_{task.value}_call_timeout", None)
+        if configured is not None:
+            return configured
+        if self.settings.call_timeout is not None:
+            return self.settings.call_timeout
+        return self.call_timeout * CALL_TIMEOUT_FACTORS.get(task, 1.0)
 
     def default_model(self, task: LLMTask) -> str:
         return self.embedding_model if task is LLMTask.EMBEDDINGS else self.chat_model
@@ -134,6 +171,8 @@ class ResolvedConfig:
             endpoint=self.endpoints[endpoint or env.endpoint or DEFAULT_ENDPOINT],
             model=stored.model or env.model or self.default_model(task),
             context_tokens=self.context_tokens,
+            max_output_tokens=self.max_output_tokens(task),
+            call_timeout=self.task_call_timeout(task),
         )
 
 

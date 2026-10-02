@@ -165,7 +165,7 @@ function SignInMethods({
               key={item.key}
               type="button"
               onClick={() => setSelected(item.key)}
-              className="flex w-full items-center gap-3 px-4 py-3.5 text-left outline-none first:rounded-t-lg last:rounded-b-lg hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              className="flex w-full items-center gap-3 px-4 py-3.5 text-left outline-none first:rounded-t-lg last:rounded-b-lg hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
             >
               <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 flex-1">

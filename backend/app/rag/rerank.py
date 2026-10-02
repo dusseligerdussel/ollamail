@@ -11,7 +11,7 @@ from typing import Protocol
 
 from pydantic import BaseModel
 
-from app.ai.llm import LLMError, LLMGateway, LLMTask
+from app.ai.llm import GenerationOptions, LLMError, LLMGateway, LLMTask
 from app.core.config import Settings
 from app.core.logging import get_logger
 from app.rag.citations import DataBlock, data_tag, render_blocks
@@ -22,6 +22,10 @@ log = get_logger(__name__)
 
 # Characters per chunk shown to the reranker: enough to judge relevance.
 EXCERPT_CHARS = 600
+# Answer limit: ``{"ranking": [...]}`` needs a few tokens per number (128 for the default
+# 24 candidates).
+RERANK_BASE_TOKENS = 32
+RERANK_TOKENS_PER_HIT = 4
 
 
 def reranker_enabled(settings: Settings) -> bool:
@@ -65,6 +69,9 @@ class LLMReranker:
                 messages,
                 Ranking,
                 prompt_version=RAG_RERANK.id,
+                options=GenerationOptions(
+                    max_tokens=RERANK_BASE_TOKENS + RERANK_TOKENS_PER_HIT * len(hits)
+                ),
                 language=language,
             )
         except LLMError as exc:

@@ -69,6 +69,8 @@ export function SyncStatus({
   const busy = ["pending", "importing", "syncing"].includes(status.phase);
   return (
     <span
+      // Live region: screen readers announce sync progress and errors as they arrive.
+      role="status"
       // `text-ui` and the colour stay in separate class lists: `cn` would drop one of them.
       className={cn("flex min-w-0 items-center gap-2 text-ui", className)}
     >

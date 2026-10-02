@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, type Route, test } from "@playwright/test";
 
+import { expectNoA11yViolations } from "./a11y";
 import { mockApi } from "./mock-api";
 
 // Runs without a backend: the export API and the Microsoft sign-in are mocked in the browser
@@ -87,10 +87,7 @@ test("connect Microsoft To Do: sign in, pick a list, turn on", async ({ page }) 
   await expect(page.getByText("Signed in as erika@example.com")).toBeVisible();
   await expect(page).toHaveURL(/\/settings\/task-export$/);
   await page.getByLabel("List", { exact: true }).selectOption("AQMkADAw-work");
-  const a11y = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  expect(a11y.violations.map((violation) => violation.id)).toEqual([]);
+  await expectNoA11yViolations(page);
   await page.getByRole("button", { name: "Turn on export" }).click();
 
   await expect(page.getByText("Task export turned on")).toBeVisible();

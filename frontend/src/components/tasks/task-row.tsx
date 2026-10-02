@@ -128,7 +128,7 @@ export function TaskRow({
               onClick={() => onEditingChange(true)}
               title={t("tasks.rename")}
               className={cn(
-                "-mx-1 min-w-0 truncate rounded-sm px-1 py-0.5 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                "-mx-1 min-w-0 truncate rounded-sm px-1 py-0.5 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/80",
                 done && "text-muted-foreground line-through decoration-muted-foreground/60",
               )}
             >

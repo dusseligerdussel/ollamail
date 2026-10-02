@@ -15,7 +15,7 @@ export const themeIcons = { light: Sun, dark: Moon, system: Monitor } as const s
 // Segmented control: a muted track with the selected option raised.
 const groupClass = "h-8 w-fit rounded-md bg-muted p-0.5";
 const itemClass =
-  "h-7 flex-1 gap-1.5 rounded-[calc(var(--radius)-3px)] px-3 text-ui font-normal text-muted-foreground hover:bg-transparent hover:text-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs dark:data-[state=on]:bg-input";
+  "h-7 flex-1 gap-1.5 rounded-[calc(var(--radius)-3px)] px-3 text-ui font-normal text-muted-foreground hover:bg-transparent hover:text-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs dark:data-[state=on]:bg-input/30";
 
 /** Segmented control for light, dark and system theme. */
 export function ThemeToggleGroup({ className }: { className?: string }) {
