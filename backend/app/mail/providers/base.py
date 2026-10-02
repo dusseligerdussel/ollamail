@@ -22,6 +22,12 @@ absorbed by the data types:
 * **Content.** Every provider delivers the RFC 5322 source (IMAP ``BODY[]``, Graph
   ``/messages/{id}/$value``, Gmail ``format=raw``), so parsing and normalisation are shared
   (``app.mail.mime``).
+* **Sending.** ``send`` takes an ``OutgoingReply``: the complete RFC 5322 message, composed
+  once for all providers (``app.mail.compose``), plus the structured fields for providers
+  that compose on the server. IMAP submits it via SMTP and stores a copy in "Sent", Gmail
+  sends the source in its thread, Graph creates the reply to the original (``createReply``)
+  and sends it. The server keeps the sent copy; it arrives with the next sync. Nothing is
+  ever sent without an explicit user action (``app.drafts``).
 """
 
 import enum
@@ -165,6 +171,51 @@ class ChangeEvent:
     folder_id: str | None = None
 
 
+@dataclass(frozen=True, slots=True)
+class OutgoingAddress:
+    address: str
+    name: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class OutgoingReply:
+    """A reply to a stored message, ready to send. ``raw`` is the complete message
+    (headers ``From``, ``To``, ``Cc``, ``Subject``, ``Message-ID``, ``In-Reply-To``,
+    ``References``); the other fields repeat its content for providers that build the
+    message themselves (Graph). Never logged."""
+
+    raw: bytes = field(repr=False)
+    sender: OutgoingAddress = field(repr=False)
+    to: tuple[OutgoingAddress, ...] = field(repr=False)
+    cc: tuple[OutgoingAddress, ...] = field(default=(), repr=False)
+    subject: str = field(default="", repr=False)
+    body_text: str = field(default="", repr=False)
+    # ``Message-ID`` of the reply (with angle brackets).
+    message_id: str = ""
+    # The message replied to: ``remote_ref`` on the server and its server thread, if any.
+    in_reply_to_ref: str | None = None
+    provider_thread_id: str | None = None
+    reply_all: bool = False
+
+    @property
+    def recipients(self) -> list[str]:
+        """Envelope recipients (SMTP ``RCPT TO``)."""
+        return [a.address for a in (*self.to, *self.cc)]
+
+
+@dataclass(frozen=True, slots=True)
+class SentMessage:
+    """Result of ``send``: what the server reports about the sent copy, if anything."""
+
+    remote_ref: str | None = None
+    # ``Message-ID`` the server used (Graph assigns its own).
+    message_id: str | None = None
+    # Recipients the server refused while accepting the others (SMTP).
+    refused: int = 0
+    # Sending succeeded but storing the copy in "Sent" failed (IMAP); a code, no details.
+    sent_copy_error: str | None = None
+
+
 class ProviderError(Exception):
     """Base class for provider failures. ``code`` is stored in ``SyncState.last_error``;
     messages must not contain mail data or credentials."""
@@ -206,6 +257,13 @@ class MessageNotFoundError(ProviderError):
     code = "message_not_found"
 
 
+class SendError(ProviderError):
+    """The server refused the message (e.g. a rejected recipient, a size limit, missing
+    send permission). Not retried: the message may have been partly delivered."""
+
+    code = "send_failed"
+
+
 @runtime_checkable
 class MailProvider(Protocol):
     capabilities: ProviderCapabilities
@@ -239,6 +297,12 @@ class MailProvider(Protocol):
         ...
 
     async def remove_label(self, remote_ref: str, label: str) -> None: ...
+
+    async def send(self, reply: OutgoingReply) -> SentMessage:
+        """Send ``reply`` from this mailbox and keep a copy in its sent folder. Raises
+        ``SendError`` if the server refuses it; never retries on its own, so a message is
+        not sent twice."""
+        ...
 
     async def aclose(self) -> None:
         """Release connections."""

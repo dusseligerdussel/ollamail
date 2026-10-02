@@ -9,6 +9,12 @@ Transport security: TLS (port 993) or STARTTLS with certificate verification. Un
 connections and unverified certificates are refused unless the admin enables
 ``OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS``.
 
+Sending (``send``): SMTP submission (``smtp_*`` settings, default: the IMAP host with
+STARTTLS on port 587, same login), then the message is appended to the sent folder
+(special-use ``\\Sent`` or the usual names) with ``\\Seen``, unless ``smtp_save_sent`` is off
+for servers that store sent mails themselves. The SMTP password is ``credentials
+["smtp_password"]`` if set, else the IMAP password; with ``auth="xoauth2"`` the access token.
+
 References: ``remote_ref`` is ``"<UIDVALIDITY>:<UID>:<folder>"``. Folder IDs are the
 mailbox names as sent by the server (modified UTF-7), ``RemoteFolder.name`` is decoded.
 
@@ -42,6 +48,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from app.core.config import MailSettings, get_settings
 from app.core.logging import get_logger
 from app.mail.models import FolderRole, MailboxType
+from app.mail.providers import smtp
 from app.mail.providers.base import (
     AuthenticationError,
     ChangeEvent,
@@ -54,10 +61,12 @@ from app.mail.providers.base import (
     MessageFetched,
     MessageNotFoundError,
     MessageUpdated,
+    OutgoingReply,
     ProviderCapabilities,
     ProviderError,
     RawMessage,
     RemoteFolder,
+    SentMessage,
     SyncCursor,
     SyncEvent,
 )
@@ -68,6 +77,7 @@ from app.mail.providers.imap_client import (
     ImapConnection,
     ImapConnectionError,
     ImapError,
+    Literal_,
     SelectInfo,
 )
 from app.mail.providers.imap_protocol import (
@@ -94,6 +104,8 @@ FETCH_BYTES = 16 * 1024 * 1024
 # detects connections that NAT gateways dropped silently.
 IDLE_RESTART_SECONDS = 10 * 60
 INBOX = "INBOX"
+# Created for sent mails if the server has no sent folder.
+SENT_FOLDER = "Sent"
 
 # Special-use attributes (RFC 6154) and common names as fallback.
 _SPECIAL_USE = {
@@ -145,6 +157,16 @@ class ImapSettings(BaseModel):
     auth: Literal["password", "xoauth2"] = "password"
     # Login name; default: the mailbox address.
     username: str | None = None
+    # SMTP submission for sending replies. Host default: the IMAP host.
+    smtp_host: str | None = Field(default=None, min_length=1, max_length=255)
+    # Default: 465 for ``tls``, 587 for ``starttls``, 25 for ``none``.
+    smtp_port: int | None = Field(default=None, ge=1, le=65535)
+    # ``tls``, ``starttls`` or ``none`` (admin flag required); certificate check as for IMAP.
+    smtp_security: Literal["tls", "starttls", "none"] = "starttls"
+    # SMTP login name; default: the IMAP login name.
+    smtp_username: str | None = Field(default=None, max_length=320)
+    # Append sent mails to the sent folder (off if the server does it itself).
+    smtp_save_sent: bool = True
 
 
 def make_ref(folder: str, uidvalidity: int, uid: int) -> str:
@@ -242,6 +264,7 @@ class ImapProvider:
         if insecure and not instance.allow_insecure_connections:
             raise ConfigurationError(code="insecure_connection_refused")
         self.config = config
+        self._allow_insecure = instance.allow_insecure_connections
         self._timeout = instance.imap_timeout
         self._batch_size = batch_size or instance.sync_batch_size
         self._token_provider = token_provider
@@ -291,19 +314,22 @@ class ImapProvider:
             raise
         return conn
 
+    async def _access_token(self) -> str:
+        token: object = (
+            await self._token_provider(self.config)
+            if self._token_provider is not None
+            else self.config.credentials.get("access_token")
+        )
+        if not isinstance(token, str) or not token:
+            raise AuthenticationError(code="credentials_missing")
+        return token
+
     async def _authenticate(self, conn: ImapConnection) -> None:
         username = self.settings.username or self.config.address
         credentials = self.config.credentials
         try:
             if self.settings.auth == "xoauth2":
-                token: object = (
-                    await self._token_provider(self.config)
-                    if self._token_provider is not None
-                    else credentials.get("access_token")
-                )
-                if not isinstance(token, str) or not token:
-                    raise AuthenticationError(code="credentials_missing")
-                await conn.authenticate_xoauth2(username, token)
+                await conn.authenticate_xoauth2(username, await self._access_token())
             else:
                 password = credentials.get("password")
                 if not isinstance(password, str):
@@ -658,6 +684,67 @@ class ImapProvider:
                 if self._has(conn, "UIDPLUS"):
                     await conn.command("UID EXPUNGE", uid_set)
 
+    # -- sending ----------------------------------------------------------------------
+
+    async def _smtp_target(self) -> smtp.SmtpTarget:
+        settings = self.settings
+        insecure = settings.smtp_security == "none" or not settings.verify_certificate
+        if insecure and not self._allow_insecure:
+            raise ConfigurationError(code="insecure_connection_refused")
+        if settings.auth == "xoauth2":
+            secret = await self._access_token()
+        else:
+            password = self.config.credentials.get("smtp_password") or self.config.credentials.get(
+                "password"
+            )
+            if not isinstance(password, str) or not password:
+                raise AuthenticationError(code="credentials_missing")
+            secret = password
+        return smtp.SmtpTarget(
+            host=settings.smtp_host or settings.host,
+            port=settings.smtp_port or smtp.DEFAULT_PORTS[settings.smtp_security],
+            security=settings.smtp_security,
+            verify_certificate=settings.verify_certificate,
+            username=settings.smtp_username or settings.username or self.config.address,
+            auth=settings.auth,
+            secret=secret,
+            timeout=self._timeout,
+        )
+
+    async def send(self, reply: OutgoingReply) -> SentMessage:
+        """Submit via SMTP, then store a copy in the sent folder. A failed copy does not
+        fail the send (the mail is out): it is reported in ``sent_copy_error``."""
+        target = await self._smtp_target()
+        refused = await smtp.submit(target, self.config.address, reply.recipients, reply.raw)
+        if not self.settings.smtp_save_sent:
+            return SentMessage(message_id=reply.message_id, refused=refused)
+        try:
+            remote_ref = await self._append_sent(reply.raw)
+        except ProviderError as exc:
+            log.warning("imap_sent_copy_failed", error=exc.code)
+            return SentMessage(
+                message_id=reply.message_id, refused=refused, sent_copy_error=exc.code
+            )
+        return SentMessage(remote_ref=remote_ref, message_id=reply.message_id, refused=refused)
+
+    async def _append_sent(self, raw: bytes) -> str | None:
+        folders = await self.list_folders()
+        sent = next((f.remote_id for f in folders if f.role is FolderRole.SENT), None)
+        async with self._lock:
+            with self._errors():
+                conn = await self._connection()
+                if sent is None:
+                    sent = SENT_FOLDER
+                    target = _wire(sent)
+                    try:
+                        await conn.command("CREATE", target)
+                    except ImapCommandError as exc:
+                        if exc.code != "ALREADYEXISTS" and not await self._exists(conn, target):
+                            raise
+                result = await conn.command("APPEND", _wire(sent), "(\\Seen)", Literal_(raw))
+                appended = _appenduid(result)
+                return make_ref(sent, *appended) if appended is not None else None
+
     async def _message_id(self, conn: ImapConnection, uid: int) -> str | None:
         result = await conn.command(
             "UID FETCH", str(uid), "(UID BODY.PEEK[HEADER.FIELDS (MESSAGE-ID)])"
@@ -731,6 +818,16 @@ def _copyuid(result: CommandResult, uid: int) -> tuple[int, int] | None:
         sources, targets = list(_ordered(source)), list(_ordered(target))
         if uid in sources and len(sources) == len(targets):
             return uidvalidity, targets[sources.index(uid)]
+    return None
+
+
+def _appenduid(result: CommandResult) -> tuple[int, int] | None:
+    """``(UIDVALIDITY, UID)`` of an appended message from ``APPENDUID`` (UIDPLUS)."""
+    for code in result.codes():
+        if code.name == "APPENDUID" and len(code.args) == 2:
+            uidvalidity, uid = (as_int(value) for value in code.args)
+            if uidvalidity is not None and uid is not None:
+                return uidvalidity, uid
     return None
 
 

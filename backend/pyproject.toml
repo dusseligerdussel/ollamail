@@ -71,6 +71,7 @@ markers = [
     "db: needs PostgreSQL with pgvector (skipped if unreachable, see tests/conftest.py)",
     "ollama: needs a running Ollama with a small model (skipped if unreachable)",
     "imap: needs an IMAP test server (Dovecot, skipped if unreachable, see tests/mail/imap_server.py)",
+    "smtp: needs an SMTP test server (Mailpit, skipped if unreachable, see tests/mail/smtp_server.py)",
     "ldap: needs slapd (OpenLDAP server binary; skipped if not installed)",
     "piper: needs piper-tts and a voice in OLLAMAIL_TEST_PIPER_VOICES (skipped otherwise)",
 ]
