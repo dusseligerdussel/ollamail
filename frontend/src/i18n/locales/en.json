@@ -369,7 +369,8 @@
         "ldap": "LDAP / Active Directory",
         "github": "GitHub",
         "local": "Local account",
-        "other": "Other"
+        "other": "Other",
+        "saml": "SAML 2.0"
       },
       "disableLocal": {
         "title": "Disable local sign-in?",
@@ -411,7 +412,21 @@
         "removed": "Provider removed",
         "server": "Server",
         "organizations": "Organisations",
-        "githubCheck": "GitHub has no connection test: client ID, secret and organisation membership are checked at the first sign-in."
+        "githubCheck": "GitHub has no connection test: client ID, secret and organisation membership are checked at the first sign-in.",
+        "spMetadataUrl": "SP metadata URL",
+        "spMetadataUrlHint": "Many identity providers read the entity ID and ACS URL from here.",
+        "spEntityId": "Entity ID (identifier)",
+        "acsUrl": "Reply URL (Assertion Consumer Service)",
+        "acsUrlHint": "The same for all SAML providers; HTTP-POST binding.",
+        "idpEntityId": "IdP entity ID",
+        "ssoUrl": "Single sign-on URL",
+        "metadataUrl": "Metadata URL",
+        "certificates_one": "{{count}} signing certificate, valid until {{date}}",
+        "certificates_other": "{{count}} signing certificates, valid until {{date}} at the latest",
+        "refreshMetadata": "Reload metadata",
+        "refreshingMetadata": "Loading metadata…",
+        "metadataRefreshed": "Metadata reloaded",
+        "spEntityIdAndMetadataUrl": "Entity ID and SP metadata URL"
       },
       "wizard": {
         "title": "Add provider",
@@ -435,7 +450,9 @@
           "oidcDescription": "Keycloak, Authentik and other providers",
           "ldap": "LDAP / Active Directory",
           "ldapDescription": "Sign-in with directory user name and password",
-          "githubEnterprise": "GitHub Enterprise Server"
+          "githubEnterprise": "GitHub Enterprise Server",
+          "saml": "SAML 2.0",
+          "samlDescription": "Entra ID, AD FS, Okta, Keycloak and other SAML providers"
         },
         "fields": {
           "displayName": "Name on the login page",
@@ -460,7 +477,13 @@
           "organizations": "Allowed organisations",
           "organizationsHint": "Organisation names, separated by commas. Empty: every GitHub account can sign in.",
           "baseUrl": "GitHub Enterprise Server URL",
-          "baseUrlHint": "Leave empty for github.com."
+          "baseUrlHint": "Leave empty for github.com.",
+          "samlNameHint": "Lower-case letters, digits and hyphens; part of the ollamail entity ID. Cannot be changed later.",
+          "metadataSource": "IdP metadata",
+          "metadataUrl": "Metadata URL",
+          "metadataFile": "Metadata file (XML)",
+          "metadataFileHint": "The identity provider's federation metadata. To replace certificates later, upload it again.",
+          "metadataFileMissing": "Choose the identity provider's metadata file."
         },
         "presetsOidc": {
           "keycloak": "Keycloak",
@@ -479,7 +502,26 @@
         "verifyOidc": "Register the redirect URI at the identity provider, then test the connection.",
         "verifyLdap": "Test the connection and, optionally, look up a user before enabling the directory.",
         "savedDisabled": "Saved, not enabled yet: nobody can sign in with it until you enable it.",
-        "verifyGithub": "Register the callback URL in the OAuth app at GitHub, then enable the provider."
+        "verifyGithub": "Register the callback URL in the OAuth app at GitHub, then enable the provider.",
+        "presetsSaml": {
+          "entra": "Microsoft Entra ID",
+          "adfs": "AD FS",
+          "okta": "Okta",
+          "keycloak": "Keycloak",
+          "generic": "Other SAML provider"
+        },
+        "metadataSources": {
+          "url": "Load from URL",
+          "file": "Upload file"
+        },
+        "metadataUrlHints": {
+          "entra": "Enterprise app → Single sign-on → SAML certificates → \"App Federation Metadata Url\".",
+          "adfs": "Federation metadata of the AD FS server (HTTPS).",
+          "okta": "App → Sign On → \"Metadata URL\".",
+          "keycloak": "Realm settings → Endpoints → \"SAML 2.0 Identity Provider Metadata\".",
+          "generic": "HTTPS address of the IdP metadata. Certificates are reloaded from here later."
+        },
+        "verifySaml": "Register ollamail at the identity provider, most easily with the SP metadata URL, then enable the provider."
       }
     },
     "roleMapping": {

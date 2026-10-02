@@ -43,6 +43,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/mail/access.py`), getestet in `tests/search/test_service.py`, `tests/rag/` und `tests/shared/` (Nutzer A erfährt nichts aus Mails von Nutzer B, auch nicht mit dessen Postfach als Filter). Mailinhalte stehen im Prompt nur als markierte Daten, die Antwort führt nichts aus; Zitate können nur auf tatsächlich abgerufene Chunks zeigen. Fragen, Antworten und Prompts nie in Logs (nur IDs, Anzahlen, Zeiten wie `ttft_ms`) |
 | Single Sign-on (OIDC) | Gespeichert werden nur `sub` (Identität), Gruppen-Claims (für das Rollen-Mapping) und beim ersten Login E-Mail-Adresse und Name; IdP-Tokens nie. Client-Secrets verschlüsselt. `state`/`nonce`/PKCE-Verifier nur im verschlüsselten Einmal-Cookie. Logs nur mit Provider und statischem Fehlercode, nie Claims oder Tokens |
 | Login mit GitHub | Gespeichert werden nur die numerische GitHub-Nutzer-ID, die Teams (für das Rollen-Mapping; bei Org-Beschränkung nur Teams der erlaubten Organisationen) und beim ersten Login die verifizierte primäre E-Mail-Adresse und der Name. Das Access-Token wird nur im Callback benutzt, nie gespeichert. Client-Secrets verschlüsselt. Logs nur mit Provider und statischem Fehlercode ([`auth/github.md`](auth/github.md)) |
+| Login mit SAML | Gespeichert werden nur die Kennung (NameID bzw. konfiguriertes Attribut), die Gruppen aus dem Gruppen-Attribut (für das Rollen-Mapping) und beim ersten Login E-Mail-Adresse und Anzeigename; weitere Attribute werden verworfen. Gegen Replay nur SHA-256 von Provider und Assertion-ID (`auth_saml_assertions`, gelöscht nach Ablauf, höchstens 24 h). Keine Secrets (IdP-Zertifikate sind öffentlich). Logs nur mit Provider, Code und statischem Prüfschritt, nie Attribute oder die Response ([`auth/saml.md`](auth/saml.md)) |
 | Antwortentwürfe und Versand | Entwürfe erzeugt das Modell der Aufgabe `reply_draft` (lokal, solange der Admin keinen Cloud-Provider zuweist; dann erscheint die Aufgabe in der Cloud-Anzeige). Kontext nur aus Mails, die der Nutzer lesen darf (SQL-Filter); Stilbeispiele nur aus den eigenen gesendeten Mails eigener Postfächer, pro Nutzer abschaltbar. Mailinhalte stehen nur als markierte Daten im Prompt. **Nichts wird automatisch gesendet**: Senden ist ein eigener Request des Autors, nur aus eigenen Postfächern (Shared Mailboxes: nur lesen). Empfänger kommen aus den Kopfzeilen, nie vom Modell; Kopfzeilen werden gegen Header-Injection geprüft. Jeder Versand steht im Audit-Log (`mail.sent`, nur IDs und Anzahl Empfänger). Entwürfe, Prompts, Anweisungen und Antworten nie in Logs (nur IDs, Anzahlen, Zeiten, Fehlercodes); SMTP-Serverantworten werden weder geloggt noch weitergegeben |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
 | Aufgaben-Export (#40) | Admin-Opt-in (`OLLAMAIL_TODOS_EXPORT_SINKS`, Standard aus), dann Opt-in je Nutzer unter Einstellungen → Aufgaben-Export; vor dem Verbinden steht, was übertragen wird: Titel, Beschreibung, Fälligkeit, Priorität, Status und ein Link zur Mail, nie Mail-Inhalte. Zugangsdaten verschlüsselt (`EncryptedJSON`), nie an das Frontend zurückgegeben. Nur `https` (außer `OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP`); Anfragen nur an den eingetragenen Server, Weiterleitungen nur dorthin. Jobs nur mit der Ziel-ID; Logs nur IDs, Anzahlen und Fehlercodes, nie Titel oder Serverantworten. Verbinden, Ändern und Trennen im Audit-Log (`todo_export.changed`) |
@@ -311,12 +312,13 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 | Tabelle / Ort | Inhalt (personenbezogen) | Löschung |
 |---|---|---|
 | `users` | E-Mail-Adresse, Anzeigename, Rolle, Sprache, Zeitzone, letzter Login | Konto löschen |
-| `auth_identities` | Anbieter, Kennung beim Anbieter (`sub`, GitHub-ID, LDAP-GUID), Gruppen, Argon2id-Hash | U |
+| `auth_identities` | Anbieter, Kennung beim Anbieter (`sub`, GitHub-ID, LDAP-GUID, SAML-NameID), Gruppen, Argon2id-Hash | U |
 | `auth_sessions` | SHA-256 des Session-Tokens, gekürzte Browser-Kennung, Zeiten | U; abgelaufene stündlich (`auth.cleanup`) |
 | `scim_users`, `scim_group_members` | `userName` und `externalId` beim IdP, Gruppenmitgliedschaften | U |
 | `scim_groups` | Gruppenname und `externalId` (nicht personenbezogen) | per SCIM; Admin |
 | `scim_tokens`, `scim_config` | SHA-256 und Präfix der SCIM-Tokens, Schalter (nicht personenbezogen) | Admin (widerrufen) |
 | `auth_rate_limits` | HMAC von IP bzw. E-Mail-Adresse, Zähler | stündlich (`auth.cleanup`) |
+| `auth_saml_assertions` | SHA-256 von SAML-Provider und Assertion-ID (Replay-Schutz; nicht personenbezogen) | abgelaufene (Gültigkeit höchstens 24 h) beim nächsten SAML-Login |
 | `mail_mailboxes` | Postfachadresse, Anzeigename, Servereinstellungen, Zugangsdaten (verschlüsselt) | U; Postfach entfernen |
 | `mail_folders`, `mail_sync_states` | Ordnernamen, Sync-Cursor, Fehlercodes | P |
 | `mail_threads` | Betreff-Schlüssel, Zeitpunkt der letzten Mail | P; leer nach Aufbewahrung (`privacy.retention`) |
@@ -340,7 +342,7 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 | `privacy_exports` + `<data>/exports/<user_id>/<export_id>.zip` | Status, Größe, Ablaufzeit; ZIP mit allen Daten des Nutzers | U; Ablauf (`privacy.cleanup_exports`); Nutzer |
 | `privacy_retention_settings` | Fristen, Zähler des letzten Laufs (nicht personenbezogen) | – |
 | `audit_events` | Ereignis, Zeitpunkt, Nutzer- bzw. Objekt-ID (pseudonym, ohne Fremdschlüssel), Codes, Zähler | Aufbewahrung Audit-Log (dokumentierte Ausnahme) |
-| `ai_settings`, `ai_providers`, `auth_oidc_providers`, `auth_github_providers`, `auth_ldap_directories` | Instanzkonfiguration, Secrets verschlüsselt | Admin |
+| `ai_settings`, `ai_providers`, `auth_oidc_providers`, `auth_github_providers`, `auth_saml_providers`, `auth_ldap_directories` | Instanzkonfiguration, Secrets verschlüsselt | Admin |
 | `procrastinate_jobs`, `procrastinate_events` | Job-Argumente (nur IDs) | nach 7 Tagen (`worker.remove_old_jobs`) |
 | `<data>/tts/voices/` | Sprachmodelle (nicht personenbezogen) | – |
 | Logs (stdout) | IDs, Codes, Anzahlen, Zeiten; keine Inhalte | Log-Rotation des Hosts |

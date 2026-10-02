@@ -1,4 +1,4 @@
-"""Browser flow for redirect providers (OIDC #30, GitHub #31).
+"""Browser flow for redirect providers (OIDC #30, GitHub #31, SAML #94).
 
 ``start_login`` creates ``state``, ``nonce`` and a PKCE ``code_verifier``, stores them in
 a short-lived, encrypted and authenticated cookie (AES-256-GCM, key derived from
@@ -21,7 +21,9 @@ import os
 import re
 import secrets
 import time
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
+from typing import Literal
 
 from authlib.common.security import generate_token
 from cryptography.exceptions import InvalidTag
@@ -128,7 +130,12 @@ def error_redirect(code: str) -> RedirectResponse:
     return RedirectResponse(f"{LOGIN_PAGE}?error={code}", status_code=303)
 
 
-def set_flow_cookie(response: RedirectResponse, settings: Settings, flow: LoginFlow) -> None:
+def set_flow_cookie(
+    response: RedirectResponse,
+    settings: Settings,
+    flow: LoginFlow,
+    samesite: Literal["lax", "none"] = "lax",
+) -> None:
     response.set_cookie(
         FLOW_COOKIE,
         seal(settings, flow),
@@ -136,8 +143,9 @@ def set_flow_cookie(response: RedirectResponse, settings: Settings, flow: LoginF
         path="/",
         secure=settings.auth.cookie_secure,
         httponly=True,
-        # Lax: the callback is a top-level GET navigation coming from the IdP.
-        samesite="lax",
+        # Lax: the callback is a top-level GET navigation coming from the IdP. SAML posts
+        # its response cross-site and needs None (with Secure).
+        samesite=samesite,
     )
 
 
@@ -156,11 +164,13 @@ async def start_login(
     callback_path: str,
     return_to: str | None,
     error_type: type[Exception],
+    samesite: Literal["lax", "none"] = "lax",
 ) -> RedirectResponse:
     """Redirect the browser to the IdP and remember the flow in the cookie.
 
     ``error_type`` is the provider's error (e.g. IdP unreachable); it must carry a static
-    ``code``.
+    ``code``. ``samesite`` is the flow cookie's attribute (``none`` for IdPs that post
+    the response cross-site, like SAML).
     """
     try:
         await service.throttle_ip(db, settings, request)
@@ -188,7 +198,7 @@ async def start_login(
         log.warning("login_failed", provider=provider.name, reason=code)
         return error_redirect(code)
     response = RedirectResponse(url, status_code=303)
-    set_flow_cookie(response, settings, flow)
+    set_flow_cookie(response, settings, flow, samesite)
     return response
 
 
@@ -215,14 +225,17 @@ async def finish_login(
     policy: ProvisioningPolicy,
     *,
     error_type: type[Exception],
+    params: Mapping[str, str] | None = None,
 ) -> RedirectResponse:
     """Validate the callback, provision the user and start the session.
 
     ``error_type`` is the provider's validation error; it must carry a static ``code``.
+    ``params`` are the callback parameters including ``state`` (default: the query
+    string; SAML passes its posted form).
     Failures after a valid ``state`` (a real round trip to the IdP) are audited; callbacks
     without a matching flow cookie are only logged, since anyone can send them.
     """
-    params = dict(request.query_params)
+    params = dict(request.query_params) if params is None else dict(params)
     flow = unseal(settings, request.cookies.get(FLOW_COOKIE))
     state = params.get("state", "")
     if (
