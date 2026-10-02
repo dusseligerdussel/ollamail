@@ -178,6 +178,7 @@ async def test_providers_lists_registered_external_providers(
     assert (await client.get("/auth/providers")).json() == {
         "local_login": True,
         "local_registration": False,
+        "passkey_login": False,
         "providers": [],
     }
 

@@ -4,12 +4,17 @@ import uuid
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request, Response, status
+from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.auth import service
 from app.auth import sessions as session_store
 from app.auth.dependencies import CurrentSessionDep, CurrentUserDep, SettingsDep
+from app.auth.mfa import service as mfa_service
+from app.auth.mfa.passkeys import relying_party
+from app.auth.mfa.router import second_step as mfa_second_step
+from app.auth.mfa.schemas import MfaChallenge
 from app.auth.models import LOCAL_PROVIDER
 from app.auth.passwords import hash_password
 from app.auth.policy import local_login_enabled
@@ -117,6 +122,7 @@ async def providers(request: Request, db: DbDep, settings: SettingsDep) -> AuthP
     return AuthProviders(
         local_login=local,
         local_registration=local and settings.auth.local_registration,
+        passkey_login=local and relying_party(settings.auth) is not None,
         providers=infos,
     )
 
@@ -131,7 +137,9 @@ def _local_login_disabled() -> ProblemError:
 
 @router.post(
     "/login",
+    response_model=UserRead,
     responses={
+        202: {"model": MfaChallenge, "description": "Password correct, second step needed"},
         401: {"description": "Wrong credentials"},
         403: {"description": "Local login is disabled"},
         **_THROTTLED,
@@ -139,8 +147,11 @@ def _local_login_disabled() -> ProblemError:
 )
 async def login(
     body: LoginRequest, request: Request, response: Response, db: DbDep, settings: SettingsDep
-) -> UserRead:
-    """Sign in with a local account (unless an admin switched local login off)."""
+) -> UserRead | JSONResponse:
+    """Sign in with a local account (unless an admin switched local login off).
+
+    Accounts with a second factor (or that must set one up) get 202 and no session yet;
+    the login continues under ``/auth/mfa`` (app/auth/mfa/router.py)."""
     if not await local_login_enabled(db):
         raise _local_login_disabled()
     await service.throttle_ip(db, settings, request)
@@ -159,6 +170,9 @@ async def login(
         await db.commit()
         raise ProblemError(401, detail="Invalid e-mail address or password.")
     await service.reset_account_throttle(db, settings, body.email)
+    step = await mfa_service.login_step(db, user)
+    if step is not None:
+        return await mfa_second_step(db, settings, request, user, step)
     await audit.record(
         db,
         audit.Actor.user(user.id),

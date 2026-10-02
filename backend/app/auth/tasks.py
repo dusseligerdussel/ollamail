@@ -3,6 +3,7 @@
 from datetime import timedelta
 
 from app.auth import rate_limit
+from app.auth.mfa.pending import purge_expired as purge_pending_logins
 from app.auth.sessions import purge_expired_sessions
 from app.core.config import get_settings
 from app.core.db import Database
@@ -15,7 +16,8 @@ log = get_logger(__name__)
 @app.periodic(cron="41 * * * *", periodic_id="auth_cleanup")
 @app.task(name="auth.cleanup", queue="default", queueing_lock="auth.cleanup")
 async def cleanup(timestamp: int) -> None:
-    """Hourly: delete expired/idle sessions and finished rate-limit windows."""
+    """Hourly: delete expired/idle sessions, finished rate-limit windows and expired
+    pending logins (second factor)."""
     settings = get_settings()
     database = Database(settings.database)
     try:
@@ -23,7 +25,10 @@ async def cleanup(timestamp: int) -> None:
             sessions = await purge_expired_sessions(db, settings.auth)
             window = timedelta(minutes=settings.auth.login_window_minutes)
             counters = await rate_limit.purge(db, window)
+            pending = await purge_pending_logins(db)
             await db.commit()
     finally:
         await database.dispose()
-    log.info("auth_cleanup_finished", sessions=sessions, rate_limits=counters)
+    log.info(
+        "auth_cleanup_finished", sessions=sessions, rate_limits=counters, pending_logins=pending
+    )

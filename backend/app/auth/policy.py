@@ -16,7 +16,7 @@ from dataclasses import dataclass
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import AuthPolicy, RoleMappingRule
+from app.auth.models import AuthPolicy, MfaEnforcement, RoleMappingRule
 from app.users.models import UserRole
 
 # Higher wins when several rules match.
@@ -39,7 +39,11 @@ async def get_policy(db: AsyncSession) -> AuthPolicy:
     """The stored policy, or an unsaved one with the defaults."""
     policy = await db.scalar(select(AuthPolicy))
     if policy is None:
-        policy = AuthPolicy(local_login_enabled=True, role_mapping_enabled=False)
+        policy = AuthPolicy(
+            local_login_enabled=True,
+            role_mapping_enabled=False,
+            mfa_enforcement=MfaEnforcement.OFF,
+        )
         policy.default_role = UserRole.USER
     return policy
 

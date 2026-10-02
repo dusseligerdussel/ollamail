@@ -6,6 +6,7 @@ Modules add their commands to ``cli`` with ``@cli.command()``. In the containers
 """
 
 import asyncio
+from dataclasses import dataclass
 from typing import TYPE_CHECKING, Annotated
 
 import typer
@@ -177,9 +178,21 @@ class _ResetError(Exception):
     pass
 
 
-async def _reset_password(email: str, password: str, *, activate: bool) -> bool:
+@dataclass(frozen=True)
+class _ResetResult:
+    local_login_enabled: bool
+    # Second factors were removed (--reset-2fa).
+    mfa_reset: bool
+    # Second factors exist and were kept (no --reset-2fa).
+    mfa_kept: bool
+
+
+async def _reset_password(
+    email: str, password: str, *, activate: bool, reset_mfa: bool = False
+) -> _ResetResult:
     from sqlalchemy import delete, select
 
+    from app.auth.mfa import service as mfa_service
     from app.auth.models import LOCAL_PROVIDER, Identity, Invitation
     from app.auth.passwords import hash_password
     from app.auth.rate_limit import reset as reset_counter
@@ -231,9 +244,28 @@ async def _reset_password(email: str, password: str, *, activate: bool) -> bool:
                 target,
                 {"via": "cli", "sessions": sessions},
             )
+            mfa_reset = mfa_kept = False
+            if reset_mfa:
+                removed = await mfa_service.reset_all(db, user.id)
+                mfa_reset = bool(removed["totp"] or removed["passkeys"])
+                if mfa_reset or removed["recovery_codes"]:
+                    await audit.record(
+                        db,
+                        audit.SYSTEM,
+                        audit.AuditAction.MFA_DISABLED,
+                        target,
+                        {
+                            "via": "cli",
+                            "totp": removed["totp"],
+                            "passkeys": removed["passkeys"],
+                            "recovery_codes": removed["recovery_codes"],
+                        },
+                    )
+            else:
+                mfa_kept = (await mfa_service.factors(db, user.id)).any
             enabled = await _enable_local_login(db)
             await db.commit()
-            return enabled
+            return _ResetResult(enabled, mfa_reset, mfa_kept)
     finally:
         await database.dispose()
 
@@ -245,11 +277,19 @@ def reset_password_command(
     activate: Annotated[
         bool, typer.Option("--activate", help="Reactivate the user if deactivated.")
     ] = False,
+    reset_2fa: Annotated[
+        bool,
+        typer.Option(
+            "--reset-2fa",
+            help="Also remove passkeys, authenticator app and recovery codes (audit-logged).",
+        ),
+    ] = False,
 ) -> None:
     """Set a new local password (emergency access), also for users who sign in via SSO.
 
     Ends the user's sessions, clears the login lockout and switches local login back on
-    if it was disabled. The role is not changed; use create-admin for a new admin.
+    if it was disabled. The role is not changed; use create-admin for a new admin. Second
+    factors stay unless --reset-2fa is given.
     """
     from app.core.errors import ProblemError
     from app.users.schemas import normalize_email
@@ -258,7 +298,9 @@ def reset_password_command(
     try:
         normalized = normalize_email(email)
         check_password_policy(get_settings().auth, password)
-        enabled = asyncio.run(_reset_password(normalized, password, activate=activate))
+        result = asyncio.run(
+            _reset_password(normalized, password, activate=activate, reset_mfa=reset_2fa)
+        )
     except ValueError:
         typer.echo("Invalid input: email", err=True)
         raise typer.Exit(code=1) from None
@@ -269,7 +311,14 @@ def reset_password_command(
         typer.echo(f"Could not reset the password: {exc}", err=True)
         raise typer.Exit(code=1) from None
     typer.echo("Password set; the user's sessions have ended.")
-    if enabled:
+    if result.mfa_reset:
+        typer.echo("Two-factor authentication has been removed.")
+    elif result.mfa_kept:
+        typer.echo(
+            "Two-factor authentication is still active; add --reset-2fa if the user "
+            "lost their second factor and recovery codes."
+        )
+    if result.local_login_enabled:
         typer.echo(_LOCAL_LOGIN_ENABLED)
 
 

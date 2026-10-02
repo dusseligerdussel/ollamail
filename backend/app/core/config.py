@@ -348,6 +348,14 @@ class AuthSettings(BaseSettings):
     oidc_metadata_cache_seconds: int = Field(default=3600, ge=0)
     # Validity of invitation links for local accounts (admin user list), in hours.
     invitation_lifetime_hours: int = Field(default=7 * 24, ge=1, le=90 * 24)
+    # Second factor for local accounts (app/auth/mfa): minutes between the password and the
+    # second factor (or enrolling one) before the login has to start over.
+    mfa_pending_minutes: int = Field(default=5, ge=1, le=30)
+    # Passkeys (WebAuthn): relying party ID (the domain, e.g. mail.example.org) and the
+    # origins the browser may report (JSON list, e.g. ["https://mail.example.org"]).
+    # Unset: both derived from public_url. Without either, passkeys are unavailable.
+    webauthn_rp_id: str | None = None
+    webauthn_origins: list[str] = Field(default_factory=list)
 
     @field_validator("public_url")
     @classmethod
@@ -359,6 +367,26 @@ class AuthSettings(BaseSettings):
         if scheme not in {"https", "http"} or not rest or any(c in rest for c in "?#@"):
             raise ValueError("must be an http(s) URL like https://mail.example.org")
         return value
+
+    @field_validator("webauthn_rp_id")
+    @classmethod
+    def _check_rp_id(cls, value: str | None) -> str | None:
+        if not value or not value.strip():
+            return None
+        value = value.strip().lower()
+        if any(c in value for c in "/:?#@ "):
+            raise ValueError("must be a domain like mail.example.org")
+        return value
+
+    @field_validator("webauthn_origins")
+    @classmethod
+    def _check_origins(cls, value: list[str]) -> list[str]:
+        origins = [origin.strip().rstrip("/") for origin in value if origin.strip()]
+        for origin in origins:
+            scheme, _, rest = origin.partition("://")
+            if scheme not in {"https", "http"} or not rest or any(c in rest for c in "/?#@"):
+                raise ValueError("origins must look like https://mail.example.org")
+        return origins
 
     @model_validator(mode="after")
     def _idle_within_lifetime(self) -> "AuthSettings":
