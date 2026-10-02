@@ -508,6 +508,10 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   `OLLAMAIL_PROCESSING_LLM_TIMEOUT_ATTEMPTS` Versuche, Standard 2, danach `failed` mit Code
   `llm_timeout_error`); Lock-Keys pro Ressource (`resource_lock("mailbox", id)` als `lock`/`queueing_lock`);
   Periodic Tasks per `@app.periodic(cron=...)`. Task-Module werden in `TASK_MODULES` eingetragen.
+- **Hängende Jobs:** `worker.retry_stalled_jobs` (alle 5 Minuten) reiht Jobs im Status `doing`
+  erneut ein, deren Worker seit `OLLAMAIL_WORKER_STALLED_AFTER_SECONDS` keinen Heartbeat
+  gesendet hat (Procrastinate `get_stalled_jobs`/`retry_job`); so gibt ein abgestürzter Worker
+  auch die Locks seiner Jobs frei.
 - **Housekeeping:** täglicher Job `worker.remove_old_jobs` löscht abgeschlossene Jobs nach 7 Tagen.
   Aufbewahrungsfristen setzen `privacy.retention` (täglich), `digest.cleanup` (stündlich) und
   `rag.purge_conversations` (täglich) mit den Werten aus Admin → Aufbewahrung durch
@@ -565,6 +569,20 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Status:** `pending` → `running` → `done` bzw. `failed`. Ein fehlgeschlagener Versuch, der
   wiederholt wird, steht wieder auf `pending` (mit Fehlercode); `failed` heißt „aufgegeben“
   (Retries erschöpft oder `StepError(code, permanent=True)`). Gespeichert werden nur Fehlercodes.
+- **Automatische Wiederholung:** War der Grund vorübergehend (`LLMUnavailableError`,
+  `ModelNotAvailableError`, begrenzt `LLMTimeoutError`), setzt `fail_step` `retry_at`;
+  `processing.retry_failed` (alle 5 Minuten) setzt fällige Schritte wieder auf `pending`
+  (`auto_retries` + 1) und reiht die Mails mit `REPROCESS` ein. Abstand wächst exponentiell
+  (`OLLAMAIL_PROCESSING_AUTO_RETRY_*`), Erfolg oder Zurücksetzen setzt den Zähler zurück. Ein
+  fehlendes Modell wird nicht sofort wiederholt, sondern nur so.
+- **Circuit-Breaker:** Das LLM-Gateway des Workers (`app/ai/llm/circuit.py`) pausiert einen
+  Endpunkt nach `OLLAMAIL_PROCESSING_LLM_BREAKER_THRESHOLD` Aufrufen in Folge, die an
+  Nichterreichbarkeit scheitern, und wirft dann sofort `LLMCircuitOpenError`. `run_step` setzt
+  den Schritt dann zurück auf `pending` (ohne einen Versuch zu verbrauchen) und plant einen neuen
+  Job nach Ablauf der Pause. Nach der Pause prüft ein einzelner Aufruf den Endpunkt.
+- **Zählen:** `count_steps_by_mailbox` liefert `StepCounts(pending, running, failed,
+  retry_scheduled)` je Postfach (Systemstatus), `reset_failed_steps` setzt fehlgeschlagene
+  Schritte eines Postfachs zurück.
 - **Versionen:** Erhöht ein Schritt seine `version` (z. B. neuer Prompt), reiht der periodische Job
   `processing.requeue_outdated` (alle 10 Minuten, `OLLAMAIL_PROCESSING_REQUEUE_BATCH_SIZE` Mails,
   neueste zuerst) die betroffenen Mails ein; nur dieser Schritt läuft erneut. Derselbe Job holt Mails

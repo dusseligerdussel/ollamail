@@ -76,6 +76,13 @@ config:
   # OLLAMAIL_LLM_PROVIDER: openai_compatible
   # OLLAMAIL_LLM_BASE_URL: http://vllm.llm.svc.cluster.local:8000/v1
   # OLLAMAIL_LLM_PROFILE: cpu
+  # Recovery from outages (docs/OPERATIONS.md, section 8.1); defaults shown:
+  # OLLAMAIL_WORKER_STALLED_AFTER_SECONDS: "120"
+  # OLLAMAIL_PROCESSING_AUTO_RETRY_ATTEMPTS: "6"
+  # OLLAMAIL_PROCESSING_AUTO_RETRY_DELAY_MINUTES: "15"
+  # OLLAMAIL_PROCESSING_AUTO_RETRY_TIMEOUT_ATTEMPTS: "1"
+  # OLLAMAIL_PROCESSING_LLM_BREAKER_THRESHOLD: "3"
+  # OLLAMAIL_PROCESSING_LLM_BREAKER_COOLDOWN_SECONDS: "30"
 
 # Additional environment variables (EnvVar objects) for api, worker and the migration job.
 extraEnv: []

@@ -448,6 +448,18 @@ class ProcessingSettings(BaseSettings):
     # message (other errors keep the normal backoff). Keeps one mail from blocking the
     # LLM slot again and again; reprocessing runs it again.
     llm_timeout_attempts: int = Field(default=2, ge=1, le=8)
+    # Automatic retries of a step that failed for a passing reason (LLM unreachable,
+    # model missing): the first after ``auto_retry_delay_minutes``, then twice as long
+    # each time (at most a day). 0 = only reprocessing runs failed steps again.
+    auto_retry_attempts: int = Field(default=6, ge=0, le=20)
+    auto_retry_delay_minutes: int = Field(default=15, ge=1)
+    # Automatic retries of a step whose LLM call timed out (likely to time out again).
+    auto_retry_timeout_attempts: int = Field(default=1, ge=0, le=20)
+    # Consecutive failed calls to an unreachable LLM endpoint after which the worker stops
+    # calling it for ``llm_breaker_cooldown_seconds`` (doubling while it stays down, at
+    # most 16 times as long). Steps wait without using up their attempts meanwhile.
+    llm_breaker_threshold: int = Field(default=3, ge=1)
+    llm_breaker_cooldown_seconds: float = Field(default=30.0, gt=0)
 
 
 class TriageSettings(BaseSettings):
@@ -672,6 +684,9 @@ class WorkerSettings(BaseSettings):
     concurrency: int = Field(default=4, ge=1)
     # Seconds running jobs get to finish after SIGTERM before they are cancelled.
     shutdown_timeout: float = Field(default=30.0, ge=0)
+    # A running job whose worker sent no heartbeat for this long (killed, OOM) is put back
+    # into the queue by a periodic job (every 5 minutes). Workers send one every 10 s.
+    stalled_after_seconds: float = Field(default=120.0, ge=30)
 
     @field_validator("queues", mode="before")
     @classmethod
