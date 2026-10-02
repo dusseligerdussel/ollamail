@@ -546,6 +546,30 @@
         "title": "ActorKind",
         "type": "string"
       },
+      "AddressRead": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "title": "AddressRead",
+        "type": "object"
+      },
       "AnswerStatus": {
         "enum": [
           "answered",
@@ -688,6 +712,47 @@
           "question"
         ],
         "title": "AskRequest",
+        "type": "object"
+      },
+      "AttachmentRead": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_inline": {
+            "title": "Is Inline",
+            "type": "boolean"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "content_type",
+          "size",
+          "is_inline"
+        ],
+        "title": "AttachmentRead",
         "type": "object"
       },
       "AuditAction": {
@@ -3389,6 +3454,39 @@
         "title": "MailboxDeleted",
         "type": "object"
       },
+      "MailboxProviderRead": {
+        "description": "A mailbox type that can be added on this instance.",
+        "properties": {
+          "connect": {
+            "enum": [
+              "credentials",
+              "oauth"
+            ],
+            "title": "Connect",
+            "type": "string"
+          },
+          "oauth_start_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Start Path"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MailboxType"
+          }
+        },
+        "required": [
+          "type",
+          "connect"
+        ],
+        "title": "MailboxProviderRead",
+        "type": "object"
+      },
       "MailboxRead": {
         "properties": {
           "address": {
@@ -3618,6 +3716,283 @@
           }
         },
         "title": "MailboxUpdate",
+        "type": "object"
+      },
+      "MessageBody": {
+        "description": "Sanitised HTML of a message. External images are removed unless requested.",
+        "properties": {
+          "blocked_images": {
+            "title": "Blocked Images",
+            "type": "integer"
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          }
+        },
+        "required": [
+          "html",
+          "blocked_images"
+        ],
+        "title": "MessageBody",
+        "type": "object"
+      },
+      "MessageDetail": {
+        "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentRead"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "body": {
+            "$ref": "#/components/schemas/MessageBody"
+          },
+          "cc": {
+            "items": {
+              "$ref": "#/components/schemas/AddressRead"
+            },
+            "title": "Cc",
+            "type": "array"
+          },
+          "date": {
+            "format": "date-time",
+            "title": "Date",
+            "type": "string"
+          },
+          "flagged": {
+            "title": "Flagged",
+            "type": "boolean"
+          },
+          "has_attachments": {
+            "title": "Has Attachments",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "reply_to": {
+            "items": {
+              "$ref": "#/components/schemas/AddressRead"
+            },
+            "title": "Reply To",
+            "type": "array"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AddressRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "to": {
+            "items": {
+              "$ref": "#/components/schemas/AddressRead"
+            },
+            "title": "To",
+            "type": "array"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "mailbox_id",
+          "thread_id",
+          "subject",
+          "sender",
+          "snippet",
+          "date",
+          "unread",
+          "flagged",
+          "has_attachments",
+          "to",
+          "cc",
+          "reply_to",
+          "sent_at",
+          "text",
+          "body",
+          "attachments"
+        ],
+        "title": "MessageDetail",
+        "type": "object"
+      },
+      "MessagePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MessageSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "title": "MessagePage",
+        "type": "object"
+      },
+      "MessageSummary": {
+        "description": "One row of the inbox list.",
+        "properties": {
+          "date": {
+            "format": "date-time",
+            "title": "Date",
+            "type": "string"
+          },
+          "flagged": {
+            "title": "Flagged",
+            "type": "boolean"
+          },
+          "has_attachments": {
+            "title": "Has Attachments",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AddressRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "mailbox_id",
+          "thread_id",
+          "subject",
+          "sender",
+          "snippet",
+          "date",
+          "unread",
+          "flagged",
+          "has_attachments"
+        ],
+        "title": "MessageSummary",
+        "type": "object"
+      },
+      "MessageUpdate": {
+        "properties": {
+          "seen": {
+            "title": "Seen",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "seen"
+        ],
+        "title": "MessageUpdate",
         "type": "object"
       },
       "OIDCPreset": {
@@ -4988,6 +5363,47 @@
           "blocked"
         ],
         "title": "TaskSettingRead",
+        "type": "object"
+      },
+      "ThreadRead": {
+        "description": "A conversation, oldest message first. A message without thread is its own thread.",
+        "properties": {
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessageDetail"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          }
+        },
+        "required": [
+          "thread_id",
+          "mailbox_id",
+          "subject",
+          "messages"
+        ],
+        "title": "ThreadRead",
         "type": "object"
       },
       "TlsMode": {
@@ -8461,6 +8877,35 @@
         ]
       }
     },
+    "/mailboxes/providers": {
+      "get": {
+        "description": "Mailbox types that can be added on this instance and how they are connected.\nOAuth types appear only if their OAuth client is configured.",
+        "operationId": "mailboxes_list_mailbox_providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxProviderRead"
+                  },
+                  "title": "Response Mailboxes List Mailbox Providers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Mailbox Providers",
+        "tags": [
+          "mailboxes"
+        ]
+      }
+    },
     "/mailboxes/test": {
       "post": {
         "description": "Connect and list the folders without saving anything. A failed test is a normal\nresult (``ok: false`` with an error code), not an HTTP error.",
@@ -8863,6 +9308,355 @@
         "summary": "Sync Mailbox",
         "tags": [
           "mailboxes"
+        ]
+      }
+    },
+    "/messages": {
+      "get": {
+        "description": "Messages of the user's mailboxes, newest first, one row per message. Pages with\n``cursor``; ``total`` counts all matching messages.",
+        "operationId": "messages_list_messages",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mailbox_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mailbox Id"
+            }
+          },
+          {
+            "description": "Default: the inbox folders of all mailboxes",
+            "in": "query",
+            "name": "folder_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: the inbox folders of all mailboxes",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "description": "Only unread (true) or read (false)",
+            "in": "query",
+            "name": "unread",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only unread (true) or read (false)",
+              "title": "Unread"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Invalid cursor"
+          }
+        },
+        "summary": "List Messages",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}": {
+      "patch": {
+        "description": "Mark read or unread. Stored at once, written back to the server by a job.",
+        "operationId": "messages_update_message",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Message",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}/attachments/{attachment_id}": {
+      "get": {
+        "description": "The attachment file. Downloaded (``Content-Disposition: attachment``) unless\n``inline=true`` and it is a raster image (for ``cid:`` images in the mail).",
+        "operationId": "messages_download_attachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "inline",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Inline",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Attachment",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}/body": {
+      "get": {
+        "description": "Sanitised HTML; with ``external_images=true`` remote images are kept (the user\nchose to load them for this message).",
+        "operationId": "messages_get_message_body",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "external_images",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "External Images",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageBody"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Message Body",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}/thread": {
+      "get": {
+        "description": "The conversation of a message, oldest first (at most the newest 100 messages).\nHTML comes sanitised with external images removed.",
+        "operationId": "messages_get_thread",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Thread",
+        "tags": [
+          "messages"
         ]
       }
     },

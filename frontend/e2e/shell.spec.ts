@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
 import { type MockApi, mockApi } from "./mock-api";
+import { mockMail } from "./mock-mail";
 
 const pages = ["/inbox", "/tasks", "/digest", "/search", "/settings", "/admin"] as const;
 
@@ -16,6 +17,7 @@ const statePages: [string, MockApi][] = [
 // Runs without a backend: the API is mocked (signed-in admin unless a test says otherwise).
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
+  await mockMail(page);
 });
 
 async function expectNoA11yViolations(page: Page) {
