@@ -31,7 +31,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
 | Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
 | Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
-| Audit-Log | Append-only und hash-verkettet: Login (Erfolg/Fehlschlag), Logout, Setup, Session-Widerruf, zweiter Faktor, Nutzer angelegt, Rollenänderung, IdP- und KI-Einstellungen, Postfach angelegt/entfernt/freigegeben, Export, Löschung, Key-Rotation. Nur IDs und Codes, keine Inhalte (siehe unten) |
+| Audit-Log | Append-only und hash-verkettet: Login (Erfolg/Fehlschlag), Logout, Setup, Session-Widerruf, zweiter Faktor, Nutzer angelegt/geändert (SCIM), Rollenänderung, SCIM-Gruppen und -Mitgliedschaften, IdP- und KI-Einstellungen, Postfach angelegt/entfernt/freigegeben, Export, Löschung, Key-Rotation. Nur IDs und Codes, keine Inhalte (siehe unten) |
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Zweiter Faktor | TOTP-Secret verschlüsselt (`EncryptedStr`), Wiederherstellungscodes nur als HMAC, Passkeys nur mit öffentlichem Schlüssel und Credential-ID (keine biometrischen Daten, keine Attestation). Der Zwischenzustand nach dem Passwort speichert nur den SHA-256 seines Cookies und wird nach wenigen Minuten bzw. stündlich gelöscht. Rate-Limit und Sperre auch für den zweiten Schritt ([`auth/mfa.md`](auth/mfa.md)) |
@@ -294,6 +294,9 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 | `auth_sessions` | SHA-256 des Session-Tokens, gekürzte Browser-Kennung, Zeiten | U; abgelaufene stündlich (`auth.cleanup`) |
 | `auth_mfa_totp`, `auth_mfa_passkeys`, `auth_mfa_recovery_codes` | TOTP-Secret (verschlüsselt), Passkey (Credential-ID, öffentlicher Schlüssel, Name, Zähler), HMACs der Wiederherstellungscodes | U |
 | `auth_mfa_pending` | SHA-256 des Zwischenzustands nach dem Passwort, ggf. WebAuthn-Challenge | U; nach wenigen Minuten ungültig, stündlich gelöscht (`auth.cleanup`) |
+| `scim_users`, `scim_group_members` | `userName` und `externalId` beim IdP, Gruppenmitgliedschaften | U |
+| `scim_groups` | Gruppenname und `externalId` (nicht personenbezogen) | per SCIM; Admin |
+| `scim_tokens`, `scim_config` | SHA-256 und Präfix der SCIM-Tokens, Schalter (nicht personenbezogen) | Admin (widerrufen) |
 | `auth_rate_limits` | HMAC von IP bzw. E-Mail-Adresse, Zähler | stündlich (`auth.cleanup`) |
 | `mail_mailboxes` | Postfachadresse, Anzeigename, Servereinstellungen, Zugangsdaten (verschlüsselt) | U; Postfach entfernen |
 | `mail_folders`, `mail_sync_states` | Ordnernamen, Sync-Cursor, Fehlercodes | P |

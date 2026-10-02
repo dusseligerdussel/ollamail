@@ -1,0 +1,117 @@
+{{- if .Values.networkPolicy.enabled }}
+{{- $root := . }}
+# api: only reachable from the frontend (which proxies /api).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ollamail.fullname" . }}-api
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" . "component" "api") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ollamail.componentSelectorLabels" (dict "root" . "component" "api") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              {{- include "ollamail.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 14 }}
+      ports:
+        - port: http
+          protocol: TCP
+---
+# worker: no inbound connections.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ollamail.fullname" . }}-worker
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" . "component" "worker") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ollamail.componentSelectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
+  policyTypes: [Ingress]
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ollamail.fullname" . }}-frontend
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ollamail.componentSelectorLabels" (dict "root" . "component" "frontend") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - ports:
+        - port: http
+          protocol: TCP
+      {{- with .Values.networkPolicy.frontend.from }}
+      from:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+{{- if .Values.ollama.enabled }}
+---
+# ollama: only api and worker.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ollamail.fullname" . }}-ollama
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" . "component" "ollama") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ollamail.componentSelectorLabels" (dict "root" . "component" "ollama") | nindent 6 }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range $component := list "api" "worker" }}
+        - podSelector:
+            matchLabels:
+              {{- include "ollamail.componentSelectorLabels" (dict "root" $root "component" $component) | nindent 14 }}
+        {{- end }}
+      ports:
+        - port: http
+          protocol: TCP
+{{- end }}
+{{- if .Values.networkPolicy.egress.enabled }}
+{{- range $component := list "api" "worker" "migrate" }}
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ollamail.fullname" $root }}-{{ $component }}-egress
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" $root "component" $component) | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      {{- include "ollamail.componentSelectorLabels" (dict "root" $root "component" $component) | nindent 6 }}
+  policyTypes: [Egress]
+  egress:
+    # DNS
+    - to:
+        - namespaceSelector: {}
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - port: 53
+          protocol: UDP
+        - port: 53
+          protocol: TCP
+    # Pods of this release (e.g. the bundled Ollama).
+    - to:
+        - podSelector:
+            matchLabels:
+              {{- include "ollamail.selectorLabels" $root | nindent 14 }}
+    {{- with $root.Values.networkPolicy.egress.extraRules }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}
+{{- end }}

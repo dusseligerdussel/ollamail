@@ -857,7 +857,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   (Entra-Gruppen, LDAP-Gruppen, GitHub-Teams); Domain-Allowlist.
 - **Sessions**: serverseitig in Postgres, `HttpOnly`/`Secure`/`SameSite=Lax`-Cookie, CSRF-Schutz.
   Keine JWTs im Browser-Storage.
-- Optional später: SCIM-Provisioning, TOTP/WebAuthn für lokale Accounts.
+- **SCIM-Provisioning** (Entra ID, Okta): IdP legt Nutzer an, deaktiviert/löscht sie und pflegt Gruppen.
+- Optional später: TOTP/WebAuthn für lokale Accounts.
 
 ### Umsetzung (`backend/app/auth/`, `backend/app/users/`)
 
@@ -931,6 +932,18 @@ Gruppen→Rollen-Zuordnung (`auth_role_mapping_rules`, ausgewertet in `provision
 externen Login), Nutzerverwaltung (Rolle, Deaktivierung, Sitzungen, Einladungen in
 `auth_invitations`). `app/auth/admin_access.py` erzwingt serverseitig, dass mindestens ein
 aktiver Admin einen funktionierenden Zugang behält (409 `admin-lockout`).
+
+**SCIM 2.0** (#95, `app/scim/`, Anleitung: [`auth/scim.md`](auth/scim.md)): `/api/scim/v2`
+mit `Users`, `Groups`, `ServiceProviderConfig`, `Schemas`, `ResourceTypes` (RFC 7643/7644,
+Filter `eq`/`and` und PATCH-Varianten von Entra ID und Okta). Bearer-Tokens aus dem Admin-Bereich
+(`scim_tokens`, nur SHA-256, widerrufbar, Rate-Limit je Token und je IP), Schalter und
+Linking-Anbieter in `scim_config`. Provisionierte Nutzer: `scim_users` (`userName`,
+`externalId`; SCIM-ID = Nutzer-ID) plus eine Identität `scim`, in deren `groups` die SCIM-Gruppen
+(`scim_groups`, `scim_group_members`; Name und `externalId`) gespiegelt werden – so wirken sie im
+Rollen-Mapping (#33, auch beim Login) und bei Gruppen-Zuweisungen geteilter Postfächer (#34)
+ohne Sonderfall. `active=false` deaktiviert und löscht alle Sessions in einer Transaktion,
+`DELETE` nutzt `app.privacy.deletion.delete_user` (#36); beides mit Lockout-Schutz. Die
+SCIM-Pfade sind vom CSRF-Schutz ausgenommen und nicht im OpenAPI-Dokument.
 
 **Login** (`POST /api/auth/login`): Zuerst zählen zwei Fixed-Window-Zähler in Postgres
 (atomares Upsert, vor der Passwortprüfung committet): pro Client-IP (`OLLAMAIL_AUTH_IP_MAX_ATTEMPTS`)
@@ -1043,6 +1056,7 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 ## 7. Betrieb
 
 - Konfiguration per Env (`OLLAMAIL_*`), dokumentiert in `deploy/.env.example`. Start mit Docker Compose: `deploy/README.md`.
+- Kubernetes: Helm-Chart `deploy/helm/ollamail`, Doku in [`operations/kubernetes.md`](operations/kubernetes.md).
 - Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar).
 - Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional OpenTelemetry-Metriken.
 - Backups: `pg_dump` + Daten-Volume; Doku in [`OPERATIONS.md`](OPERATIONS.md#5-backup-und-restore).

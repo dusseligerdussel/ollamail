@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.mfa.models import Passkey, PendingLogin, RecoveryCode, TotpFactor
@@ -21,6 +21,7 @@ from app.mail.models import Attachment, Mailbox, MailboxAssignment, MailboxType,
 from app.mail.storage import AttachmentStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
 from app.rag.models import RagCitation, RagConversation, RagMessage, RagRole
+from app.scim.models import ScimGroup, ScimUser, scim_group_members
 from app.search.models import ChunkSource, SearchChunk, SearchEmbedding
 from app.todos.models import Todo
 from app.triage.models import (
@@ -222,8 +223,16 @@ async def seed_user_data(
             Invitation(
                 user_id=user_id, token_hash=os.urandom(32), expires_at=NOW + timedelta(days=1)
             ),
+            ScimUser(user_id=user_id, user_name=f"scim-{marker}", external_id=marker),
         ]
     )
+    # Like the shared mailbox, the SCIM group stays when a member is deleted.
+    group = await session.scalar(select(ScimGroup))
+    if group is None:
+        group = ScimGroup(display_name="Team")
+        session.add(group)
+        await session.flush()
+    await session.execute(insert(scim_group_members).values(group_id=group.id, user_id=user_id))
     await session.commit()
     paths = list(
         await session.scalars(

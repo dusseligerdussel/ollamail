@@ -944,6 +944,12 @@
           "user.invited",
           "user.password_set",
           "user.deleted",
+          "user.updated",
+          "group.created",
+          "group.updated",
+          "group.deleted",
+          "group.member_added",
+          "group.member_removed",
           "idp.config_changed",
           "ai.settings_changed",
           "mailbox.created",
@@ -6322,6 +6328,201 @@
         "title": "RoleMappingUpdate",
         "type": "object"
       },
+      "ScimSettingsRead": {
+        "properties": {
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "endpoint_url": {
+            "title": "Endpoint Url",
+            "type": "string"
+          },
+          "link_providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Link Providers",
+            "type": "array"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/ScimStats"
+          },
+          "tokens": {
+            "items": {
+              "$ref": "#/components/schemas/ScimTokenRead"
+            },
+            "title": "Tokens",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "endpoint_url",
+          "link_providers",
+          "tokens",
+          "stats"
+        ],
+        "title": "ScimSettingsRead",
+        "type": "object"
+      },
+      "ScimSettingsUpdate": {
+        "properties": {
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "link_providers": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[a-z0-9][a-z0-9:_.-]{0,63}$",
+                  "type": "string"
+                },
+                "maxItems": 20,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link Providers"
+          }
+        },
+        "title": "ScimSettingsUpdate",
+        "type": "object"
+      },
+      "ScimStats": {
+        "properties": {
+          "active_users": {
+            "title": "Active Users",
+            "type": "integer"
+          },
+          "groups": {
+            "title": "Groups",
+            "type": "integer"
+          },
+          "users": {
+            "title": "Users",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "users",
+          "active_users",
+          "groups"
+        ],
+        "title": "ScimStats",
+        "type": "object"
+      },
+      "ScimTokenCreate": {
+        "properties": {
+          "expires_in_days": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires In Days"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "ScimTokenCreate",
+        "type": "object"
+      },
+      "ScimTokenIssued": {
+        "properties": {
+          "secret": {
+            "title": "Secret",
+            "type": "string"
+          },
+          "token": {
+            "$ref": "#/components/schemas/ScimTokenRead"
+          }
+        },
+        "required": [
+          "token",
+          "secret"
+        ],
+        "title": "ScimTokenIssued",
+        "type": "object"
+      },
+      "ScimTokenRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "hint": {
+            "title": "Hint",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "hint",
+          "created_at",
+          "expires_at",
+          "last_used_at"
+        ],
+        "title": "ScimTokenRead",
+        "type": "object"
+      },
       "SearchFilterParams": {
         "additionalProperties": false,
         "description": "Filters set in the UI; each one narrows the mailboxes the user may read.",
@@ -7028,7 +7229,8 @@
           "session",
           "mailbox",
           "idp",
-          "settings"
+          "settings",
+          "group"
         ],
         "title": "TargetType",
         "type": "string"
@@ -9242,6 +9444,177 @@
         "summary": "Delete User",
         "tags": [
           "privacy"
+        ]
+      }
+    },
+    "/admin/scim": {
+      "get": {
+        "description": "SCIM switch, endpoint URL, tokens (hints only) and counts of provisioned objects.",
+        "operationId": "admin_get_scim_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScimSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "Get Scim Settings",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "Switch SCIM on or off; set the providers that may link logins to SCIM users.",
+        "operationId": "admin_update_scim_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScimSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScimSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Scim Settings",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/scim/tokens": {
+      "post": {
+        "description": "Create a bearer token for an IdP. The secret is only in this response.",
+        "operationId": "admin_create_scim_token",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ScimTokenCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ScimTokenIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Too many tokens"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Scim Token",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/scim/tokens/{token_id}": {
+      "delete": {
+        "description": "Revoke a token; requests with it fail from now on.",
+        "operationId": "admin_revoke_scim_token",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "token_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Token Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such token"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Scim Token",
+        "tags": [
+          "admin"
         ]
       }
     },

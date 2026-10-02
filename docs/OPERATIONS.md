@@ -9,6 +9,7 @@ Backup/Restore, Updates, Datenschutz und Fehlersuche.
 > Dokument mit **geplant (#nr)** markiert und verweist auf das zugehörige Issue.
 
 Referenz für Dienste, Profile, Volumes und Entwicklungsmodus: [`deploy/README.md`](../deploy/README.md).
+Betrieb auf Kubernetes mit dem Helm-Chart: [`operations/kubernetes.md`](operations/kubernetes.md).
 Alle Einstellungen: [`deploy/.env.example`](../deploy/.env.example).
 
 ## Inhalt
@@ -104,6 +105,8 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 Die UI ist unter `http://<host>:8080` erreichbar. Identity-Provider (Entra ID, Google, OIDC,
 LDAP/Active Directory), Rollen-Zuordnung und Nutzer verwaltet der Admin unter Admin → Anmeldung
 bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)).
+Nutzer und Gruppen aus Entra ID oder Okta überträgt SCIM (Admin → SCIM-Provisionierung,
+[`auth/scim.md`](auth/scim.md)).
 
 **Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür

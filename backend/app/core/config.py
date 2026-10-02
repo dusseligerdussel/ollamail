@@ -614,6 +614,19 @@ class PrivacySettings(BaseSettings):
     self_delete_enabled: bool = True
 
 
+class ScimSettings(BaseSettings):
+    """``OLLAMAIL_SCIM_*`` (SCIM 2.0 provisioning, app/scim/)"""
+
+    model_config = _config("SCIM_")
+
+    # Requests per SCIM token and minute; more get 429 with Retry-After.
+    rate_limit_per_minute: int = Field(default=600, ge=1)
+    # Requests with a missing or wrong token per client IP within 15 minutes.
+    failed_auth_per_ip: int = Field(default=20, ge=1)
+    # Largest page of a list request (``count``); also the default page size.
+    max_results: int = Field(default=200, ge=1, le=1000)
+
+
 class Settings(BaseModel):
     """All settings, grouped by concern."""
 
@@ -637,6 +650,7 @@ class Settings(BaseModel):
     triage: TriageSettings = Field(default_factory=TriageSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)
     privacy: PrivacySettings = Field(default_factory=PrivacySettings)
+    scim: ScimSettings = Field(default_factory=ScimSettings)
 
 
 @lru_cache

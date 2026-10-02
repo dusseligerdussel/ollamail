@@ -24,6 +24,7 @@ import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
 import { Route as AdminCategoriesRouteImport } from './routes/admin_.categories'
 import { Route as AdminRetentionRouteImport } from './routes/admin_.retention'
 import { Route as AdminRoleMappingRouteImport } from './routes/admin_.role-mapping'
+import { Route as AdminScimRouteImport } from './routes/admin_.scim'
 import { Route as AdminSharedMailboxesRouteImport } from './routes/admin_.shared-mailboxes'
 import { Route as AdminSignInRouteImport } from './routes/admin_.sign-in'
 import { Route as AdminUsersRouteImport } from './routes/admin_.users'
@@ -110,6 +111,11 @@ const AdminRoleMappingRoute = AdminRoleMappingRouteImport.update({
   path: '/admin/role-mapping',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminScimRoute = AdminScimRouteImport.update({
+  id: '/admin_/scim',
+  path: '/admin/scim',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSharedMailboxesRoute = AdminSharedMailboxesRouteImport.update({
   id: '/admin_/shared-mailboxes',
   path: '/admin/shared-mailboxes',
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/retention': typeof AdminRetentionRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
+  '/admin/scim': typeof AdminScimRoute
   '/admin/shared-mailboxes': typeof AdminSharedMailboxesRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
@@ -205,6 +212,7 @@ export interface FileRoutesByTo {
   '/admin/categories': typeof AdminCategoriesRoute
   '/admin/retention': typeof AdminRetentionRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
+  '/admin/scim': typeof AdminScimRoute
   '/admin/shared-mailboxes': typeof AdminSharedMailboxesRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
@@ -233,6 +241,7 @@ export interface FileRoutesById {
   '/admin_/categories': typeof AdminCategoriesRoute
   '/admin_/retention': typeof AdminRetentionRoute
   '/admin_/role-mapping': typeof AdminRoleMappingRoute
+  '/admin_/scim': typeof AdminScimRoute
   '/admin_/shared-mailboxes': typeof AdminSharedMailboxesRoute
   '/admin_/sign-in': typeof AdminSignInRoute
   '/admin_/users': typeof AdminUsersRoute
@@ -262,6 +271,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/retention'
     | '/admin/role-mapping'
+    | '/admin/scim'
     | '/admin/shared-mailboxes'
     | '/admin/sign-in'
     | '/admin/users'
@@ -289,6 +299,7 @@ export interface FileRouteTypes {
     | '/admin/categories'
     | '/admin/retention'
     | '/admin/role-mapping'
+    | '/admin/scim'
     | '/admin/shared-mailboxes'
     | '/admin/sign-in'
     | '/admin/users'
@@ -316,6 +327,7 @@ export interface FileRouteTypes {
     | '/admin_/categories'
     | '/admin_/retention'
     | '/admin_/role-mapping'
+    | '/admin_/scim'
     | '/admin_/shared-mailboxes'
     | '/admin_/sign-in'
     | '/admin_/users'
@@ -344,6 +356,7 @@ export interface RootRouteChildren {
   AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminRetentionRoute: typeof AdminRetentionRoute
   AdminRoleMappingRoute: typeof AdminRoleMappingRoute
+  AdminScimRoute: typeof AdminScimRoute
   AdminSharedMailboxesRoute: typeof AdminSharedMailboxesRoute
   AdminSignInRoute: typeof AdminSignInRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -463,6 +476,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminRoleMappingRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/scim': {
+      id: '/admin_/scim'
+      path: '/admin/scim'
+      fullPath: '/admin/scim'
+      preLoaderRoute: typeof AdminScimRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/shared-mailboxes': {
       id: '/admin_/shared-mailboxes'
       path: '/admin/shared-mailboxes'
@@ -552,6 +572,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminCategoriesRoute: AdminCategoriesRoute,
   AdminRetentionRoute: AdminRetentionRoute,
   AdminRoleMappingRoute: AdminRoleMappingRoute,
+  AdminScimRoute: AdminScimRoute,
   AdminSharedMailboxesRoute: AdminSharedMailboxesRoute,
   AdminSignInRoute: AdminSignInRoute,
   AdminUsersRoute: AdminUsersRoute,
