@@ -95,6 +95,13 @@ jobs:
           working-directory: backend
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
+      # Keycloak for the SAML integration tests (tests/auth/saml/test_keycloak.py); it
+      # starts while the dependencies install. Not a service: it needs the start-dev command.
+      - name: Start Keycloak
+        run: >-
+          docker run -d --name keycloak -p 8180:8080
+          -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+          quay.io/keycloak/keycloak:26.6.0 start-dev
       - name: Install dependencies
         run: uv sync --locked
       # LDAP integration tests start their own slapd (tests/auth/ldap/slapd.py). The package
@@ -112,10 +119,13 @@ jobs:
         run: uv run ruff format --check .
       - name: Typecheck
         run: uv run mypy app
+      - name: Wait for Keycloak
+        run: timeout 180 bash -c 'until curl -sf http://localhost:8180/realms/master >/dev/null; do sleep 2; done'
       - name: Test
         run: uv run pytest
         env:
           OLLAMAIL_TEST_REQUIRE_LDAP: "1"
+          OLLAMAIL_TEST_REQUIRE_KEYCLOAK: "1"
 
   frontend:
     name: Frontend
