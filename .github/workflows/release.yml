@@ -3,9 +3,12 @@ name: Release
 # Builds the multi-arch (amd64/arm64) images and pushes them to GHCR:
 #   - tag v*         -> semver tags (+ latest for stable releases) and a GitHub release
 #   - nightly        -> edge, only if backend/, frontend/ or this workflow changed on main
-#                       in the last 25 hours (an arm64 build under QEMU costs many runner
-#                       minutes, so it no longer runs on every merge)
+#                       in the last 25 hours
 #   - manual run     -> build and scan only; pushes a branch tag if `push` is checked
+#
+# Each platform builds natively on its own runner (arm64 on ubuntu-24.04-arm, no QEMU) and
+# pushes its image by digest; a merge job per image then creates the multi-arch manifest
+# with the tags below.
 on:
   push:
     tags: ["v*"]
@@ -28,7 +31,16 @@ permissions:
 
 env:
   REGISTRY: ghcr.io
-  PLATFORMS: linux/amd64,linux/arm64
+  PUSH: ${{ github.event_name == 'push' || github.event_name == 'schedule' || inputs.push == true }}
+  # Image tags, used by the merge job (and for the version label of the platform images).
+  # latest=auto: only for stable semver tags, never for pre-releases such as v0.0.1-test.
+  IMAGE_TAGS: |
+    type=semver,pattern={{version}}
+    type=semver,pattern={{major}}.{{minor}}
+    type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
+    type=edge,branch=main
+    type=ref,event=branch,enable=${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' }}
+    type=sha
 
 jobs:
   # Nightly runs only build when main changed since the previous night; other events always do.
@@ -62,24 +74,33 @@ jobs:
           fi
 
   images:
-    name: Image (${{ matrix.image }})
+    name: Image (${{ matrix.image }}, ${{ matrix.arch }})
     needs: changes
     if: needs.changes.outputs.build == 'true'
-    runs-on: ubuntu-latest
-    timeout-minutes: 60
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
     permissions:
       contents: read
       packages: write
     strategy:
       fail-fast: false
       matrix:
+        image: [api, frontend]
+        arch: [amd64, arm64]
         include:
           - image: api
             context: backend
           - image: frontend
             context: frontend
+          # The amd64 cache scopes are shared with the Compose smoke test in ci.yml.
+          - arch: amd64
+            runner: ubuntu-latest
+            cache-suffix: ""
+          - arch: arm64
+            runner: ubuntu-24.04-arm
+            cache-suffix: "-arm64"
     env:
-      PUSH: ${{ github.event_name == 'push' || github.event_name == 'schedule' || inputs.push }}
+      CACHE_SCOPE: ${{ matrix.image }}${{ matrix.cache-suffix }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -93,39 +114,31 @@ jobs:
         # GHCR requires lowercase repository names.
         run: echo "image=${REGISTRY}/${OWNER,,}/ollamail-${IMAGE}" >> "$GITHUB_OUTPUT"
 
-      - uses: docker/setup-qemu-action@99012661954931238ded8c8b007157a8430204e1 # v4.4.0
-        with:
-          platforms: arm64
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
 
       - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
         id: meta
         with:
           images: ${{ steps.name.outputs.image }}
-          # latest=auto: only for stable semver tags, never for pre-releases such as v0.0.1-test.
-          tags: |
-            type=semver,pattern={{version}}
-            type=semver,pattern={{major}}.{{minor}}
-            type=semver,pattern={{major}},enable=${{ !startsWith(github.ref, 'refs/tags/v0.') }}
-            type=edge,branch=main
-            type=ref,event=branch,enable=${{ github.event_name == 'workflow_dispatch' && github.ref != 'refs/heads/main' }}
-            type=sha
+          tags: ${{ env.IMAGE_TAGS }}
           labels: |
             org.opencontainers.image.title=ollamail-${{ matrix.image }}
+          annotations: |
+            org.opencontainers.image.title=ollamail-${{ matrix.image }}
 
-      # Scan before anything is pushed: build the amd64 variant into the local Docker daemon
-      # and fail on fixable critical CVEs. The multi-arch build below reuses the cache.
+      # Scan before anything is pushed: build the image into the local Docker daemon and fail
+      # on fixable critical CVEs. The build below reuses the cache.
       - name: Build for scan
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.context }}
-          platforms: linux/amd64
+          platforms: linux/${{ matrix.arch }}
           load: true
           provenance: false
           sbom: false
           tags: ollamail-${{ matrix.image }}:scan
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
 
       - name: Trivy scan
         uses: aquasecurity/trivy-action@ed142fd0673e97e23eac54620cfb913e5ce36c25 # v0.36.0
@@ -146,24 +159,133 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
+      # Pushed by digest only (no tags); the merge job assembles and tags the manifest list.
       # SBOM and SLSA provenance are attached to the image as BuildKit attestations.
-      - name: Build and push
+      - name: Build and push by digest
+        id: build
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
           context: ${{ matrix.context }}
-          platforms: ${{ env.PLATFORMS }}
-          push: ${{ env.PUSH == 'true' }}
+          platforms: linux/${{ matrix.arch }}
+          outputs: type=image,name=${{ steps.name.outputs.image }},push-by-digest=true,name-canonical=true,push=${{ env.PUSH }}
           sbom: true
           provenance: mode=max
-          tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           annotations: ${{ steps.meta.outputs.annotations }}
-          cache-from: type=gha,scope=${{ matrix.image }}
-          cache-to: type=gha,mode=max,scope=${{ matrix.image }}
+          cache-from: type=gha,scope=${{ env.CACHE_SCOPE }}
+          cache-to: type=gha,mode=max,scope=${{ env.CACHE_SCOPE }}
+
+      - name: Export digest
+        if: env.PUSH == 'true'
+        env:
+          DIGEST: ${{ steps.build.outputs.digest }}
+        run: |
+          mkdir -p "$RUNNER_TEMP/digests"
+          touch "$RUNNER_TEMP/digests/${DIGEST#sha256:}"
+
+      - name: Upload digest
+        if: env.PUSH == 'true'
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: digests-${{ matrix.image }}-${{ matrix.arch }}
+          path: ${{ runner.temp }}/digests/*
+          if-no-files-found: error
+          retention-days: 1
+
+  # Creates the multi-arch manifest list per image from the pushed digests and tags it.
+  # Without push it only prints the tags it would set.
+  merge:
+    name: Manifest (${{ matrix.image }})
+    needs: images
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        image: [api, frontend]
+    steps:
+      - name: Image name
+        id: name
+        env:
+          OWNER: ${{ github.repository_owner }}
+          IMAGE: ${{ matrix.image }}
+        run: echo "image=${REGISTRY}/${OWNER,,}/ollamail-${IMAGE}" >> "$GITHUB_OUTPUT"
+
+      - uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        id: meta
+        env:
+          DOCKER_METADATA_ANNOTATIONS_LEVELS: index
+        with:
+          images: ${{ steps.name.outputs.image }}
+          tags: ${{ env.IMAGE_TAGS }}
+          labels: |
+            org.opencontainers.image.title=ollamail-${{ matrix.image }}
+          annotations: |
+            org.opencontainers.image.title=ollamail-${{ matrix.image }}
+
+      - name: Planned tags
+        env:
+          TAGS: ${{ steps.meta.outputs.tags }}
+        run: |
+          echo "Tags for the multi-arch manifest (push: $PUSH):"
+          echo "$TAGS"
+
+      - name: Download digests
+        if: env.PUSH == 'true'
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          path: ${{ runner.temp }}/digests
+          pattern: digests-${{ matrix.image }}-*
+          merge-multiple: true
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+        if: env.PUSH == 'true'
+
+      - name: Log in to GHCR
+        if: env.PUSH == 'true'
+        uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Attestations (SBOM, provenance) of the platform images are carried over.
+      - name: Create manifest list and push
+        if: env.PUSH == 'true'
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+        run: |
+          cd "$RUNNER_TEMP/digests"
+          args=()
+          while IFS= read -r tag; do
+            [ -n "$tag" ] && args+=(--tag "$tag")
+          done < <(jq -r '.tags[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          while IFS= read -r annotation; do
+            [ -n "$annotation" ] && args+=(--annotation "$annotation")
+          done < <(jq -r '.annotations[]' <<< "$DOCKER_METADATA_OUTPUT_JSON")
+          sources=()
+          for digest in *; do
+            sources+=("${IMAGE}@sha256:${digest}")
+          done
+          if [ "${#sources[@]}" -ne 2 ]; then
+            echo "::error::Expected 2 platform digests, found ${#sources[@]}."
+            exit 1
+          fi
+          docker buildx imagetools create "${args[@]}" "${sources[@]}"
+
+      - name: Inspect manifest
+        if: env.PUSH == 'true'
+        env:
+          IMAGE: ${{ steps.name.outputs.image }}
+          VERSION: ${{ steps.meta.outputs.version }}
+        run: docker buildx imagetools inspect "${IMAGE}:${VERSION}"
 
   release:
     name: GitHub release
-    needs: images
+    needs: merge
     if: github.ref_type == 'tag'
     runs-on: ubuntu-latest
     timeout-minutes: 10
