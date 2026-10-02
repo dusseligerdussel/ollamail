@@ -15,6 +15,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
 )
+from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -46,6 +47,9 @@ class Identity(Base):
     subject: Mapped[str] = mapped_column(String(255))
     password_hash: Mapped[str | None] = mapped_column(Text)
     last_used_at: Mapped[datetime | None]
+    # Groups the provider reported at the last login (OIDC groups claim, LDAP groups,
+    # GitHub teams); input for the group → role mapping (#33).
+    groups: Mapped[list[str]] = mapped_column(ARRAY(String(255)), server_default="{}", default=list)
 
 
 class AuthSession(Base):

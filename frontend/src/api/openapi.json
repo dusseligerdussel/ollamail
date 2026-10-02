@@ -208,6 +208,17 @@
           "kind": {
             "$ref": "#/components/schemas/AuthProviderKind"
           },
+          "login_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login Path"
+          },
           "name": {
             "title": "Name",
             "type": "string"
@@ -1039,6 +1050,26 @@
         "title": "LoginRequest",
         "type": "object"
       },
+      "LogoutResult": {
+        "properties": {
+          "redirect_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Redirect Url"
+          }
+        },
+        "required": [
+          "redirect_url"
+        ],
+        "title": "LogoutResult",
+        "type": "object"
+      },
       "MailboxTriageSettings": {
         "properties": {
           "write_back": {
@@ -1049,6 +1080,541 @@
           "write_back"
         ],
         "title": "MailboxTriageSettings",
+        "type": "object"
+      },
+      "OIDCPreset": {
+        "enum": [
+          "generic",
+          "entra",
+          "google",
+          "keycloak",
+          "authentik"
+        ],
+        "title": "OIDCPreset",
+        "type": "string"
+      },
+      "OIDCPresetRead": {
+        "properties": {
+          "docs": {
+            "title": "Docs",
+            "type": "string"
+          },
+          "fields": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Fields",
+            "type": "array"
+          },
+          "groups_claim": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Claim"
+          },
+          "issuer_template": {
+            "title": "Issuer Template",
+            "type": "string"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/OIDCPreset"
+          },
+          "scopes": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Scopes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "preset",
+          "label",
+          "issuer_template",
+          "scopes",
+          "groups_claim",
+          "fields",
+          "docs"
+        ],
+        "title": "OIDCPresetRead",
+        "type": "object"
+      },
+      "OIDCProviderCreate": {
+        "properties": {
+          "allowed_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "allowed_tenants": {
+            "default": [],
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Tenants",
+            "type": "array"
+          },
+          "auto_provision": {
+            "default": true,
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "client_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "groups_claim": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "groups",
+            "title": "Groups Claim"
+          },
+          "hosted_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Hosted Domains",
+            "type": "array"
+          },
+          "issuer": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "link_by_email": {
+            "default": false,
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 32,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+            "title": "Name",
+            "type": "string"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/OIDCPreset",
+            "default": "generic"
+          },
+          "scopes": {
+            "default": [
+              "openid",
+              "email",
+              "profile"
+            ],
+            "items": {
+              "pattern": "^[\\x21\\x23-\\x5b\\x5d-\\x7e]{1,64}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Scopes",
+            "type": "array"
+          }
+        },
+        "required": [
+          "display_name",
+          "issuer",
+          "client_id",
+          "name"
+        ],
+        "title": "OIDCProviderCreate",
+        "type": "object"
+      },
+      "OIDCProviderRead": {
+        "properties": {
+          "allowed_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "allowed_tenants": {
+            "default": [],
+            "items": {
+              "maxLength": 64,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Tenants",
+            "type": "array"
+          },
+          "auto_provision": {
+            "default": true,
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "client_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "groups_claim": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": "groups",
+            "title": "Groups Claim"
+          },
+          "has_client_secret": {
+            "title": "Has Client Secret",
+            "type": "boolean"
+          },
+          "hosted_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Hosted Domains",
+            "type": "array"
+          },
+          "issuer": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Issuer",
+            "type": "string"
+          },
+          "link_by_email": {
+            "default": false,
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/OIDCPreset",
+            "default": "generic"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "redirect_uri": {
+            "title": "Redirect Uri",
+            "type": "string"
+          },
+          "scopes": {
+            "default": [
+              "openid",
+              "email",
+              "profile"
+            ],
+            "items": {
+              "pattern": "^[\\x21\\x23-\\x5b\\x5d-\\x7e]{1,64}$",
+              "type": "string"
+            },
+            "maxItems": 32,
+            "title": "Scopes",
+            "type": "array"
+          },
+          "source": {
+            "enum": [
+              "env",
+              "db"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "updated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Updated At"
+          }
+        },
+        "required": [
+          "display_name",
+          "issuer",
+          "client_id",
+          "name",
+          "provider",
+          "source",
+          "has_client_secret",
+          "redirect_uri",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "OIDCProviderRead",
+        "type": "object"
+      },
+      "OIDCProviderUpdate": {
+        "description": "Fields to change; omitted fields stay. ``client_secret: null`` removes the secret.",
+        "properties": {
+          "allowed_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 254,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Domains"
+          },
+          "allowed_tenants": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 64,
+                  "minLength": 1,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Tenants"
+          },
+          "auto_provision": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Provision"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "groups_claim": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Claim"
+          },
+          "hosted_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 254,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hosted Domains"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          },
+          "link_by_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link By Email"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/OIDCPreset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "scopes": {
+            "anyOf": [
+              {
+                "items": {
+                  "pattern": "^[\\x21\\x23-\\x5b\\x5d-\\x7e]{1,64}$",
+                  "type": "string"
+                },
+                "maxItems": 32,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scopes"
+          }
+        },
+        "title": "OIDCProviderUpdate",
         "type": "object"
       },
       "OrganizationCategoryCreate": {
@@ -2101,6 +2667,265 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/auth/oidc/presets": {
+      "get": {
+        "description": "Presets with defaults for the provider form (see docs/auth/oidc.md).",
+        "operationId": "admin_list_oidc_presets",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OIDCPresetRead"
+                  },
+                  "title": "Response Admin List Oidc Presets",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Oidc Presets",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/oidc/providers": {
+      "get": {
+        "description": "All OIDC providers (secrets are never returned).",
+        "operationId": "admin_list_oidc_providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OIDCProviderRead"
+                  },
+                  "title": "Response Admin List Oidc Providers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Oidc Providers",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Add an OIDC provider. The client secret is stored encrypted.",
+        "operationId": "admin_create_oidc_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OIDCProviderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OIDCProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Name taken"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Create Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/oidc/providers/{name}": {
+      "delete": {
+        "description": "Remove an OIDC provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "operationId": "admin_delete_oidc_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "Configured in the environment"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "admin_get_oidc_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OIDCProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "Change an OIDC provider. Omitted fields stay as they are.",
+        "operationId": "admin_update_oidc_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OIDCProviderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OIDCProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "Configured in the environment"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Update Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/audit/events": {
       "get": {
         "description": "Audit events, newest first.",
@@ -2976,6 +3801,117 @@
           }
         },
         "summary": "Update Me",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/oidc/logout": {
+      "post": {
+        "description": "End the current session like ``POST /auth/logout``. If it was started with an OIDC\nprovider that supports RP-initiated logout, ``redirect_url`` ends the IdP session too\n(the browser navigates there and comes back to the login page).",
+        "operationId": "auth_oidc_logout",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LogoutResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Oidc Logout",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/oidc/{name}/callback": {
+      "get": {
+        "description": "Redirect target of the IdP: validates the response and signs the user in.",
+        "operationId": "auth_oidc_callback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to return_to (signed in), or to /login?error=<code>"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oidc Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/oidc/{name}/login": {
+      "get": {
+        "description": "Start the login with an OIDC provider (browser navigation, not fetch).",
+        "operationId": "auth_oidc_login",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "return_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Return To"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to the IdP, or to /login?error=<code>"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Oidc Login",
         "tags": [
           "auth"
         ]

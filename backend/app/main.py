@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from app.ai.llm import EnvConfigResolver, LLMGateway
 from app.audit.router import router as audit_router
 from app.auth.csrf import CSRFMiddleware
-from app.auth.providers import AuthProviderRegistry
+from app.auth.providers import AuthProviderRegistry, oidc
 from app.auth.providers.ldap.router import login_router as ldap_login_router
 from app.auth.providers.ldap.router import router as ldap_router
 from app.auth.router import router as auth_router
@@ -86,6 +86,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(todos_router)
     app.include_router(triage_router)
     app.include_router(audit_router)
+    oidc.install(app, settings)
     return app
 
 

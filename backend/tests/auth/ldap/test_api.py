@@ -143,7 +143,12 @@ async def test_providers_list_enabled_directories(
     providers = (await db_client.get("/auth/providers")).json()["providers"]
 
     assert providers == [
-        {"name": "ldap:corp", "display_name": "Corporate directory", "kind": "password"}
+        {
+            "name": "ldap:corp",
+            "display_name": "Corporate directory",
+            "kind": "password",
+            "login_path": None,
+        }
     ]
 
 

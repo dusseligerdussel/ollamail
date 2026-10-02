@@ -34,6 +34,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename und die Verzeichnis-ID (`objectGUID`/`entryUUID`); Gruppen werden bei jedem Login gelesen, nicht gespeichert. Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
 | Anhänge lesen | Textextraktion (PDF, DOCX, TXT, HTML) in einem eigenen Prozess ohne Umgebungsvariablen (keine Secrets), mit Grenzen für Dateigröße, Laufzeit, Speicher und ohne Schreibrechte; Fehler nur als Statuscode |
 | Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/search/access.py`), getestet in `tests/search/test_service.py` |
+| Single Sign-on (OIDC) | Gespeichert werden nur `sub` (Identität), Gruppen-Claims (für das Rollen-Mapping) und beim ersten Login E-Mail-Adresse und Name; IdP-Tokens nie. Client-Secrets verschlüsselt. `state`/`nonce`/PKCE-Verifier nur im verschlüsselten Einmal-Cookie. Logs nur mit Provider und statischem Fehlercode, nie Claims oder Tokens |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
 
 ### Logging im Detail
@@ -139,7 +140,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   (das Todo gehört dem Nutzer und bleibt, bis er es löscht). Die Extraktion protokolliert nur
   Anzahlen, nie Titel oder Beschreibungen. Die API liefert ausschließlich eigene Todos; ein
   fremdes Todo verhält sich wie ein nicht vorhandenes (404).
-- **Nutzer löschen:** `users` → `auth_identities`, `auth_sessions` und eigene Postfächer
+- **Nutzer löschen:** `users` → `auth_identities` (inkl. gespeicherter Gruppen), `auth_sessions` und eigene Postfächer
   (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).
   Ein periodischer Job setzt sie durch.

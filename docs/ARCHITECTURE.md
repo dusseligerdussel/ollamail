@@ -570,20 +570,38 @@ mehrere Identitäten haben; lokal: `provider=local`, `subject` = Nutzer-ID, Argo
 `auth_sessions`, `auth_rate_limits`. Alles hängt per `ON DELETE CASCADE` am Nutzer.
 
 **Provider-Interface** (`app/auth/providers/base.py`): Ein Provider beweist nur, wer jemand ist,
-und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups)`.
-`PasswordAuthProvider.authenticate(login, password)` für lokale Konten und LDAP (#32),
-`RedirectAuthProvider.authorization_url(...)`/`complete(...)` für OIDC (#30) und GitHub (#31).
-Die Zuordnung Identität → Nutzer (`auth.service.user_for_identity`, später mit
-JIT-Provisioning), Sperre, Session und Rollenprüfung sind für alle Provider gleich. Konfigurierte
-externe Provider registrieren sich in `app.state.auth_providers`; `GET /api/auth/providers`
-listet sie für die Login-Seite, zusätzlich die aktiven LDAP-Verzeichnisse aus der Datenbank.
+und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups,
+email_verified)`. `PasswordAuthProvider.authenticate(login, password)` für lokale Konten und
+LDAP (#32), `RedirectAuthProvider.authorization_url(...)`/`complete(...)` (mit `state`, `nonce`
+und PKCE-`code_verifier`) für OIDC (#30) und GitHub (#31). Sperre, Session und Rollenprüfung
+sind für alle Provider gleich. Externe Provider stehen in `app.state.auth_providers`: fest per
+`register` oder als *Quelle* per `add_source` (z. B. OIDC-Provider aus der Datenbank, pro Anfrage
+gelesen, damit Änderungen sofort auf allen API-Instanzen gelten). `GET /api/auth/providers`
+listet sie für die Login-Seite (Redirect-Provider mit `login_path`), zusätzlich die aktiven
+LDAP-Verzeichnisse aus der Datenbank.
 
 **JIT-Provisioning** (`app/auth/provisioning.py`, für alle externen Provider):
-`provision_user(db, identity, role=...)` findet den Nutzer über `auth_identities` oder legt ihn
-beim ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben
-Adresse wird **nicht** automatisch verknüpft (409), sonst könnte jeder, der ein E-Mail-Attribut
-im externen Verzeichnis setzen darf, ein lokales (Admin-)Konto übernehmen. `role` kommt aus dem
-Gruppen-Mapping des Providers; `None` heißt, der Provider verwaltet keine Rollen.
+`provision_user(db, identity, policy, role=...)` meldet bekannte Identitäten an (Gruppen werden in
+`auth_identities.groups` aktualisiert, sofern der Provider sie speichert) oder legt den Nutzer beim
+ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben Adresse
+wird nur verknüpft, wenn der Provider es erlaubt (`link_by_email`) **und** die Adresse als
+verifiziert meldet; sonst 409 (`account-exists`), denn wer ein E-Mail-Attribut im externen
+Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Dazu kommen
+Domain-Allowlist und Abschalten der Kontoanlage je Provider. `role` kommt aus dem Gruppen-Mapping
+des Providers; `None` heißt, der Provider verwaltet keine Rollen. Kontoanlage und Rollenwechsel
+landen im Audit-Log. Fehler sind `ProvisioningError` (ein `ProblemError` mit statischem `code`).
+
+**Externe Logins im Browser** (`app/auth/redirect_flow.py`): Der Flow für Redirect-Provider
+(verschlüsseltes Einmal-Cookie mit `state`, `nonce`, PKCE-Verifier; Fehler als Redirect auf
+`/login?error=<code>`) ist providerunabhängig; GitHub (#31) nutzt ihn mit.
+
+**OIDC** (`app/auth/providers/oidc/`, Anleitung: [`auth/oidc.md`](auth/oidc.md)): Provider aus der
+Datenbank (`auth_oidc_providers`, Client-Secret als `EncryptedStr`, Admin-API unter
+`/api/admin/auth/oidc`) und aus `OLLAMAIL_AUTH_OIDC_PROVIDERS` (read-only). Discovery und JWKS
+werden je Issuer gecacht; ID-Token-Prüfung mit `joserfc`, PKCE-/Client-Auth-Helfer aus Authlib.
+Presets für Entra ID (`tid`-Prüfung, Multi-Tenant nur mit Tenant-Allowlist), Google Workspace
+(`hd`), Keycloak, Authentik und generisch. `POST /api/auth/oidc/logout` liefert zusätzlich die
+URL für das RP-initiated Logout.
 
 **LDAP / Active Directory** (`app/auth/providers/ldap/`, Details: [`auth/ldap.md`](auth/ldap.md)):
 Verzeichnisse stehen in `auth_ldap_directories` (Einstellungen als JSONB, Bind-Passwort

@@ -24,7 +24,12 @@ from app.auth.providers.ldap.schemas import (
     LdapUserLookup,
     LdapUserLookupRequest,
 )
-from app.auth.provisioning import provision_user
+from app.auth.provisioning import (
+    ProvisioningError,
+    ProvisioningErrorCode,
+    ProvisioningPolicy,
+    provision_user,
+)
 from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.logging import get_logger
@@ -141,11 +146,18 @@ async def ldap_login(
         log.info("login_failed", reason="invalid_credentials", provider=directory.provider)
         await _login_failed(db, directory.provider, "invalid_credentials")
         raise ProblemError(401, detail="Invalid user name or password.")
-    user = await provision_user(db, identity, role=provider.role(identity))
-    if user is None:
+    try:
+        # Groups are mapped to the role at every login and not stored (docs/auth/ldap.md).
+        result = await provision_user(
+            db, identity, ProvisioningPolicy(store_groups=False), role=provider.role(identity)
+        )
+    except ProvisioningError as exc:
+        if exc.code is not ProvisioningErrorCode.INACTIVE:
+            raise
         log.info("login_failed", reason="user_inactive", provider=directory.provider)
         await _login_failed(db, directory.provider, "user_inactive")
-        raise ProblemError(401, detail="Invalid user name or password.")
+        raise ProblemError(401, detail="Invalid user name or password.") from None
+    user = result.user
     await service.reset_account_throttle(db, settings, account)
     await audit.record(
         db,

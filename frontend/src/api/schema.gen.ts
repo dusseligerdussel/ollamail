@@ -4,6 +4,76 @@
  */
 
 export interface paths {
+    "/admin/auth/oidc/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Oidc Presets
+         * @description Presets with defaults for the provider form (see docs/auth/oidc.md).
+         */
+        get: operations["admin_list_oidc_presets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/oidc/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Oidc Providers
+         * @description All OIDC providers (secrets are never returned).
+         */
+        get: operations["admin_list_oidc_providers"];
+        put?: never;
+        /**
+         * Create Oidc Provider
+         * @description Add an OIDC provider. The client secret is stored encrypted.
+         */
+        post: operations["admin_create_oidc_provider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/oidc/providers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Oidc Provider */
+        get: operations["admin_get_oidc_provider"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Oidc Provider
+         * @description Remove an OIDC provider. Users and their linked identities are kept; sessions
+         *     started with the provider stay valid until they expire or are revoked.
+         */
+        delete: operations["admin_delete_oidc_provider"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Oidc Provider
+         * @description Change an OIDC provider. Omitted fields stay as they are.
+         */
+        patch: operations["admin_update_oidc_provider"];
+        trace?: never;
+    };
     "/audit/events": {
         parameters: {
             query?: never;
@@ -236,6 +306,68 @@ export interface paths {
          * @description Change display name, language or time zone of the own account.
          */
         patch: operations["auth_update_me"];
+        trace?: never;
+    };
+    "/auth/oidc/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Oidc Logout
+         * @description End the current session like ``POST /auth/logout``. If it was started with an OIDC
+         *     provider that supports RP-initiated logout, ``redirect_url`` ends the IdP session too
+         *     (the browser navigates there and comes back to the login page).
+         */
+        post: operations["auth_oidc_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/{name}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oidc Callback
+         * @description Redirect target of the IdP: validates the response and signs the user in.
+         */
+        get: operations["auth_oidc_callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/{name}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oidc Login
+         * @description Start the login with an OIDC provider (browser navigation, not fetch).
+         */
+        get: operations["auth_oidc_login"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/auth/providers": {
@@ -787,6 +919,8 @@ export interface components {
             /** Display Name */
             display_name: string;
             kind: components["schemas"]["AuthProviderKind"];
+            /** Login Path */
+            login_path?: string | null;
             /** Name */
             name: string;
         };
@@ -1088,9 +1222,197 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** LogoutResult */
+        LogoutResult: {
+            /** Redirect Url */
+            redirect_url: string | null;
+        };
         /** MailboxTriageSettings */
         MailboxTriageSettings: {
             write_back: components["schemas"]["WriteBackMode"];
+        };
+        /**
+         * OIDCPreset
+         * @enum {string}
+         */
+        OIDCPreset: "generic" | "entra" | "google" | "keycloak" | "authentik";
+        /** OIDCPresetRead */
+        OIDCPresetRead: {
+            /** Docs */
+            docs: string;
+            /** Fields */
+            fields: string[];
+            /** Groups Claim */
+            groups_claim: string | null;
+            /** Issuer Template */
+            issuer_template: string;
+            /** Label */
+            label: string;
+            preset: components["schemas"]["OIDCPreset"];
+            /** Scopes */
+            scopes: string[];
+        };
+        /** OIDCProviderCreate */
+        OIDCProviderCreate: {
+            /**
+             * Allowed Domains
+             * @default []
+             */
+            allowed_domains: string[];
+            /**
+             * Allowed Tenants
+             * @default []
+             */
+            allowed_tenants: string[];
+            /**
+             * Auto Provision
+             * @default true
+             */
+            auto_provision: boolean;
+            /** Client Id */
+            client_id: string;
+            /** Client Secret */
+            client_secret?: string | null;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Groups Claim
+             * @default groups
+             */
+            groups_claim: string | null;
+            /**
+             * Hosted Domains
+             * @default []
+             */
+            hosted_domains: string[];
+            /** Issuer */
+            issuer: string;
+            /**
+             * Link By Email
+             * @default false
+             */
+            link_by_email: boolean;
+            /** Name */
+            name: string;
+            /** @default generic */
+            preset: components["schemas"]["OIDCPreset"];
+            /**
+             * Scopes
+             * @default [
+             *       "openid",
+             *       "email",
+             *       "profile"
+             *     ]
+             */
+            scopes: string[];
+        };
+        /** OIDCProviderRead */
+        OIDCProviderRead: {
+            /**
+             * Allowed Domains
+             * @default []
+             */
+            allowed_domains: string[];
+            /**
+             * Allowed Tenants
+             * @default []
+             */
+            allowed_tenants: string[];
+            /**
+             * Auto Provision
+             * @default true
+             */
+            auto_provision: boolean;
+            /** Client Id */
+            client_id: string;
+            /** Created At */
+            created_at: string | null;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Groups Claim
+             * @default groups
+             */
+            groups_claim: string | null;
+            /** Has Client Secret */
+            has_client_secret: boolean;
+            /**
+             * Hosted Domains
+             * @default []
+             */
+            hosted_domains: string[];
+            /** Issuer */
+            issuer: string;
+            /**
+             * Link By Email
+             * @default false
+             */
+            link_by_email: boolean;
+            /** Name */
+            name: string;
+            /** @default generic */
+            preset: components["schemas"]["OIDCPreset"];
+            /** Provider */
+            provider: string;
+            /** Redirect Uri */
+            redirect_uri: string;
+            /**
+             * Scopes
+             * @default [
+             *       "openid",
+             *       "email",
+             *       "profile"
+             *     ]
+             */
+            scopes: string[];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "env" | "db";
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /**
+         * OIDCProviderUpdate
+         * @description Fields to change; omitted fields stay. ``client_secret: null`` removes the secret.
+         */
+        OIDCProviderUpdate: {
+            /** Allowed Domains */
+            allowed_domains?: string[] | null;
+            /** Allowed Tenants */
+            allowed_tenants?: string[] | null;
+            /** Auto Provision */
+            auto_provision?: boolean | null;
+            /** Client Id */
+            client_id?: string | null;
+            /** Client Secret */
+            client_secret?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Groups Claim */
+            groups_claim?: string | null;
+            /** Hosted Domains */
+            hosted_domains?: string[] | null;
+            /** Issuer */
+            issuer?: string | null;
+            /** Link By Email */
+            link_by_email?: boolean | null;
+            preset?: components["schemas"]["OIDCPreset"] | null;
+            /** Scopes */
+            scopes?: string[] | null;
         };
         /** OrganizationCategoryCreate */
         OrganizationCategoryCreate: {
@@ -1508,6 +1830,296 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    admin_list_oidc_presets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCPresetRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_list_oidc_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCProviderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_create_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OIDCProviderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Name taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_get_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_delete_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Configured in the environment */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OIDCProviderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Configured in the environment */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     audit_get_events: {
         parameters: {
             query?: {
@@ -2192,6 +2804,86 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_oidc_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoutResult"];
+                };
+            };
+        };
+    };
+    auth_oidc_callback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to return_to (signed in), or to /login?error=<code> */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_oidc_login: {
+        parameters: {
+            query?: {
+                return_to?: string | null;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the IdP, or to /login?error=<code> */
+            303: {
                 headers: {
                     [name: string]: unknown;
                 };

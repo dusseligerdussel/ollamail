@@ -596,7 +596,8 @@ verarbeitet.
 | Datenkategorie | Speicherort | Status |
 |---|---|---|
 | Nutzerkonten, Rollen | PostgreSQL (`postgres-data`): `users`, `auth_identities` (Passwörter als Argon2id-Hash) | aktiv |
-| Gruppen | PostgreSQL | geplant (#30–#33) |
+| Gruppen | PostgreSQL: `auth_identities.groups` (Gruppen-Claims des IdP beim letzten Login, z. B. Entra-Gruppen-IDs) | aktiv (OIDC); LDAP liest Gruppen bei jedem Login und speichert sie nicht; GitHub geplant (#31) |
+| IdP-Konfiguration (OIDC) | PostgreSQL: `auth_oidc_providers` (Client-Secret verschlüsselt mit `OLLAMAIL_SECRET_KEY`) oder Umgebung (`OLLAMAIL_AUTH_OIDC_PROVIDERS`) | aktiv |
 | Sessions | PostgreSQL: `auth_sessions` (nur SHA-256 des Cookie-Tokens, Browser-Kennung gekürzt); abgelaufene stündlich gelöscht | aktiv |
 | Login-Zähler (Rate-Limit, Sperre) | PostgreSQL: `auth_rate_limits` (nur HMAC von IP bzw. E-Mail-Adresse); stündlich bereinigt | aktiv |
 | Postfach-Zugangsdaten, OAuth-Tokens, IdP-Secrets | PostgreSQL, verschlüsselt mit `OLLAMAIL_SECRET_KEY` | geplant (#6, #15) |
@@ -631,7 +632,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
 
-api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (geplant #30, #31)
+api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30; GitHub OAuth2 geplant #31)
 ```
 
 - **Standardmäßig verlassen keine Daten die Instanz.** Externe Verbindungen entstehen nur zu den
