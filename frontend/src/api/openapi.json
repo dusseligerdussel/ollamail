@@ -1,6 +1,204 @@
 {
   "components": {
     "schemas": {
+      "ActorKind": {
+        "enum": [
+          "user",
+          "system",
+          "anonymous"
+        ],
+        "title": "ActorKind",
+        "type": "string"
+      },
+      "AuditAction": {
+        "enum": [
+          "auth.setup_completed",
+          "auth.login_succeeded",
+          "auth.login_failed",
+          "auth.logout",
+          "auth.session_revoked",
+          "user.created",
+          "user.role_changed",
+          "user.deleted",
+          "idp.config_changed",
+          "ai.settings_changed",
+          "mailbox.created",
+          "mailbox.deleted",
+          "mailbox.shared",
+          "data.exported",
+          "data.deleted",
+          "crypto.keys_rotated",
+          "audit.exported"
+        ],
+        "title": "AuditAction",
+        "type": "string"
+      },
+      "AuditChainStatus": {
+        "properties": {
+          "checked": {
+            "title": "Checked",
+            "type": "integer"
+          },
+          "first_invalid_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "First Invalid Id"
+          },
+          "valid": {
+            "title": "Valid",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "valid",
+          "checked",
+          "first_invalid_id"
+        ],
+        "title": "AuditChainStatus",
+        "type": "object"
+      },
+      "AuditEventPage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/AuditEventRead"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_before": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Before"
+          }
+        },
+        "required": [
+          "items",
+          "next_before"
+        ],
+        "title": "AuditEventPage",
+        "type": "object"
+      },
+      "AuditEventRead": {
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/AuditAction"
+          },
+          "actor_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Id"
+          },
+          "actor_kind": {
+            "$ref": "#/components/schemas/ActorKind"
+          },
+          "actor_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Actor Name"
+          },
+          "details": {
+            "additionalProperties": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                },
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ]
+            },
+            "title": "Details",
+            "type": "object"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "occurred_at": {
+            "format": "date-time",
+            "title": "Occurred At",
+            "type": "string"
+          },
+          "target_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Id"
+          },
+          "target_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Target Name"
+          },
+          "target_type": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TargetType"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "occurred_at",
+          "action",
+          "actor_kind",
+          "actor_id",
+          "actor_name",
+          "target_type",
+          "target_id",
+          "target_name",
+          "details"
+        ],
+        "title": "AuditEventRead",
+        "type": "object"
+      },
       "AuthProviderInfo": {
         "properties": {
           "display_name": {
@@ -56,6 +254,153 @@
         ],
         "title": "AuthProviders",
         "type": "object"
+      },
+      "CategoryCreate": {
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "CategoryCreate",
+        "type": "object"
+      },
+      "CategoryOrder": {
+        "description": "All visible and hidden categories of the user, in the new order.",
+        "properties": {
+          "category_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 200,
+            "minItems": 1,
+            "title": "Category Ids",
+            "type": "array"
+          }
+        },
+        "required": [
+          "category_ids"
+        ],
+        "title": "CategoryOrder",
+        "type": "object"
+      },
+      "CategoryRead": {
+        "properties": {
+          "builtin_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Builtin Key"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "hidden": {
+            "title": "Hidden",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          },
+          "scope": {
+            "enum": [
+              "organization",
+              "user"
+            ],
+            "title": "Scope",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "builtin_key",
+          "scope",
+          "hidden",
+          "position"
+        ],
+        "title": "CategoryRead",
+        "type": "object"
+      },
+      "CategoryUpdate": {
+        "description": "Own categories: all fields. Organisation categories: ``hidden`` only.",
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "hidden": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Hidden"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "title": "CategoryUpdate",
+        "type": "object"
+      },
+      "DirectoryType": {
+        "enum": [
+          "active_directory",
+          "openldap"
+        ],
+        "title": "DirectoryType",
+        "type": "string"
       },
       "GraphConnectRequest": {
         "properties": {
@@ -128,6 +473,594 @@
         "title": "HealthStatus",
         "type": "object"
       },
+      "InboxGroup": {
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CategoryRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/InboxMessage"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category",
+          "total",
+          "messages"
+        ],
+        "title": "InboxGroup",
+        "type": "object"
+      },
+      "InboxMessage": {
+        "properties": {
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "received_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Received At"
+          },
+          "sender_address": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender Address"
+          },
+          "sender_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender Name"
+          },
+          "source": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TriageSource"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "mailbox_id",
+          "subject",
+          "sender_name",
+          "sender_address",
+          "received_at",
+          "priority",
+          "source",
+          "reason"
+        ],
+        "title": "InboxMessage",
+        "type": "object"
+      },
+      "LdapConnectionTest": {
+        "properties": {
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "servers": {
+            "items": {
+              "$ref": "#/components/schemas/LdapServerCheck"
+            },
+            "title": "Servers",
+            "type": "array"
+          }
+        },
+        "required": [
+          "ok",
+          "servers"
+        ],
+        "title": "LdapConnectionTest",
+        "type": "object"
+      },
+      "LdapDirectoryCreate": {
+        "properties": {
+          "bind_password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Bind Password",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "name": {
+            "pattern": "^[a-z0-9][a-z0-9-]{0,31}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LdapDirectorySettings"
+          }
+        },
+        "required": [
+          "display_name",
+          "settings",
+          "bind_password",
+          "name"
+        ],
+        "title": "LdapDirectoryCreate",
+        "type": "object"
+      },
+      "LdapDirectoryRead": {
+        "properties": {
+          "bind_password_set": {
+            "title": "Bind Password Set",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LdapDirectorySettings"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "provider",
+          "display_name",
+          "enabled",
+          "settings",
+          "bind_password_set",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "LdapDirectoryRead",
+        "type": "object"
+      },
+      "LdapDirectorySettings": {
+        "description": "Connection, search and mapping settings of a directory.",
+        "properties": {
+          "admin_groups": {
+            "items": {
+              "maxLength": 1024,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Admin Groups",
+            "type": "array"
+          },
+          "allowed_groups": {
+            "items": {
+              "maxLength": 1024,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Groups",
+            "type": "array"
+          },
+          "bind_dn": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Bind Dn",
+            "type": "string"
+          },
+          "ca_certificate": {
+            "anyOf": [
+              {
+                "maxLength": 65536,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ca Certificate"
+          },
+          "connect_timeout": {
+            "default": 5.0,
+            "maximum": 60.0,
+            "minimum": 0.5,
+            "title": "Connect Timeout",
+            "type": "number"
+          },
+          "directory_type": {
+            "$ref": "#/components/schemas/DirectoryType",
+            "default": "active_directory"
+          },
+          "display_name_attribute": {
+            "maxLength": 64,
+            "title": "Display Name Attribute",
+            "type": "string"
+          },
+          "email_attribute": {
+            "maxLength": 64,
+            "title": "Email Attribute",
+            "type": "string"
+          },
+          "group_base_dn": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Group Base Dn"
+          },
+          "group_filter": {
+            "maxLength": 1024,
+            "title": "Group Filter",
+            "type": "string"
+          },
+          "group_member_attribute": {
+            "maxLength": 64,
+            "title": "Group Member Attribute",
+            "type": "string"
+          },
+          "nested_groups": {
+            "default": true,
+            "title": "Nested Groups",
+            "type": "boolean"
+          },
+          "operation_timeout": {
+            "default": 10.0,
+            "maximum": 120.0,
+            "minimum": 0.5,
+            "title": "Operation Timeout",
+            "type": "number"
+          },
+          "server_urls": {
+            "items": {
+              "maxLength": 512,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "minItems": 1,
+            "title": "Server Urls",
+            "type": "array"
+          },
+          "subject_attribute": {
+            "maxLength": 64,
+            "title": "Subject Attribute",
+            "type": "string"
+          },
+          "tls_mode": {
+            "$ref": "#/components/schemas/TlsMode",
+            "default": "ldaps"
+          },
+          "user_base_dn": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "User Base Dn",
+            "type": "string"
+          },
+          "user_filter": {
+            "maxLength": 1024,
+            "title": "User Filter",
+            "type": "string"
+          }
+        },
+        "required": [
+          "server_urls",
+          "bind_dn",
+          "user_base_dn",
+          "user_filter",
+          "subject_attribute",
+          "email_attribute",
+          "display_name_attribute",
+          "group_filter",
+          "group_member_attribute"
+        ],
+        "title": "LdapDirectorySettings",
+        "type": "object"
+      },
+      "LdapDirectoryUpdate": {
+        "description": "Replaces the configuration; without ``bind_password`` the stored one is kept.",
+        "properties": {
+          "bind_password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Bind Password"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "settings": {
+            "$ref": "#/components/schemas/LdapDirectorySettings"
+          }
+        },
+        "required": [
+          "display_name",
+          "settings"
+        ],
+        "title": "LdapDirectoryUpdate",
+        "type": "object"
+      },
+      "LdapLoginRequest": {
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          },
+          "username": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "username",
+          "password"
+        ],
+        "title": "LdapLoginRequest",
+        "type": "object"
+      },
+      "LdapServerCheck": {
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "latency_ms": {
+            "title": "Latency Ms",
+            "type": "integer"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "url",
+          "ok",
+          "error",
+          "latency_ms"
+        ],
+        "title": "LdapServerCheck",
+        "type": "object"
+      },
+      "LdapUserLookup": {
+        "description": "What a login of this user would yield (no password check).",
+        "properties": {
+          "allowed": {
+            "default": false,
+            "title": "Allowed",
+            "type": "boolean"
+          },
+          "disabled": {
+            "default": false,
+            "title": "Disabled",
+            "type": "boolean"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "dn": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Dn"
+          },
+          "email": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "found": {
+            "title": "Found",
+            "type": "boolean"
+          },
+          "groups": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "found"
+        ],
+        "title": "LdapUserLookup",
+        "type": "object"
+      },
+      "LdapUserLookupRequest": {
+        "properties": {
+          "login": {
+            "maxLength": 256,
+            "minLength": 1,
+            "title": "Login",
+            "type": "string"
+          }
+        },
+        "required": [
+          "login"
+        ],
+        "title": "LdapUserLookupRequest",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -148,6 +1081,127 @@
           "password"
         ],
         "title": "LoginRequest",
+        "type": "object"
+      },
+      "MailboxTriageSettings": {
+        "properties": {
+          "write_back": {
+            "$ref": "#/components/schemas/WriteBackMode"
+          }
+        },
+        "required": [
+          "write_back"
+        ],
+        "title": "MailboxTriageSettings",
+        "type": "object"
+      },
+      "OrganizationCategoryCreate": {
+        "properties": {
+          "description": {
+            "default": "",
+            "maxLength": 2000,
+            "title": "Description",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Name",
+            "type": "string"
+          },
+          "position": {
+            "default": 0,
+            "title": "Position",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "name"
+        ],
+        "title": "OrganizationCategoryCreate",
+        "type": "object"
+      },
+      "OrganizationCategoryRead": {
+        "properties": {
+          "builtin_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Builtin Key"
+          },
+          "description": {
+            "title": "Description",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "position": {
+            "title": "Position",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "description",
+          "builtin_key",
+          "position"
+        ],
+        "title": "OrganizationCategoryRead",
+        "type": "object"
+      },
+      "OrganizationCategoryUpdate": {
+        "properties": {
+          "description": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Description"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 100,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "position": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Position"
+          }
+        },
+        "title": "OrganizationCategoryUpdate",
         "type": "object"
       },
       "ProfileUpdate": {
@@ -269,6 +1323,94 @@
         "title": "RegisterRequest",
         "type": "object"
       },
+      "SenderRuleCreate": {
+        "properties": {
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "priority": {
+            "default": 3,
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Priority",
+            "type": "integer"
+          },
+          "sender": {
+            "description": "Address (news@example.org) or domain with @ (@example.org)",
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Sender",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sender",
+          "category_id"
+        ],
+        "title": "SenderRuleCreate",
+        "type": "object"
+      },
+      "SenderRuleRead": {
+        "properties": {
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "sender": {
+            "title": "Sender",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "sender",
+          "category_id",
+          "priority"
+        ],
+        "title": "SenderRuleRead",
+        "type": "object"
+      },
+      "SenderRuleSuggestion": {
+        "properties": {
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "corrections": {
+            "title": "Corrections",
+            "type": "integer"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "sender": {
+            "title": "Sender",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sender",
+          "category_id",
+          "priority",
+          "corrections"
+        ],
+        "title": "SenderRuleSuggestion",
+        "type": "object"
+      },
       "SessionRead": {
         "properties": {
           "created_at": {
@@ -385,6 +1527,26 @@
         ],
         "title": "SetupStatus",
         "type": "object"
+      },
+      "TargetType": {
+        "enum": [
+          "user",
+          "session",
+          "mailbox",
+          "idp",
+          "settings"
+        ],
+        "title": "TargetType",
+        "type": "string"
+      },
+      "TlsMode": {
+        "enum": [
+          "ldaps",
+          "starttls",
+          "none"
+        ],
+        "title": "TlsMode",
+        "type": "string"
       },
       "TodoCreate": {
         "description": "A todo created by the user, optionally linked to one of their mails.",
@@ -684,6 +1846,129 @@
         "title": "TodoUpdate",
         "type": "object"
       },
+      "TriageCorrection": {
+        "properties": {
+          "category_id": {
+            "format": "uuid",
+            "title": "Category Id",
+            "type": "string"
+          },
+          "priority": {
+            "description": "1 = high, 2 = normal, 3 = low",
+            "maximum": 3.0,
+            "minimum": 1.0,
+            "title": "Priority",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category_id",
+          "priority"
+        ],
+        "title": "TriageCorrection",
+        "type": "object"
+      },
+      "TriageRead": {
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "priority": {
+            "title": "Priority",
+            "type": "integer"
+          },
+          "prompt_version": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Prompt Version"
+          },
+          "reason": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reason"
+          },
+          "rule": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rule"
+          },
+          "source": {
+            "$ref": "#/components/schemas/TriageSource"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "message_id",
+          "category_id",
+          "priority",
+          "reason",
+          "rule",
+          "source",
+          "model",
+          "prompt_version",
+          "updated_at"
+        ],
+        "title": "TriageRead",
+        "type": "object"
+      },
+      "TriageSource": {
+        "description": "Who decided the category of a message.",
+        "enum": [
+          "rule",
+          "sender_rule",
+          "llm",
+          "user"
+        ],
+        "title": "TriageSource",
+        "type": "string"
+      },
       "UserCreate": {
         "description": "A new local account (admin).",
         "properties": {
@@ -841,6 +2126,16 @@
         ],
         "title": "ValidationError",
         "type": "object"
+      },
+      "WriteBackMode": {
+        "description": "What the triage writes back to the mail server (opt-in per mailbox).",
+        "enum": [
+          "off",
+          "label",
+          "move"
+        ],
+        "title": "WriteBackMode",
+        "type": "string"
       }
     }
   },
@@ -850,6 +2145,684 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/audit/events": {
+      "get": {
+        "description": "Audit events, newest first.",
+        "operationId": "audit_get_events",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "description": "Cursor: `next_before`",
+            "in": "query",
+            "name": "before",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "minimum": 1,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Cursor: `next_before`",
+              "title": "Before"
+            }
+          },
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AuditAction"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TargetType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Id"
+            }
+          },
+          {
+            "description": "Inclusive lower bound",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive lower bound",
+              "title": "Since"
+            }
+          },
+          {
+            "description": "Exclusive upper bound",
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exclusive upper bound",
+              "title": "Until"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditEventPage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Events",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/audit/events/export": {
+      "get": {
+        "description": "All matching audit events as CSV. The export itself is recorded.",
+        "operationId": "audit_export_events",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "action",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/AuditAction"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Action"
+            }
+          },
+          {
+            "in": "query",
+            "name": "actor_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Actor Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_type",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/TargetType"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Type"
+            }
+          },
+          {
+            "in": "query",
+            "name": "target_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Target Id"
+            }
+          },
+          {
+            "description": "Inclusive lower bound",
+            "in": "query",
+            "name": "since",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Inclusive lower bound",
+              "title": "Since"
+            }
+          },
+          {
+            "description": "Exclusive upper bound",
+            "in": "query",
+            "name": "until",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "date-time",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Exclusive upper bound",
+              "title": "Until"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "text/csv": {}
+            },
+            "description": "CSV, newest first"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Export Events",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/audit/verify": {
+      "get": {
+        "description": "Recompute the hash chain to detect changed or removed entries.",
+        "operationId": "audit_verify",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuditChainStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "Verify",
+        "tags": [
+          "audit"
+        ]
+      }
+    },
+    "/auth/ldap/directories": {
+      "get": {
+        "description": "All configured directories (without bind passwords).",
+        "operationId": "auth_list_directories",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LdapDirectoryRead"
+                  },
+                  "title": "Response Auth List Directories",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Directories",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "description": "Add a directory. Test it with ``…/test`` before enabling it for users.",
+        "operationId": "auth_create_directory",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LdapDirectoryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapDirectoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Name taken"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Create Directory",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/ldap/directories/{name}": {
+      "delete": {
+        "description": "Remove the directory and all sign-in links through it (the users stay).",
+        "operationId": "auth_delete_directory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Directory",
+        "tags": [
+          "auth"
+        ]
+      },
+      "get": {
+        "operationId": "auth_get_directory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapDirectoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Directory",
+        "tags": [
+          "auth"
+        ]
+      },
+      "put": {
+        "description": "Replace the configuration. Without ``bind_password`` the stored one is kept.",
+        "operationId": "auth_update_directory",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LdapDirectoryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapDirectoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Update Directory",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/ldap/directories/{name}/test": {
+      "post": {
+        "description": "Connect to every server, negotiate TLS and bind as the service account.",
+        "operationId": "auth_test_connection",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapConnectionTest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Connection",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/ldap/directories/{name}/test-user": {
+      "post": {
+        "description": "Look up a user as a login would (search, attributes, groups, role), without\nchecking a password.",
+        "operationId": "auth_test_user",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LdapUserLookupRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LdapUserLookup"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test User",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "description": "Sign in with a local account.",
@@ -893,6 +2866,77 @@
           }
         },
         "summary": "Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/login/ldap/{name}": {
+      "post": {
+        "description": "Sign in with a directory account; the user is created on the first login.",
+        "operationId": "auth_ldap_login",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LdapLoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Wrong credentials, account disabled or not allowed"
+          },
+          "403": {
+            "description": "The directory supplies no e-mail address for the user"
+          },
+          "404": {
+            "description": "No such (enabled) directory"
+          },
+          "409": {
+            "description": "E-mail address belongs to an account not linked to the directory"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
+          },
+          "503": {
+            "description": "Directory not reachable"
+          }
+        },
+        "summary": "Ldap Login",
         "tags": [
           "auth"
         ]
@@ -1733,6 +3777,835 @@
         "summary": "Update Todo",
         "tags": [
           "todos"
+        ]
+      }
+    },
+    "/triage/categories": {
+      "get": {
+        "description": "Organisation and own categories in the user's order, hidden ones included.",
+        "operationId": "triage_list_categories",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryRead"
+                  },
+                  "title": "Response Triage List Categories",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Categories",
+        "tags": [
+          "triage"
+        ]
+      },
+      "post": {
+        "description": "Create an own category; the description tells the model what belongs in it.",
+        "operationId": "triage_create_category",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Category",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/categories/order": {
+      "put": {
+        "description": "Set the order of all of the user's categories.",
+        "operationId": "triage_order_categories",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryOrder"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/CategoryRead"
+                  },
+                  "title": "Response Triage Order Categories",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Not all categories"
+          }
+        },
+        "summary": "Order Categories",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/categories/{category_id}": {
+      "delete": {
+        "description": "Delete an own category. Its messages become uncategorised; corrections and sender\nrules pointing to it are deleted.",
+        "operationId": "triage_delete_category",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Category Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Not found or not yours"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Category",
+        "tags": [
+          "triage"
+        ]
+      },
+      "patch": {
+        "description": "Rename or describe an own category, or hide/show any category.",
+        "operationId": "triage_update_category",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Category Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CategoryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CategoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Not found or not yours"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Category",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/inbox": {
+      "get": {
+        "description": "Inbox of the user's mailboxes grouped by visible category, in the user's order;\nthe last group (``category: null``) holds messages without a visible category.",
+        "operationId": "triage_get_inbox",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mailbox_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mailbox Id"
+            }
+          },
+          {
+            "description": "Messages per group",
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "description": "Messages per group",
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/InboxGroup"
+                  },
+                  "title": "Response Triage Get Inbox",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Inbox",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/mailboxes/{mailbox_id}/settings": {
+      "get": {
+        "operationId": "triage_get_mailbox_settings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxTriageSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Not found or not yours"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mailbox Settings",
+        "tags": [
+          "triage"
+        ]
+      },
+      "put": {
+        "description": "Write the category back to the server (keyword/label or folder). Enabling it also\nlabels the messages triaged so far, in batches.",
+        "operationId": "triage_update_mailbox_settings",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MailboxTriageSettings"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailboxTriageSettings"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Not found or not yours"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Mailbox Settings",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/messages/{message_id}": {
+      "get": {
+        "description": "Category, priority and reason of a message (404 while it is not triaged yet).",
+        "operationId": "triage_get_triage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Not found or not yours"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Triage",
+        "tags": [
+          "triage"
+        ]
+      },
+      "put": {
+        "description": "Correct category and priority. The correction is kept on reprocessing and used as\nexample for this user's future classifications.",
+        "operationId": "triage_correct_triage",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/TriageCorrection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriageRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Not found or not yours"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Correct Triage",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/organization/categories": {
+      "get": {
+        "description": "Organisation defaults offered to every user.",
+        "operationId": "triage_list_organization_categories",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/OrganizationCategoryRead"
+                  },
+                  "title": "Response Triage List Organization Categories",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Organization Categories",
+        "tags": [
+          "triage"
+        ]
+      },
+      "post": {
+        "operationId": "triage_create_organization_category",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationCategoryCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationCategoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Organization Category",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/organization/categories/{category_id}": {
+      "delete": {
+        "operationId": "triage_delete_organization_category",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Category Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Not found or not yours"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Organization Category",
+        "tags": [
+          "triage"
+        ]
+      },
+      "patch": {
+        "operationId": "triage_update_organization_category",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "category_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Category Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OrganizationCategoryUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OrganizationCategoryRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Not found or not yours"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Organization Category",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/sender-rules": {
+      "get": {
+        "operationId": "triage_list_sender_rules",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SenderRuleRead"
+                  },
+                  "title": "Response Triage List Sender Rules",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Sender Rules",
+        "tags": [
+          "triage"
+        ]
+      },
+      "post": {
+        "description": "\"Always <category>\" for an address or a domain; applied before the model.",
+        "operationId": "triage_create_sender_rule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SenderRuleCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SenderRuleRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "Rule for this sender exists"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Sender Rule",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/sender-rules/suggestions": {
+      "get": {
+        "description": "Senders the user corrected repeatedly into the same category.",
+        "operationId": "triage_list_sender_rule_suggestions",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SenderRuleSuggestion"
+                  },
+                  "title": "Response Triage List Sender Rule Suggestions",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Sender Rule Suggestions",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/sender-rules/{rule_id}": {
+      "delete": {
+        "operationId": "triage_delete_sender_rule",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "rule_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Rule Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Not found or not yours"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Sender Rule",
+        "tags": [
+          "triage"
         ]
       }
     },
