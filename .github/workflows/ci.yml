@@ -155,6 +155,8 @@ jobs:
           OLLAMAIL_TEST_REQUIRE_LDAP: "1"
           OLLAMAIL_TEST_REQUIRE_KEYCLOAK: "1"
           OLLAMAIL_TEST_REQUIRE_TESSERACT: "1"
+          # Inbox and triage lists with 100k messages (tests/perf, #140).
+          OLLAMAIL_TEST_PERF: "1"
 
   frontend:
     name: Frontend

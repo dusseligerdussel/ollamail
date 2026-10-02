@@ -3,7 +3,13 @@ import { renderHook } from "@testing-library/react";
 import type { ReactNode } from "react";
 import { afterEach, beforeEach, describe, expect, it, type MockInstance, vi } from "vitest";
 
-import { type InvalidationRule, parseServerEvent, useEvents } from "./use-events";
+import {
+  INVALIDATION_DEBOUNCE_MS,
+  INVALIDATION_MAX_WAIT_MS,
+  type InvalidationRule,
+  parseServerEvent,
+  useEvents,
+} from "./use-events";
 
 class MockEventSource {
   static instances: MockEventSource[] = [];
@@ -57,6 +63,7 @@ beforeEach(() => {
 
 afterEach(() => {
   queryClient.clear();
+  vi.useRealTimers();
 });
 
 describe("useEvents", () => {
@@ -108,6 +115,81 @@ describe("useEvents", () => {
     MockEventSource.last.emit("message", { type: "message.triaged", message_id: "m1" });
 
     expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: ["message", "triage"] });
+  });
+
+  it("refreshes tasks, labels and search, not threads or lists, when a message is processed", () => {
+    renderHook(() => useEvents(), { wrapper });
+
+    MockEventSource.last.emit("message", { type: "message.processed", message_id: "m1" });
+
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ["message", "todos"],
+      ["message", "triage"],
+      ["message", "search"],
+    ]);
+  });
+
+  it("bundles the invalidations of an event burst", () => {
+    vi.useFakeTimers();
+    renderHook(() => useEvents(), { wrapper });
+    const emit = (type: string) => MockEventSource.last.emit("message", { type });
+
+    // The first event after a quiet period applies at once.
+    emit("message.processed");
+    expect(invalidate).toHaveBeenCalledTimes(3);
+    invalidate.mockClear();
+
+    // Events that follow wait until no event came for a while, and each key runs once.
+    for (let index = 0; index < 50; index++) emit("message.processed");
+    emit("mailbox.sync");
+    vi.advanceTimersByTime(INVALIDATION_DEBOUNCE_MS - 1);
+    expect(invalidate).not.toHaveBeenCalled();
+    vi.advanceTimersByTime(1);
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ["message", "todos"],
+      ["message", "triage"],
+      ["message", "search"],
+      ["mailbox"],
+      ["message", "list"],
+    ]);
+    invalidate.mockClear();
+
+    // A shorter key covers the longer ones of the same batch.
+    emit("message.triaged");
+    emit("mailbox.changed");
+    vi.advanceTimersByTime(INVALIDATION_DEBOUNCE_MS);
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ["mailbox"],
+      ["message"],
+    ]);
+  });
+
+  it("applies a batch at the latest after the maximum wait while events keep coming", () => {
+    vi.useFakeTimers();
+    renderHook(() => useEvents(), { wrapper });
+    const emit = () => MockEventSource.last.emit("message", { type: "message.triaged" });
+
+    emit();
+    invalidate.mockClear();
+    for (let elapsed = 0; elapsed < INVALIDATION_MAX_WAIT_MS; elapsed += 500) {
+      vi.advanceTimersByTime(500);
+      emit();
+    }
+
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: ["message", "triage"] });
+  });
+
+  it("drops pending invalidations on unmount", () => {
+    vi.useFakeTimers();
+    const { unmount } = renderHook(() => useEvents(), { wrapper });
+    MockEventSource.last.emit("message", { type: "message.triaged" });
+    MockEventSource.last.emit("message", { type: "message.triaged" });
+    invalidate.mockClear();
+
+    unmount();
+    vi.advanceTimersByTime(INVALIDATION_MAX_WAIT_MS);
+
+    expect(invalidate).not.toHaveBeenCalled();
   });
 
   it("receives named SSE events for registered types", () => {
