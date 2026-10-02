@@ -84,9 +84,8 @@
     },
     "tasks": {
       "emptyTitle": "No tasks",
-      "emptyDescription": "Tasks found in your messages are listed here.",
-      "emptyAction": "Go to inbox",
-      "noSelection": "No task selected"
+      "emptyDescription": "Tasks found in your messages appear here. Add your own with the field above.",
+      "emptyAction": "Go to inbox"
     },
     "digest": {
       "emptyTitle": "No digest yet",
@@ -408,6 +407,48 @@
   "rootError": {
     "title": "ollamail could not be loaded",
     "retry": "Try again"
+  },
+  "tasks": {
+    "fromMail": "Tasks from this message",
+    "addFromMail": "Add task to this message",
+    "showAll": "All tasks",
+    "newTask": "New task",
+    "newTaskPlaceholder": "New task",
+    "title": "Title",
+    "rename": "Edit title",
+    "complete": "Mark as done",
+    "reopen": "Reopen",
+    "completeTask": "Mark “{{title}}” as done",
+    "reopenTask": "Reopen “{{title}}”",
+    "dismiss": "Dismiss",
+    "dismissTask": "Dismiss “{{title}}”",
+    "dismissed": "Task dismissed",
+    "undo": "Undo",
+    "openMailShort": "Open message",
+    "openMail": "Open message of “{{title}}”",
+    "dueDate": "Due date",
+    "dueOn": "Due {{date}}",
+    "setDate": "Set due date",
+    "changeDate": "Change due date",
+    "date": {
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "nextWeek": "Next week",
+      "none": "No date",
+      "apply": "Set"
+    },
+    "groups": {
+      "overdue": "Overdue",
+      "today": "Today",
+      "upcoming": "Upcoming",
+      "someday": "No date",
+      "done": "Done"
+    },
+    "shortcuts": {
+      "new": "New task",
+      "toggleDone": "Mark task as done or open",
+      "date": "Change due date"
+    }
   },
   "mail": {
     "listLabel": "Messages",

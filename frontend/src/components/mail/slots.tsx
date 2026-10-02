@@ -9,6 +9,8 @@
  * inbox stable when the content arrives.
  */
 
+import { MessageTasks } from "@/components/tasks/message-tasks";
+
 interface SlotProps {
   messageId: string;
 }
@@ -17,6 +19,6 @@ export function TriageLabelSlot(_: SlotProps & { compact?: boolean }) {
   return null;
 }
 
-export function MessageTasksSlot(_: SlotProps) {
-  return null;
+export function MessageTasksSlot({ messageId }: SlotProps) {
+  return <MessageTasks messageId={messageId} />;
 }
