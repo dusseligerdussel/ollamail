@@ -126,7 +126,7 @@ function CollapsedMessage({ message, onExpand }: { message: MessageDetail; onExp
     <button
       type="button"
       onClick={onExpand}
-      className="flex w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-left text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+      className="flex w-full items-center gap-3 rounded-lg border px-4 py-2.5 text-left text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
     >
       <span className={cn("shrink-0 truncate", message.unread && "font-semibold")}>
         {addressName(message.sender)}
@@ -281,7 +281,7 @@ function AttachmentList({
               download={attachment.filename ?? true}
               aria-describedby={attachment.id === focusId ? `found-${attachment.id}` : undefined}
               className={cn(
-                "flex max-w-64 items-center gap-2 rounded-md border px-2.5 py-1.5 text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                "flex max-w-64 items-center gap-2 rounded-md border px-2.5 py-1.5 text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80",
                 attachment.id === focusId && "border-brand/50 bg-brand/10",
               )}
             >

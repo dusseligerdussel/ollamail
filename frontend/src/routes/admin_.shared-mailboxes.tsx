@@ -99,7 +99,7 @@ function SharedMailboxRow({ mailbox }: { mailbox: SharedMailbox }) {
       <Link
         to="/admin/shared-mailboxes/$mailboxId"
         params={{ mailboxId: mailbox.id }}
-        className="flex items-center gap-3 px-4 py-3 outline-none first:rounded-t-lg last:rounded-b-lg hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="flex items-center gap-3 px-4 py-3 outline-none first:rounded-t-lg last:rounded-b-lg hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
       >
         <div className="min-w-0 flex-1">
           <div className="flex min-w-0 items-baseline gap-2">

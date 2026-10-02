@@ -69,7 +69,7 @@ function AuditLogPage() {
         aria-label={t("pages.audit.title")}
         // biome-ignore lint/a11y/noNoninteractiveTabindex: scroll container without focusable content
         tabIndex={0}
-        className="flex-1 overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset"
+        className="flex-1 overflow-y-auto outline-none focus-visible:ring-[3px] focus-visible:ring-ring/80 focus-visible:ring-inset"
       >
         <AuditEvents filters={filters} />
       </section>

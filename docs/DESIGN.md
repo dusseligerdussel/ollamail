@@ -14,7 +14,8 @@ Ziel: ein ruhiges, schnelles, professionelles Werkzeug. Vorbilder: Linear, Super
 - Schnelle, kurze Übergänge (≤ 150 ms), `prefers-reduced-motion` respektieren.
 - Leere Zustände sachlich mit einer klaren nächsten Aktion.
 - Skeletons statt Spinner bei Listen.
-- Barrierefreiheit: WCAG 2.2 AA, Fokus sichtbar, alles per Tastatur bedienbar.
+- Barrierefreiheit: WCAG 2.2 AA, Fokus sichtbar, alles per Tastatur bedienbar. Prüfumfang, Funde und
+  bekannte Einschränkungen: `docs/accessibility.md`.
 
 ## Don't
 

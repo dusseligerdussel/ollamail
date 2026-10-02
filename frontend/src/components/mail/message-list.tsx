@@ -236,7 +236,7 @@ const MessageRow = memo(function MessageRow({
       data-unread={message.unread || undefined}
       className={cn(
         "group flex h-full border-b border-border/60 px-4 text-ui outline-none",
-        "hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset",
+        "hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80 focus-visible:ring-inset",
         "data-active:shadow-[inset_2px_0_0_var(--ring)]",
         selected && "bg-accent hover:bg-accent",
         oneLine ? "items-center gap-3" : "flex-col justify-center gap-0.5",

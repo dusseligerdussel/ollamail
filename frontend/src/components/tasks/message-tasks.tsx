@@ -69,7 +69,7 @@ export function MessageTasks({ messageId }: { messageId: string }) {
         </h2>
         <Link
           to="/tasks"
-          className="ml-auto rounded-sm text-xs text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="ml-auto rounded-sm text-xs text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/80"
         >
           {t("tasks.showAll")}
         </Link>
