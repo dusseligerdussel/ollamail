@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 
 from app.ai.llm import EnvConfigResolver, LLMGateway
+from app.audit.router import router as audit_router
 from app.auth.csrf import CSRFMiddleware
 from app.auth.providers import AuthProviderRegistry
 from app.auth.router import router as auth_router
@@ -83,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(todos_router)
+    app.include_router(audit_router)
     app.include_router(mailboxes_router)
     return app
 

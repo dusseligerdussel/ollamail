@@ -4,6 +4,66 @@
  */
 
 export interface paths {
+    "/audit/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Events
+         * @description Audit events, newest first.
+         */
+        get: operations["audit_get_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/events/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Events
+         * @description All matching audit events as CSV. The export itself is recorded.
+         */
+        get: operations["audit_export_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify
+         * @description Recompute the hash chain to detect changed or removed entries.
+         */
+        get: operations["audit_verify"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -490,6 +550,57 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActorKind
+         * @enum {string}
+         */
+        ActorKind: "user" | "system" | "anonymous";
+        /**
+         * AuditAction
+         * @enum {string}
+         */
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "crypto.keys_rotated" | "audit.exported";
+        /** AuditChainStatus */
+        AuditChainStatus: {
+            /** Checked */
+            checked: number;
+            /** First Invalid Id */
+            first_invalid_id: number | null;
+            /** Valid */
+            valid: boolean;
+        };
+        /** AuditEventPage */
+        AuditEventPage: {
+            /** Items */
+            items: components["schemas"]["AuditEventRead"][];
+            /** Next Before */
+            next_before: number | null;
+        };
+        /** AuditEventRead */
+        AuditEventRead: {
+            action: components["schemas"]["AuditAction"];
+            /** Actor Id */
+            actor_id: string | null;
+            actor_kind: components["schemas"]["ActorKind"];
+            /** Actor Name */
+            actor_name: string | null;
+            /** Details */
+            details: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Target Id */
+            target_id: string | null;
+            /** Target Name */
+            target_name: string | null;
+            target_type: components["schemas"]["TargetType"] | null;
+        };
         /** AuthProviderInfo */
         AuthProviderInfo: {
             /** Display Name */
@@ -931,6 +1042,11 @@ export interface components {
             poll_interval_seconds?: number | null;
         };
         /**
+         * TargetType
+         * @enum {string}
+         */
+        TargetType: "user" | "session" | "mailbox" | "idp" | "settings";
+        /**
          * TodoCreate
          * @description A todo created by the user, optionally linked to one of their mails.
          */
@@ -1096,6 +1212,147 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    audit_get_events: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description Cursor: `next_before` */
+                before?: number | null;
+                action?: components["schemas"]["AuditAction"] | null;
+                actor_id?: string | null;
+                target_type?: components["schemas"]["TargetType"] | null;
+                target_id?: string | null;
+                /** @description Inclusive lower bound */
+                since?: string | null;
+                /** @description Exclusive upper bound */
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventPage"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_export_events: {
+        parameters: {
+            query?: {
+                action?: components["schemas"]["AuditAction"] | null;
+                actor_id?: string | null;
+                target_type?: components["schemas"]["TargetType"] | null;
+                target_id?: string | null;
+                /** @description Inclusive lower bound */
+                since?: string | null;
+                /** @description Exclusive upper bound */
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditChainStatus"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_login: {
         parameters: {
             query?: never;

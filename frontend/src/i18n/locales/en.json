@@ -107,9 +107,87 @@
       "serverChecking": "Checking connection"
     },
     "admin": {
-      "emptyTitle": "No admin settings yet",
-      "emptyDescription": "Users, sign-in methods, mail providers and language models will be managed here once these areas are available.",
-      "emptyAction": "Open your settings"
+      "security": "Security",
+      "auditDescription": "Sign-ins, role changes, key rotation and other security events.",
+      "more": "Users, sign-in methods, mail providers and language models will be managed here once these areas are available."
+    },
+    "audit": {
+      "title": "Audit log",
+      "back": "Back to admin",
+      "export": "Export CSV",
+      "filters": "Filters",
+      "action": "Event",
+      "allActions": "All events",
+      "from": "From",
+      "to": "To",
+      "reset": "Reset filters",
+      "loadMore": "Load older entries",
+      "loadingMore": "Loading…",
+      "emptyTitle": "No entries",
+      "emptyDescription": "Security events such as sign-ins and role changes are recorded here.",
+      "emptyFilteredDescription": "No entries match the filters.",
+      "columns": {
+        "time": "Time",
+        "event": "Event",
+        "actor": "By",
+        "target": "Affected",
+        "details": "Details"
+      },
+      "actor": {
+        "system": "System",
+        "anonymous": "Not signed in",
+        "deleted": "Deleted user"
+      },
+      "targets": {
+        "user": "User",
+        "session": "Session",
+        "mailbox": "Mailbox",
+        "idp": "Sign-in provider",
+        "settings": "Settings"
+      },
+      "groups": {
+        "auth": "Sign-in",
+        "users": "Users",
+        "settings": "Settings",
+        "mailboxes": "Mailboxes",
+        "data": "Data",
+        "operations": "Operations"
+      },
+      "actions": {
+        "auth": {
+          "setup_completed": "Instance set up",
+          "login_succeeded": "Signed in",
+          "login_failed": "Sign-in failed",
+          "logout": "Signed out",
+          "session_revoked": "Sessions ended"
+        },
+        "user": {
+          "created": "User created",
+          "role_changed": "Role changed",
+          "deleted": "User deleted"
+        },
+        "idp": {
+          "config_changed": "Sign-in provider changed"
+        },
+        "ai": {
+          "settings_changed": "Language model settings changed"
+        },
+        "mailbox": {
+          "created": "Mailbox added",
+          "shared": "Mailbox shared",
+          "deleted": "Mailbox removed"
+        },
+        "data": {
+          "exported": "Data exported",
+          "deleted": "Data deleted"
+        },
+        "crypto": {
+          "keys_rotated": "Keys rotated"
+        },
+        "audit": {
+          "exported": "Audit log exported"
+        }
+      }
     }
   },
   "notFound": {
@@ -131,5 +209,75 @@
     "unavailable": "The service is temporarily unavailable.",
     "unknown": "Something went wrong.",
     "requestId": "Request ID: {{id}}"
+  },
+  "auth": {
+    "logout": "Sign out",
+    "fields": {
+      "email": "E-mail address",
+      "password": "Password",
+      "displayName": "Name",
+      "setupToken": "Setup code"
+    },
+    "passwordTooShort_one": "The password must have at least {{count}} character.",
+    "passwordTooShort_other": "The password must have at least {{count}} characters.",
+    "login": {
+      "title": "Sign in to ollamail",
+      "description": "Use your ollamail account.",
+      "submit": "Sign in",
+      "submitting": "Signing in…",
+      "invalidCredentials": "E-mail address or password is incorrect.",
+      "throttled": "Too many sign-in attempts. Please wait a few minutes and try again.",
+      "or": "or",
+      "providers": "Other sign-in methods",
+      "withProvider": "Continue with {{provider}}",
+      "noMethods": "No sign-in method is configured. Contact your administrator."
+    },
+    "setup": {
+      "step": "Step {{step}} of {{of}}",
+      "title": "Set up ollamail",
+      "description": "Create the first account. It gets administrator rights and can add further users and sign-in methods.",
+      "passwordHint": "At least 12 characters, unless the server requires a different length.",
+      "tokenHint": "Shown in the server log at start-up (setup_code) or set via OLLAMAIL_SETUP_TOKEN.",
+      "invalidToken": "The setup code is incorrect.",
+      "alreadyInitialized": "This instance has already been set up. Sign in instead.",
+      "submit": "Create administrator",
+      "submitting": "Creating…",
+      "doneTitle": "Administrator created",
+      "doneDescription": "You are signed in as {{email}}.",
+      "providersTitle": "Identity provider (optional)",
+      "providersDescription": "Connect Microsoft Entra ID, Google, GitHub or LDAP so that others can sign in with their existing account. You can do this later in the admin area.",
+      "providersAction": "Set up identity provider",
+      "continue": "Continue to inbox"
+    }
+  },
+  "account": {
+    "menu": "Account",
+    "settings": "Settings",
+    "title": "Account",
+    "roles": {
+      "admin": "Administrator",
+      "user": "User"
+    },
+    "timeZone": "Time zone",
+    "timeZoneDescription": "Used for dates, digests and reminders.",
+    "sessions": {
+      "title": "Active sessions",
+      "unknownDevice": "Unknown device",
+      "device": "{{browser}} on {{os}}",
+      "current": "This device",
+      "lastActive": "Last active: {{date}}",
+      "revoke": "Sign out",
+      "revokeLabel": "Sign out {{device}}",
+      "revokeOthers": "Sign out all other sessions"
+    }
+  },
+  "forbidden": {
+    "title": "No access",
+    "description": "This page is only available to administrators.",
+    "action": "Go to inbox"
+  },
+  "rootError": {
+    "title": "ollamail could not be loaded",
+    "retry": "Try again"
   }
 }

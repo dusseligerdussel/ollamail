@@ -1,5 +1,5 @@
 import { Link } from "@tanstack/react-router";
-import { Menu } from "lucide-react";
+import { LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -11,7 +11,7 @@ import {
   SheetHeader,
   SheetTitle,
 } from "@/components/ui/sheet";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useChangeLanguage, useCurrentUser, useLogout } from "@/hooks/use-current-user";
 
 import { visibleNavItems } from "./nav-items";
 
@@ -22,6 +22,8 @@ const tabClass =
 export function BottomBar() {
   const { t } = useTranslation();
   const { isAdmin } = useCurrentUser();
+  const changeLanguage = useChangeLanguage();
+  const logout = useLogout();
   const [moreOpen, setMoreOpen] = useState(false);
   const items = visibleNavItems(isAdmin);
 
@@ -82,6 +84,17 @@ export function BottomBar() {
                   </li>
                 );
               })}
+            <li>
+              <button
+                type="button"
+                disabled={logout.isPending}
+                onClick={() => logout.mutate()}
+                className="flex h-11 w-full items-center gap-3 rounded-md px-2 text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring"
+              >
+                <LogOut className="size-4 text-muted-foreground" aria-hidden="true" />
+                {t("auth.logout")}
+              </button>
+            </li>
           </ul>
           <div className="mt-2 flex flex-col gap-4 border-t px-4 pt-4 pb-[calc(1.5rem+env(safe-area-inset-bottom))]">
             <div className="flex flex-col gap-2">
@@ -92,7 +105,7 @@ export function BottomBar() {
               <span className="text-xs font-medium text-muted-foreground">
                 {t("language.label")}
               </span>
-              <LanguageToggleGroup className="w-full" />
+              <LanguageToggleGroup className="w-full" onChange={changeLanguage} />
             </div>
           </div>
         </SheetContent>
