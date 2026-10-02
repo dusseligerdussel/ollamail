@@ -610,6 +610,59 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Zugriff:** Jede Abfrage enthält `mailbox_id IN (readable_mailbox_ids(user_id))` aus
   `app.search.access`, der einzigen Stelle dieser Regel. Heute: eigene Postfächer; Shared
   Mailboxes werden dort mit #34 ergänzt.
+- **Kategorie-Filter** (`SearchFilters.category_ids`): Triage-Kategorie der Mail
+  (`triage_results.category_id`).
+
+**Umsetzung „Frag deine Inbox“ (`backend/app/rag/`, #25):**
+
+- **Ablauf** (`RagService.ask`, ein Event-Stream pro Frage):
+  1. Kontext aus der DB: frühere Runden des Gesprächs, lesbare Postfächer, sichtbare Kategorien.
+  2. **Query-Analyse** (Prompt `rag_query@1`, Structured Output `QueryAnalysis`): eigenständige
+     Suchanfrage (löst Bezüge in Folgefragen auf) und Filter Zeitraum, Absender, Postfach,
+     Kategorie. Das Modell sieht nur die Fragen des Nutzers und die Schlüssel seiner Postfächer
+     (`m1`, `m2`, …) und Kategorien, nie Mailinhalte. Übernommen wird nur, was sich auf ein
+     lesbares Postfach, eine sichtbare Kategorie oder einen gültigen Zeitraum (Tage in der
+     Zeitzone des Nutzers) abbilden lässt. **UI-Filter haben Vorrang**, extrahierte Filter
+     füllen nur Lücken (`extracted` nennt sie). Schlägt die Analyse fehl, wird die Frage
+     unverändert gesucht. Abschaltbar: `OLLAMAIL_RAG_FILTER_EXTRACTION_ENABLED`.
+  3. **Retrieval** über `search()` (Zugriff in SQL, siehe oben), `OLLAMAIL_RAG_RETRIEVAL_LIMIT`
+     Chunks. **Reranker** (optional, `app.rag.rerank`): das Chat-Modell ordnet
+     `OLLAMAIL_RAG_RERANK_CANDIDATES` Kandidaten (Prompt `rag_rerank@1`); standardmäßig an für
+     `gpu-consumer`/`gpu-server`, **aus beim Profil `cpu`**, per
+     `OLLAMAIL_RAG_RERANKER_ENABLED` überschreibbar. Fehler → Reihenfolge der Suche.
+  4. **Antwort** (Prompt `rag_answer@1`, `LLMGateway.stream`, Aufgabe `rag_chat`): Die besten
+     Chunks, die neben Prompt, Verlauf und Antwort (`OLLAMAIL_RAG_MAX_ANSWER_TOKENS`) ins
+     Kontextfenster passen, werden nummerierte Quellen. Ohne Treffer wird kein Modell gefragt;
+     die Antwort sagt, dass nichts gefunden wurde.
+  5. Frage, Antwort und zitierte Ausschnitte speichern; Log-Event `rag_answer_finished` mit
+     `ttft_ms` (Anfrage bis erstes Antwortstück), `retrieval_ms`, `total_ms`, Anzahl Quellen
+     und Zitate, Status – ohne Inhalte.
+- **Zitate:** Das Modell zitiert mit `[n]`. `CitationFilter` liegt zwischen Modell und Client
+  und lässt nur Nummern durch, die einer übergebenen Quelle entsprechen (`[1, 3]` → `[1][3]`,
+  erfundene Nummern werden entfernt) – auch über Stream-Stücke hinweg. Zitiert die Antwort
+  nichts, ist ihr Status `no_evidence` (sonst `answered`); das UI kennzeichnet sie.
+- **Prompt-Injection:** Mailinhalte stehen nur in Datenblöcken mit pro Anfrage zufälligem
+  Tag (`<mail-3f9a… n="1">…</mail-3f9a…>`), eine Mail kann ihren Block also nicht schließen.
+  Der System-Prompt erklärt die Blöcke zu nicht vertrauenswürdigen Daten und verbietet, darin
+  enthaltenen Anweisungen zu folgen. Es gibt keine Tools: Die Ausgabe wird nur als Text mit
+  Zitatmarkern behandelt, nie ausgeführt. Zugriffskontrolle steht nie im Prompt.
+- **Verbindungen:** Für jeden Schritt wird eine eigene DB-Session geöffnet und wieder
+  geschlossen; während das Modell schreibt, hält der Stream keine Verbindung.
+- **Gesprächsverlauf:** `rag_conversations` (am Nutzer, `ON DELETE CASCADE`), `rag_messages`
+  (Frage/Antwort mit `position`, Filtern, Status, Modell, Prompt-Version), `rag_citations`
+  (Nummer, Mail, Postfach, Anhang, Kopfzeile, Ausschnitt; `ON DELETE CASCADE` an Antwort, Mail,
+  Anhang und Postfach). Folgefragen bekommen die letzten `OLLAMAIL_RAG_HISTORY_TURNS` Runden,
+  frühere Antworten ohne Zitatmarker. Beim Lesen eines Gesprächs werden Zitate aus nicht
+  (mehr) lesbaren Postfächern per SQL ausgeblendet. Der Job `rag.purge_conversations`
+  (täglich) löscht Gespräche nach `OLLAMAIL_RAG_HISTORY_RETENTION_DAYS` ohne neue Frage
+  (Standard 90, 0 = nie).
+
+| Endpunkt | Zweck |
+|---|---|
+| `POST /rag/ask` | Frage stellen (`question`, optional `conversation_id`, `filters`). Antwort als `text/event-stream`: `start` (IDs), `filters` (angewandte Filter), `sources` (nummerierte Quellen mit Mail-ID und Ausschnitt), `token`…, dann `done` (`status`, `citations`, `ttft_ms`) oder `error` (`code`). POST, damit die Frage nicht in URLs/Access-Logs landet; Clients lesen den Stream per `fetch` |
+| `GET /rag/conversations` | Eigene Gespräche, zuletzt genutzte zuerst |
+| `GET/DELETE /rag/conversations/{id}` | Gespräch mit Fragen, Antworten und Zitaten; löschen. Fremde Gespräche verhalten sich wie nicht vorhandene (404) |
+| `DELETE /rag/conversations` | Alle eigenen Gespräche löschen |
 
 ## 5. Auth & Mandantenmodell
 
