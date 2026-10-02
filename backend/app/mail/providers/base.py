@@ -75,7 +75,10 @@ class RemoteFolder:
 
 @dataclass(frozen=True, slots=True)
 class SyncCursor:
-    """Opaque provider state; ``data`` must be JSON-serialisable (``SyncState.cursor``)."""
+    """Opaque provider state; ``data`` must be JSON-serialisable (``SyncState.cursor``).
+
+    Providers that import in batches keep pending import work under the key ``"import"``;
+    the mailbox API reports such folders as still importing."""
 
     data: dict[str, Any] = field(default_factory=dict)
 

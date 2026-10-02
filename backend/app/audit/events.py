@@ -26,7 +26,7 @@ class AuditAction(enum.StrEnum):
     # AI settings, including enabling cloud providers
     AI_SETTINGS_CHANGED = "ai.settings_changed"  # planned: admin LLM settings
     # Mailboxes
-    MAILBOX_CREATED = "mailbox.created"  # planned: mailbox API (#15)
+    MAILBOX_CREATED = "mailbox.created"
     MAILBOX_DELETED = "mailbox.deleted"
     MAILBOX_SHARED = "mailbox.shared"  # planned: shared mailboxes
     # Data subject rights and data deletion

@@ -192,6 +192,45 @@ Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto
   `@on_message_stored` (siehe 4.1, die Verarbeitungspipeline tut das); ein fehlschlagender
   Handler wird geloggt und stoppt den Sync nicht.
 
+#### Postfach-API (`backend/app/mail/api/`)
+
+Nutzer verwalten ihre eigenen Postfächer unter `/mailboxes`. Die API nutzt Registry, Sync-Job
+und `delete_mailbox`; sie baut nichts davon nach.
+
+| Endpunkt | Zweck |
+|---|---|
+| `POST /mailboxes/autodiscover` | Host/Port-Vorschläge zur Adresse (bekannte Anbieter, sonst `imap.<domain>`/`mail.<domain>`). Offline, keine DNS-/HTTP-Abfragen; Adresse im Body, damit sie nicht in Access-Logs landet. Hinweise als Codes (`app_password`, `enable_imap`, `oauth_required`, …) |
+| `POST /mailboxes/test` | Verbindungstest ohne Speichern (Provider aus der Registry, `list_folders`). Ergebnis `ok`, Fehlercode oder Ordnerliste für die Ordnerauswahl vor dem Anlegen |
+| `GET/POST /mailboxes` | Eigene Postfächer mit Sync-Status; Anlegen testet die Verbindung (422 mit `error_code`), lehnt Duplikate ab (409) und stößt den Initialimport an |
+| `GET/PATCH/DELETE /mailboxes/{id}` | Details; Umbenennen, Verbindung/Zugangsdaten (vor dem Speichern getestet), Importzeitraum, ausgeschlossene Rollen, Pausieren/Fortsetzen (`sync_enabled`); Entfernen |
+| `GET /mailboxes/{id}/status` | Nur der Sync-Status |
+| `POST /mailboxes/{id}/sync` | Sync sofort anstoßen (202, `queued`); 409, wenn pausiert |
+| `GET/PATCH /mailboxes/{id}/folders` | Ordner mit Auswahl und Status je Ordner; Auswahl setzen |
+
+- **Zugriff:** ausschließlich über `app/mail/api/access.py` (`get_mailbox`, `visible_to`,
+  Berechtigungen `read`/`sync`/`manage`). Heute nur der Besitzer; #34 erweitert diese Funktionen
+  um Shared Mailboxes. Fremde Postfächer verhalten sich wie nicht vorhandene (404).
+- **Zugangsdaten** sind write-only (Antworten enthalten nur `has_credentials`) und werden
+  verschlüsselt gespeichert. Ein PATCH ersetzt sie als Ganzes; neue Verbindungsdaten werden mit den
+  gespeicherten Zugangsdaten getestet.
+- **Sync-Status** (`MailboxSyncStatus`): `phase` = `paused` | `error` (letzter Sync für das ganze
+  Postfach fehlgeschlagen) | `syncing` (Sync-Job wartet oder läuft, aus `procrastinate_jobs`) |
+  `pending` (nie synchronisiert) | `importing` (Initialimport eines Ordners offen) | `idle`, dazu
+  letzte Synchronisierung, Fehlercode, Ordner gesamt/importiert/fehlgeschlagen und Anzahl Mails.
+  „Import offen“ heißt: kein Cursor oder der Cursor enthält den Schlüssel `import`
+  (Konvention für Provider, die in Batches importieren, siehe `SyncCursor`).
+- **Ordnerauswahl** setzt `Folder.sync_enabled` und hält `SyncSettings.excluded_folders`
+  synchron (bleibt erhalten, wenn ein Ordner neu angelegt wird). Abgewählte Ordner behalten ihre
+  gespeicherten Mails. Ordner mit ausgeschlossener Rolle (Papierkorb, Spam) bleiben aus, bis die
+  Rolle aus `excluded_roles` entfernt wird. Der Importzeitraum gilt für Ordner, deren Import noch
+  nicht begonnen hat.
+- **Events:** Neben `mailbox.sync` aus dem Sync sendet die API `mailbox.changed`
+  (`created`, `updated`, `deleted`) an den Besitzer.
+- **Jobs aus der API:** `app/core/jobs.py` öffnet die Procrastinate-App beim ersten Einreihen
+  (der Start der API hängt nicht an der Queue) und schließt sie beim Shutdown.
+- **Audit:** `mailbox.created` und `mailbox.deleted` (über `delete_mailbox`) mit dem Nutzer als
+  Akteur, in derselben Transaktion wie die Änderung.
+
 ### 3.2 LLM-Provider
 
 ```python
