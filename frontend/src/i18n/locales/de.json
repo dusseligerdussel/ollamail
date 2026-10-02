@@ -9,7 +9,11 @@
   },
   "shell": {
     "skipToContent": "Zum Inhalt springen",
-    "resizeNavigation": "Navigationsbreite ändern"
+    "resizeNavigation": "Navigationsbreite ändern",
+    "cloudNotice": {
+      "label": "Cloud-KI aktiv",
+      "text": "{{provider}} erhält Mail-Inhalte für: {{tasks}}"
+    }
   },
   "nav": {
     "label": "Hauptnavigation",
@@ -109,7 +113,9 @@
     "admin": {
       "security": "Sicherheit",
       "auditDescription": "Anmeldungen, Rollenänderungen, Schlüsselrotation und weitere Sicherheitsereignisse.",
-      "more": "Mail-Provider und Sprachmodelle werden hier verwaltet, sobald diese Bereiche verfügbar sind.",
+      "more": "Mail-Provider werden hier verwaltet, sobald dieser Bereich verfügbar ist.",
+      "ai": "Sprachmodelle",
+      "aiDescription": "Provider, Modelle je Aufgabe, Hardware-Profil und Cloud-Freigabe.",
       "access": "Anmeldung und Nutzer",
       "signInDescription": "Identity-Provider, LDAP-Verzeichnisse und lokale Konten.",
       "roleMappingDescription": "Rollen aus den Gruppen deines Identity-Providers ableiten.",
@@ -196,6 +202,129 @@
           "exported": "Audit-Log exportiert"
         }
       }
+    },
+    "ai": {
+      "title": "KI",
+      "back": "Zurück zur Verwaltung",
+      "tasks": {
+        "triage": "Triage",
+        "todos": "Aufgaben",
+        "digest": "Zusammenfassung",
+        "rag_chat": "Fragen an die Inbox",
+        "embeddings": "Suchindex"
+      },
+      "taskDescriptions": {
+        "triage": "Sortiert neue Mails in Kategorien.",
+        "todos": "Erkennt Aufgaben in Mails.",
+        "digest": "Schreibt die tägliche Zusammenfassung.",
+        "rag_chat": "Beantwortet Fragen mit Quellen aus den Mails.",
+        "embeddings": "Berechnet Vektoren für die Suche (Embedding-Modell)."
+      },
+      "cloud": {
+        "section": "Cloud-Sprachmodelle",
+        "label": "Cloud-LLMs erlauben",
+        "description": "Erlaubt Provider, die als Cloud markiert sind. Standard: aus.",
+        "warningTitle": "Datenübermittlung an Dritte",
+        "warning": "Solange Cloud-LLMs erlaubt sind, sendet ollamail für jede Aufgabe, die einem Cloud-Provider zugeordnet ist, Mail-Inhalte (Text, Betreff, Absender, Anhangstexte) an diesen Anbieter. Prüfe vorher Auftragsverarbeitungsvertrag, Serverstandort und Speicherdauer. Alle Nutzer sehen dauerhaft einen Hinweis.",
+        "confirmTitle": "Cloud-LLMs erlauben?",
+        "confirm": "Erlauben",
+        "cancel": "Abbrechen",
+        "enabled": "Cloud-LLMs erlaubt",
+        "disabled": "Cloud-LLMs gesperrt"
+      },
+      "providers": {
+        "section": "Provider",
+        "add": "Provider hinzufügen",
+        "local": "Lokal",
+        "cloud": "Cloud",
+        "environment": "Umgebung",
+        "environmentHint": "Aus der Umgebung (OLLAMAIL_LLM_*), hier nicht änderbar.",
+        "apiKeySet": "API-Key gesetzt",
+        "usedBy": "Genutzt für: {{tasks}}",
+        "unused": "Keiner Aufgabe zugeordnet",
+        "test": "Verbindung testen",
+        "testing": "Teste …",
+        "edit": "Bearbeiten",
+        "delete": "Löschen",
+        "actions": "Aktionen für {{name}}",
+        "deleteTitle": "Provider „{{name}}“ löschen?",
+        "deleteDescription": "Der Provider und sein API-Key werden entfernt.",
+        "deleted": "Provider gelöscht",
+        "inUse": "Der Provider ist noch Aufgaben zugeordnet. Ordne sie zuerst einem anderen Provider zu.",
+        "kinds": {
+          "ollama": "Ollama",
+          "openai_compatible": "OpenAI-kompatibel"
+        }
+      },
+      "test": {
+        "ok_one": "Verbunden · {{count}} Modell · {{duration}} ms",
+        "ok_other": "Verbunden · {{count}} Modelle · {{duration}} ms",
+        "unreachable": "Nicht erreichbar. Prüfe URL, Netzwerk und ob der Dienst läuft.",
+        "unauthorized": "Zugriff verweigert (HTTP {{status}}). Prüfe den API-Key.",
+        "rejected": "Anfrage abgelehnt (HTTP {{status}}). Prüfe URL und Typ.",
+        "failed": "Unerwartete Antwort. Prüfe URL und Typ."
+      },
+      "form": {
+        "addTitle": "Provider hinzufügen",
+        "editTitle": "Provider bearbeiten",
+        "description": "Ein Endpunkt, der Sprachmodelle bereitstellt, z. B. Ollama, vLLM oder ein OpenAI-kompatibler Dienst.",
+        "name": "Name",
+        "nameHint": "Kleinbuchstaben, Ziffern, - und _. Nicht änderbar.",
+        "nameInvalid": "Nur Kleinbuchstaben, Ziffern, - und _ (max. 32 Zeichen).",
+        "displayName": "Anzeigename",
+        "kind": "Typ",
+        "baseUrl": "URL",
+        "baseUrlHintOllama": "Server-Adresse, z. B. http://ollama:11434",
+        "baseUrlHintOpenai": "API-Basis inkl. /v1, z. B. http://vllm:8000/v1",
+        "baseUrlInvalid": "Eine http(s)-URL ohne Zugangsdaten angeben.",
+        "apiKey": "API-Key",
+        "apiKeyHint": "Wird verschlüsselt gespeichert und nie wieder angezeigt.",
+        "apiKeyKeep": "Gesetzt. Leer lassen, um ihn zu behalten.",
+        "removeApiKey": "API-Key entfernen",
+        "isCloud": "Cloud-Provider",
+        "isCloudHint": "Mail-Inhalte verlassen die Instanz. Nur nutzbar, solange Cloud-LLMs erlaubt sind.",
+        "structuredOutput": "Strukturierte Ausgabe",
+        "structuredNative": "JSON-Schema über die API",
+        "structuredPrompt": "Nur per Prompt",
+        "timeout": "Timeout (Sekunden)",
+        "timeoutHint": "Leer: Standard der Instanz.",
+        "save": "Speichern",
+        "saving": "Speichert …",
+        "cancel": "Abbrechen",
+        "created": "Provider angelegt",
+        "updated": "Provider gespeichert",
+        "nameTaken": "Dieser Name ist bereits vergeben.",
+        "displayNameRequired": "Anzeigenamen angeben."
+      },
+      "assignments": {
+        "section": "Modelle je Aufgabe",
+        "provider": "Provider",
+        "model": "Modell",
+        "defaultProvider": "Standard ({{name}})",
+        "modelPlaceholder": "Standard: {{model}}",
+        "modelRequired": "Für einen gewählten Provider ein Modell angeben.",
+        "blocked": "Cloud-Provider, aber Cloud-LLMs sind gesperrt: Diese Aufgabe läuft nicht.",
+        "save": "Zuordnung speichern",
+        "reset": "Verwerfen",
+        "saved": "Zuordnung gespeichert",
+        "hint": "Änderungen gelten ab dem nächsten Job, ohne Neustart."
+      },
+      "performance": {
+        "section": "Hardware",
+        "profile": "Hardware-Profil",
+        "profileDescription": "Standardmodelle und Kontextgröße. Gilt, wenn eine Aufgabe kein eigenes Modell hat.",
+        "profiles": {
+          "cpu": "Nur CPU",
+          "gpu-consumer": "GPU (8–24 GB)",
+          "gpu-server": "Server-GPU"
+        },
+        "profileOption": "{{label}} · {{model}} · {{tokens}} Token",
+        "concurrency": "Parallelität",
+        "concurrencyDescription": "Gleichzeitige Anfragen an Sprachmodelle je Worker (1–{{max}}). Auf CPU-Hosts 1.",
+        "save": "Speichern",
+        "saved": "Einstellungen gespeichert"
+      },
+      "default": "Standard"
     },
     "signIn": {
       "title": "Anmeldung",

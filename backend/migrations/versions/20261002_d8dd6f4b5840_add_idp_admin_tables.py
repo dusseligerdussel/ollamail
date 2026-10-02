@@ -1,7 +1,7 @@
 """add idp admin tables
 
 Revision ID: d8dd6f4b5840
-Revises: 4f174bab2c45
+Revises: 769d65e9812f
 Create Date: 2026-10-02 05:20:08.407955+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "d8dd6f4b5840"
-down_revision: str | Sequence[str] | None = "4f174bab2c45"
+down_revision: str | Sequence[str] | None = "769d65e9812f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

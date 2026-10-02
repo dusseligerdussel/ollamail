@@ -19,6 +19,7 @@ import { Route as SearchRouteImport } from './routes/search'
 import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TasksRouteImport } from './routes/tasks'
+import { Route as AdminAiRouteImport } from './routes/admin_.ai'
 import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
 import { Route as AdminRoleMappingRouteImport } from './routes/admin_.role-mapping'
 import { Route as AdminSignInRouteImport } from './routes/admin_.sign-in'
@@ -74,6 +75,11 @@ const TasksRoute = TasksRouteImport.update({
   path: '/tasks',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminAiRoute = AdminAiRouteImport.update({
+  id: '/admin_/ai',
+  path: '/admin/ai',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminAuditRoute = AdminAuditRouteImport.update({
   id: '/admin_/audit',
   path: '/admin/audit',
@@ -106,6 +112,7 @@ export interface FileRoutesByFullPath {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
+  '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
@@ -122,6 +129,7 @@ export interface FileRoutesByTo {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
+  '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
@@ -139,6 +147,7 @@ export interface FileRoutesById {
   '/settings': typeof SettingsRoute
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
+  '/admin_/ai': typeof AdminAiRoute
   '/admin_/audit': typeof AdminAuditRoute
   '/admin_/role-mapping': typeof AdminRoleMappingRoute
   '/admin_/sign-in': typeof AdminSignInRoute
@@ -157,6 +166,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/tasks'
+    | '/admin/ai'
     | '/admin/audit'
     | '/admin/role-mapping'
     | '/admin/sign-in'
@@ -173,6 +183,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/tasks'
+    | '/admin/ai'
     | '/admin/audit'
     | '/admin/role-mapping'
     | '/admin/sign-in'
@@ -189,6 +200,7 @@ export interface FileRouteTypes {
     | '/settings'
     | '/setup'
     | '/tasks'
+    | '/admin_/ai'
     | '/admin_/audit'
     | '/admin_/role-mapping'
     | '/admin_/sign-in'
@@ -206,6 +218,7 @@ export interface RootRouteChildren {
   SettingsRoute: typeof SettingsRoute
   SetupRoute: typeof SetupRoute
   TasksRoute: typeof TasksRoute
+  AdminAiRoute: typeof AdminAiRoute
   AdminAuditRoute: typeof AdminAuditRoute
   AdminRoleMappingRoute: typeof AdminRoleMappingRoute
   AdminSignInRoute: typeof AdminSignInRoute
@@ -284,6 +297,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof TasksRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/ai': {
+      id: '/admin_/ai'
+      path: '/admin/ai'
+      fullPath: '/admin/ai'
+      preLoaderRoute: typeof AdminAiRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/audit': {
       id: '/admin_/audit'
       path: '/admin/audit'
@@ -326,6 +346,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsRoute: SettingsRoute,
   SetupRoute: SetupRoute,
   TasksRoute: TasksRoute,
+  AdminAiRoute: AdminAiRoute,
   AdminAuditRoute: AdminAuditRoute,
   AdminRoleMappingRoute: AdminRoleMappingRoute,
   AdminSignInRoute: AdminSignInRoute,

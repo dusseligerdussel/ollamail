@@ -3,6 +3,7 @@
 Alembic autogenerate relies on this. Add one import line per new models module.
 """
 
+from app.ai.settings import models as ai_settings_models
 from app.audit import models as audit_models
 from app.auth import models as auth_models
 from app.auth.providers.github import models as github_models
@@ -20,6 +21,7 @@ from app.users import models as user_models
 
 __all__ = [
     "Base",
+    "ai_settings_models",
     "audit_models",
     "auth_models",
     "digest_models",

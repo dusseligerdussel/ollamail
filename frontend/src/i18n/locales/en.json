@@ -9,7 +9,11 @@
   },
   "shell": {
     "skipToContent": "Skip to content",
-    "resizeNavigation": "Resize navigation"
+    "resizeNavigation": "Resize navigation",
+    "cloudNotice": {
+      "label": "Cloud AI active",
+      "text": "{{provider}} receives mail content for: {{tasks}}"
+    }
   },
   "nav": {
     "label": "Main navigation",
@@ -109,7 +113,9 @@
     "admin": {
       "security": "Security",
       "auditDescription": "Sign-ins, role changes, key rotation and other security events.",
-      "more": "Mail providers and language models will be managed here once these areas are available.",
+      "more": "Mail providers will be managed here once this area is available.",
+      "ai": "Language models",
+      "aiDescription": "Providers, model per task, hardware profile and cloud access.",
       "access": "Sign-in and users",
       "signInDescription": "Identity providers, LDAP directories and local accounts.",
       "roleMappingDescription": "Derive roles from the groups of your identity provider.",
@@ -196,6 +202,129 @@
           "exported": "Audit log exported"
         }
       }
+    },
+    "ai": {
+      "title": "AI",
+      "back": "Back to administration",
+      "tasks": {
+        "triage": "Triage",
+        "todos": "Tasks",
+        "digest": "Digest",
+        "rag_chat": "Questions to the inbox",
+        "embeddings": "Search index"
+      },
+      "taskDescriptions": {
+        "triage": "Sorts new mail into categories.",
+        "todos": "Finds tasks in mail.",
+        "digest": "Writes the daily summary.",
+        "rag_chat": "Answers questions with sources from the mail.",
+        "embeddings": "Computes vectors for search (embedding model)."
+      },
+      "cloud": {
+        "section": "Cloud language models",
+        "label": "Allow cloud LLMs",
+        "description": "Allows providers marked as cloud. Default: off.",
+        "warningTitle": "Data is sent to third parties",
+        "warning": "While cloud LLMs are allowed, ollamail sends mail content (text, subject, sender, attachment text) to the cloud provider of every task assigned to one. Check the data processing agreement, server location and retention first. All users see a permanent notice.",
+        "confirmTitle": "Allow cloud LLMs?",
+        "confirm": "Allow",
+        "cancel": "Cancel",
+        "enabled": "Cloud LLMs allowed",
+        "disabled": "Cloud LLMs blocked"
+      },
+      "providers": {
+        "section": "Providers",
+        "add": "Add provider",
+        "local": "Local",
+        "cloud": "Cloud",
+        "environment": "Environment",
+        "environmentHint": "From the environment (OLLAMAIL_LLM_*), cannot be changed here.",
+        "apiKeySet": "API key set",
+        "usedBy": "Used for: {{tasks}}",
+        "unused": "Not assigned to any task",
+        "test": "Test connection",
+        "testing": "Testing …",
+        "edit": "Edit",
+        "delete": "Delete",
+        "actions": "Actions for {{name}}",
+        "deleteTitle": "Delete provider “{{name}}”?",
+        "deleteDescription": "The provider and its API key are removed.",
+        "deleted": "Provider deleted",
+        "inUse": "The provider is still assigned to tasks. Assign them to another provider first.",
+        "kinds": {
+          "ollama": "Ollama",
+          "openai_compatible": "OpenAI-compatible"
+        }
+      },
+      "test": {
+        "ok_one": "Connected · {{count}} model · {{duration}} ms",
+        "ok_other": "Connected · {{count}} models · {{duration}} ms",
+        "unreachable": "Not reachable. Check the URL, the network and whether the service is running.",
+        "unauthorized": "Access denied (HTTP {{status}}). Check the API key.",
+        "rejected": "Request rejected (HTTP {{status}}). Check URL and type.",
+        "failed": "Unexpected response. Check URL and type."
+      },
+      "form": {
+        "addTitle": "Add provider",
+        "editTitle": "Edit provider",
+        "description": "An endpoint that serves language models, e.g. Ollama, vLLM or an OpenAI-compatible service.",
+        "name": "Name",
+        "nameHint": "Lower-case letters, digits, - and _. Cannot be changed.",
+        "nameInvalid": "Only lower-case letters, digits, - and _ (max. 32 characters).",
+        "displayName": "Display name",
+        "kind": "Type",
+        "baseUrl": "URL",
+        "baseUrlHintOllama": "Server address, e.g. http://ollama:11434",
+        "baseUrlHintOpenai": "API root incl. /v1, e.g. http://vllm:8000/v1",
+        "baseUrlInvalid": "Enter an http(s) URL without credentials.",
+        "apiKey": "API key",
+        "apiKeyHint": "Stored encrypted and never shown again.",
+        "apiKeyKeep": "Set. Leave empty to keep it.",
+        "removeApiKey": "Remove API key",
+        "isCloud": "Cloud provider",
+        "isCloudHint": "Mail content leaves the instance. Only usable while cloud LLMs are allowed.",
+        "structuredOutput": "Structured output",
+        "structuredNative": "JSON schema via the API",
+        "structuredPrompt": "Prompt only",
+        "timeout": "Timeout (seconds)",
+        "timeoutHint": "Empty: instance default.",
+        "save": "Save",
+        "saving": "Saving …",
+        "cancel": "Cancel",
+        "created": "Provider added",
+        "updated": "Provider saved",
+        "nameTaken": "This name is already taken.",
+        "displayNameRequired": "Enter a display name."
+      },
+      "assignments": {
+        "section": "Model per task",
+        "provider": "Provider",
+        "model": "Model",
+        "defaultProvider": "Default ({{name}})",
+        "modelPlaceholder": "Default: {{model}}",
+        "modelRequired": "Enter a model for the chosen provider.",
+        "blocked": "Cloud provider, but cloud LLMs are blocked: this task does not run.",
+        "save": "Save assignment",
+        "reset": "Discard",
+        "saved": "Assignment saved",
+        "hint": "Changes apply from the next job on, without a restart."
+      },
+      "performance": {
+        "section": "Hardware",
+        "profile": "Hardware profile",
+        "profileDescription": "Default models and context size. Applies to tasks without a model of their own.",
+        "profiles": {
+          "cpu": "CPU only",
+          "gpu-consumer": "GPU (8–24 GB)",
+          "gpu-server": "Server GPU"
+        },
+        "profileOption": "{{label}} · {{model}} · {{tokens}} tokens",
+        "concurrency": "Parallelism",
+        "concurrencyDescription": "Concurrent language model requests per worker (1–{{max}}). 1 on CPU hosts.",
+        "save": "Save",
+        "saved": "Settings saved"
+      },
+      "default": "Default"
     },
     "signIn": {
       "title": "Sign-in",
