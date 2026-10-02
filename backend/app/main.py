@@ -23,6 +23,8 @@ from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
+from app.mail.providers.graph_router import NOTIFICATIONS_PATH
+from app.mail.providers.graph_router import router as graph_router
 from app.todos.router import router as todos_router
 from app.users.router import router as users_router
 
@@ -70,7 +72,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     install_error_handlers(app)
     # Added first, so it runs inside RequestContextMiddleware (403s carry a request ID).
-    app.add_middleware(CSRFMiddleware, settings=settings)
+    app.add_middleware(CSRFMiddleware, settings=settings, exempt_paths=[NOTIFICATIONS_PATH])
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router)
     app.include_router(events_router)
@@ -78,6 +80,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(todos_router)
+    app.include_router(graph_router)
     return app
 
 
