@@ -6,6 +6,7 @@ from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 
+from app.admin.system import router as admin_system_router
 from app.ai.llm import LLMGateway
 from app.ai.settings.router import router as ai_settings_router
 from app.ai.settings.router import status_router as ai_status_router
@@ -137,6 +138,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(audit_router)
     app.include_router(ai_settings_router)
     app.include_router(ai_status_router)
+    app.include_router(admin_system_router)
     # Before the mailbox router: ``/mailboxes/providers`` must not match ``/{mailbox_id}``.
     app.include_router(mailbox_providers_router)
     app.include_router(mailboxes_router)

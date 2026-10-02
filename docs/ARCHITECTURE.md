@@ -427,7 +427,35 @@ Das Gateway erledigt pro Aufruf:
 Readiness: Mit `OLLAMAIL_LLM_READINESS_CHECK=true` prüft `/readyz` (Check `llm`), ob alle zugewiesenen
 Modelle auf ihren Endpunkten verfügbar sind. Der Check ist standardmäßig aus, weil die API auch ohne
 LLM nutzbar bleibt (Postfächer, Todos, Einstellungen). Mit `OLLAMAIL_LLM_PULL_MISSING_MODELS=true`
-lädt die API fehlende Modelle beim Start im Hintergrund aus Ollama.
+(Standard in `deploy/.env.example` für die gebündelten Ollama-Profile) lädt die API fehlende Modelle
+beim Start im Hintergrund aus Ollama; ist der Endpunkt noch nicht erreichbar, fragt sie bis zu
+sechsmal im Abstand von 10 s erneut.
+
+#### Systemstatus für Admins (`backend/app/admin/system.py`, #139)
+
+- `GET /api/admin/system/models`: je Task Endpunkt, Modell und Zustand (`installed`, `missing`,
+  `unreachable`, `disabled` = Cloud-Endpunkt bei gesperrter Cloud) aus `LLMGateway.model_status()`;
+  jeder Endpunkt wird einmal und höchstens 5 s lang nach seiner Modellliste gefragt. Dazu der
+  letzte Download des Modells.
+- `POST /api/admin/system/models/pull` (`{endpoint, model}`, 202): nur für Modelle, die einem Task
+  auf einem Ollama-Endpunkt zugewiesen sind. Legt eine Zeile in `ai_model_pulls` an und reiht den
+  Job `ai.pull_model` (Queue `default`, Lock je Download) ein; ein laufender Download wird nicht
+  doppelt gestartet. Der Job streamt `POST /api/pull` und schreibt höchstens einmal pro Sekunde
+  den Fortschritt (Bytes über alle Layer). Fehler nur als Code (`model_not_found`,
+  `llm_unavailable`, `llm_timeout`, `pull_rejected`, `pull_failed`), kein automatischer Retry.
+  Ohne Fortschritt seit 10 Minuten gilt ein Download als verloren und lässt sich neu starten.
+- `GET /api/admin/system/overview`: Fakten für die Erste-Schritte-Checkliste (Anzahl Postfächer,
+  eigener Digest an und Scheduler an, `OLLAMAIL_AUTH_PUBLIC_URL` gesetzt) und je Postfach
+  Anzeigename, Besitzername, Sync-Phase mit Fehlercode und die Zahl ausstehender, laufender und
+  fehlgeschlagener Verarbeitungsschritte (`processing.service.step_counts_by_mailbox`).
+- `POST /api/admin/system/mailboxes/{id}/retry-failed`: setzt nur die fehlgeschlagenen Schritte
+  des Postfachs auf `pending` (`processing.service.reset_failed_steps`) und reiht die Mails mit
+  `Priority.REPROCESS` ein, also hinter neuen Mails.
+- **UI:** Die Admin-Seite (`/admin`) zeigt Checkliste, Modellzustand mit Download-Button und
+  Fortschritt sowie die Verarbeitung je Postfach. Die App-Shell zeigt unter dem Cloud-Hinweis
+  dezente Hinweisleisten (`components/system-notices.tsx`): Admins sehen „Modell fehlt“ bzw.
+  „Sprachmodell nicht erreichbar“ (Link zur Admin-Seite), alle Nutzer ein eigenes Postfach im
+  Fehlerzustand (Link „Neu verbinden“ zu Einstellungen → Postfächer). Keine Modals.
 
 #### KI-Einstellungen im Admin-Bereich (`backend/app/ai/settings/`)
 

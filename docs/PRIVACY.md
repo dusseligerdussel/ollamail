@@ -17,7 +17,9 @@ Feature, sondern eine Randbedingung für jede Änderung.
    (Admin → Nutzer) zeigt nur Kontodaten: Name, Adresse, Rolle, Anmeldeverfahren, Status, letzte
    Anmeldung und Zahl der Sitzungen. Auch Shared Mailboxes verwaltet der Admin nur (Verbindung,
    Ordner, Zuweisungen, Sync-Status); lesen kann er sie nur, wenn er sich selbst zuweist, und
-   das steht im Audit-Log.
+   das steht im Audit-Log. Der Systemstatus auf der Admin-Seite (#139) zeigt je Postfach nur
+   Anzeigename, Besitzername, Sync-Status mit Fehlercode und die Zahl ausstehender bzw.
+   fehlgeschlagener Verarbeitungsschritte – keine Adressen, Betreffzeilen oder Inhalte.
 5. **Transparenz** – Jede KI-Bewertung (Triage, Todo) ist für den Nutzer erklärbar und korrigierbar.
 
 ## Technische Maßnahmen

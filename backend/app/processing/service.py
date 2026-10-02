@@ -7,6 +7,7 @@ they are inspected, so concurrent steps of the same message see each other's res
 
 import uuid
 from collections.abc import Collection, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 
 from sqlalchemy import ColumnElement, func, select, tuple_, update
@@ -304,3 +305,68 @@ async def outdated_messages(
         .limit(limit)
     )
     return list(await session.scalars(query))
+
+
+@dataclass(frozen=True)
+class StepCounts:
+    """Step rows of one mailbox by status; counts only, never which mails."""
+
+    pending: int = 0
+    running: int = 0
+    failed: int = 0
+
+
+async def step_counts_by_mailbox(
+    session: AsyncSession, mailbox_ids: Sequence[uuid.UUID] | None = None
+) -> dict[uuid.UUID, StepCounts]:
+    """Pending, running and failed steps per mailbox (all mailboxes by default). Mailboxes
+    without such steps are missing from the result."""
+    query = (
+        select(Message.mailbox_id, MessageProcessing.status, func.count())
+        .join(Message, Message.id == MessageProcessing.message_id)
+        .where(
+            MessageProcessing.status.in_(
+                (StepStatus.PENDING, StepStatus.RUNNING, StepStatus.FAILED)
+            )
+        )
+        .group_by(Message.mailbox_id, MessageProcessing.status)
+    )
+    if mailbox_ids is not None:
+        query = query.where(Message.mailbox_id.in_(mailbox_ids))
+    counts: dict[uuid.UUID, dict[str, int]] = {}
+    for mailbox_id, status, count in (await session.execute(query)).all():
+        counts.setdefault(mailbox_id, {})[StepStatus(status).value] = count
+    return {mailbox_id: StepCounts(**values) for mailbox_id, values in counts.items()}
+
+
+async def reset_failed_steps(session: AsyncSession, mailbox_id: uuid.UUID) -> list[uuid.UUID]:
+    """Set the failed steps of a mailbox back to ``pending``; returns the affected
+    messages (newest first), which the caller queues again. Done steps are left alone."""
+    message_ids = list(
+        await session.scalars(
+            select(MessageProcessing.message_id)
+            .join(Message, Message.id == MessageProcessing.message_id)
+            .where(
+                Message.mailbox_id == mailbox_id,
+                MessageProcessing.status == StepStatus.FAILED,
+            )
+            .distinct()
+            .order_by(MessageProcessing.message_id.desc())
+        )
+    )
+    if message_ids:
+        await session.execute(
+            update(MessageProcessing)
+            .where(
+                MessageProcessing.message_id.in_(message_ids),
+                MessageProcessing.status == StepStatus.FAILED,
+            )
+            .values(
+                status=StepStatus.PENDING,
+                error_code=None,
+                attempts=0,
+                started_at=None,
+                finished_at=None,
+            )
+        )
+    return message_ids

@@ -14,7 +14,7 @@ from app.ai.llm._http import (
     stream_request,
     transport_errors,
 )
-from app.ai.llm.errors import LLMUnavailableError
+from app.ai.llm.errors import LLMUnavailableError, ModelNotAvailableError
 from app.ai.llm.types import ChatMessage, GenerationOptions, LLMResult, Usage
 
 # Pulling a model downloads gigabytes; allow much longer than a normal request.
@@ -147,6 +147,36 @@ class OllamaProvider:
                 "api/pull", json={"model": model, "stream": False}, timeout=PULL_TIMEOUT
             )
         raise_for_status(response, model=model)
+
+    async def pull_progress(self, model: str) -> AsyncIterator[tuple[int, int]]:
+        """Download a model, yielding ``(completed, total)`` bytes over all layers seen so
+        far. Ends once Ollama reports success."""
+        layers: dict[str, tuple[int, int]] = {}
+        payload = {"model": model, "stream": True}
+        # The read timeout applies between progress lines, not to the whole download.
+        async with stream_request(self._client, "api/pull", payload, model=model) as response:
+            with transport_errors():
+                async for line in response.aiter_lines():
+                    if not line.strip():
+                        continue
+                    try:
+                        chunk = json.loads(line)
+                    except ValueError as exc:
+                        raise LLMUnavailableError("Ollama returned an invalid stream") from exc
+                    if chunk.get("error"):
+                        # E.g. an unknown model; the text is not passed on.
+                        raise ModelNotAvailableError(model)
+                    digest, total = chunk.get("digest"), chunk.get("total")
+                    if isinstance(digest, str) and isinstance(total, int):
+                        completed = chunk.get("completed")
+                        layers[digest] = (completed if isinstance(completed, int) else 0, total)
+                        yield (
+                            sum(done for done, _ in layers.values()),
+                            sum(size for _, size in layers.values()),
+                        )
+                    if chunk.get("status") == "success":
+                        return
+        raise LLMUnavailableError("Ollama ended the pull without success")
 
     async def aclose(self) -> None:
         await self._client.aclose()
