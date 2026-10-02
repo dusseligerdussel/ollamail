@@ -15,7 +15,8 @@ from datetime import UTC, datetime
 
 from procrastinate.exceptions import AlreadyEnqueued
 
-from app.ai.llm import CloudLLMDisabledError, EnvConfigResolver, LLMGateway
+from app.ai.llm import CloudLLMDisabledError, LLMGateway
+from app.ai.settings.runtime import worker_gateway
 from app.ai.tts import TTS_QUEUE, VoiceNotAvailableError, get_tts
 from app.core.config import get_settings
 from app.core.logging import get_logger
@@ -33,7 +34,8 @@ def get_llm() -> LLMGateway:
     """LLM gateway of the worker process, created on first use."""
     global _llm
     if _llm is None:
-        _llm = LLMGateway(EnvConfigResolver(get_settings().llm))
+        # Shared by all jobs of the process: admin settings, limited parallelism.
+        _llm = worker_gateway()
     return _llm
 
 

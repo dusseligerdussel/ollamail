@@ -43,18 +43,27 @@ async def record(item_id: str) -> None:
 
 
 def test_worker_groups_give_llm_its_own_concurrency() -> None:
-    settings = Settings(worker=WorkerSettings(concurrency=6), llm=LLMSettings(concurrency=2))
+    settings = Settings(
+        worker=WorkerSettings(concurrency=6), llm=LLMSettings(concurrency=2, max_concurrency=3)
+    )
 
+    # Slots up to the maximum; the gateway limits LLM requests to the admin setting.
     assert worker_groups(settings) == [
         WorkerGroup("main", ("sync", "tts", "default"), 6),
-        WorkerGroup("llm", ("llm",), 2),
+        WorkerGroup("llm", ("llm",), 3),
     ]
+
+
+def test_llm_slots_cover_a_higher_default_concurrency() -> None:
+    settings = Settings(llm=LLMSettings(concurrency=6, max_concurrency=2))
+
+    assert worker_groups(settings)[-1] == WorkerGroup("llm", ("llm",), 6)
 
 
 @pytest.mark.parametrize(
     ("queues", "expected"),
     [
-        ("llm", [WorkerGroup("llm", ("llm",), 1)]),
+        ("llm", [WorkerGroup("llm", ("llm",), 4)]),
         ("sync, tts", [WorkerGroup("main", ("sync", "tts"), 4)]),
     ],
 )
@@ -68,7 +77,7 @@ def test_worker_queues_from_environment(
 
 def test_concurrency_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OLLAMAIL_WORKER_CONCURRENCY", "8")
-    monkeypatch.setenv("OLLAMAIL_LLM_CONCURRENCY", "3")
+    monkeypatch.setenv("OLLAMAIL_LLM_MAX_CONCURRENCY", "3")
 
     groups = worker_groups(Settings())
 

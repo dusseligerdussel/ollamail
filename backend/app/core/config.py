@@ -123,8 +123,11 @@ class LLMSettings(BaseSettings):
 
     # Global admin switch: cloud LLM endpoints are opt-in (local first).
     cloud_enabled: bool = False
-    # Parallel jobs on the ``llm`` queue per worker process. Keep low on CPU-only hosts.
+    # Parallel LLM requests per worker process. Keep low on CPU-only hosts. Default for
+    # the admin setting (AI page), which can change it at runtime up to ``max_concurrency``.
     concurrency: int = Field(default=1, ge=1)
+    # Job slots of the ``llm`` queue per worker process: upper bound for ``concurrency``.
+    max_concurrency: int = Field(default=4, ge=1)
 
     provider: LLMProviderKind = "ollama"
     base_url: str = "http://ollama:11434"
