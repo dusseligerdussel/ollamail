@@ -86,6 +86,11 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
   (das Todo gehört dem Nutzer und bleibt, bis er es löscht). Die Extraktion protokolliert nur
   Anzahlen, nie Titel oder Beschreibungen. Die API liefert ausschließlich eigene Todos; ein
   fremdes Todo verhält sich wie ein nicht vorhandenes (404).
+  Umsetzung API (`DELETE /mailboxes/{id}`, `backend/app/mail/api/`): ruft `delete_mailbox` auf und
+  bestätigt die Löschung mit der Anzahl gelöschter Mails und Anhänge. Neue Tabellen anderer
+  Module (Triage, Suchindex, …) müssen per `ON DELETE CASCADE` an Postfach oder Mail hängen;
+  `tests/mail/api/test_mailbox_deletion.py` ermittelt alle Tabellen mit Bezug zum Postfach aus
+  dem Schema und schlägt an, wenn eine davon beim Löschen Zeilen zurücklassen würde.
 - **Nutzer löschen:** `users` → `auth_identities`, `auth_sessions` und eigene Postfächer
   (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).

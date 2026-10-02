@@ -20,9 +20,11 @@ from app.core.events import EventBroker
 from app.core.events import router as events_router
 from app.core.health import ReadinessRegistry, register_readiness_check
 from app.core.health import router as health_router
+from app.core.jobs import JobQueue
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
+from app.mail.api.router import router as mailboxes_router
 from app.todos.router import router as todos_router
 from app.users.router import router as users_router
 
@@ -34,6 +36,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     database = Database(settings.database)
     llm = LLMGateway(EnvConfigResolver(settings.llm))
     events = EventBroker(settings.database)
+    job_queue = JobQueue()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -50,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await pull
         await llm.aclose()
         await events.stop()
+        await job_queue.close()
         await database.dispose()
 
     app = FastAPI(
@@ -60,6 +64,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.database = database
     app.state.events = events
+    app.state.job_queue = job_queue
     app.state.readiness = ReadinessRegistry()
     register_readiness_check(app, "database", database.ping)
     app.state.llm = llm
@@ -78,6 +83,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(todos_router)
+    app.include_router(mailboxes_router)
     return app
 
 
