@@ -580,6 +580,15 @@ Mailserver mit selbstsigniertem Zertifikat: das CA-Zertifikat dem Container übe
 `SSL_CERT_FILE` bekannt machen; `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS=true` (keine Prüfung,
 auch unverschlüsselt) nur in Testumgebungen.
 
+**Mail-Sync (Gmail / Google Workspace):** Einrichtung (OAuth-Client, Scopes, Google-Verifizierung,
+Domain-wide Delegation, optional Pub/Sub) und manuelle Testanleitung in
+[`providers/gmail.md`](providers/gmail.md). Es ist keine öffentliche URL nötig: Der
+OAuth-Redirect muss nur vom Browser erreichbar sein, Änderungen holt der Worker standardmäßig per
+Polling (`poll_interval_seconds`, Standard 5 Minuten) über die Gmail-API ab. Ausgehend braucht der
+Worker HTTPS zu `gmail.googleapis.com` und `oauth2.googleapis.com` (bei Pub/Sub zusätzlich
+`pubsub.googleapis.com`). Die Service-Account-Schlüsseldatei (`OLLAMAIL_GMAIL_SERVICE_ACCOUNT_FILE`)
+als Docker-Secret einbinden, nie ins Image oder Repo.
+
 Was heute schon gilt: Jeder API- bzw. Worker-Prozess öffnet bis zu
 `OLLAMAIL_DATABASE_POOL_SIZE + OLLAMAIL_DATABASE_MAX_OVERFLOW` Datenbankverbindungen (Standard
 5 + 10). Beim Hochskalieren darauf achten, dass die Summe unter `max_connections` von PostgreSQL
@@ -627,7 +636,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                                                                    ▲
                        worker (geplant #7) ────────────────────────┘
                          │
-                         ├──▶ Mailserver: IMAP (#14) / Microsoft Graph / Gmail API (geplant #37, #38)
+                         ├──▶ Mailserver: IMAP (#14) / Gmail API (#38) / Microsoft Graph (geplant #37)
                          ├──▶ LLM: Ollama im Compose-Netz oder eigener Server (geplant #17)
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)

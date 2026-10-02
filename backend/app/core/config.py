@@ -189,6 +189,25 @@ class MailSettings(BaseSettings):
     watch_enabled: bool = True
 
 
+class GmailSettings(BaseSettings):
+    """``OLLAMAIL_GMAIL_*`` (Gmail / Google Workspace provider, docs/providers/gmail.md)"""
+
+    model_config = _config("GMAIL_")
+
+    # OAuth client (type "web application") for connecting mailboxes per user.
+    client_id: str | None = None
+    client_secret: SecretStr | None = None
+    # Callback URL exactly as registered at Google, e.g.
+    # http://localhost:8080/api/mail/gmail/oauth/callback (needs no public reachability).
+    redirect_uri: str | None = None
+    # Request ``gmail.readonly`` instead of ``gmail.modify``; actions are refused.
+    readonly: bool = False
+    # Service account key (JSON) for Workspace domain-wide delegation and Pub/Sub pull.
+    service_account_file: Path | None = None
+    # Seconds per Gmail API request.
+    timeout: float = Field(default=60.0, gt=0)
+
+
 class TTSSettings(BaseSettings):
     """``OLLAMAIL_TTS_*``"""
 
@@ -445,6 +464,7 @@ class Settings(BaseModel):
     storage: StorageSettings = Field(default_factory=StorageSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     mail: MailSettings = Field(default_factory=MailSettings)
+    gmail: GmailSettings = Field(default_factory=GmailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
