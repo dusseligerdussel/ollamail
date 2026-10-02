@@ -5,6 +5,8 @@
   mailbox opted in; a no-op otherwise.
 * Periodic job ``triage.write_back`` (every minute): writes back corrections and the
   messages of mailboxes where write-back was just enabled.
+* The todo step (``app.todos.steps``) runs after ``triage`` and reads the category via
+  ``category_key`` to skip bulk mail.
 
 Bump ``TRIAGE_STEP_VERSION`` together with the prompt version (``app.triage.prompts``):
 all messages are then triaged again, newest first; user corrections are kept.
@@ -20,7 +22,8 @@ from app.mail.providers.base import ProviderError
 from app.mail.providers.registry import UnknownProviderError
 from app.processing.steps import StepContext, StepError, registry
 from app.processing.tasks import get_database
-from app.triage.service import triage_message
+from app.todos.extraction import set_category_lookup
+from app.triage.service import category_key, triage_message
 from app.triage.writeback import pending_by_mailbox, write_back_messages
 from app.worker import DEFAULT_RETRY, app
 
@@ -31,6 +34,15 @@ TRIAGE_STEP_VERSION = 1
 WRITE_BACK_BATCH_SIZE = 200
 
 _llm: LLMGateway | None = None
+
+
+def install_category_lookup() -> None:
+    """Let the todo step read the triage category (it skips newsletters, notifications and
+    spam, ``OLLAMAIL_TODOS_SKIP_CATEGORIES``). Called when the worker imports this module."""
+    set_category_lookup(category_key)
+
+
+install_category_lookup()
 
 
 def get_llm() -> LLMGateway:

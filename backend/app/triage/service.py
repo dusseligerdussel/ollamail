@@ -17,10 +17,11 @@ from app.core.config import TriageSettings
 from app.core.ids import uuid7
 from app.mail.models import Folder, FolderRole, Mailbox, Message, message_folders
 from app.processing.steps import StepError
-from app.triage.categories import EffectiveCategory, effective_categories
+from app.triage.categories import EffectiveCategory, effective_categories, slugify
 from app.triage.classify import classify, mail_view
 from app.triage.feedback import select_examples
 from app.triage.models import (
+    TriageCategory,
     TriageFeedback,
     TriageResult,
     TriageSenderRule,
@@ -150,6 +151,19 @@ async def triage_message(
         raise StepError("triage_no_categories", permanent=True)
     decision = await _decide(session, message, mailbox, categories, llm, settings)
     return await save_result(session, message_id, decision)
+
+
+async def category_key(session: AsyncSession, message_id: uuid.UUID) -> str | None:
+    """Stable key of a message's triage category (``newsletter``, slug of an own category's
+    name) or ``None`` if not triaged. Used by the todo step to skip bulk mail."""
+    category = await session.scalar(
+        select(TriageCategory)
+        .join(TriageResult, TriageResult.category_id == TriageCategory.id)
+        .where(TriageResult.message_id == message_id)
+    )
+    if category is None:
+        return None
+    return category.builtin_key or slugify(category.name)
 
 
 # -- API helpers -----------------------------------------------------------------------

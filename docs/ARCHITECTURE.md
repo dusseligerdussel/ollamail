@@ -405,6 +405,10 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Pipeline:** Schritt `triage` (Queue `llm`, `TRIAGE_STEP_VERSION`), danach `triage_write_back`
   (Queue `sync`). Eine Korrektur des Nutzers (`source = user`) überschreibt die Triage nie, auch nicht
   beim Neuverarbeiten.
+- **Todos:** Der Schritt `todos` läuft `after=("triage",)` und liest die Kategorie über
+  `app.triage.service.category_key` (`builtin_key` bzw. Slug des Namens, registriert beim Import von
+  `app.triage.tasks`). Mails in `OLLAMAIL_TODOS_SKIP_CATEGORIES` (Standard: Newsletter,
+  Benachrichtigung, Spam) werden nicht nach Todos durchsucht.
 - **Vorfilter** (`rules.py`, ohne LLM, `OLLAMAIL_TRIAGE_PREFILTER_ENABLED`): erst Absenderregeln des
   Nutzers (Adresse vor Domain), dann `Auto-Submitted` ≠ `no` und Roboter-Absender (`no-reply@`, …) →
   Benachrichtigung, `Precedence: junk` → Spam, `List-Unsubscribe`/`Precedence: bulk|list` → Newsletter,
