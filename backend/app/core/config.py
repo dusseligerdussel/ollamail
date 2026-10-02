@@ -189,6 +189,46 @@ class MailSettings(BaseSettings):
     watch_enabled: bool = True
 
 
+class GraphSettings(BaseSettings):
+    """``OLLAMAIL_MAIL_GRAPH_*`` (Microsoft 365 via Graph, docs/providers/microsoft365.md)"""
+
+    model_config = _config("MAIL_GRAPH_")
+
+    # Entra ID app registration. Without a client ID, Microsoft 365 mailboxes are disabled.
+    client_id: str | None = None
+    client_secret: SecretStr | None = None
+    # Tenant for sign-in and app-only tokens: a tenant ID, or "organizations" (any work
+    # account, delegated only). App-only mailboxes need a real tenant ID.
+    tenant_id: str = "organizations"
+    # Redirect URI registered in Entra ID; unset: <scheme>://<host>/api/mail/graph/callback.
+    redirect_uri: str | None = None
+    # Public URL of /api/mail/graph/notifications for change notifications (webhooks).
+    # Unset (default): polling only, no inbound connections from Microsoft.
+    notification_url: str | None = None
+    # Endpoints; change only for national clouds or tests.
+    authority: str = "https://login.microsoftonline.com"
+    api_url: str = "https://graph.microsoft.com/v1.0"
+    # Seconds per request and retries after throttling (429/503, honouring Retry-After).
+    timeout: float = Field(default=60.0, gt=0)
+    max_retries: int = Field(default=5, ge=0, le=20)
+
+    @field_validator("redirect_uri", "notification_url", "authority", "api_url", mode="before")
+    @classmethod
+    def _url(cls, value: object) -> object:
+        if not isinstance(value, str):
+            return value
+        if not value.strip():
+            return None
+        value = value.strip().rstrip("/")
+        if not value.startswith(("https://", "http://")):
+            raise ValueError("must be an http(s) URL")
+        return value
+
+    @property
+    def enabled(self) -> bool:
+        return bool(self.client_id)
+
+
 class GmailSettings(BaseSettings):
     """``OLLAMAIL_GMAIL_*`` (Gmail / Google Workspace provider, docs/providers/gmail.md)"""
 
@@ -492,6 +532,7 @@ class Settings(BaseModel):
     storage: StorageSettings = Field(default_factory=StorageSettings)
     llm: LLMSettings = Field(default_factory=LLMSettings)
     mail: MailSettings = Field(default_factory=MailSettings)
+    graph: GraphSettings = Field(default_factory=GraphSettings)
     gmail: GmailSettings = Field(default_factory=GmailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
