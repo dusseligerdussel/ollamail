@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Request, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth.dependencies import CurrentSessionDep, SettingsDep
 from app.core.db import get_db
 from app.core.errors import ProblemError
@@ -186,8 +187,13 @@ async def create_mailbox(
     mailbox = service.create_mailbox(db, current.user_id, body)
     await db.flush()
     await service.notify(db, mailbox, "created")
-    # TODO(#35): audit.record("mailbox.created", mailbox_id=mailbox.id) once the audit
-    # log (PR #65) is on main.
+    await audit.record(
+        db,
+        audit.Actor.user(current.user_id),
+        audit.AuditAction.MAILBOX_CREATED,
+        audit.Target.of(audit.TargetType.MAILBOX, mailbox.id),
+        {"type": mailbox.type.value},
+    )
     await db.commit()
     log.info("mail_mailbox_created", mailbox_id=str(mailbox.id), type=mailbox.type.value)
     if mailbox.sync_enabled:
@@ -241,10 +247,11 @@ async def delete_mailbox(
     mailbox = await _mailbox(db, current.user_id, mailbox_id, MailboxPermission.MANAGE)
     messages, attachments = await service.data_counts(db, mailbox.id)
     await service.notify(db, mailbox, "deleted")
-    # TODO(#35): audit.record("mailbox.deleted", mailbox_id=mailbox.id) in this
-    # transaction once the audit log (PR #65) is on main.
-    # Commits (sending the event), then removes the attachment directory.
-    await mail_service.delete_mailbox(db, mailbox.id, storage)
+    # Records ``mailbox.deleted`` in the audit log, commits (sending the event), then
+    # removes the attachment directory.
+    await mail_service.delete_mailbox(
+        db, mailbox.id, storage, actor=audit.Actor.user(current.user_id)
+    )
     return MailboxDeleted(mailbox_id=mailbox_id, messages=messages, attachments=attachments)
 
 

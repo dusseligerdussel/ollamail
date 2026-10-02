@@ -8,9 +8,11 @@ from httpx import AsyncClient
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import AuditAction
 from app.mail.models import Mailbox
 from app.mail.storage import AttachmentStorage
 from app.worker import resource_lock
+from tests.audit.conftest import audit_rows
 from tests.mail.api.conftest import (
     IMAP_SETTINGS,
     PASSWORD,
@@ -174,6 +176,9 @@ async def test_create_tests_connection_stores_encrypted_and_starts_sync(
     )
     assert raw is not None
     assert PASSWORD not in raw
+    [entry] = await audit_rows(db_session, AuditAction.MAILBOX_CREATED)
+    assert (entry.actor_kind, entry.target_type, entry.target_id) == ("user", "mailbox", body["id"])
+    assert entry.details == {"type": "imap"}
 
 
 async def test_create_rejects_failed_connection(
@@ -185,6 +190,7 @@ async def test_create_rejects_failed_connection(
     assert response.json()["error_code"] == "authentication_failed"
     assert await mailbox_count(db_session) == 0
     assert sync_requests == []
+    assert await audit_rows(db_session, AuditAction.MAILBOX_CREATED) == []
 
 
 async def test_create_rejects_duplicate(erika: AsyncClient, bob: AsyncClient) -> None:

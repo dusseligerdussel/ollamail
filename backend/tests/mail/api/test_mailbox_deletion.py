@@ -15,10 +15,12 @@ from httpx import AsyncClient
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit import AuditAction
 from app.mail.models import Attachment, Mailbox, Message, Thread
 from app.mail.storage import AttachmentStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
 from app.todos.models import Todo
+from tests.audit.conftest import audit_rows
 from tests.mail.api.conftest import FakeServer, add_mailbox, run_sync
 
 pytestmark = pytest.mark.db
@@ -183,6 +185,9 @@ async def test_delete_removes_all_rows_and_files(
     }
     db_session.expunge_all()
     assert await db_session.get(Mailbox, mailbox_id) is None
+    [entry] = await audit_rows(db_session, AuditAction.MAILBOX_DELETED)
+    assert (entry.actor_kind, entry.actor_id) == ("user", mailbox.owner_user_id)
+    assert entry.target_id == str(mailbox_id)
     assert await row_counts(db_session, dependent) == baseline
     assert (
         await db_session.scalar(

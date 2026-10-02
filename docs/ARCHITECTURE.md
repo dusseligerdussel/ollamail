@@ -228,8 +228,8 @@ und `delete_mailbox`; sie baut nichts davon nach.
   (`created`, `updated`, `deleted`) an den Besitzer.
 - **Jobs aus der API:** `app/core/jobs.py` öffnet die Procrastinate-App beim ersten Einreihen
   (der Start der API hängt nicht an der Queue) und schließt sie beim Shutdown.
-- **Audit:** „Postfach angelegt/entfernt“ wird protokolliert, sobald der Audit-Log (#35) auf
-  `main` ist (TODO im Router).
+- **Audit:** `mailbox.created` und `mailbox.deleted` (über `delete_mailbox`) mit dem Nutzer als
+  Akteur, in derselben Transaktion wie die Änderung.
 
 ### 3.2 LLM-Provider
 

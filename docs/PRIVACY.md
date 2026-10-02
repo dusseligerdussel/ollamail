@@ -103,8 +103,9 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `user.role_changed`, `user.deleted` | Nutzerverwaltung | geplant (#33) |
 | `idp.config_changed` | IdP-/LDAP-Konfiguration | geplant (#30, #32) |
 | `ai.settings_changed` | KI-Einstellungen inkl. Cloud-Freigabe (`details.cloud_enabled`) | geplant |
-| `mailbox.created`, `mailbox.shared` | Postfach-API, Shared Mailboxes | geplant (#15) |
-| `mailbox.deleted` | `app.mail.service.delete_mailbox` | aktiv |
+| `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
+| `mailbox.shared` | Shared Mailboxes | geplant (#34) |
+| `mailbox.deleted` | `app.mail.service.delete_mailbox`; über die Postfach-API mit dem Nutzer als Akteur | aktiv |
 | `data.exported`, `data.deleted` | Datenexport, Lösch- und Aufbewahrungsjobs | geplant (#36) |
 | `crypto.keys_rotated` | `python -m app.cli rotate-keys` (mit Zählern) | aktiv |
 | `audit.exported` | CSV-Export des Audit-Logs | aktiv |
