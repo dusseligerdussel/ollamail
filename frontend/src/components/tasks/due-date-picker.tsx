@@ -55,7 +55,7 @@ export function DueDatePicker({
             "h-7 shrink-0 gap-1.5 px-2 text-xs font-normal text-muted-foreground tabular-nums",
             "data-overdue:text-destructive",
             !value &&
-              "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100",
+              "opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 group-data-active:opacity-100 data-[state=open]:opacity-100 pointer-coarse:opacity-100 max-sm:opacity-100",
             className,
           )}
         >

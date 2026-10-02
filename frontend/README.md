@@ -167,6 +167,30 @@ API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
   E2E_API=1 E2E_IMAP=1 E2E_SETUP_TOKEN=e2e pnpm e2e e2e/mailbox.spec.ts
   ```
 
+### Aufgaben (#23)
+
+API und Query-Keys in `src/api/todos.ts`, Komponenten in `src/components/tasks/`, Datumslogik in
+`src/lib/task-dates.ts`. Backend-Vertrag: #22 (`GET/POST/PATCH /todos`, Filter `message_id`).
+
+- **Seite `/tasks`:** Gruppen Überfällig / Heute / Demnächst / Ohne Datum / Erledigt. „Heute“
+  bestimmt die Zeitzone im Profil (`useCurrentUser().timezone`), nicht die des Browsers.
+  Offene Aufgaben werden vollständig geladen (bis 500), erledigte nur die letzten 50. Verworfene
+  erscheinen nicht; „Verwerfen“ bietet im Toast „Rückgängig“ an.
+- **Bearbeiten:** Klick (oder Enter) auf den Titel bearbeitet ihn inline (Enter/Verlassen speichert,
+  Esc bricht ab). Das Datum öffnet ein Popover mit Heute / Morgen / Nächste Woche / Kein Datum und
+  einem Datumsfeld. Das Feld „Neue Aufgabe“ legt per Enter an und bleibt für die nächste offen.
+- **Optimistisch:** `useTodoMutations()` ändert alle gecachten Listen sofort (Seite und Mail),
+  verschiebt Aufgaben zwischen offen/erledigt und rollt bei Fehlern zurück; danach wird neu geladen.
+- **Tasten** (nur auf `/tasks`): `j`/`k` (setzt auch den Fokus), `x` erledigt/wieder offen,
+  `d` Datum, `n` neue Aufgabe, `o` zur Mail, Enter Titel bearbeiten. Alle Aktionen auch in der
+  Command Palette.
+- **Mail-Detail:** `MessageTasksSlot` zeigt „Aufgaben aus dieser Mail“ (Query-Key
+  `["message", "todos", id]`, damit `message.processed` neue Aufgaben nachlädt) und legt verknüpfte
+  Aufgaben an. Der Slot registriert keine Einzeltasten, damit die Inbox-Tasten (#16, #21) frei bleiben.
+- **Zur Mail:** `/inbox?message=<message_id>`.
+- **E2E:** `e2e/tasks.spec.ts` (gemockt, `e2e/mock-todos.ts`): abhaken, Datum ändern, zur Mail
+  springen, Tastatur, leerer Zustand, Mobil, axe in Hell/Dunkel.
+
 ## Design-System und App-Shell
 
 Grundlage ist `docs/DESIGN.md`.
