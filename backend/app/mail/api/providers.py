@@ -30,6 +30,10 @@ OAUTH_CONNECTORS: dict[MailboxType, OAuthConnector] = {
     MailboxType.GMAIL: OAuthConnector(
         "/mail/gmail/oauth/start", lambda settings: oauth_configured(settings.gmail)
     ),
+    MailboxType.GRAPH: OAuthConnector(
+        "/mail/graph/connect",
+        lambda settings: settings.graph.enabled and settings.graph.client_secret is not None,
+    ),
 }
 
 

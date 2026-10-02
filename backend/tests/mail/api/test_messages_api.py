@@ -14,7 +14,7 @@ from pydantic import SecretStr
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import GmailSettings, Settings
+from app.core.config import GmailSettings, GraphSettings, Settings
 from app.mail.api import providers
 from app.mail.api.messages import get_flag_writer
 from app.mail.flags import write_flags
@@ -389,11 +389,16 @@ def test_oauth_providers_only_when_configured(settings: Settings) -> None:
                 client_id="client",
                 client_secret=SecretStr("invented"),
                 redirect_uri="http://localhost:8080/api/mail/gmail/oauth/callback",
-            )
+            ),
+            "graph": GraphSettings(client_id="client", client_secret=SecretStr("invented")),
         }
     )
     available = providers.available(configured, registry)
     assert [(p.type, p.connect, p.oauth_start_path) for p in available] == [
         (MailboxType.IMAP, "credentials", None),
+        (MailboxType.GRAPH, "oauth", "/mail/graph/connect"),
         (MailboxType.GMAIL, "oauth", "/mail/gmail/oauth/start"),
     ]
+    # A client ID without secret is not enough for the connect flow.
+    no_secret = settings.model_copy(update={"graph": GraphSettings(client_id="client")})
+    assert MailboxType.GRAPH not in [p.type for p in providers.available(no_secret, registry)]
