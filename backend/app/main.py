@@ -34,6 +34,7 @@ from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
 from app.digest.router import feed_router as digest_feed_router
 from app.digest.router import router as digests_router
+from app.drafts.router import router as drafts_router
 from app.mail.api.messages import providers_router as mailbox_providers_router
 from app.mail.api.messages import router as messages_router
 from app.mail.api.router import router as mailboxes_router
@@ -44,6 +45,9 @@ from app.mail.providers.graph_router import router as graph_router
 from app.privacy.router import admin_router as privacy_admin_router
 from app.privacy.router import router as privacy_router
 from app.rag.router import router as rag_router
+from app.scim.admin_router import router as scim_admin_router
+from app.scim.router import CSRF_EXEMPT_PREFIX as SCIM_PATH_PREFIX
+from app.scim.router import router as scim_router
 from app.search.router import router as search_router
 from app.todos.router import router as todos_router
 from app.triage.router import router as triage_router
@@ -106,7 +110,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # SAML IdPs post the response cross-site to the ACS; it is protected by the flow
     # cookie, InResponseTo and the response signature instead.
     app.add_middleware(
-        CSRFMiddleware, settings=settings, exempt_paths=[NOTIFICATIONS_PATH, saml.ACS_PATH]
+        CSRFMiddleware,
+        settings=settings,
+        exempt_paths=[NOTIFICATIONS_PATH, SCIM_PATH_PREFIX, saml.ACS_PATH],
     )
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router)
@@ -133,9 +139,12 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(digests_router)
     app.include_router(digest_feed_router)
     app.include_router(rag_router)
+    app.include_router(drafts_router)
     app.include_router(search_router)
     app.include_router(privacy_router)
     app.include_router(privacy_admin_router)
+    app.include_router(scim_router)
+    app.include_router(scim_admin_router)
     oidc.install(app, settings)
     github.install(app)
     saml.install(app)

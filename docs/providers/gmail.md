@@ -66,8 +66,8 @@ Connect-Flow ist bewusst minimal und additiv.
 
 | Scope | Wann | Einstufung |
 |---|---|---|
-| `https://www.googleapis.com/auth/gmail.modify` | Standard: Lesen plus Aktionen (Labels, Archivieren, Gelesen-Status) | restricted |
-| `https://www.googleapis.com/auth/gmail.readonly` | `OLLAMAIL_GMAIL_READONLY=true`: nur Lesen, Aktionen liefern `read_only` | restricted |
+| `https://www.googleapis.com/auth/gmail.modify` | Standard: Lesen plus Aktionen (Labels, Archivieren, Gelesen-Status) und Senden von Antworten (#92) | restricted |
+| `https://www.googleapis.com/auth/gmail.readonly` | `OLLAMAIL_GMAIL_READONLY=true`: nur Lesen, Aktionen und Senden liefern `read_only` | restricted |
 
 Beide Scopes sind **restricted**. Folgen:
 
@@ -79,8 +79,9 @@ Beide Scopes sind **restricted**. Folgen:
   „Testing“ laufen nach **7 Tagen** ab – dann neu verbinden. Für einen dauerhaften Betrieb mit
   externen Nutzern verlangt Google eine Verifizierung inklusive jährlichem
   Security-Assessment (CASA); das ist für Self-Hosting meist unverhältnismäßig.
-- ollamail fordert **keine** weiteren Scopes an (kein `openid`, kein Profil). Die Adresse kommt
-  aus `users/me/profile`.
+- ollamail fordert **keine** weiteren Scopes an (kein `openid`, kein Profil, kein eigener
+  `gmail.send`: `gmail.modify` schließt das Senden ein). Die Adresse kommt aus
+  `users/me/profile`. Bestehende Verbindungen müssen für das Senden also nicht erneuert werden.
 
 ### 2.3 Domain-wide Delegation (Modus `service_account`)
 
@@ -134,6 +135,7 @@ entscheiden die normalen Ordner-Ausschlüsse der Sync-Einstellungen.
 | `move(ref, "ALL_MAIL")` | **Archivieren**: `INBOX` entfernen |
 | `move(ref, "TRASH")` | `messages.trash` |
 | `move(ref, <Label>)` | Ziel-Label hinzufügen, `INBOX`/`SPAM`/`TRASH` entfernen |
+| `send(reply)` | `messages.send` mit der RFC-5322-Quelle (`raw`, Base64url) und der `threadId` der beantworteten Mail; `In-Reply-To`, `References` und `Re:`-Betreff halten die Antwort in Gmails Thread. Gmail legt die Kopie unter `SENT` ab, der Sync bringt sie. Keine automatische Wiederholung (auch nicht bei 5xx), damit nichts doppelt gesendet wird; fehlender Scope → `send_not_permitted`, abgelehnte Mail → `message_refused` |
 
 `remote_ref` ist die Gmail-Message-ID und bleibt bei allen Aktionen gleich.
 
@@ -268,7 +270,7 @@ Postfach (`provider_settings`): `auth` (`oauth`/`service_account`), `include_spa
 - **Contract-Tests** (`backend/tests/mail/test_gmail_*.py`) mit synthetischen, an die
   Gmail-API-Dokumentation angelehnten Antworten (`respx`): Labels, Initialimport mit Batch,
   History inkl. `404`, Aktionen, Token-Refresh, Service-Account-JWT, Rate-Limits, Pub/Sub-Pull,
-  Connect-Flow. Keine echten Daten, keine Secrets.
+  Connect-Flow, Senden (`test_gmail_send.py`). Keine echten Daten, keine Secrets.
 - **Engine-Tests** für den postfachweiten Cursor mit `FakeMailProvider(mailbox_cursor=True)`.
 
 ### 7.1 Manuelle Testanleitung

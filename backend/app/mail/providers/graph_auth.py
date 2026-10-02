@@ -38,6 +38,9 @@ log = get_logger(__name__)
 # Refresh this many seconds before the access token expires.
 EXPIRY_MARGIN = 300
 _SHARED_SCOPE = "Mail.ReadWrite.Shared"
+# Sending replies (app/drafts); ``.Shared`` for another user's mailbox.
+_SEND_SCOPE = "Mail.Send"
+_SEND_SHARED_SCOPE = "Mail.Send.Shared"
 # Authorities that do not name a single tenant (no client credentials possible).
 MULTI_TENANT_AUTHORITIES = frozenset({"organizations", "common", "consumers"})
 _DELEGATED_SCOPES = ("User.Read", "Mail.ReadWrite")
@@ -53,8 +56,15 @@ def resource(settings: GraphSettings) -> str:
     return f"{url.scheme}://{url.netloc.decode('ascii')}"
 
 
-def delegated_scopes(settings: GraphSettings, *, shared: bool = False) -> list[str]:
+def delegated_scopes(
+    settings: GraphSettings, *, shared: bool = False, send: bool = False
+) -> list[str]:
+    """Scopes of a delegated mailbox. ``send`` adds ``Mail.Send`` (``.Shared``): requested
+    when connecting (if ``send_enabled``) and for the token used to send, never for the
+    sync, so mailboxes connected before sending existed keep syncing."""
     names = [*_DELEGATED_SCOPES, *([_SHARED_SCOPE] if shared else [])]
+    if send:
+        names.append(_SEND_SHARED_SCOPE if shared else _SEND_SCOPE)
     return ["offline_access", *(f"{resource(settings)}/{name}" for name in names)]
 
 
@@ -222,14 +232,19 @@ class DelegatedTokens:
         *,
         tenant: str | None = None,
         shared: bool = False,
+        send: bool = False,
         save: SaveCredentials | None = None,
         clock: Clock = time.time,
     ) -> None:
         self._settings = settings
         self._http = http
         self._tokens = TokenSet.from_credentials(credentials)
+        if send:
+            # The stored access token may lack Mail.Send (issued for the sync): refresh
+            # once with the send scopes.
+            self._tokens = TokenSet("", 0, self._tokens.refresh_token)
         self._tenant = tenant or settings.tenant_id
-        self._scopes = delegated_scopes(settings, shared=shared)
+        self._scopes = delegated_scopes(settings, shared=shared, send=send)
         self._save = save
         self._clock = clock
         self._lock = asyncio.Lock()

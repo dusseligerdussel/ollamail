@@ -54,6 +54,21 @@ async def notifications(pipeline: Pipeline) -> AsyncIterator[list[dict[str, obje
     await connection.close()
 
 
+async def test_drain_runs_only_the_jobs_of_the_test(pipeline: Pipeline, recorder: Recorder) -> None:
+    # Forget earlier defers: a real worker would now queue every periodic task that came
+    # due in the last ten minutes (``digest.schedule`` at least, it runs every minute).
+    await pipeline.execute("DELETE FROM procrastinate_periodic_defers")
+    _register(recorder, ("normalize", ()))
+    message_id = await pipeline.add_message()
+
+    await _enqueue(message_id)
+    await pipeline.drain()
+
+    tasks = await pipeline.execute("SELECT DISTINCT task_name FROM procrastinate_jobs")
+    assert sorted(name for (name,) in tasks) == ["processing.plan_message", "processing.run_step"]
+    assert await pipeline.execute("SELECT 1 FROM procrastinate_periodic_defers") == []
+
+
 async def test_steps_run_in_dependency_order(
     pipeline: Pipeline, recorder: Recorder, notifications: list[dict[str, object]]
 ) -> None:

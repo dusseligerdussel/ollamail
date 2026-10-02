@@ -18,7 +18,7 @@ from app.mail.models import Mailbox, MailboxType
 from app.mail.storage import AttachmentStorage
 from app.users.models import User
 from tests.factories import make_user
-from tests.mail import imap_server
+from tests.mail import imap_server, smtp_server
 
 FIXTURES = Path(__file__).parent / "fixtures"
 
@@ -48,6 +48,7 @@ def isolated_hooks() -> Iterator[list[hooks.MessageStoredHandler]]:
 
 def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item]) -> None:
     """Skip ``imap`` tests if the IMAP test server is unreachable (see ``imap_server``)."""
+    _skip_without_smtp(items)
     imap_items = [item for item in items if item.get_closest_marker("imap")]
     if not imap_items:
         return
@@ -61,6 +62,24 @@ def pytest_collection_modifyitems(config: pytest.Config, items: list[pytest.Item
     if imap_server.REQUIRE:
         raise pytest.UsageError(message)
     for item in imap_items:
+        item.add_marker(pytest.mark.skip(reason=message))
+
+
+def _skip_without_smtp(items: list[pytest.Item]) -> None:
+    """Skip ``smtp`` tests if the SMTP test server is unreachable (see ``smtp_server``)."""
+    smtp_items = [item for item in items if item.get_closest_marker("smtp")]
+    if not smtp_items:
+        return
+    error = smtp_server.probe()
+    if error is None:
+        return
+    message = (
+        f"SMTP test server not reachable at {smtp_server.HOST}:{smtp_server.PORT} ({error}). "
+        "See tests/mail/smtp_server.py."
+    )
+    if smtp_server.REQUIRE:
+        raise pytest.UsageError(message)
+    for item in smtp_items:
         item.add_marker(pytest.mark.skip(reason=message))
 
 

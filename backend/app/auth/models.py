@@ -24,6 +24,9 @@ from app.core.db import Base
 from app.users.models import UserRole
 
 LOCAL_PROVIDER = "local"
+# Identity maintained by SCIM provisioning (app/scim): carries the user's SCIM groups, not a
+# way to sign in.
+SCIM_PROVIDER = "scim"
 
 
 class Identity(Base):

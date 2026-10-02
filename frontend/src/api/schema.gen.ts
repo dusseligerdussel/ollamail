@@ -443,6 +443,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/scim": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Scim Settings
+         * @description SCIM switch, endpoint URL, tokens (hints only) and counts of provisioned objects.
+         */
+        get: operations["admin_get_scim_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Scim Settings
+         * @description Switch SCIM on or off; set the providers that may link logins to SCIM users.
+         */
+        patch: operations["admin_update_scim_settings"];
+        trace?: never;
+    };
+    "/admin/scim/tokens": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create Scim Token
+         * @description Create a bearer token for an IdP. The secret is only in this response.
+         */
+        post: operations["admin_create_scim_token"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/scim/tokens/{token_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Scim Token
+         * @description Revoke a token; requests with it fail from now on.
+         */
+        delete: operations["admin_revoke_scim_token"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/shared-mailboxes": {
         parameters: {
             query?: never;
@@ -1233,6 +1297,142 @@ export interface paths {
         get: operations["digests_get_audio"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drafts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Drafts
+         * @description Own drafts, most recently changed first; optionally of one mail or one status.
+         */
+        get: operations["drafts_list_drafts"];
+        put?: never;
+        /**
+         * Create Draft
+         * @description Start a draft written by hand: recipients and subject are filled in from the mail.
+         */
+        post: operations["drafts_create_draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drafts/generate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Generate Draft
+         * @description Generate a reply to a mail with the local model; the text is streamed and stored as
+         *     draft when complete. With ``draft_id`` the text of that open draft is replaced.
+         *
+         *     The model sees the thread up to the mail (shortened), the instruction, the user's
+         *     signature and, unless switched off, a few of the user's own sent mails as style
+         *     examples. Mail content is passed as data, never as instructions.
+         */
+        post: operations["drafts_generate_draft"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drafts/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Draft Settings
+         * @description Own drafting settings: signature and style examples.
+         */
+        get: operations["drafts_get_draft_settings"];
+        /** Update Draft Settings */
+        put: operations["drafts_update_draft_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drafts/{draft_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Draft */
+        get: operations["drafts_get_draft"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Draft
+         * @description Delete the draft for good.
+         */
+        delete: operations["drafts_delete_draft"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Draft
+         * @description Edit text, subject or recipients of an open draft.
+         */
+        patch: operations["drafts_update_draft"];
+        trace?: never;
+    };
+    "/drafts/{draft_id}/discard": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Discard
+         * @description Mark the draft as discarded (kept until the retention period ends).
+         */
+        post: operations["drafts_discard"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/drafts/{draft_id}/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send
+         * @description Send the draft from the mailbox of the answered mail. The sent copy is kept on the
+         *     server (sent folder) and arrives with the next sync. Recorded in the audit log.
+         */
+        post: operations["drafts_send"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2631,7 +2831,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -3128,6 +3328,134 @@ export interface components {
          */
         DirectoryType: "active_directory" | "openldap";
         /**
+         * DraftCreate
+         * @description A draft written by hand (no model call).
+         */
+        DraftCreate: {
+            /**
+             * Body
+             * @default
+             */
+            body: string;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /**
+             * Reply All
+             * @default false
+             */
+            reply_all: boolean;
+        };
+        /** DraftGenerate */
+        DraftGenerate: {
+            /** Draft Id */
+            draft_id?: string | null;
+            /** Instruction */
+            instruction?: string | null;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /**
+             * Reply All
+             * @default false
+             */
+            reply_all: boolean;
+        };
+        /** DraftRead */
+        DraftRead: {
+            /** Body */
+            body: string;
+            /** Can Send */
+            can_send: boolean;
+            /** Cc */
+            cc: components["schemas"]["RecipientRead"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Instruction */
+            instruction: string | null;
+            /** Language */
+            language: string | null;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /** Message Id */
+            message_id: string | null;
+            /** Model */
+            model: string | null;
+            /** Quote Original */
+            quote_original: boolean;
+            /** Reply All */
+            reply_all: boolean;
+            /** Sent At */
+            sent_at: string | null;
+            status: components["schemas"]["DraftStatus"];
+            /** Subject */
+            subject: string;
+            /** Thread Id */
+            thread_id: string | null;
+            /** To */
+            to: components["schemas"]["RecipientRead"][];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** DraftSettingsRead */
+        DraftSettingsRead: {
+            /** Signature */
+            signature: string;
+            /** Style Examples */
+            style_examples: boolean;
+            /** Style Examples Available */
+            style_examples_available: boolean;
+        };
+        /** DraftSettingsUpdate */
+        DraftSettingsUpdate: {
+            /** Signature */
+            signature?: string | null;
+            /** Style Examples */
+            style_examples?: boolean | null;
+        };
+        /**
+         * DraftStatus
+         * @enum {string}
+         */
+        DraftStatus: "draft" | "sent" | "discarded";
+        /**
+         * DraftUpdate
+         * @description Changes by the user; omitted fields stay. Changing ``reply_all`` recomputes the
+         *     recipients unless ``to``/``cc`` are given as well.
+         */
+        DraftUpdate: {
+            /** Body */
+            body?: string | null;
+            /** Cc */
+            cc?: components["schemas"]["Recipient"][] | null;
+            /** Quote Original */
+            quote_original?: boolean | null;
+            /** Reply All */
+            reply_all?: boolean | null;
+            /** Subject */
+            subject?: string | null;
+            /** To */
+            to?: components["schemas"]["Recipient"][] | null;
+        };
+        /**
          * ExportStatus
          * @enum {string}
          */
@@ -3465,7 +3793,7 @@ export interface components {
          * @description Features that use an LLM; each can be assigned its own endpoint and model.
          * @enum {string}
          */
-        LLMTask: "triage" | "todos" | "digest" | "rag_chat" | "embeddings";
+        LLMTask: "triage" | "todos" | "digest" | "rag_chat" | "reply_draft" | "embeddings";
         /** LdapConnectionTest */
         LdapConnectionTest: {
             /** Ok */
@@ -4274,6 +4602,23 @@ export interface components {
              */
             status: "ok" | "unavailable";
         };
+        /**
+         * Recipient
+         * @description A recipient entered by the user; must be usable in a header.
+         */
+        Recipient: {
+            /** Address */
+            address: string;
+            /** Name */
+            name?: string | null;
+        };
+        /** RecipientRead */
+        RecipientRead: {
+            /** Address */
+            address: string;
+            /** Name */
+            name?: string | null;
+        };
         /** RegisterRequest */
         RegisterRequest: {
             /** Display Name */
@@ -4635,6 +4980,68 @@ export interface components {
             /** Trust Email */
             trust_email?: boolean | null;
         };
+        /** ScimSettingsRead */
+        ScimSettingsRead: {
+            /** Enabled */
+            enabled: boolean;
+            /** Endpoint Url */
+            endpoint_url: string;
+            /** Link Providers */
+            link_providers: string[];
+            stats: components["schemas"]["ScimStats"];
+            /** Tokens */
+            tokens: components["schemas"]["ScimTokenRead"][];
+        };
+        /** ScimSettingsUpdate */
+        ScimSettingsUpdate: {
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Link Providers */
+            link_providers?: string[] | null;
+        };
+        /** ScimStats */
+        ScimStats: {
+            /** Active Users */
+            active_users: number;
+            /** Groups */
+            groups: number;
+            /** Users */
+            users: number;
+        };
+        /** ScimTokenCreate */
+        ScimTokenCreate: {
+            /** Expires In Days */
+            expires_in_days?: number | null;
+            /** Name */
+            name: string;
+        };
+        /** ScimTokenIssued */
+        ScimTokenIssued: {
+            /** Secret */
+            secret: string;
+            token: components["schemas"]["ScimTokenRead"];
+        };
+        /** ScimTokenRead */
+        ScimTokenRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Expires At */
+            expires_at: string | null;
+            /** Hint */
+            hint: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Name */
+            name: string;
+        };
         /**
          * SearchFilterParams
          * @description Filters set in the UI; each one narrows the mailboxes the user may read.
@@ -4925,7 +5332,7 @@ export interface components {
          * TargetType
          * @enum {string}
          */
-        TargetType: "user" | "session" | "mailbox" | "idp" | "settings";
+        TargetType: "user" | "session" | "mailbox" | "idp" | "settings" | "group";
         /**
          * TaskAssignmentUpdate
          * @description ``provider`` and ``model`` both ``null``: back to the environment's default.
@@ -6916,6 +7323,191 @@ export interface operations {
             };
             /** @description Last active administrator */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_scim_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScimSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_update_scim_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScimSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScimSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_create_scim_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ScimTokenCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ScimTokenIssued"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many tokens */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_revoke_scim_token: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                token_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such token */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9043,6 +9635,577 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    drafts_list_drafts: {
+        parameters: {
+            query?: {
+                message_id?: string | null;
+                status?: components["schemas"]["DraftStatus"] | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_create_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_generate_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftGenerate"];
+            };
+        };
+        responses: {
+            /** @description Server-Sent Events stream; `data` of each event is one of these */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/event-stream": {
+                        /**
+                         * Draft Id
+                         * Format: uuid
+                         */
+                        draft_id: string;
+                        /**
+                         * Type
+                         * @default start
+                         * @constant
+                         */
+                        type: "start";
+                    } | {
+                        /** Text */
+                        text: string;
+                        /**
+                         * Type
+                         * @default token
+                         * @constant
+                         */
+                        type: "token";
+                    } | {
+                        /** DraftRead */
+                        draft: {
+                            /** Body */
+                            body: string;
+                            /** Can Send */
+                            can_send: boolean;
+                            /** Cc */
+                            cc: {
+                                /** Address */
+                                address: string;
+                                /** Name */
+                                name?: string | null;
+                            }[];
+                            /**
+                             * Created At
+                             * Format: date-time
+                             */
+                            created_at: string;
+                            /**
+                             * Id
+                             * Format: uuid
+                             */
+                            id: string;
+                            /** Instruction */
+                            instruction: string | null;
+                            /** Language */
+                            language: string | null;
+                            /**
+                             * Mailbox Id
+                             * Format: uuid
+                             */
+                            mailbox_id: string;
+                            /** Message Id */
+                            message_id: string | null;
+                            /** Model */
+                            model: string | null;
+                            /** Quote Original */
+                            quote_original: boolean;
+                            /** Reply All */
+                            reply_all: boolean;
+                            /** Sent At */
+                            sent_at: string | null;
+                            /**
+                             * DraftStatus
+                             * @enum {string}
+                             */
+                            status: "draft" | "sent" | "discarded";
+                            /** Subject */
+                            subject: string;
+                            /** Thread Id */
+                            thread_id: string | null;
+                            /** To */
+                            to: {
+                                /** Address */
+                                address: string;
+                                /** Name */
+                                name?: string | null;
+                            }[];
+                            /**
+                             * Updated At
+                             * Format: date-time
+                             */
+                            updated_at: string;
+                        };
+                        /** Ttft Ms */
+                        ttft_ms: number | null;
+                        /**
+                         * Type
+                         * @default done
+                         * @constant
+                         */
+                        type: "done";
+                    } | {
+                        /** Code */
+                        code: string;
+                        /**
+                         * Type
+                         * @default error
+                         * @constant
+                         */
+                        type: "error";
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message or draft */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_get_draft_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    drafts_update_draft_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_get_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such draft */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_delete_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such draft */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_update_draft: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DraftUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such draft */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Draft already sent or discarded */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_discard: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such draft */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Draft already sent */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    drafts_send: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                draft_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DraftRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Sending from this mailbox is not allowed (shared mailbox) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such draft */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Draft already sent or discarded, or the mail was deleted */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No or invalid recipients */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The mail server refused the message (error_code) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The mail server is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

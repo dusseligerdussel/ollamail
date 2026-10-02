@@ -10,7 +10,8 @@ folder's current content, with a cursor only the changes after it. ``labels=True
 it behave like Gmail (a message can be in several folders, ``move`` keeps the reference),
 otherwise like IMAP (``move`` assigns a new reference). ``mailbox_cursor=True`` adds a
 mailbox-wide change log like Gmail's ``historyId`` (``fetch_since(MAILBOX_SCOPE, ...)``).
-Every server-side action is recorded in ``actions`` for assertions.
+Every server-side action is recorded in ``actions`` for assertions; sent replies are kept
+in ``sent`` (``send_error`` makes the next ``send`` fail).
 """
 
 import asyncio
@@ -31,9 +32,12 @@ from app.mail.providers.base import (
     MessageFetched,
     MessageNotFoundError,
     MessageUpdated,
+    OutgoingReply,
     ProviderCapabilities,
+    ProviderError,
     RawMessage,
     RemoteFolder,
+    SentMessage,
     SyncCursor,
     SyncEvent,
 )
@@ -80,6 +84,8 @@ class FakeMailProvider:
             mailbox_cursor=mailbox_cursor,
         )
         self.actions: list[_Action] = []
+        self.sent: list[OutgoingReply] = []
+        self.send_error: ProviderError | None = None
         self.closed = False
         self._state = _State()
         self._seq = itertools.count(1)
@@ -214,6 +220,14 @@ class FakeMailProvider:
             self._update(replace(message, folder_ids=folders))
         else:
             self._update(replace(message, flags=message.flags - {label}))
+
+    async def send(self, reply: OutgoingReply) -> SentMessage:
+        self.actions.append(_Action("send", (reply.in_reply_to_ref,)))
+        if self.send_error is not None:
+            error, self.send_error = self.send_error, None
+            raise error
+        self.sent.append(reply)
+        return SentMessage(remote_ref=f"sent-{len(self.sent)}", message_id=reply.message_id)
 
     async def aclose(self) -> None:
         self.closed = True

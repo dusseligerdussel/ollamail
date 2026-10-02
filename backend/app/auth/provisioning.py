@@ -22,6 +22,10 @@ get ``user`` and existing users keep their role. The last active admin is never 
 login (the change is skipped and logged), so a wrong rule cannot lock the instance out.
 Creating a user and changing a role are recorded in the audit log (actor ``system``).
 
+Users created by SCIM (#95): the groups SCIM keeps for them count for the role mapping
+like the groups of the login, and providers the admin lists in the SCIM settings may link
+a login to them by verified e-mail address without ``link_by_email``.
+
 ``ProvisioningError`` is a ``ProblemError``: JSON endpoints (password providers) can let it
 propagate, browser flows (``app.auth.redirect_flow``) use its static ``code``.
 """
@@ -37,11 +41,12 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.auth.admin_access import other_active_admins
-from app.auth.models import Identity
+from app.auth.models import SCIM_PROVIDER, Identity
 from app.auth.policy import resolve_role
 from app.auth.providers.base import VerifiedIdentity
 from app.core.errors import ProblemError
 from app.core.logging import get_logger
+from app.scim.models import ScimConfig, ScimUser
 from app.users.models import User, UserRole
 from app.users.schemas import normalize_email
 from app.users.service import get_user_by_email
@@ -196,7 +201,7 @@ async def provision_user(
     policy = policy or ProvisioningPolicy()
     email = _email(identity)
     _check_domain(policy, identity, email)
-    role = await resolve_role(db, identity.provider, identity.groups, role)
+    provider_role = role
 
     known = await _known(db, identity)
     if known is not None:
@@ -204,6 +209,7 @@ async def provision_user(
         if not user.is_active:
             raise ProvisioningError(ProvisioningErrorCode.INACTIVE)
         _touch(identity_row, identity, policy)
+        role = await _resolve_role(db, identity, provider_role, user)
         await _sync_role(db, user, identity, role)
         await db.flush()
         return ProvisioningResult(user=user)
@@ -213,10 +219,12 @@ async def provision_user(
 
     existing = await get_user_by_email(db, email)
     if existing is not None:
-        if not (policy.link_by_email and identity.email_verified):
+        may_link = policy.link_by_email or await _scim_link_allowed(db, existing, identity)
+        if not (may_link and identity.email_verified):
             raise ProvisioningError(ProvisioningErrorCode.EMAIL_CONFLICT)
         if not existing.is_active:
             raise ProvisioningError(ProvisioningErrorCode.INACTIVE)
+        role = await _resolve_role(db, identity, provider_role, existing)
         await _sync_role(db, existing, identity, role)
         await _add_identity(db, existing, identity, policy)
         log.info("identity_linked", user_id=existing.id, provider=identity.provider)
@@ -224,7 +232,35 @@ async def provision_user(
 
     if not policy.auto_provision:
         raise ProvisioningError(ProvisioningErrorCode.NOT_PROVISIONED)
+    role = await _resolve_role(db, identity, provider_role, None)
     return await _create(db, identity, email, role or UserRole.USER, policy)
+
+
+async def _resolve_role(
+    db: AsyncSession, identity: VerifiedIdentity, provider_role: UserRole | None, user: User | None
+) -> UserRole | None:
+    """``resolve_role`` with the groups SCIM (#95) keeps for ``user`` counted as well."""
+    directory_groups: list[tuple[str, list[str]]] = []
+    if user is not None:
+        scim_groups = await db.scalar(
+            select(Identity.groups).where(
+                Identity.user_id == user.id, Identity.provider == SCIM_PROVIDER
+            )
+        )
+        if scim_groups:
+            directory_groups.append((SCIM_PROVIDER, scim_groups))
+    return await resolve_role(
+        db, identity.provider, identity.groups, provider_role, directory_groups
+    )
+
+
+async def _scim_link_allowed(db: AsyncSession, user: User, identity: VerifiedIdentity) -> bool:
+    """Whether the admin allows ``identity.provider`` to sign in users SCIM created (#95)."""
+    allowed = await db.scalar(select(ScimConfig.link_providers))
+    if not allowed or identity.provider not in allowed:
+        return False
+    scim_user = await db.scalar(select(ScimUser.id).where(ScimUser.user_id == user.id))
+    return scim_user is not None
 
 
 async def _sync_role(

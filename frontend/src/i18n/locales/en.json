@@ -119,6 +119,7 @@
       "signInDescription": "Identity providers, LDAP directories and local accounts.",
       "roleMappingDescription": "Derive roles from the groups of your identity provider.",
       "usersDescription": "Roles, deactivation, sessions and invitations.",
+      "scimDescription": "Create, deactivate and delete users and groups from Entra ID or Okta.",
       "retentionDescription": "How long mails, attachments, search index, question history, digests and audit log are kept.",
       "mail": "Mail",
       "sharedMailboxesDescription": "Team mailboxes like info@ or support@: connect once, assign to people and groups."
@@ -155,7 +156,8 @@
         "session": "Session",
         "mailbox": "Mailbox",
         "idp": "Sign-in provider",
-        "settings": "Settings"
+        "settings": "Settings",
+        "group": "Group"
       },
       "groups": {
         "auth": "Sign-in",
@@ -180,7 +182,15 @@
           "deactivated": "User deactivated",
           "reactivated": "User reactivated",
           "invited": "User invited",
-          "password_set": "Password set"
+          "password_set": "Password set",
+          "updated": "User updated"
+        },
+        "group": {
+          "created": "Group created",
+          "updated": "Group changed",
+          "deleted": "Group deleted",
+          "member_added": "Added to group",
+          "member_removed": "Removed from group"
         },
         "idp": {
           "config_changed": "Sign-in provider changed"
@@ -193,6 +203,9 @@
           "shared": "Mailbox shared",
           "deleted": "Mailbox removed",
           "unshared": "Mailbox access revoked"
+        },
+        "mail": {
+          "sent": "Mail sent"
         },
         "data": {
           "exported": "Data exported",
@@ -215,6 +228,7 @@
         "todos": "Tasks",
         "digest": "Digest",
         "rag_chat": "Questions to the inbox",
+        "reply_draft": "Reply drafts",
         "embeddings": "Search index"
       },
       "taskDescriptions": {
@@ -222,6 +236,7 @@
         "todos": "Finds tasks in mail.",
         "digest": "Writes the daily summary.",
         "rag_chat": "Answers questions with sources from the mail.",
+        "reply_draft": "Writes reply drafts; sent only by the user.",
         "embeddings": "Computes vectors for search (embedding model)."
       },
       "cloud": {
@@ -538,6 +553,50 @@
       "testNoMatch": "No rule matches; default role.",
       "testOff": "Role mapping is off; roles stay as they are.",
       "general": "General"
+    },
+    "scim": {
+      "title": "SCIM provisioning",
+      "back": "Back to admin",
+      "providerLabel": "SCIM",
+      "general": "Provisioning",
+      "enabled": "SCIM provisioning",
+      "enabledDescription": "Your identity provider (Entra ID, Okta) creates, updates and deactivates users and pushes groups.",
+      "off": "Off",
+      "on": "On",
+      "saved": "SCIM settings saved",
+      "endpoint": "Endpoint URL",
+      "endpointDescription": "Enter it at the identity provider as tenant URL or SCIM base URL.",
+      "stats": "{{users}} users provisioned ({{active}} active), {{groups}} groups",
+      "statsEmpty": "Nothing provisioned yet.",
+      "tokens": "Tokens",
+      "tokensDescription": "The identity provider sends a token as bearer token. Only its hash is stored, so a token is shown once.",
+      "noTokens": "No tokens yet. Create one for each identity provider.",
+      "created": "Created {{date}}",
+      "lastUsed": "last used {{date}}",
+      "neverUsed": "not used yet",
+      "expires": "expires {{date}}",
+      "expired": "Expired",
+      "tokenName": "Name",
+      "tokenNamePlaceholder": "e.g. Entra ID",
+      "validity": "Valid for",
+      "noExpiry": "No expiry",
+      "days_one": "{{count}} day",
+      "days_other": "{{count}} days",
+      "createToken": "Create token",
+      "copyNow": "Copy the token now and enter it at the identity provider as secret token. It will not be shown again.",
+      "secret": "Token “{{name}}”",
+      "done": "Done",
+      "revokeLabel": "Revoke token {{name}}",
+      "revokeTitle": "Revoke token “{{name}}”?",
+      "revokeDescription": "Requests with this token fail at once. Provisioning stops until the identity provider has a new token.",
+      "revoke": "Revoke",
+      "revoked": "Token revoked",
+      "cancel": "Cancel",
+      "linking": "Sign-in of provisioned users",
+      "linkingDescription": "Provisioned users sign in through a provider. Selected providers may link the first sign-in to the provisioned account by its verified e-mail address.",
+      "noProviders": "No sign-in provider is set up yet.",
+      "saveLinking": "Save",
+      "groupsHint": "Groups appear as provider “SCIM” in the role mapping and in shared mailboxes. Deactivating a user ends all sessions at once; deleting removes the user with all their data, shared mailboxes stay."
     },
     "users": {
       "title": "Users",

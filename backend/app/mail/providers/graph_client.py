@@ -156,8 +156,11 @@ class GraphClient:
         params: Mapping[str, str] | None = None,
         json_body: Any = None,
         prefer: Sequence[str] = (),
+        retry: bool = True,
     ) -> httpx.Response:
-        """Send a request; returns the successful response or raises a provider error."""
+        """Send a request; returns the successful response or raises a provider error.
+        ``retry=False`` (sending mail) only repeats after a token refresh, never after
+        throttling, so a request that may have taken effect is not sent twice."""
         refreshed = False
         attempt = 0
         while True:
@@ -179,7 +182,7 @@ class GraphClient:
                 refreshed = True
                 await self._token(True)
                 continue
-            if response.status_code in _RETRY_STATUS and attempt < self._max_retries:
+            if retry and response.status_code in _RETRY_STATUS and attempt < self._max_retries:
                 wait = _retry_after(response.headers, attempt)
                 log.info("graph_throttled", status=response.status_code, wait=wait)
                 attempt += 1
