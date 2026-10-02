@@ -1,5 +1,9 @@
+import re
+from pathlib import Path
+
 import pytest
 from pydantic import ValidationError
+from pydantic_settings import BaseSettings
 
 from app.core.config import DatabaseSettings, Settings
 
@@ -43,3 +47,52 @@ def test_database_url_is_not_rendered() -> None:
     settings = DatabaseSettings.model_validate({"url": "postgresql+asyncpg://u:hunter2@db/x"})
 
     assert "hunter2" not in repr(settings)
+
+
+def test_empty_values_from_env_example_count_as_unset(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("OLLAMAIL_SETUP_TOKEN", "")
+    monkeypatch.setenv("OLLAMAIL_MAIL_GRAPH_CLIENT_ID", "")
+    monkeypatch.setenv("OLLAMAIL_MAIL_GRAPH_CLIENT_SECRET", " ")
+
+    settings = Settings()
+
+    assert settings.security.setup_token is None
+    assert settings.graph.client_id is None
+    assert settings.graph.client_secret is None
+
+
+ENV_EXAMPLE = Path(__file__).resolve().parents[2] / "deploy" / ".env.example"
+
+
+def _settings_env_names() -> set[str]:
+    names = set()
+    for group in Settings.model_fields.values():
+        model = group.annotation
+        assert isinstance(model, type) and issubclass(model, BaseSettings)
+        prefix = model.model_config.get("env_prefix", "")
+        names.update(f"{prefix}{field}".upper() for field in model.model_fields)
+    return names
+
+
+def _documented_env_names() -> set[str]:
+    # Active (`NAME=value`) and commented-out (`# NAME=value`) entries both count.
+    return set(re.findall(r"^#?\s*([A-Z][A-Z0-9_]*)=", ENV_EXAMPLE.read_text(), re.MULTILINE))
+
+
+def test_every_setting_is_documented_in_env_example() -> None:
+    missing = _settings_env_names() - _documented_env_names()
+    assert not missing, f"document these settings in deploy/.env.example: {sorted(missing)}"
+
+
+def test_env_example_has_no_unknown_settings() -> None:
+    # Compose-only variables (images, ports) are read by deploy/compose.yaml, not the app.
+    compose_only = {
+        "OLLAMAIL_VERSION",
+        "OLLAMAIL_API_IMAGE",
+        "OLLAMAIL_FRONTEND_IMAGE",
+        "OLLAMAIL_HTTP_BIND",
+        "OLLAMAIL_HTTP_PORT",
+    }
+    documented = {n for n in _documented_env_names() if n.startswith("OLLAMAIL_")}
+    unknown = documented - _settings_env_names() - compose_only
+    assert not unknown, f"not read by the app (typo or removed setting?): {sorted(unknown)}"
