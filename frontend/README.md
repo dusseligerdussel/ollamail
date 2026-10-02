@@ -37,7 +37,8 @@ Die Specs in `e2e/` laufen in zwei Arten:
 
 Projekte in `playwright.config.ts`: `setup` (`auth.spec.ts`, braucht eine leere Datenbank) läuft
 zuerst, danach parallel `chromium` (alles andere), zum Schluss allein `perf` (Tests mit Tag `@perf`,
-die Frame-Zeiten messen). Es gibt keine Retries: Ein Test, der erst im zweiten Versuch grün wird,
+die Frame-Zeiten messen; Budget für das 95. Perzentil über `E2E_FRAME_BUDGET_MS`, Standard 100 ms,
+in der CI 200 ms, weil die Runner ohne GPU rendern). Es gibt keine Retries: Ein Test, der erst im zweiten Versuch grün wird,
 deckt einen Fehler zu. Gewartet wird auf Zustände (`expect`, `toPass`), nie mit festen Pausen.
 `E2E_PREVIEW=1` testet den Produktions-Build (`pnpm build` vorher) statt des Dev-Servers.
 
