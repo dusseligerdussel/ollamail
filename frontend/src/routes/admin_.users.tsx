@@ -18,6 +18,7 @@ import {
   reissueInvitation,
   revokeUserSessions,
   roleMappingQueryOptions,
+  samlProvidersQueryOptions,
   updateUser,
 } from "@/api/admin-auth";
 import { pageNavigation } from "@/api/auth";
@@ -249,10 +250,12 @@ function useFormatters() {
   const oidc = useQuery(oidcProvidersQueryOptions);
   const github = useQuery(githubProvidersQueryOptions);
   const ldap = useQuery(ldapDirectoriesQueryOptions);
+  const saml = useQuery(samlProvidersQueryOptions);
   const names = new Map<string, string>([
     ...(oidc.data ?? []).map((p) => [p.provider, p.display_name] as const),
     ...(github.data ?? []).map((p) => [p.provider, p.display_name] as const),
     ...(ldap.data ?? []).map((d) => [d.provider, d.display_name] as const),
+    ...(saml.data ?? []).map((p) => [p.provider, p.display_name] as const),
   ]);
   const date = new Intl.DateTimeFormat(i18n.resolvedLanguage, {
     dateStyle: "medium",
