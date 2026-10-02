@@ -32,9 +32,10 @@ def too_many(retry_after: int) -> ProblemError:
     )
 
 
-def invalid_code() -> ProblemError:
+def invalid_code(status: int = 401) -> ProblemError:
+    """401 at sign-in; 400 when confirming a new factor (the caller is signed in)."""
     return ProblemError(
-        401, detail="The code is not valid.", type="urn:ollamail:problem:mfa-invalid"
+        status, detail="The code is not valid.", type="urn:ollamail:problem:mfa-invalid"
     )
 
 

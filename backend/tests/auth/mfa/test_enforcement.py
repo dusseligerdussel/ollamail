@@ -152,7 +152,9 @@ async def test_wrong_confirmation_code_keeps_totp_off(
 
     response = await db_client.post("/auth/mfa/totp/confirm", json={"code": "000000"})
 
-    assert response.status_code == 401
+    # 400, not 401: the user is signed in, only the code is wrong.
+    assert response.status_code == 400
+    assert response.json()["type"] == "urn:ollamail:problem:mfa-invalid"
     status = (await db_client.get("/auth/mfa")).json()
     assert status["totp"] is False
     assert status["recovery_codes_remaining"] == 0

@@ -11437,8 +11437,11 @@
             },
             "description": "Successful Response"
           },
+          "400": {
+            "description": "Wrong code (mfa-invalid)"
+          },
           "401": {
-            "description": "Wrong code, or the pending sign-in expired (mfa-expired)"
+            "description": "Not signed in"
           },
           "422": {
             "content": {

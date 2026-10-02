@@ -8687,7 +8687,14 @@ export interface operations {
                     "application/json": components["schemas"]["MfaEnrolled"];
                 };
             };
-            /** @description Wrong code, or the pending sign-in expired (mfa-expired) */
+            /** @description Wrong code (mfa-invalid) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
             401: {
                 headers: {
                     [name: string]: unknown;

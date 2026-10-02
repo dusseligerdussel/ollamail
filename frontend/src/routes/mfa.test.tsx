@@ -251,3 +251,33 @@ describe("Account → Security", () => {
     ).toBeInTheDocument();
   });
 });
+
+describe("authenticator app set-up in the settings", () => {
+  it("shows a wrong code at the field and stays on the page", async () => {
+    const api = backend();
+    mockFetch((request) => {
+      const route = `${request.method} ${new URL(request.url).pathname}`;
+      if (route === "GET /api/auth/mfa")
+        return json({ ...status, totp: false, passkeys: [], recovery_codes_remaining: 0 });
+      if (route === "POST /api/auth/mfa/totp/setup")
+        return json({ secret: "JBSWY3DPEHPK3PXP", uri: "otpauth://totp/x", qr_svg: QR });
+      if (route === "POST /api/auth/mfa/totp/confirm")
+        return problem(400, { type: "urn:ollamail:problem:mfa-invalid" });
+      return api(request);
+    });
+    const user = userEvent.setup();
+    const { router } = await renderApp("/settings/security");
+
+    await user.click(await screen.findByRole("button", { name: "Set up" }));
+    const sheet = await screen.findByRole("dialog", { name: "Set up authenticator app" });
+    await user.type(await within(sheet).findByLabelText("Code"), "000000");
+    await user.click(within(sheet).getByRole("button", { name: "Activate" }));
+
+    expect(
+      await within(sheet).findByText(
+        "The code is not correct. Check the time on your phone and try again.",
+      ),
+    ).toBeInTheDocument();
+    expect(router.state.location.pathname).toBe("/settings/security");
+  });
+});

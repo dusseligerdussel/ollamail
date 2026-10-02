@@ -87,7 +87,7 @@ async def test_registration_with_a_foreign_origin_or_rp_is_rejected(
 
     assert foreign_origin.status_code == 400
     assert foreign_rp.status_code == 400
-    assert replay.status_code == 401
+    assert replay.status_code == 400
     assert (await db_session.scalars(select(Passkey))).all() == []
 
 

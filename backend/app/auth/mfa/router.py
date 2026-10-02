@@ -500,7 +500,14 @@ async def setup_totp(subject: SubjectDep, db: DbDep) -> TotpSetup:
     return TotpSetup(secret=secret, uri=uri, qr_svg=qr_svg(uri))
 
 
-@router.post("/mfa/totp/confirm", responses={**_UNAUTHORIZED, **_STEP})
+@router.post(
+    "/mfa/totp/confirm",
+    responses={
+        **_UNAUTHORIZED,
+        400: {"description": "Wrong code (mfa-invalid)"},
+        429: _STEP[429],
+    },
+)
 async def confirm_totp(
     body: CodeRequest,
     subject: SubjectDep,
@@ -517,7 +524,7 @@ async def confirm_totp(
             await db.commit()
             raise service.pending_expired()
         await db.commit()
-        raise service.invalid_code()
+        raise service.invalid_code(status.HTTP_400_BAD_REQUEST)
     await service.reset_throttle(db, settings, subject.user.id)
     return await _enrolled(db, settings, request, response, subject, service.TOTP, {})
 
@@ -610,18 +617,20 @@ async def register_passkey(
         if state is not None and state.session_id != subject.session_id:
             state = None
     challenge = state.webauthn_challenge if state else None
+    invalid = ProblemError(
+        400,
+        detail="The passkey could not be verified.",
+        type="urn:ollamail:problem:passkey-invalid",
+    )
     if state is None or challenge is None:
-        raise service.pending_expired()
+        # Signed in: a stale or reused challenge is a failed registration, not a lost session.
+        raise service.pending_expired() if subject.pending is not None else invalid
     state.webauthn_challenge = None
     try:
         new = verify_registration(rp, body.credential, challenge)
     except PasskeyError:
         await db.commit()
-        raise ProblemError(
-            400,
-            detail="The passkey could not be verified.",
-            type="urn:ollamail:problem:passkey-invalid",
-        ) from None
+        raise invalid from None
     if await db.scalar(select(Passkey.id).where(Passkey.credential_id == new.credential_id)):
         raise ProblemError(
             409,

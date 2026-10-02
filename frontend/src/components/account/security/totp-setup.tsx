@@ -54,7 +54,8 @@ export function TotpSetup({
   let error: string | undefined;
   if (confirm.isError) {
     const status = isApiError(confirm.error) ? confirm.error.status : 0;
-    if (status === 401) error = t("account.security.totp.invalid");
+    if (status === 400) error = t("account.security.totp.invalid");
+    else if (isMfaExpired(confirm.error)) error = t("auth.mfa.expired");
     else if (status === 429) error = t("auth.login.throttled");
     else error = describeApiError(confirm.error, t).title;
   }
