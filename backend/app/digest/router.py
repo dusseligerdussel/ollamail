@@ -15,6 +15,7 @@ from fastapi import APIRouter, Depends, Query, Request, Response, status
 from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.tts import create_tts
 from app.auth.dependencies import CurrentSessionDep, CurrentUserDep, SettingsDep
 from app.auth.redirect_flow import api_url, public_origin
 from app.core.db import get_db
@@ -29,6 +30,7 @@ from app.digest.schemas import (
     DigestSettingsRead,
     DigestSettingsUpdate,
     DigestSummary,
+    DigestVoice,
     FeedCreated,
     FeedStatus,
 )
@@ -137,6 +139,21 @@ async def update_digest_settings(
     row = await service.update_settings(db, user, changes, now=_now())
     await db.commit()
     return _settings_read(user, row)
+
+
+@router.get("/voices")
+async def list_digest_voices(_: CurrentSessionDep, settings: SettingsDep) -> list[DigestVoice]:
+    """Voices for the digest: installed ones plus the default voice of each language."""
+    tts = create_tts(settings)
+    return [
+        DigestVoice(
+            id=voice.id,
+            language=voice.lang,
+            default=voice.id == tts.default_voice(voice.lang),
+            installed=voice.installed,
+        )
+        for voice in tts.voices()
+    ]
 
 
 # -- podcast feed ------------------------------------------------------------------------

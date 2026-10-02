@@ -24,7 +24,7 @@ from app.mail.providers.registry import UnknownProviderError
 from app.processing.steps import StepContext, StepError, registry
 from app.processing.tasks import get_database
 from app.todos.extraction import set_category_lookup
-from app.triage.service import category_key, triage_message
+from app.triage.service import category_key, publish_triaged, triage_message
 from app.triage.writeback import pending_by_mailbox, write_back_messages
 from app.worker import DEFAULT_RETRY, app
 
@@ -68,7 +68,11 @@ def use_llm(gateway: LLMGateway) -> Iterator[None]:
 
 @registry.step("triage", version=TRIAGE_STEP_VERSION, queue="llm")
 async def triage_step(ctx: StepContext) -> None:
-    await triage_message(ctx.session, ctx.message_id, llm=get_llm(), settings=get_settings().triage)
+    result = await triage_message(
+        ctx.session, ctx.message_id, llm=get_llm(), settings=get_settings().triage
+    )
+    if result is not None:
+        await publish_triaged(ctx.session, ctx.message_id, ctx.mailbox_id)
 
 
 @registry.step("triage_write_back", version=1, queue="sync", depends_on=("triage",))

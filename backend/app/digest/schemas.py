@@ -80,6 +80,17 @@ class DigestSettingsUpdate(BaseModel):
     mailbox_ids: Annotated[list[uuid.UUID], Field(max_length=100)] | None = None
 
 
+class DigestVoice(BaseModel):
+    """A voice to offer in the digest settings."""
+
+    id: str
+    language: DigestLanguage
+    # Used when the user has not picked a voice for this language.
+    default: bool
+    # ``false``: downloaded on first use (if downloads are enabled).
+    installed: bool
+
+
 class DigestReference(BaseModel):
     """``[ref]`` in the script refers to this mail."""
 

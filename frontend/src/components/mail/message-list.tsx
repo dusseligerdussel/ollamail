@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { Paperclip } from "lucide-react";
-import { useEffect, useRef } from "react";
+import { type ReactNode, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MessageSummary } from "@/api/mail";
@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 // Row heights in px: `h-row` (one line) on wide screens, two lines on phones.
 const ROW_HEIGHT = 36;
 const ROW_HEIGHT_TWO_LINES = 60;
+const GROUP_HEADER_HEIGHT = 32;
 // Rows rendered outside the viewport; loading the next page starts this close to the end.
 const OVERSCAN = 12;
 
@@ -30,7 +31,17 @@ interface MessageListProps {
   activeIndex: number;
   /** Search params of a row link (keeps the filters, opens the message). */
   linkSearch: (message: MessageSummary) => Record<string, unknown>;
+  /**
+   * Optional group headings (e.g. by triage category): returns a heading if a new group starts
+   * at `message`, which follows `previous` in the list.
+   */
+  groupHeader?: (message: MessageSummary, previous: MessageSummary | undefined) => ReactNode;
 }
+
+type Row =
+  | { type: "message"; index: number }
+  | { type: "header"; key: string; content: ReactNode }
+  | { type: "placeholder"; index: number };
 
 /** Virtualised inbox list: one row per message, smooth with tens of thousands of rows. */
 export function MessageList({
@@ -42,19 +53,44 @@ export function MessageList({
   selectedId,
   activeIndex,
   linkSearch,
+  groupHeader,
 }: MessageListProps) {
   const { t } = useTranslation();
   const oneLine = useMediaQuery(mediaQueries.sidebar);
   const scrollRef = useRef<HTMLDivElement>(null);
   const count = hasNextPage ? Math.max(total, items.length + 1) : items.length;
+  // Messages, interleaved with group headings if any; `rowOf` maps a message to its row.
+  const { rows, rowOf } = useMemo(() => {
+    const rows: Row[] = [];
+    const rowOf: number[] = [];
+    items.forEach((message, index) => {
+      const header = groupHeader?.(message, items[index - 1]);
+      if (header) rows.push({ type: "header", key: `header-${message.id}`, content: header });
+      rowOf.push(rows.length);
+      rows.push({ type: "message", index });
+    });
+    for (let index = items.length; index < count; index++)
+      rows.push({ type: "placeholder", index });
+    return { rows, rowOf };
+  }, [items, count, groupHeader]);
   const virtualizer = useVirtualizer({
-    count,
+    count: rows.length,
     getScrollElement: () => scrollRef.current,
-    estimateSize: () => (oneLine ? ROW_HEIGHT : ROW_HEIGHT_TWO_LINES),
+    estimateSize: (index) =>
+      rows[index]?.type === "header"
+        ? GROUP_HEADER_HEIGHT
+        : oneLine
+          ? ROW_HEIGHT
+          : ROW_HEIGHT_TWO_LINES,
     overscan: OVERSCAN,
     // Used until the scroll container is measured.
     initialRect: { width: 800, height: 720 },
-    getItemKey: (index) => items[index]?.id ?? `placeholder-${index}`,
+    getItemKey: (index) => {
+      const row = rows[index];
+      if (row?.type === "header") return row.key;
+      if (row?.type === "message") return items[row.index]?.id ?? index;
+      return `placeholder-${row?.index ?? index}`;
+    },
   });
 
   // Row height depends on the layout; re-measure when it changes.
@@ -65,15 +101,17 @@ export function MessageList({
 
   const virtualItems = virtualizer.getVirtualItems();
   const lastIndex = virtualItems.at(-1)?.index ?? 0;
+  const loadedRows = items.length > 0 ? (rowOf[items.length - 1] ?? 0) + 1 : 0;
   useEffect(() => {
-    if (hasNextPage && !isFetchingNextPage && lastIndex >= items.length - OVERSCAN) {
+    if (hasNextPage && !isFetchingNextPage && lastIndex >= loadedRows - OVERSCAN) {
       fetchNextPage();
     }
-  }, [hasNextPage, isFetchingNextPage, lastIndex, items.length, fetchNextPage]);
+  }, [hasNextPage, isFetchingNextPage, lastIndex, loadedRows, fetchNextPage]);
 
+  const activeRow = activeIndex >= 0 ? (rowOf[activeIndex] ?? activeIndex) : -1;
   useEffect(() => {
-    if (activeIndex >= 0) virtualizer.scrollToIndex(activeIndex, { align: "auto" });
-  }, [activeIndex, virtualizer]);
+    if (activeRow >= 0) virtualizer.scrollToIndex(activeRow, { align: "auto" });
+  }, [activeRow, virtualizer]);
 
   return (
     <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" data-testid="message-list">
@@ -82,22 +120,32 @@ export function MessageList({
         className="relative w-full"
         style={{ height: virtualizer.getTotalSize() }}
       >
-        {virtualItems.map((row) => {
-          const message = items[row.index];
+        {virtualItems.map((virtualRow) => {
+          const row = rows[virtualRow.index];
+          const style = { height: virtualRow.size, transform: `translateY(${virtualRow.start}px)` };
+          if (row?.type === "header") {
+            return (
+              <li key={virtualRow.key} className="absolute top-0 left-0 w-full" style={style}>
+                {row.content}
+              </li>
+            );
+          }
+          const index = row?.index ?? virtualRow.index;
+          const message = row?.type === "message" ? items[index] : undefined;
           return (
             <li
-              key={row.key}
+              key={virtualRow.key}
               aria-setsize={count}
-              aria-posinset={row.index + 1}
+              aria-posinset={index + 1}
               className="absolute top-0 left-0 w-full"
-              style={{ height: row.size, transform: `translateY(${row.start}px)` }}
+              style={style}
             >
               {message ? (
                 <MessageRow
                   message={message}
                   oneLine={oneLine}
                   selected={message.id === selectedId}
-                  active={row.index === activeIndex}
+                  active={index === activeIndex}
                   search={linkSearch(message)}
                 />
               ) : (

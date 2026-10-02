@@ -23,6 +23,14 @@ import { useSetSeen } from "@/components/mail/use-set-seen";
 import { PageHeader } from "@/components/page-header";
 import { useShortcut } from "@/components/shortcuts/shortcut-provider";
 import { SplitView } from "@/components/split-view";
+import { TriageControls } from "@/components/triage/triage-controls";
+import {
+  GROUPED,
+  parseCategoryParam,
+  TriageViewSelect,
+  useTriageInbox,
+} from "@/components/triage/triage-inbox";
+import { HideTriageLabels } from "@/components/triage/triage-label";
 import { Button } from "@/components/ui/button";
 import {
   NativeSelect,
@@ -38,6 +46,8 @@ interface InboxSearch {
   mailbox?: string;
   folder?: string;
   unread?: boolean;
+  /** Triage view (#21): grouped by category (`all`), one category ID or `none`. */
+  category?: string;
   /** The opened message. */
   message?: string;
 }
@@ -56,6 +66,9 @@ export const Route = createFileRoute("/inbox")({
       // A folder belongs to one mailbox.
       ...(mailbox && id(search.folder) && { folder: id(search.folder) }),
       ...((search.unread === true || search.unread === "true") && { unread: true }),
+      // Categories apply to the inbox folders, not to other folders.
+      ...(!search.folder &&
+        parseCategoryParam(search.category) && { category: parseCategoryParam(search.category) }),
       ...(id(search.message) && { message: id(search.message) }),
     };
   },
@@ -75,12 +88,15 @@ function InboxPage() {
   );
 
   const mailboxes = useQuery(mailboxesQueryOptions);
-  const messages = useInfiniteQuery(messagesQueryOptions(filters));
-  const items = useMemo(
-    () => messages.data?.pages.flatMap((page) => page.items) ?? [],
-    [messages.data],
+  const triage = useTriageInbox(search);
+  const byDate = useInfiniteQuery({ ...messagesQueryOptions(filters), enabled: !triage.enabled });
+  const messages = triage.enabled ? triage.query : byDate;
+  const byDateItems = useMemo(
+    () => byDate.data?.pages.flatMap((page) => page.items) ?? [],
+    [byDate.data],
   );
-  const total = messages.data?.pages[0]?.total ?? 0;
+  const items: MessageSummary[] = triage.enabled ? triage.items : byDateItems;
+  const total = triage.enabled ? triage.total : (byDate.data?.pages[0]?.total ?? 0);
   const selectedId = search.message;
 
   const open = useCallback(
@@ -216,6 +232,19 @@ function InboxPage() {
   }, [t, search.unread, setUnreadFilter, navigate, toggleTarget, toggleUnread]);
   useCommands(commands);
 
+  const setCategoryView = useCallback(
+    (category: string | undefined) =>
+      void navigate({
+        search: ({ category: _, message: __, ...rest }) =>
+          category ? { ...rest, category } : rest,
+      }),
+    [navigate],
+  );
+  const setGrouped = useCallback(
+    (grouped: boolean) => setCategoryView(grouped ? GROUPED : undefined),
+    [setCategoryView],
+  );
+
   const noMailboxes = mailboxes.data?.length === 0;
   const sharedMailbox = mailboxes.data?.find(
     (mailbox) => mailbox.id === search.mailbox && mailbox.is_shared,
@@ -272,6 +301,7 @@ function InboxPage() {
         selectedId={selectedId}
         activeIndex={activeIndex}
         linkSearch={linkSearch}
+        groupHeader={triage.groupHeader}
       />
     );
   }
@@ -324,9 +354,23 @@ function InboxPage() {
             // A shared mailbox opened from the navigation shows its own name.
             title={sharedMailbox?.display_name ?? t("nav.inbox")}
             meta={total > 0 ? new Intl.NumberFormat().format(total) : undefined}
+            actions={
+              !noMailboxes && !search.folder ? (
+                <TriageViewSelect
+                  value={search.category}
+                  groups={triage.groups}
+                  onChange={setCategoryView}
+                />
+              ) : undefined
+            }
           />
           {!noMailboxes && <FilterBar search={search} onUnreadChange={setUnreadFilter} />}
-          {listContent}
+          <HideTriageLabels hidden={triage.enabled}>{listContent}</HideTriageLabels>
+          <TriageControls
+            messageId={toggleTarget?.id}
+            byCategory={triage.enabled}
+            onViewChange={search.folder ? undefined : setGrouped}
+          />
         </>
       }
       detail={detail}
@@ -361,8 +405,9 @@ function FilterBar({
         value={search.mailbox ?? ""}
         onChange={(event) =>
           void navigate({
-            search: ({ unread }) => ({
+            search: ({ unread, category }) => ({
               ...(unread && { unread }),
+              ...(category && { category }),
               ...(event.target.value && { mailbox: event.target.value }),
             }),
           })
