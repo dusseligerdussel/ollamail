@@ -20,6 +20,8 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as AdminAiRouteImport } from './routes/admin_.ai'
 import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
+import { Route as AdminCategoriesRouteImport } from './routes/admin_.categories'
+import { Route as SettingsCategoriesRouteImport } from './routes/settings_.categories'
 import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
 import { Route as SettingsMailboxesNewRouteImport } from './routes/settings_.mailboxes_.new'
 
@@ -78,6 +80,16 @@ const AdminAuditRoute = AdminAuditRouteImport.update({
   path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
+  id: '/admin_/categories',
+  path: '/admin/categories',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsCategoriesRoute = SettingsCategoriesRouteImport.update({
+  id: '/settings_/categories',
+  path: '/settings/categories',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsMailboxesRoute = SettingsMailboxesRouteImport.update({
   id: '/settings_/mailboxes',
   path: '/settings/mailboxes',
@@ -101,6 +113,8 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof TasksRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/categories': typeof AdminCategoriesRoute
+  '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
@@ -116,6 +130,8 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/categories': typeof AdminCategoriesRoute
+  '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
@@ -132,6 +148,8 @@ export interface FileRoutesById {
   '/tasks': typeof TasksRoute
   '/admin_/ai': typeof AdminAiRoute
   '/admin_/audit': typeof AdminAuditRoute
+  '/admin_/categories': typeof AdminCategoriesRoute
+  '/settings_/categories': typeof SettingsCategoriesRoute
   '/settings_/mailboxes': typeof SettingsMailboxesRoute
   '/settings_/mailboxes_/new': typeof SettingsMailboxesNewRoute
 }
@@ -149,6 +167,8 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/categories'
+    | '/settings/categories'
     | '/settings/mailboxes'
     | '/settings/mailboxes/new'
   fileRoutesByTo: FileRoutesByTo
@@ -164,6 +184,8 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/categories'
+    | '/settings/categories'
     | '/settings/mailboxes'
     | '/settings/mailboxes/new'
   id:
@@ -179,6 +201,8 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin_/ai'
     | '/admin_/audit'
+    | '/admin_/categories'
+    | '/settings_/categories'
     | '/settings_/mailboxes'
     | '/settings_/mailboxes_/new'
   fileRoutesById: FileRoutesById
@@ -195,6 +219,8 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   AdminAiRoute: typeof AdminAiRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminCategoriesRoute: typeof AdminCategoriesRoute
+  SettingsCategoriesRoute: typeof SettingsCategoriesRoute
   SettingsMailboxesRoute: typeof SettingsMailboxesRoute
   SettingsMailboxesNewRoute: typeof SettingsMailboxesNewRoute
 }
@@ -278,6 +304,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/categories': {
+      id: '/admin_/categories'
+      path: '/admin/categories'
+      fullPath: '/admin/categories'
+      preLoaderRoute: typeof AdminCategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings_/categories': {
+      id: '/settings_/categories'
+      path: '/settings/categories'
+      fullPath: '/settings/categories'
+      preLoaderRoute: typeof SettingsCategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings_/mailboxes': {
       id: '/settings_/mailboxes'
       path: '/settings/mailboxes'
@@ -307,6 +347,8 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   AdminAiRoute: AdminAiRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminCategoriesRoute: AdminCategoriesRoute,
+  SettingsCategoriesRoute: SettingsCategoriesRoute,
   SettingsMailboxesRoute: SettingsMailboxesRoute,
   SettingsMailboxesNewRoute: SettingsMailboxesNewRoute,
 }

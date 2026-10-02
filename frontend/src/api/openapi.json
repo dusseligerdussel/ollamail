@@ -1072,6 +1072,32 @@
         "title": "AutodiscoverSuggestion",
         "type": "object"
       },
+      "CategoryCount": {
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "category_id",
+          "total"
+        ],
+        "title": "CategoryCount",
+        "type": "object"
+      },
       "CategoryCreate": {
         "properties": {
           "description": {
@@ -5835,6 +5861,148 @@
         ],
         "title": "TriageSource",
         "type": "string"
+      },
+      "TriagedMessage": {
+        "description": "A row of the inbox list ordered by category.",
+        "properties": {
+          "category_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Id"
+          },
+          "date": {
+            "format": "date-time",
+            "title": "Date",
+            "type": "string"
+          },
+          "flagged": {
+            "title": "Flagged",
+            "type": "boolean"
+          },
+          "has_attachments": {
+            "title": "Has Attachments",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "priority": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Priority"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AddressRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "mailbox_id",
+          "thread_id",
+          "subject",
+          "sender",
+          "snippet",
+          "date",
+          "unread",
+          "flagged",
+          "has_attachments",
+          "category_id",
+          "priority"
+        ],
+        "title": "TriagedMessage",
+        "type": "object"
+      },
+      "TriagedMessagePage": {
+        "properties": {
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/CategoryCount"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/TriagedMessage"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_offset": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Offset"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_offset",
+          "total",
+          "groups"
+        ],
+        "title": "TriagedMessagePage",
+        "type": "object"
       },
       "UserCreate": {
         "description": "A new local account (admin).",
@@ -10921,6 +11089,117 @@
         ]
       }
     },
+    "/triage/inbox/messages": {
+      "get": {
+        "description": "Inbox messages ordered by category (user's order, uncategorised last), then\npriority, then newest first; with the number of messages per category.",
+        "operationId": "triage_list_inbox_messages",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mailbox_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mailbox Id"
+            }
+          },
+          {
+            "description": "Only unread (true) or read (false)",
+            "in": "query",
+            "name": "unread",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only unread (true) or read (false)",
+              "title": "Unread"
+            }
+          },
+          {
+            "description": "One visible category, or `none` for the uncategorised messages",
+            "in": "query",
+            "name": "category",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "const": "none",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "One visible category, or `none` for the uncategorised messages",
+              "title": "Category"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TriagedMessagePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Unknown or hidden category"
+          }
+        },
+        "summary": "List Inbox Messages",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
     "/triage/mailboxes/{mailbox_id}/settings": {
       "get": {
         "operationId": "triage_get_mailbox_settings",
@@ -11023,6 +11302,62 @@
           }
         },
         "summary": "Update Mailbox Settings",
+        "tags": [
+          "triage"
+        ]
+      }
+    },
+    "/triage/messages": {
+      "get": {
+        "description": "Triage of several messages at once (e.g. the visible rows of a list). Messages that\nare not triaged yet, or not the user's, are left out.",
+        "operationId": "triage_list_triage",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "ids",
+            "required": true,
+            "schema": {
+              "items": {
+                "format": "uuid",
+                "type": "string"
+              },
+              "maxItems": 200,
+              "minItems": 1,
+              "title": "Ids",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TriageRead"
+                  },
+                  "title": "Response Triage List Triage",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Triage",
         "tags": [
           "triage"
         ]
