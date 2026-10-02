@@ -549,6 +549,29 @@
         "linkDescription": "Gültig bis {{date}}. Er wird nur einmal angezeigt; du kannst jederzeit einen neuen erstellen.",
         "done": "Fertig",
         "localDisabled": "Die lokale Anmeldung ist deaktiviert; eingeladene Nutzer könnten sich nicht anmelden."
+      },
+      "delete": {
+        "open": "Nutzer löschen …",
+        "title": "Nutzer endgültig löschen?",
+        "selfTitle": "Dein eigenes Konto endgültig löschen?",
+        "description": "{{name}} ({{email}}) wird mit allen eigenen Daten sofort gelöscht. Das lässt sich nicht rückgängig machen.",
+        "items": {
+          "mailboxes": "Eigene Postfächer mit ihren Ordnern und Einstellungen",
+          "mails": "Alle Mails und Anhänge aus diesen Postfächern, inklusive Suchindex",
+          "todos": "Aufgaben",
+          "digests": "Digests mit Audiodateien und Podcast-Feed",
+          "history": "Fragen-Verläufe, eigene Kategorien und Einstellungen",
+          "exports": "Datenexporte und Sitzungen"
+        },
+        "kept": "Team-Postfächer bleiben erhalten; nur die Zuweisung an diesen Nutzer entfällt. Die Mails bleiben in den Mail-Konten beim Anbieter erhalten. Das Audit-Log behält einen Eintrag ohne Namen und Adresse.",
+        "selfWarning": "Das ist dein eigenes Konto. Du wirst sofort abgemeldet und kannst dich danach nicht mehr anmelden. Möchtest du vorher deine Daten exportieren, nutze Einstellungen → Deine Daten.",
+        "confirmLabel": "Gib zur Bestätigung die E-Mail-Adresse {{email}} ein",
+        "cancel": "Abbrechen",
+        "confirm": "Endgültig löschen",
+        "done_one": "Nutzer gelöscht ({{count}} Postfach entfernt)",
+        "done_other": "Nutzer gelöscht ({{count}} Postfächer entfernt)",
+        "lastAdmin": "Nicht gelöscht: Das ist der letzte aktive Administrator. Mache zuerst einen anderen Nutzer zum Administrator.",
+        "lockout": "Nicht gelöscht: Danach könnte sich kein Administrator mehr anmelden. Mache zuerst einen anderen Nutzer mit funktionierender Anmeldung zum Administrator."
       }
     },
     "retention": {

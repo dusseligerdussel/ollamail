@@ -1,6 +1,7 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 
 import { API_BASE_PATH, api, unwrap } from "./client";
+import { isApiError } from "./errors";
 import type { components } from "./schema.gen";
 
 export type DataExport = components["schemas"]["DataExportRead"];
@@ -9,6 +10,14 @@ export type RetentionSettings = components["schemas"]["RetentionSettingsRead"];
 export type RetentionValues = components["schemas"]["RetentionValues"];
 export type RetentionUpdate = components["schemas"]["RetentionSettingsUpdate"];
 export type RetentionField = keyof RetentionValues;
+export type UserDeletionResult = components["schemas"]["UserDeletionResult"];
+
+const LAST_ADMIN = "urn:ollamail:problem:last-admin";
+
+/** 409: the last active administrator cannot be deleted. */
+export function isLastAdmin(error: unknown) {
+  return isApiError(error) && error.problem?.type === LAST_ADMIN;
+}
 
 /** Display order of the retention periods. */
 export const retentionFields: RetentionField[] = [
@@ -65,6 +74,18 @@ export function useDeleteAccount() {
     meta: { errorToast: false },
     mutationFn: (confirmEmail: string) =>
       unwrap(api.DELETE("/privacy/account", { body: { confirm_email: confirmEmail } })),
+  });
+}
+
+/** Admin: delete another user (or the own account) with all their data. */
+export function useDeleteUser() {
+  return useMutation({
+    // Shown inline in the confirmation dialog.
+    meta: { errorToast: false },
+    mutationFn: (userId: string) =>
+      unwrap(
+        api.DELETE("/admin/privacy/users/{user_id}", { params: { path: { user_id: userId } } }),
+      ),
   });
 }
 

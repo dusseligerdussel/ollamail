@@ -20,9 +20,12 @@ import {
   roleMappingQueryOptions,
   updateUser,
 } from "@/api/admin-auth";
+import { pageNavigation } from "@/api/auth";
 import { describeApiError } from "@/api/errors";
+import type { UserDeletionResult } from "@/api/privacy";
 import { AdminSubPage } from "@/components/admin/admin-page";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
+import { DeleteUserDialog } from "@/components/admin/delete-user-dialog";
 import { InvitationLink, InviteUserSheet } from "@/components/admin/invite-user-sheet";
 import { EmptyState } from "@/components/empty-state";
 import { Forbidden } from "@/components/forbidden";
@@ -125,6 +128,19 @@ function useUserActions() {
   const queryClient = useQueryClient();
   const [confirm, setConfirm] = useState<Action>();
   const [issued, setIssued] = useState<InvitationIssued>();
+  const [deleting, setDeleting] = useState<AdminUser>();
+
+  async function onDeleted(result: UserDeletionResult, user: AdminUser) {
+    setDeleting(undefined);
+    // The own session is gone with the account: start over at the sign-in page.
+    if (user.id === me.id) {
+      pageNavigation.assign("/login");
+      return;
+    }
+    toast.success(t("pages.users.delete.done", { count: result.mailboxes }));
+    await queryClient.invalidateQueries({ queryKey: adminUsersQueryOptions.queryKey });
+    await queryClient.invalidateQueries({ queryKey: authSettingsQueryOptions.queryKey });
+  }
 
   const run = useMutation({
     mutationFn: async (action: Action) => {
@@ -198,6 +214,12 @@ function useUserActions() {
         pending={run.isPending}
         onConfirm={() => confirm && run.mutate(confirm)}
       />
+      <DeleteUserDialog
+        user={deleting}
+        isSelf={deleting?.id === me.id}
+        onOpenChange={(open) => !open && setDeleting(undefined)}
+        onDeleted={onDeleted}
+      />
       <Dialog open={issued !== undefined} onOpenChange={(open) => !open && setIssued(undefined)}>
         <DialogContent closeLabel={t("common.close")}>
           <DialogHeader>
@@ -215,7 +237,7 @@ function useUserActions() {
     </>
   );
 
-  return { start, pending: run.isPending, dialogs, meId: me.id };
+  return { start, remove: setDeleting, pending: run.isPending, dialogs, meId: me.id };
 }
 
 type UserActions = ReturnType<typeof useUserActions>;
@@ -316,6 +338,9 @@ function UserMenu({ user, actions }: { user: AdminUser; actions: UserActions }) 
           onSelect={() => actions.start({ type: "active", user })}
         >
           {user.is_active ? t("pages.users.deactivate") : t("pages.users.reactivate")}
+        </DropdownMenuItem>
+        <DropdownMenuItem variant="destructive" onSelect={() => actions.remove(user)}>
+          {t("pages.users.delete.open")}
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>

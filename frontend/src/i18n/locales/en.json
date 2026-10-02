@@ -549,6 +549,29 @@
         "linkDescription": "Valid until {{date}}. It is shown only once; you can create a new one at any time.",
         "done": "Done",
         "localDisabled": "Local sign-in is disabled; invited users could not sign in."
+      },
+      "delete": {
+        "open": "Delete user…",
+        "title": "Permanently delete this user?",
+        "selfTitle": "Permanently delete your own account?",
+        "description": "{{name}} ({{email}}) will be deleted immediately with all of their own data. This cannot be undone.",
+        "items": {
+          "mailboxes": "Own mailboxes with their folders and settings",
+          "mails": "All mails and attachments from these mailboxes, including the search index",
+          "todos": "Todos",
+          "digests": "Digests with audio files and podcast feed",
+          "history": "Question history, own categories and settings",
+          "exports": "Data exports and sessions"
+        },
+        "kept": "Team mailboxes are kept; only this user's assignment is removed. The mails stay in the mail accounts at the provider. The audit log keeps an entry without name and address.",
+        "selfWarning": "This is your own account. You will be signed out immediately and cannot sign in again. To export your data first, use Settings → Your data.",
+        "confirmLabel": "To confirm, enter the e-mail address {{email}}",
+        "cancel": "Cancel",
+        "confirm": "Delete permanently",
+        "done_one": "User deleted ({{count}} mailbox removed)",
+        "done_other": "User deleted ({{count}} mailboxes removed)",
+        "lastAdmin": "Not deleted: this is the last active administrator. First make another user an administrator.",
+        "lockout": "Not deleted: afterwards no administrator could sign in. First make another user with a working sign-in an administrator."
       }
     },
     "retention": {
