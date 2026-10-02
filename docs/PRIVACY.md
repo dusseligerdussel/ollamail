@@ -22,7 +22,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 |---|---|
 | Secrets | IMAP-Passwörter, OAuth-Tokens, IdP-Client-Secrets, LDAP-Bind-Passwörter: AES-256-GCM, Envelope-Encryption mit Master-Key aus `OLLAMAIL_SECRET_KEY` (Key-Rotation unterstützt) |
 | At rest | Empfehlung: verschlüsseltes Volume/Dateisystem. Optional: Verschlüsselung von Mail-Bodies/Anhängen auf Anwendungsebene (Feature-Flag) |
-| In transit | TLS für IMAP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting), HTTPS hinter Reverse Proxy |
+| In transit | TLS für IMAP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting, IMAP: `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS`), HTTPS hinter Reverse Proxy |
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
 | Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
 | Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
@@ -120,11 +120,23 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   Schritt) und `processing_mailbox_settings` (Opt-out je Postfach) hängen per `ON DELETE CASCADE`
   an Mail bzw. Postfach. Gespeichert werden nur Schrittname, Version, Status und ein
   Fehlercode (`StepError.code` oder Name der Exception-Klasse), nie Exception-Texte.
+  Umsetzung Todos (`backend/app/todos/`): `todos` hängt per `ON DELETE CASCADE` an Nutzer und
+  Postfach; Quell-Mail und Thread werden beim Löschen einer einzelnen Mail auf `NULL` gesetzt
+  (das Todo gehört dem Nutzer und bleibt, bis er es löscht). Die Extraktion protokolliert nur
+  Anzahlen, nie Titel oder Beschreibungen. Die API liefert ausschließlich eigene Todos; ein
+  fremdes Todo verhält sich wie ein nicht vorhandenes (404).
 - **Nutzer löschen:** `users` → `auth_identities`, `auth_sessions` und eigene Postfächer
   (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).
   Ein periodischer Job setzt sie durch.
-- **Mails, die am Server gelöscht wurden**, werden beim nächsten Sync auch lokal gelöscht.
+- **Mails, die am Server gelöscht wurden**, werden beim nächsten Sync auch lokal gelöscht
+  (`app/mail/sync/engine.py`, inkl. Anhangsdateien). Das gilt auch für Ordner, die am Server
+  gelöscht wurden, und für Ordner, deren `UIDVALIDITY` sich geändert hat (Neuimport).
+- **Mail-Sync:** Importiert werden nur Ordner, deren Rolle nicht ausgeschlossen ist (Standard:
+  Papierkorb und Spam werden nicht synchronisiert), und beim Erstimport nur der eingestellte
+  Zeitraum. Abrufe ändern keine Flags am Server (`EXAMINE`, `BODY.PEEK`). Sync-Logs und
+  `SyncState.last_error` enthalten nur IDs, Zähler und Fehlercodes – keine Ordnernamen,
+  Betreffzeilen, Adressen oder Server-Meldungen.
 
 ## Dokumentation für Betreiber
 

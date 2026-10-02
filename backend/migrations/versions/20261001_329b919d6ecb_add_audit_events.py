@@ -1,7 +1,7 @@
 """add audit events
 
 Revision ID: 329b919d6ecb
-Revises: 0287a3035915
+Revises: 173b28ed6d7e
 Create Date: 2026-10-01 20:58:06.705021+00:00
 """
 
@@ -24,7 +24,7 @@ $$
 """
 
 revision: str = "329b919d6ecb"
-down_revision: str | Sequence[str] | None = "0287a3035915"
+down_revision: str | Sequence[str] | None = "173b28ed6d7e"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

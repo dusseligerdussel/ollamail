@@ -6,7 +6,7 @@ they are inspected, so concurrent steps of the same message see each other's res
 """
 
 import uuid
-from collections.abc import Sequence
+from collections.abc import Collection, Sequence
 from datetime import UTC, datetime
 
 from sqlalchemy import ColumnElement, func, select, tuple_, update
@@ -17,7 +17,7 @@ from app.core.events import Event, publish
 from app.core.ids import uuid7
 from app.mail.models import Mailbox, Message
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
-from app.processing.steps import ProcessingStep
+from app.processing.steps import ProcessingStep, registry
 
 PROCESSED_EVENT = "message.processed"
 
@@ -61,17 +61,33 @@ async def _lock_rows(session: AsyncSession, message_id: uuid.UUID) -> dict[str, 
     return {row.step: row for row in rows}
 
 
+# A predecessor in ``ProcessingStep.after`` no longer blocks once it is in one of these.
+_SETTLED = (StepStatus.DONE, StepStatus.FAILED)
+
+
+def _unblocked(
+    rows: dict[str, MessageProcessing], step: ProcessingStep, registered: Collection[str]
+) -> bool:
+    """All ``depends_on`` steps are done and all registered ``after`` steps settled."""
+    return all(
+        (dependency := rows.get(name)) is not None and dependency.status == StepStatus.DONE
+        for name in step.depends_on
+    ) and all(
+        (predecessor := rows.get(name)) is None or predecessor.status in _SETTLED
+        for name in step.after
+        if name in registered
+    )
+
+
 def _ready(rows: dict[str, MessageProcessing], steps: Sequence[ProcessingStep]) -> list[str]:
-    """Pending steps whose dependencies are all done."""
+    """Pending steps whose dependencies are all done (``after`` steps: settled)."""
+    registered = {step.name for step in steps}
     return [
         step.name
         for step in steps
         if (row := rows.get(step.name)) is not None
         and row.status == StepStatus.PENDING
-        and all(
-            (dependency := rows.get(name)) is not None and dependency.status == StepStatus.DONE
-            for name in step.depends_on
-        )
+        and _unblocked(rows, step, registered)
     ]
 
 
@@ -139,10 +155,9 @@ async def start_step(
         _reset(row, step.version)
     if row.status not in (StepStatus.PENDING, StepStatus.RUNNING):
         return None
-    for name in step.depends_on:
-        dependency = rows.get(name)
-        if dependency is None or dependency.status != StepStatus.DONE:
-            return None
+    registered = {name for name in step.after if registry.get(name) is not None}
+    if not _unblocked(rows, step, registered):
+        return None
     row.status = StepStatus.RUNNING
     row.attempts += 1
     row.started_at = datetime.now(UTC)
@@ -203,19 +218,23 @@ async def fail_step(
     error_code: str,
     *,
     final: bool,
-) -> None:
+    steps: Sequence[ProcessingStep] = (),
+) -> list[str]:
     """Record a failed attempt. ``final`` (no retry follows) marks the step ``failed``
-    and publishes ``message.processed`` with status ``failed``."""
+    and publishes ``message.processed`` with status ``failed``. Returns the steps of
+    ``steps`` that can run now (steps waiting for the failed one via ``after``)."""
     rows = await _lock_rows(session, message_id)
     row = rows.get(step.name)
     if row is None:
-        return
+        return []
     row.status = StepStatus.FAILED if final else StepStatus.PENDING
     row.error_code = error_code
     row.finished_at = datetime.now(UTC)
     await session.flush()
-    if final:
-        await _publish(session, message_id, mailbox_id, "failed")
+    if not final:
+        return []
+    await _publish(session, message_id, mailbox_id, "failed")
+    return _ready(rows, steps)
 
 
 def _message_time() -> ColumnElement[datetime]:
