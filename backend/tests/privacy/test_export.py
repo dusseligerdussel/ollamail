@@ -90,6 +90,7 @@ async def test_export_contains_own_data_and_nothing_of_other_users(
         "todos.json",
         "digests.json",
         "conversations.json",
+        "reply_drafts.json",
         f"digests/{own.digest_id}.mp3",
     } <= names
     profile = json.loads(archive.read("profile.json"))
@@ -114,6 +115,9 @@ async def test_export_contains_own_data_and_nothing_of_other_users(
     assert [d["script"] for d in digests["digests"]] == ["Script erika"]
     assert "feed_token_hash" not in json.dumps(digests)
     assert archive.read(f"digests/{own.digest_id}.mp3") == b"ID3 audio erika"
+    drafts = json.loads(archive.read("reply_drafts.json"))
+    assert drafts["settings"]["signature"] == "Signature erika"
+    assert [d["body"] for d in drafts["drafts"]] == ["Draft erika"]
     mailboxes = json.loads(archive.read("mailboxes.json"))
     assert [m["address"] for m in mailboxes] == ["erika@example.org"]
     assert "credentials" not in json.dumps(mailboxes)

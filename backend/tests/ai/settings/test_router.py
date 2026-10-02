@@ -66,7 +66,14 @@ async def test_environment_provider_is_listed_read_only(
 
     assert default["name"] == "default"
     assert default["source"] == "environment"
-    assert default["used_by"] == ["triage", "todos", "digest", "rag_chat", "embeddings"]
+    assert default["used_by"] == [
+        "triage",
+        "todos",
+        "digest",
+        "rag_chat",
+        "reply_draft",
+        "embeddings",
+    ]
     assert patch.status_code == delete.status_code == 409
 
 

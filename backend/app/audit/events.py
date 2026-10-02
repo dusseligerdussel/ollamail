@@ -51,6 +51,8 @@ class AuditAction(enum.StrEnum):
     # Shared mailboxes (#34): a user or group was given resp. lost access.
     MAILBOX_SHARED = "mailbox.shared"
     MAILBOX_UNSHARED = "mailbox.unshared"
+    # A reply was sent from a mailbox (app/drafts): IDs and counts only.
+    MAIL_SENT = "mail.sent"
     # Data subject rights and data deletion
     DATA_EXPORTED = "data.exported"  # personal data export: requested, downloaded
     DATA_DELETED = "data.deleted"  # retention job (counts only)

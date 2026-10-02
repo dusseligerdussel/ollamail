@@ -82,10 +82,23 @@ jobs:
         ports:
           - 31143:31143
           - 31993:31993
+      # SMTP test server for sending replies (tests/mail/smtp_server.py): STARTTLS required
+      # with a self-generated certificate, any login accepted, messages readable via its API.
+      mailpit:
+        image: axllent/mailpit:v1.31.3
+        env:
+          MP_SMTP_TLS_CERT: sans:localhost
+          MP_SMTP_TLS_KEY: sans:localhost
+          MP_SMTP_REQUIRE_STARTTLS: "true"
+          MP_SMTP_AUTH_ACCEPT_ANY: "true"
+        ports:
+          - 31025:1025
+          - 31080:8025
     env:
       OLLAMAIL_DATABASE_URL: postgresql+asyncpg://ollamail:ollamail@localhost:5432/ollamail_test
       OLLAMAIL_TEST_IMAP_PASSWORD: ollamail-test
       OLLAMAIL_TEST_REQUIRE_IMAP: "1"
+      OLLAMAIL_TEST_REQUIRE_SMTP: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
