@@ -90,8 +90,8 @@
     },
     "digest": {
       "emptyTitle": "Noch kein Digest",
-      "emptyDescription": "Nach der ersten Synchronisierung entsteht täglich eine Zusammenfassung neuer Nachrichten.",
-      "emptyAction": "Einstellungen öffnen",
+      "emptyDescription": "Der Digest fasst neue Mails täglich zusammen, zum Lesen und Anhören. Richte ihn ein oder erzeuge jetzt einen.",
+      "emptyAction": "Einstellungen",
       "noSelection": "Kein Digest ausgewählt"
     },
     "search": {
@@ -119,7 +119,8 @@
       "access": "Anmeldung und Nutzer",
       "signInDescription": "Identity-Provider, LDAP-Verzeichnisse und lokale Konten.",
       "roleMappingDescription": "Rollen aus den Gruppen deines Identity-Providers ableiten.",
-      "usersDescription": "Rollen, Deaktivierung, Sitzungen und Einladungen."
+      "usersDescription": "Rollen, Deaktivierung, Sitzungen und Einladungen.",
+      "retentionDescription": "Wie lange Mails, Anhänge, Suchindex, Fragen-Verläufe, Digests und Audit-Log aufbewahrt werden."
     },
     "audit": {
       "title": "Audit-Log",
@@ -193,7 +194,8 @@
         },
         "data": {
           "exported": "Daten exportiert",
-          "deleted": "Daten gelöscht"
+          "deleted": "Daten gelöscht",
+          "retention_changed": "Aufbewahrung geändert"
         },
         "crypto": {
           "keys_rotated": "Schlüssel rotiert"
@@ -546,6 +548,156 @@
         "done": "Fertig",
         "localDisabled": "Die lokale Anmeldung ist deaktiviert; eingeladene Nutzer könnten sich nicht anmelden."
       }
+    },
+    "retention": {
+      "title": "Aufbewahrung",
+      "back": "Zurück zur Verwaltung",
+      "section": "Aufbewahrungsfristen",
+      "job": "Tägliche Löschung",
+      "custom": "Angepasst",
+      "days": "Tage",
+      "forever": "unbegrenzt",
+      "defaultDays_one": "Standard: {{count}} Tag",
+      "defaultDays_other": "Standard: {{count}} Tage",
+      "defaultForever": "Standard: unbegrenzt",
+      "reset": "Standard verwenden",
+      "hint": "0 bewahrt die Daten unbegrenzt auf. Gelöschte Daten lassen sich nicht wiederherstellen.",
+      "save": "Speichern",
+      "saved": "Aufbewahrungsfristen gespeichert.",
+      "shortMailWarning": "Kürzer als der Erstimport neuer Postfächer ({{days}} Tage): Ein vollständiger Neuabgleich importiert ältere Mails, die in der folgenden Nacht wieder gelöscht werden.",
+      "neverRun": "Noch nicht gelaufen. Daten, die älter als die Fristen sind, werden jede Nacht gelöscht, inklusive Dateien.",
+      "lastRun": "Letzter Lauf {{date}}: {{mails}} Mails, {{attachments}} Anhänge, {{chunks}} Suchindex-Einträge und {{events}} Audit-Einträge gelöscht.",
+      "fields": {
+        "mail_days": {
+          "label": "Mails",
+          "description": "Mit Anhängen, Suchindex und Triage-Ergebnissen, nach Empfangsdatum."
+        },
+        "attachment_days": {
+          "label": "Anhänge",
+          "description": "Nur die Anhangsdateien; die Mail bleibt."
+        },
+        "search_index_days": {
+          "label": "Suchindex",
+          "description": "Ältere Mails werden von Suche und Fragen nicht mehr gefunden."
+        },
+        "rag_history_days": {
+          "label": "Fragen-Verläufe",
+          "description": "Gespräche, ab der letzten Frage."
+        },
+        "digest_days": {
+          "label": "Digests",
+          "description": "Zusammenfassungen mit Audiodateien. Mindestens ein Tag."
+        },
+        "audit_days": {
+          "label": "Audit-Log",
+          "description": "Sicherheitsereignisse. Die Hash-Kette bleibt ab dem ältesten verbleibenden Eintrag prüfbar."
+        }
+      }
+    }
+  },
+  "digest": {
+    "title": "Digest",
+    "current": "Aktuell",
+    "archive": "Archiv",
+    "loadOlder": "Ältere Digests laden",
+    "back": "Zurück",
+    "generateNow": "Jetzt erzeugen",
+    "retry": "Erneut erzeugen",
+    "firstScheduled": "Der erste Digest kommt am {{date}}. Du kannst auch jetzt einen erzeugen.",
+    "transcript": "Transkript",
+    "openMail": "Mail {{ref}} öffnen",
+    "mailCount_one": "{{count}} Mail",
+    "mailCount_other": "{{count}} Mails",
+    "todoCount_one": "{{count}} Aufgabe",
+    "todoCount_other": "{{count}} Aufgaben",
+    "inProgressHint": "Das dauert je nach Hardware einige Minuten. Die Seite aktualisiert sich selbst.",
+    "status": {
+      "pending": "Wartet auf Verarbeitung …",
+      "summarizing": "Zusammenfassung wird geschrieben …",
+      "synthesizing": "Audio wird erzeugt …",
+      "ready": "Fertig",
+      "failed": "Fehlgeschlagen"
+    },
+    "errors": {
+      "digest_failed": "Der Digest konnte nicht erzeugt werden.",
+      "llm_cloud_disabled": "Für die Zusammenfassung ist ein Cloud-Modell eingestellt, Cloud-Modelle sind aber abgeschaltet. Bitte wende dich an die Administration.",
+      "tts_voice_not_available": "Die gewählte Stimme ist nicht verfügbar. Wähle in den Einstellungen eine andere Stimme.",
+      "stalled": "Die Erzeugung wurde abgebrochen, weil sie zu lange gedauert hat."
+    },
+    "player": {
+      "label": "Wiedergabe",
+      "play": "Abspielen",
+      "pause": "Pause",
+      "back": "{{seconds}} Sekunden zurück",
+      "forward": "{{seconds}} Sekunden vor",
+      "position": "Position",
+      "positionText": "{{position}} von {{duration}}",
+      "speedLabel": "Geschwindigkeit: {{rate}}"
+    },
+    "shortcuts": {
+      "playPause": "Abspielen / Pause",
+      "slower": "Langsamer abspielen",
+      "faster": "Schneller abspielen",
+      "close": "Zurück zum Archiv"
+    },
+    "settings": {
+      "title": "Digest-Einstellungen",
+      "schedule": "Zeitplan",
+      "enabled": "Täglicher Digest",
+      "enabledDescription": "Erzeugt den Digest automatisch zur eingestellten Uhrzeit.",
+      "nextRun": "Nächster Digest: {{date}}",
+      "time": "Uhrzeit",
+      "timeDescription": "Um diese Zeit ist der Digest fertig.",
+      "weekdays": "Tage",
+      "timezone": "Zeitzone",
+      "timezoneDescription": "Bezug für Uhrzeit und Tage.",
+      "fromProfile": "Wie im Profil ({{value}})",
+      "content": "Inhalt",
+      "length": "Länge",
+      "lengthDescription": "Kurz nennt nur das Wichtigste.",
+      "lengths": {
+        "short": "Kurz",
+        "normal": "Normal"
+      },
+      "language": "Sprache",
+      "languageDescription": "Sprache von Text und Audio.",
+      "voice": "Stimme",
+      "voiceDescription": "Stimmen für die gewählte Sprache.",
+      "defaultVoice": "Standardstimme",
+      "defaultVoiceNamed": "Standard ({{voice}})",
+      "quality": {
+        "x_low": "sehr einfach",
+        "low": "einfach",
+        "medium": "mittel",
+        "high": "hoch"
+      },
+      "mailboxes": "Postfächer",
+      "mailboxesDescription": "Der Digest fasst Mails aus diesen Postfächern zusammen.",
+      "noMailboxes": "Noch kein Postfach verbunden.",
+      "manual": "Manuell",
+      "generateDescription": "Fasst die Mails seit dem letzten Digest zusammen."
+    },
+    "feed": {
+      "section": "Podcast",
+      "title": "Privater Podcast-Feed",
+      "description": "Abonniere deine Digests in einer Podcast-App.",
+      "warning": "Wer die Feed-URL kennt, kann deine Digests ohne Anmeldung anhören und lesen. Gib sie nicht weiter.",
+      "create": "Feed-URL erzeugen",
+      "url": "Feed-URL",
+      "copy": "Kopieren",
+      "copied": "Feed-URL kopiert",
+      "qrLabel": "QR-Code der Feed-URL",
+      "shownOnce": "Die URL wird nur jetzt angezeigt. Verlierst du sie, erzeuge eine neue.",
+      "active": "Der Feed ist aktiv.",
+      "activeSince": "Der Feed ist aktiv seit {{date}}.",
+      "urlHidden": "Die URL wird aus Sicherheitsgründen nur beim Erzeugen angezeigt.",
+      "rotate": "Neue URL erzeugen",
+      "rotateWarning": "Die bisherige URL funktioniert danach sofort nicht mehr. Podcast-Apps müssen die neue URL abonnieren.",
+      "rotateConfirm": "Neue URL erzeugen",
+      "revoke": "Feed abschalten",
+      "revokeWarning": "Die Feed-URL und alle Audio-Links darin funktionieren danach nicht mehr.",
+      "revokeConfirm": "Feed abschalten",
+      "cancel": "Abbrechen"
     }
   },
   "notFound": {
@@ -838,6 +990,33 @@
     "copy": "Kopieren",
     "copied": "Kopiert",
     "label": "{{label}} kopieren"
+  },
+  "privacy": {
+    "section": "Deine Daten",
+    "export": {
+      "title": "Daten exportieren",
+      "description": "ZIP mit Profil, Kategorien, Korrekturen, Aufgaben, Digests inklusive Audio und Fragen-Verläufen. Der Download-Link gilt {{hours}} Stunden.",
+      "request": "Export anfordern",
+      "list": "Exporte",
+      "item": "Export vom {{date}}",
+      "running": "Wird erstellt …",
+      "ready": "{{size}} · verfügbar bis {{date}}",
+      "failed": "Export fehlgeschlagen. Bitte erneut anfordern.",
+      "download": "Herunterladen",
+      "deleteLabel": "{{name}} löschen"
+    },
+    "delete": {
+      "title": "Konto löschen",
+      "description": "Löscht dein Konto mit allen Postfächern, Mails, Aufgaben, Digests und Fragen-Verläufen. Das lässt sich nicht rückgängig machen.",
+      "disabled": "Konten löscht ein Administrator. Wende dich an ihn, wenn dein Konto entfernt werden soll.",
+      "open": "Konto löschen …",
+      "confirmTitle": "Konto endgültig löschen?",
+      "confirmDescription": "Alle Postfächer, Mails, Anhänge, Aufgaben, Digests, Fragen-Verläufe und Exporte werden sofort gelöscht. Die Mails bleiben in deinen Mail-Konten erhalten. Exportiere deine Daten vorher, wenn du sie behalten möchtest.",
+      "confirmLabel": "Gib zur Bestätigung deine E-Mail-Adresse {{email}} ein",
+      "cancel": "Abbrechen",
+      "confirm": "Konto löschen",
+      "lastAdmin": "Du bist der letzte Administrator. Mache zuerst einen anderen Nutzer zum Administrator."
+    }
   },
   "triage": {
     "builtin": {

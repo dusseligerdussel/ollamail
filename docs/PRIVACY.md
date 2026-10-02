@@ -105,12 +105,28 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 - **Keine Fremdschlüssel:** Nutzer- und Postfach-IDs sind pseudonyme Verweise. Namen werden erst
   beim Lesen ergänzt und verschwinden mit dem Nutzer; Löschen eines Nutzers ändert das Log nicht.
 - **Append-only:** Ein Trigger verbietet `UPDATE`, `DELETE` und `TRUNCATE` für alle Rollen.
-  Die Aufbewahrungsfrist (`OLLAMAIL_AUDIT_RETENTION_DAYS`, Standard 365 Tage) setzt #36 über
-  eine dokumentierte Ausnahme durch.
+  Einzige Ausnahme ist die Aufbewahrungsfrist (Admin → Aufbewahrung, sonst
+  `OLLAMAIL_AUDIT_RETENTION_DAYS`, Standard 365 Tage), siehe „Aufbewahrung des Audit-Logs“.
 - **Manipulationserkennung:** Jede Zeile enthält den SHA-256 ihrer Vorgängerin und ihren eigenen
   (`prev_hash`, `hash`). `GET /api/audit/verify` rechnet die Kette nach und meldet die erste
   geänderte oder fehlende Zeile. Grenze: Das Entfernen der *neuesten* Zeilen durch jemanden mit
   direktem Datenbankzugriff erkennt die Kette allein nicht.
+- **Aufbewahrung des Audit-Logs (dokumentierte Ausnahme):** Der tägliche Job `privacy.retention`
+  ruft die Datenbankfunktion `audit_events_purge(cutoff)` auf (Migration `add_privacy`). Sie
+  nimmt die Sperre der Hash-Kette, bestimmt die erste zu behaltende Zeile (die älteste ab
+  `cutoff`, höchstens die neueste) und trägt deren ID in die **transaktionslokale** Einstellung
+  `ollamail.audit_purge_below` ein. Nur für `DELETE`s von Zeilen mit kleinerer ID lässt der
+  Trigger eine Ausnahme zu; danach wird die Einstellung sofort geleert. `UPDATE`, `TRUNCATE` und
+  jedes andere `DELETE` bleiben verboten (Tests: `tests/privacy/test_retention.py`). Gelöscht
+  wird immer ein zusammenhängender Block der ältesten Zeilen, die neueste Zeile nie.
+- **Prüfbarkeit nach der Aufbewahrung:** `GET /api/audit/verify` prüft die Kette ab der ältesten
+  verbliebenen Zeile; deren `prev_hash` zeigt auf die gelöschte Vorgängerin. Den neuen
+  Startpunkt dokumentiert der Job im eigenen, selbst verketteten `data.deleted`-Eintrag
+  (`details.chain_start_id`, `details.chain_start_prev_hash`, `details.audit_events`). Ein
+  Prüfer vergleicht die erste verbliebene Zeile mit dem jüngsten solchen Eintrag. Grenze: Wer
+  direkten Datenbankzugriff hat, kann die Einstellung selbst setzen, so wie er auch den Trigger
+  entfernen kann. Der Schutz richtet sich gegen Fehler und Missbrauch über die Anwendung, nicht
+  gegen Datenbank-Administratoren.
 - **Zugriff:** Nur Admins (`/api/audit/*`, Admin-Bereich „Audit-Log“: filterbare Liste und
   CSV-Export). Jeder Export wird selbst protokolliert (`audit.exported`). Der CSV-Export
   entschärft Zellen, die mit `=`, `+`, `-` oder `@` beginnen.
@@ -125,19 +141,35 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `user.deactivated`, `user.reactivated` | Nutzerverwaltung (Deaktivieren beendet alle Sitzungen, `details.sessions`); `app.cli reset-password --activate` | aktiv |
 | `user.invited` | Einladung bzw. neuer Einladungslink (`renewed`) | aktiv |
 | `user.password_set` | Einladung angenommen (`via: invitation`), `app.cli reset-password` (`via: cli`) | aktiv |
-| `user.deleted` | Kontolöschung | geplant |
+| `user.deleted` | Konto löschen (`DELETE /api/privacy/account`, `details.via: self`) und Nutzer löschen durch Admins (`DELETE /api/admin/privacy/users/{id}`, `via: admin`); `details.mailboxes` = Anzahl gelöschter Postfächer | aktiv |
 | `idp.config_changed` | LDAP-Verzeichnis bzw. OIDC-Provider angelegt, geändert, gelöscht (`details.change`); lokale Anmeldung an/aus (`kind: local`); Rollen-Zuordnung gespeichert (`kind: role_mapping`, nur Anzahlen) | aktiv |
 | `ai.settings_changed` | KI-Einstellungen im Admin-Bereich: Provider anlegen/ändern/löschen (`details.change`, `provider`, `is_cloud`), Modell-Zuordnung, Profil, Parallelität, Cloud-Freigabe (`details.cloud_enabled`) | aktiv |
 | `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
 | `mailbox.shared` | Shared Mailboxes | geplant (#34) |
 | `mailbox.deleted` | `app.mail.service.delete_mailbox`; über die Postfach-API mit dem Nutzer als Akteur | aktiv |
-| `data.exported`, `data.deleted` | Datenexport, Lösch- und Aufbewahrungsjobs | geplant (#36) |
+| `data.exported` | Datenexport: angefordert und heruntergeladen (`details.stage`: `requested`, `downloaded`; `export_id`) | aktiv |
+| `data.deleted` | Aufbewahrungsjob `privacy.retention`, nur wenn er etwas gelöscht hat: Anzahlen (`mails`, `attachments`, `search_chunks`, `threads`, `audit_events`) und neuer Startpunkt der Hash-Kette | aktiv |
+| `data.retention_changed` | Admin → Aufbewahrung: geänderte Fristen in Tagen (`mail_days`, …) | aktiv |
 | `crypto.keys_rotated` | `python -m app.cli rotate-keys` (mit Zählern) | aktiv |
 | `audit.exported` | CSV-Export des Audit-Logs | aktiv |
 
 ## Betroffenenrechte & Löschkonzept
 
-- **Auskunft/Export (Art. 15/20):** Nutzer kann eigene Daten (Triage, Todos, Digests, Chat-Verläufe) exportieren.
+- **Auskunft/Export (Art. 15/20):** Unter Einstellungen → Deine Daten fordert der Nutzer einen
+  Export an (`POST /api/privacy/exports`). Der Hintergrundjob `privacy.export` (Argument: nur die
+  Export-ID) schreibt ein ZIP mit JSON-Dateien: Profil mit Anmeldeidentitäten und Sitzungen,
+  eigene Postfächer (ohne Zugangsdaten), eigene Kategorien, Kategorie-Einstellungen,
+  Absenderregeln, Korrekturen und die Triage-Ergebnisse der eigenen Mails, Aufgaben,
+  Digest-Einstellungen (ohne Feed-Token) und Digests mit Audiodateien, Fragen-Verläufe mit
+  Zitaten (`app/privacy/export.py`, `manifest.json` listet den Inhalt). Mails selbst sind nicht
+  enthalten; sie liegen beim Mail-Anbieter. Jede Abfrage filtert auf den Nutzer bzw. auf
+  Postfächer, deren Eigentümer er ist; `tests/privacy/test_export.py` prüft, dass keine IDs,
+  Texte oder Dateien anderer Nutzer im ZIP stehen. Der Download (`GET
+  /api/privacy/exports/{id}/download`) ist nur mit der Session des Eigentümers möglich (sonst
+  404) und nur bis `expires_at` (`OLLAMAIL_PRIVACY_EXPORT_EXPIRY_HOURS`, Standard 24 Stunden);
+  danach löscht der stündliche Job `privacy.cleanup_exports` Zeile und Datei. Der Nutzer kann
+  einen Export auch vorher löschen. Anforderung und Download stehen im Audit-Log
+  (`data.exported`).
 - **Löschung (Art. 17):** Postfach entfernen → alle zugehörigen Mails, Anhänge, Embeddings, Todos, Digests
   werden gelöscht (Hard Delete, inkl. Dateien). Nutzer löschen → kaskadierend.
   Umsetzung Mail (`backend/app/mail/service.py`): Alle `mail_*`-Tabellen hängen per
@@ -186,10 +218,41 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   Module (Triage, Suchindex, …) müssen per `ON DELETE CASCADE` an Postfach oder Mail hängen;
   `tests/mail/api/test_mailbox_deletion.py` ermittelt alle Tabellen mit Bezug zum Postfach aus
   dem Schema und schlägt an, wenn eine davon beim Löschen Zeilen zurücklassen würde.
-- **Nutzer löschen:** `users` → `auth_identities` (inkl. gespeicherter Gruppen), `auth_sessions` und eigene Postfächer
-  (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
-- **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).
-  Ein periodischer Job setzt sie durch.
+- **Nutzer löschen (Art. 17):** Der Nutzer löscht sein Konto unter Einstellungen → Deine Daten
+  (`DELETE /api/privacy/account`, Bestätigung durch Eingabe der eigenen E-Mail-Adresse; per
+  `OLLAMAIL_PRIVACY_SELF_DELETE_ENABLED=false` abschaltbar), ein Admin löscht beliebige Nutzer
+  (`DELETE /api/admin/privacy/users/{id}`). Der letzte aktive Admin kann nicht gelöscht werden
+  (409), ebenso kein Admin, ohne den kein Admin mit funktionierender Anmeldung bliebe
+  (`admin-lockout`, `app/auth/admin_access.py`). `app/privacy/deletion.py` löscht die Zeile in `users`; alle Tabellen mit Nutzerbezug
+  hängen direkt oder über Postfach, Mail, Gespräch usw. per `ON DELETE CASCADE` daran (Liste
+  unten). Nach dem Commit werden die Dateien entfernt: Anhänge je Postfach, Digest-Audio und
+  Exporte je Nutzer. Sitzungen enden sofort. Nachweis: ein `user.deleted`-Eintrag nur mit IDs und
+  der Anzahl der Postfächer; Name und Adresse verschwinden mit der Nutzerzeile auch aus der
+  Anzeige des Audit-Logs. `tests/privacy/test_user_deletion.py` ermittelt alle Tabellen mit
+  Bezug auf `users` aus den Fremdschlüsseln des Schemas, füllt jede davon für den gelöschten
+  Nutzer und prüft, dass danach keine Zeile übrig bleibt, dass die Dateien weg sind und dass ein
+  zweiter Nutzer unverändert bleibt. Ein weiterer Test schlägt an, wenn eine Spalte `user_id`
+  bzw. `*_user_id` ohne Fremdschlüssel angelegt wird (Ausnahme: `audit_events.actor_id`).
+- **Aufbewahrungsfristen:** Instanzweit unter Admin → Aufbewahrung (`/api/admin/privacy/retention`,
+  Tabelle `privacy_retention_settings`; Felder ohne Wert folgen der Umgebung). Fristen in Tagen,
+  0 = unbegrenzt:
+
+  | Kategorie | Standard (Umgebung) | Durchgesetzt von | Alter gemessen an |
+  |---|---|---|---|
+  | Mails inkl. Anhängen, Suchindex, Triage-Ergebnissen, Zitaten | `OLLAMAIL_PRIVACY_MAIL_RETENTION_DAYS` = 0 | `privacy.retention`, täglich | Empfangsdatum, sonst Sendedatum, sonst Importzeitpunkt |
+  | Anhänge (nur Dateien, die Mail bleibt) | `OLLAMAIL_PRIVACY_ATTACHMENT_RETENTION_DAYS` = 0 | `privacy.retention` | wie Mails |
+  | Suchindex (Abschnitte und Embeddings) | `OLLAMAIL_PRIVACY_SEARCH_INDEX_RETENTION_DAYS` = 0 | `privacy.retention` | wie Mails |
+  | Fragen-Verläufe | `OLLAMAIL_RAG_HISTORY_RETENTION_DAYS` = 90 | `rag.purge_conversations`, täglich | letzte Frage |
+  | Digests inkl. Audio (mindestens 1 Tag) | `OLLAMAIL_DIGEST_RETENTION_DAYS` = 30 | `digest.cleanup`, stündlich | Erstellung |
+  | Audit-Log | `OLLAMAIL_AUDIT_RETENTION_DAYS` = 365 | `privacy.retention` | Ereigniszeitpunkt |
+  | Datenexporte | `OLLAMAIL_PRIVACY_EXPORT_EXPIRY_HOURS` = 24 (Stunden) | `privacy.cleanup_exports`, stündlich | Fertigstellung |
+
+  Gelöscht wird hart, in Stapeln, Dateien nach jedem Commit. Threads ohne verbliebene Mail
+  verschwinden mit. Eine Mail-Frist kürzer als der Erstimport (`OLLAMAIL_MAIL_INITIAL_SYNC_DAYS`)
+  führt dazu, dass ein vollständiger Neuabgleich ältere Mails importiert, die in der nächsten
+  Nacht wieder gelöscht werden; die Admin-Seite weist darauf hin. Jede Änderung der Fristen
+  steht im Audit-Log (`data.retention_changed`), jeder Lauf mit Löschungen als `data.deleted`
+  mit Anzahlen.
 - **Mails, die am Server gelöscht wurden**, werden beim nächsten Sync auch lokal gelöscht
   (`app/mail/sync/engine.py`, inkl. Anhangsdateien). Das gilt auch für Ordner, die am Server
   gelöscht wurden, und für Ordner, deren `UIDVALIDITY` sich geändert hat (Neuimport).
@@ -208,6 +271,42 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   werden standardmäßig gar nicht abgerufen. Die Service-Account-Schlüsseldatei für Domain-wide
   Delegation gewährt Zugriff auf alle Postfächer der Domain und ist entsprechend zu schützen
   (Docker-Secret, Scope in der Google Admin Console so eng wie möglich).
+
+## Tabellen und Speicherorte (Grundlage für das Verarbeitungsverzeichnis)
+
+Stand dieser Version. „Löschung“ nennt, wodurch eine Zeile verschwindet: Kaskade beim Löschen
+von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein Job.
+
+| Tabelle / Ort | Inhalt (personenbezogen) | Löschung |
+|---|---|---|
+| `users` | E-Mail-Adresse, Anzeigename, Rolle, Sprache, Zeitzone, letzter Login | Konto löschen |
+| `auth_identities` | Anbieter, Kennung beim Anbieter (`sub`, GitHub-ID, LDAP-GUID), Gruppen, Argon2id-Hash | U |
+| `auth_sessions` | SHA-256 des Session-Tokens, gekürzte Browser-Kennung, Zeiten | U; abgelaufene stündlich (`auth.cleanup`) |
+| `auth_rate_limits` | HMAC von IP bzw. E-Mail-Adresse, Zähler | stündlich (`auth.cleanup`) |
+| `mail_mailboxes` | Postfachadresse, Anzeigename, Servereinstellungen, Zugangsdaten (verschlüsselt) | U; Postfach entfernen |
+| `mail_folders`, `mail_sync_states` | Ordnernamen, Sync-Cursor, Fehlercodes | P |
+| `mail_threads` | Betreff-Schlüssel, Zeitpunkt der letzten Mail | P; leer nach Aufbewahrung (`privacy.retention`) |
+| `mail_messages`, `mail_message_folders` | Header, Adressen, Betreff, Text, HTML, Flags | P; Aufbewahrung Mails; am Server gelöscht (Sync) |
+| `mail_attachments` + `<data>/attachments/<mailbox_id>/<attachment_id>` | Dateiname, Typ, Größe, Inhalt (Datei) | M, P; Aufbewahrung Anhänge |
+| `message_processing`, `processing_mailbox_settings` | Schritt, Status, Fehlercode; Opt-out je Postfach | M bzw. P |
+| `search_chunks`, `search_embeddings` | Textabschnitte aus Mails und Anhängen, Vektoren | M, A, P; Aufbewahrung Suchindex |
+| `search_index_state` | aktives Embedding-Modell (nicht personenbezogen) | – |
+| `triage_results` | Kategorie, Priorität, Begründung je Mail | M |
+| `triage_feedback` | Korrekturen (Mail-ID, Kategorie, Priorität, Embedding) | M, U |
+| `triage_categories`, `triage_category_preferences`, `triage_sender_rules` | eigene Kategorien, Reihenfolge/Sichtbarkeit, Absenderadressen bzw. Domains | U (Organisationskategorien: Admin) |
+| `triage_mailbox_settings` | Zurückschreiben je Postfach | P |
+| `todos` | Titel, Beschreibung, Fälligkeit, Status; Verweis auf Mail | U, P (Mail-Verweis wird bei M geleert) |
+| `digest_user_settings` | Zeitplan, Stimme, Postfachauswahl, SHA-256 des Feed-Tokens | U |
+| `digests` + `<data>/digests/<user_id>/<digest_id>.{mp3,opus}` | Skript, Titel, Verweise auf Mails, Audio | U; Aufbewahrung Digests; Postfach entfernt (`digest.cleanup`) |
+| `rag_conversations`, `rag_messages` | Fragen und Antworten | U; Nutzer; Aufbewahrung Fragen-Verläufe |
+| `rag_citations` | zitierte Ausschnitte aus Mails | G, M, A, P |
+| `privacy_exports` + `<data>/exports/<user_id>/<export_id>.zip` | Status, Größe, Ablaufzeit; ZIP mit allen Daten des Nutzers | U; Ablauf (`privacy.cleanup_exports`); Nutzer |
+| `privacy_retention_settings` | Fristen, Zähler des letzten Laufs (nicht personenbezogen) | – |
+| `audit_events` | Ereignis, Zeitpunkt, Nutzer- bzw. Objekt-ID (pseudonym, ohne Fremdschlüssel), Codes, Zähler | Aufbewahrung Audit-Log (dokumentierte Ausnahme) |
+| `ai_settings`, `ai_providers`, `auth_oidc_providers`, `auth_github_providers`, `auth_ldap_directories` | Instanzkonfiguration, Secrets verschlüsselt | Admin |
+| `procrastinate_jobs`, `procrastinate_events` | Job-Argumente (nur IDs) | nach 7 Tagen (`worker.remove_old_jobs`) |
+| `<data>/tts/voices/` | Sprachmodelle (nicht personenbezogen) | – |
+| Logs (stdout) | IDs, Codes, Anzahlen, Zeiten; keine Inhalte | Log-Rotation des Hosts |
 
 ## Dokumentation für Betreiber
 

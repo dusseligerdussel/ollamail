@@ -5,6 +5,8 @@ import { type ReactNode, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
 import { healthQueryOptions } from "@/api/health";
+import { DataExportSection } from "@/components/account/data-export";
+import { DeleteAccountSection } from "@/components/account/delete-account";
 import { SessionsList } from "@/components/account/sessions-list";
 import { InlineError } from "@/components/inline-error";
 import { PageHeader } from "@/components/page-header";
@@ -218,6 +220,10 @@ function SettingsPage() {
             className="mt-8"
           >
             <SessionsList />
+          </SettingsSection>
+          <SettingsSection id="settings-privacy" title={t("privacy.section")} className="mt-8">
+            <DataExportSection />
+            <DeleteAccountSection />
           </SettingsSection>
           <SettingsSection id="settings-server" title={t("pages.settings.server")} className="mt-8">
             <SettingRow

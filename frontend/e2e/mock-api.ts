@@ -38,6 +38,8 @@ export async function mockApi(page: Page, { initialized = true, role = "admin" }
         current: true,
       },
     ],
+    "GET /api/privacy/account": user && { self_delete_enabled: true, export_expiry_hours: 24 },
+    "GET /api/privacy/exports": user && [],
   };
   await page.route(
     (url) => url.pathname.startsWith("/api/"),

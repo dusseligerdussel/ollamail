@@ -606,7 +606,8 @@ bleibt (PostgreSQL-Standard: 100).
 
 Grundlage für Verarbeitungsverzeichnis und DSFA. Grundsätze und technische Maßnahmen:
 [`PRIVACY.md`](PRIVACY.md). Die Spalte „Status“ zeigt, was die aktuelle Version tatsächlich
-verarbeitet.
+verarbeitet. Die vollständige Liste aller Tabellen und Dateien mit Löschweg steht in
+[`PRIVACY.md`](PRIVACY.md#tabellen-und-speicherorte-grundlage-für-das-verarbeitungsverzeichnis).
 
 ### 9.1 Datenkategorien und Speicherorte
 
@@ -627,7 +628,9 @@ verarbeitet.
 | Suchindex: Text-Abschnitte von Mails und Anhängen, Volltextindex, Embeddings | PostgreSQL: `search_chunks`, `search_embeddings` (pgvector); hängen per `ON DELETE CASCADE` an Mail, Anhang und Postfach | vorhanden (#24) |
 | Chat-Verläufe („Frag deine Inbox“) | PostgreSQL | geplant (#25) |
 | Daily Digest: Text und Audio | PostgreSQL bzw. Daten-Volume | geplant (#28) |
-| Audit-Log (Ereignistyp, Zeitpunkt, Nutzer- bzw. Objekt-ID, Codes und Zähler; keine Inhalte, Betreffzeilen oder Adressen) | PostgreSQL: `audit_events`, append-only; Aufbewahrung `OLLAMAIL_AUDIT_RETENTION_DAYS` (Durchsetzung #36) | aktiv |
+| Audit-Log (Ereignistyp, Zeitpunkt, Nutzer- bzw. Objekt-ID, Codes und Zähler; keine Inhalte, Betreffzeilen oder Adressen) | PostgreSQL: `audit_events`, append-only; Aufbewahrung über Admin → Aufbewahrung bzw. `OLLAMAIL_AUDIT_RETENTION_DAYS` (Job `privacy.retention`) | aktiv |
+| Datenexporte der Nutzer (ZIP mit allen eigenen Daten) | PostgreSQL: `privacy_exports`; Daten-Volume `exports/<user_id>/`; nach `OLLAMAIL_PRIVACY_EXPORT_EXPIRY_HOURS` gelöscht | aktiv (#36) |
+| Aufbewahrungsfristen | PostgreSQL: `privacy_retention_settings` (keine personenbezogenen Daten) | aktiv (#36) |
 | Job-Queue | PostgreSQL | geplant (#7) |
 | Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
@@ -635,7 +638,8 @@ verarbeitet.
 | Instanz-Secrets und Konfiguration | `deploy/.env` auf dem Host | vorhanden |
 | Betriebslogs (ohne Mail-Inhalte, siehe 9.3) | Docker-Logging des Hosts | vorhanden |
 
-Aufbewahrungsfristen, Export und Löschung: **geplant (#36)**.
+Aufbewahrungsfristen (Admin → Aufbewahrung), Datenexport und Kontolöschung (Einstellungen →
+Deine Daten) sind aktiv (#36); Details in [`PRIVACY.md`](PRIVACY.md#betroffenenrechte--löschkonzept).
 
 ### 9.2 Datenflüsse
 

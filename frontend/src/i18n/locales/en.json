@@ -90,8 +90,8 @@
     },
     "digest": {
       "emptyTitle": "No digest yet",
-      "emptyDescription": "A daily summary of new messages is created after the first sync.",
-      "emptyAction": "Open settings",
+      "emptyDescription": "The digest summarizes new mails daily, to read and listen to. Set it up or generate one now.",
+      "emptyAction": "Settings",
       "noSelection": "No digest selected"
     },
     "search": {
@@ -119,7 +119,8 @@
       "access": "Sign-in and users",
       "signInDescription": "Identity providers, LDAP directories and local accounts.",
       "roleMappingDescription": "Derive roles from the groups of your identity provider.",
-      "usersDescription": "Roles, deactivation, sessions and invitations."
+      "usersDescription": "Roles, deactivation, sessions and invitations.",
+      "retentionDescription": "How long mails, attachments, search index, question history, digests and audit log are kept."
     },
     "audit": {
       "title": "Audit log",
@@ -193,7 +194,8 @@
         },
         "data": {
           "exported": "Data exported",
-          "deleted": "Data deleted"
+          "deleted": "Data deleted",
+          "retention_changed": "Retention changed"
         },
         "crypto": {
           "keys_rotated": "Keys rotated"
@@ -546,6 +548,156 @@
         "done": "Done",
         "localDisabled": "Local sign-in is disabled; invited users could not sign in."
       }
+    },
+    "retention": {
+      "title": "Retention",
+      "back": "Back to admin",
+      "section": "Retention periods",
+      "job": "Daily deletion",
+      "custom": "Custom",
+      "days": "days",
+      "forever": "keep forever",
+      "defaultDays_one": "Default: {{count}} day",
+      "defaultDays_other": "Default: {{count}} days",
+      "defaultForever": "Default: keep forever",
+      "reset": "Use default",
+      "hint": "0 keeps the data. Deleted data cannot be restored.",
+      "save": "Save",
+      "saved": "Retention periods saved.",
+      "shortMailWarning": "Shorter than the initial import of new mailboxes ({{days}} days): a full resync imports older mails, which are deleted again the next night.",
+      "neverRun": "Not run yet. Data older than the retention periods is deleted every night, including files.",
+      "lastRun": "Last run {{date}}: {{mails}} mails, {{attachments}} attachments, {{chunks}} search index entries and {{events}} audit log entries deleted.",
+      "fields": {
+        "mail_days": {
+          "label": "Mails",
+          "description": "With attachments, search index and triage results, by date received."
+        },
+        "attachment_days": {
+          "label": "Attachments",
+          "description": "Only the attachment files; the mail stays."
+        },
+        "search_index_days": {
+          "label": "Search index",
+          "description": "Older mails are no longer found by search and questions."
+        },
+        "rag_history_days": {
+          "label": "Question history",
+          "description": "Conversations, after the last question."
+        },
+        "digest_days": {
+          "label": "Digests",
+          "description": "Summaries with audio files. At least one day."
+        },
+        "audit_days": {
+          "label": "Audit log",
+          "description": "Security events. The hash chain stays verifiable from the oldest remaining entry."
+        }
+      }
+    }
+  },
+  "digest": {
+    "title": "Digest",
+    "current": "Current",
+    "archive": "Archive",
+    "loadOlder": "Load older digests",
+    "back": "Back",
+    "generateNow": "Generate now",
+    "retry": "Generate again",
+    "firstScheduled": "The first digest arrives on {{date}}. You can also generate one now.",
+    "transcript": "Transcript",
+    "openMail": "Open mail {{ref}}",
+    "mailCount_one": "{{count}} mail",
+    "mailCount_other": "{{count}} mails",
+    "todoCount_one": "{{count}} task",
+    "todoCount_other": "{{count}} tasks",
+    "inProgressHint": "Depending on the hardware this takes a few minutes. The page updates by itself.",
+    "status": {
+      "pending": "Waiting to be processed …",
+      "summarizing": "Writing the summary …",
+      "synthesizing": "Generating audio …",
+      "ready": "Ready",
+      "failed": "Failed"
+    },
+    "errors": {
+      "digest_failed": "The digest could not be generated.",
+      "llm_cloud_disabled": "A cloud model is set for summaries, but cloud models are turned off. Please contact your administrator.",
+      "tts_voice_not_available": "The selected voice is not available. Choose another voice in the settings.",
+      "stalled": "Generation was stopped because it took too long."
+    },
+    "player": {
+      "label": "Playback",
+      "play": "Play",
+      "pause": "Pause",
+      "back": "Back {{seconds}} seconds",
+      "forward": "Forward {{seconds}} seconds",
+      "position": "Position",
+      "positionText": "{{position}} of {{duration}}",
+      "speedLabel": "Speed: {{rate}}"
+    },
+    "shortcuts": {
+      "playPause": "Play / pause",
+      "slower": "Play slower",
+      "faster": "Play faster",
+      "close": "Back to the archive"
+    },
+    "settings": {
+      "title": "Digest settings",
+      "schedule": "Schedule",
+      "enabled": "Daily digest",
+      "enabledDescription": "Generates the digest automatically at the set time.",
+      "nextRun": "Next digest: {{date}}",
+      "time": "Time",
+      "timeDescription": "The digest is ready at this time.",
+      "weekdays": "Days",
+      "timezone": "Time zone",
+      "timezoneDescription": "Applies to time and days.",
+      "fromProfile": "Same as profile ({{value}})",
+      "content": "Content",
+      "length": "Length",
+      "lengthDescription": "Short covers only the most important points.",
+      "lengths": {
+        "short": "Short",
+        "normal": "Normal"
+      },
+      "language": "Language",
+      "languageDescription": "Language of text and audio.",
+      "voice": "Voice",
+      "voiceDescription": "Voices for the selected language.",
+      "defaultVoice": "Default voice",
+      "defaultVoiceNamed": "Default ({{voice}})",
+      "quality": {
+        "x_low": "very basic",
+        "low": "basic",
+        "medium": "medium",
+        "high": "high"
+      },
+      "mailboxes": "Mailboxes",
+      "mailboxesDescription": "The digest summarizes mails from these mailboxes.",
+      "noMailboxes": "No mailbox connected yet.",
+      "manual": "Manual",
+      "generateDescription": "Summarizes the mails since the last digest."
+    },
+    "feed": {
+      "section": "Podcast",
+      "title": "Private podcast feed",
+      "description": "Subscribe to your digests in a podcast app.",
+      "warning": "Anyone who knows the feed URL can listen to and read your digests without signing in. Do not share it.",
+      "create": "Create feed URL",
+      "url": "Feed URL",
+      "copy": "Copy",
+      "copied": "Feed URL copied",
+      "qrLabel": "QR code of the feed URL",
+      "shownOnce": "The URL is only shown now. If you lose it, create a new one.",
+      "active": "The feed is active.",
+      "activeSince": "The feed has been active since {{date}}.",
+      "urlHidden": "For security reasons the URL is only shown when it is created.",
+      "rotate": "Create new URL",
+      "rotateWarning": "The previous URL stops working immediately. Podcast apps need to subscribe to the new URL.",
+      "rotateConfirm": "Create new URL",
+      "revoke": "Turn off feed",
+      "revokeWarning": "The feed URL and all audio links in it stop working.",
+      "revokeConfirm": "Turn off feed",
+      "cancel": "Cancel"
     }
   },
   "notFound": {
@@ -838,6 +990,33 @@
     "copy": "Copy",
     "copied": "Copied",
     "label": "Copy {{label}}"
+  },
+  "privacy": {
+    "section": "Your data",
+    "export": {
+      "title": "Export data",
+      "description": "ZIP with your profile, categories, corrections, tasks, digests including audio, and question history. The download link is valid for {{hours}} hours.",
+      "request": "Request export",
+      "list": "Exports",
+      "item": "Export of {{date}}",
+      "running": "Being prepared…",
+      "ready": "{{size}} · available until {{date}}",
+      "failed": "Export failed. Please request it again.",
+      "download": "Download",
+      "deleteLabel": "Delete {{name}}"
+    },
+    "delete": {
+      "title": "Delete account",
+      "description": "Deletes your account with all mailboxes, mails, tasks, digests and question history. This cannot be undone.",
+      "disabled": "Accounts are deleted by an administrator. Contact them if you want your account removed.",
+      "open": "Delete account…",
+      "confirmTitle": "Delete your account permanently?",
+      "confirmDescription": "All mailboxes, mails, attachments, tasks, digests, question history and exports are deleted immediately. The mails remain in your mail accounts. Export your data first if you want to keep it.",
+      "confirmLabel": "To confirm, enter your e-mail address {{email}}",
+      "cancel": "Cancel",
+      "confirm": "Delete account",
+      "lastAdmin": "You are the last administrator. Make another user an administrator first."
+    }
   },
   "triage": {
     "builtin": {
