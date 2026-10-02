@@ -171,7 +171,10 @@
           "login_succeeded": "Angemeldet",
           "login_failed": "Anmeldung fehlgeschlagen",
           "logout": "Abgemeldet",
-          "session_revoked": "Sitzungen beendet"
+          "session_revoked": "Sitzungen beendet",
+          "mfa_enabled": "Zwei-Faktor-Methode hinzugefügt",
+          "mfa_disabled": "Zwei-Faktor-Methode entfernt",
+          "mfa_recovery_codes_generated": "Wiederherstellungscodes erstellt"
         },
         "user": {
           "created": "Benutzer angelegt",
@@ -462,6 +465,18 @@
         "verifyLdap": "Teste die Verbindung und suche optional einen Benutzer, bevor du das Verzeichnis aktivierst.",
         "savedDisabled": "Gespeichert, noch nicht aktiv: Niemand kann sich darüber anmelden, bis du es aktivierst.",
         "verifyGithub": "Trage die Callback-URL in der OAuth-App bei GitHub ein und aktiviere dann den Anbieter."
+      },
+      "mfa": {
+        "title": "Zwei-Faktor-Authentifizierung",
+        "label": "Lokale Konten",
+        "description": "Konten ohne Passkey oder Authenticator-App müssen bei der nächsten Anmeldung einen einrichten. Konten von Identity-Providern nutzen die Anmeldung des Providers.",
+        "options": {
+          "off": "Freiwillig",
+          "admins": "Pflicht für Admins",
+          "all": "Pflicht für alle"
+        },
+        "recommended": "Empfohlen: mindestens für Admins.",
+        "changed": "Zwei-Faktor-Einstellung gespeichert."
       }
     },
     "roleMapping": {
@@ -810,7 +825,10 @@
       "or": "oder",
       "providers": "Weitere Anmeldemethoden",
       "withProvider": "Weiter mit {{provider}}",
-      "noMethods": "Es ist keine Anmeldemethode eingerichtet. Wende dich an deine Administration."
+      "noMethods": "Es ist keine Anmeldemethode eingerichtet. Wende dich an einen Admin.",
+      "passkey": "Mit Passkey anmelden",
+      "passkeyFailed": "Mit diesem Passkey ist keine Anmeldung möglich.",
+      "passkeyCancelled": "Es wurde kein Passkey verwendet. Versuche es erneut oder melde dich mit Passwort an."
     },
     "setup": {
       "step": "Schritt {{step}} von {{of}}",
@@ -839,6 +857,46 @@
       "submit": "Passwort festlegen und anmelden",
       "submitting": "Melde an…",
       "toLogin": "Zur Anmeldung"
+    },
+    "mfa": {
+      "title": "Zwei-Faktor-Authentifizierung",
+      "description": "Bestätige mit deinem zweiten Faktor, dass du es bist.",
+      "methods": {
+        "webauthn": "Passkey",
+        "totp": "Authenticator-App",
+        "recovery": "Wiederherstellungscode"
+      },
+      "methodsLabel": "Bestätigungsmethode",
+      "passkeyHint": "Verwende den Passkey oder Sicherheitsschlüssel, den du für dieses Konto hinzugefügt hast.",
+      "usePasskey": "Passkey verwenden",
+      "waiting": "Warte auf dein Gerät …",
+      "totpLabel": "Code aus deiner Authenticator-App",
+      "totpHint": "6 Ziffern. Alle 30 Sekunden erscheint ein neuer Code.",
+      "recoveryLabel": "Wiederherstellungscode",
+      "recoveryHint": "Einer der Codes, die du beim Einrichten der Zwei-Faktor-Authentifizierung gespeichert hast. Jeder Code funktioniert einmal.",
+      "verify": "Bestätigen",
+      "verifying": "Wird geprüft …",
+      "invalidCode": "Der Code stimmt nicht. Versuche es erneut.",
+      "expired": "Die Anmeldung ist abgelaufen. Gib dein Passwort erneut ein.",
+      "passkeyCancelled": "Es wurde kein Passkey verwendet. Versuche es erneut oder wähle eine andere Methode.",
+      "passkeyFailed": "Dieser Passkey wurde nicht akzeptiert.",
+      "noMethods": "Es kann kein zweiter Faktor verwendet werden. Wende dich an einen Admin.",
+      "back": "Zurück zur Anmeldung",
+      "enrollTitle": "Zwei-Faktor-Authentifizierung einrichten",
+      "enrollDescription": "Für dieses Konto ist ein zweiter Faktor vorgeschrieben. Richte einen ein, um die Anmeldung abzuschließen.",
+      "codesTitle": "Wiederherstellungscodes speichern",
+      "continue": "Weiter",
+      "switch": {
+        "webauthn": "Passkey verwenden",
+        "totp": "Authenticator-App verwenden",
+        "recovery": "Wiederherstellungscode verwenden"
+      },
+      "enrollSwitch": {
+        "webauthn": "Stattdessen Passkey einrichten",
+        "totp": "Stattdessen Authenticator-App einrichten"
+      },
+      "otherMethods": "Andere Methoden",
+      "passkeyName": "Passkey"
     }
   },
   "account": {
@@ -860,6 +918,78 @@
       "revoke": "Abmelden",
       "revokeLabel": "{{device}} abmelden",
       "revokeOthers": "Alle anderen Sitzungen abmelden"
+    },
+    "security": {
+      "title": "Sicherheit",
+      "linkDescription": "Passkeys, Authenticator-App und Wiederherstellungscodes.",
+      "back": "Zurück zu den Einstellungen",
+      "enforced": "Für dieses Konto ist die Zwei-Faktor-Authentifizierung vorgeschrieben.",
+      "off": "Die Zwei-Faktor-Authentifizierung ist aus. Füge einen Passkey oder eine Authenticator-App hinzu, damit dein Konto auch dann geschützt ist, wenn dein Passwort bekannt wird.",
+      "on": "Die Zwei-Faktor-Authentifizierung ist an.",
+      "unavailable": "Du meldest dich über einen Identity-Provider an. Die Zwei-Faktor-Authentifizierung wird dort verwaltet.",
+      "lastFactor": "Für dein Konto ist eine Zwei-Faktor-Authentifizierung vorgeschrieben. Füge eine weitere Methode hinzu, bevor du diese entfernst.",
+      "passkeys": {
+        "title": "Passkeys",
+        "description": "Fingerabdruck, Gesicht, Geräte-PIN oder Sicherheitsschlüssel. Funktioniert auch ohne Passwort.",
+        "empty": "Noch keine Passkeys.",
+        "add": "Passkey hinzufügen",
+        "meta": "Hinzugefügt {{added}}",
+        "metaUsed": "Hinzugefügt {{added}} · Zuletzt verwendet {{used}}",
+        "synced": "Synchronisiert",
+        "remove": "Entfernen",
+        "removeLabel": "Passkey {{name}} entfernen",
+        "removed": "Passkey entfernt.",
+        "notConfigured": "Passkeys sind auf diesem Server nicht eingerichtet.",
+        "unsupported": "Dieser Browser unterstützt keine Passkeys.",
+        "sheetTitle": "Passkey hinzufügen",
+        "sheetDescription": "Gib dem Passkey einen Namen, damit du ihn später wiedererkennst. Danach fragt dein Browser nach der Bestätigung mit deinem Gerät.",
+        "name": "Name",
+        "namePlaceholder": "z. B. Arbeitslaptop",
+        "nameRequired": "Gib einen Namen ein.",
+        "create": "Passkey erstellen",
+        "failed": "Der Passkey konnte nicht hinzugefügt werden.",
+        "cancelled": "Es wurde kein Passkey erstellt. Versuche es erneut, wenn du so weit bist.",
+        "exists": "Dieser Passkey ist bereits registriert.",
+        "created": "Passkey hinzugefügt."
+      },
+      "totp": {
+        "title": "Authenticator-App",
+        "description": "Zeitbasierte Codes aus einer App wie Aegis, 2FAS oder deinem Passwortmanager.",
+        "active": "Aktiv",
+        "setup": "Einrichten",
+        "remove": "Entfernen",
+        "removed": "Authenticator-App entfernt.",
+        "sheetTitle": "Authenticator-App einrichten",
+        "sheetDescription": "Zwei Schritte: ollamail in deiner App hinzufügen, dann mit einem Code bestätigen.",
+        "scan": "1. Scanne den QR-Code mit deiner Authenticator-App.",
+        "qrAlt": "QR-Code für die Authenticator-App",
+        "secret": "Schlüssel zur manuellen Eingabe",
+        "enterCode": "2. Gib den 6-stelligen Code aus der App ein.",
+        "code": "Code",
+        "confirm": "Aktivieren",
+        "confirming": "Wird geprüft …",
+        "invalid": "Der Code stimmt nicht. Prüfe die Uhrzeit auf deinem Telefon und versuche es erneut.",
+        "enabled": "Authenticator-App eingerichtet."
+      },
+      "recovery": {
+        "title": "Wiederherstellungscodes",
+        "description": "Für den Fall, dass du Passkey oder App nicht verwenden kannst. Jeder Code funktioniert einmal.",
+        "remaining_one": "Noch {{count}} Code",
+        "remaining_other": "Noch {{count}} Codes",
+        "none": "Verfügbar, sobald ein zweiter Faktor eingerichtet ist.",
+        "regenerate": "Neue Codes",
+        "sheetTitle": "Wiederherstellungscodes",
+        "sheetDescription": "Bewahre diese Codes sicher auf, z. B. in deinem Passwortmanager. Sie werden nur jetzt angezeigt.",
+        "regenerateDescription": "Neue Codes ersetzen deine bisherigen. Die bisherigen Codes funktionieren danach nicht mehr.",
+        "create": "Neue Codes erstellen",
+        "listLabel": "Deine Wiederherstellungscodes",
+        "copyAll": "Alle kopieren",
+        "copied": "Kopiert",
+        "download": "Herunterladen",
+        "fileName": "ollamail-wiederherstellungscodes.txt",
+        "done": "Fertig, Codes gespeichert"
+      },
+      "more": "Weitere Optionen"
     }
   },
   "forbidden": {
@@ -981,7 +1111,7 @@
     "removed_one": "Postfach entfernt ({{formatted}} Nachricht gelöscht)",
     "removed_other": "Postfach entfernt ({{formatted}} Nachrichten gelöscht)",
     "cancel": "Abbrechen",
-    "noProviders": "Auf diesem Server sind keine Postfachtypen verfügbar. Wende dich an deine Administration.",
+    "noProviders": "Auf diesem Server sind keine Postfachtypen verfügbar. Wende dich an einen Admin.",
     "providerLabel": "Anbieter",
     "types": {
       "imap": "IMAP",

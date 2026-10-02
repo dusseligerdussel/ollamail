@@ -202,6 +202,7 @@ describe("login", () => {
         providers: {
           local_login: true,
           local_registration: false,
+          passkey_login: false,
           providers: [
             {
               name: "oidc:entra",

@@ -30,6 +30,7 @@ import { Route as AdminUsersRouteImport } from './routes/admin_.users'
 import { Route as DigestSettingsRouteImport } from './routes/digest_.settings'
 import { Route as SettingsCategoriesRouteImport } from './routes/settings_.categories'
 import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
+import { Route as SettingsSecurityRouteImport } from './routes/settings_.security'
 import { Route as AdminSharedMailboxesMailboxIdRouteImport } from './routes/admin_.shared-mailboxes_.$mailboxId'
 import { Route as AdminSharedMailboxesNewRouteImport } from './routes/admin_.shared-mailboxes_.new'
 import { Route as SettingsMailboxesNewRouteImport } from './routes/settings_.mailboxes_.new'
@@ -139,6 +140,11 @@ const SettingsMailboxesRoute = SettingsMailboxesRouteImport.update({
   path: '/settings/mailboxes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsSecurityRoute = SettingsSecurityRouteImport.update({
+  id: '/settings_/security',
+  path: '/settings/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSharedMailboxesMailboxIdRoute =
   AdminSharedMailboxesMailboxIdRouteImport.update({
     id: '/admin_/shared-mailboxes_/$mailboxId',
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/digest/settings': typeof DigestSettingsRoute
   '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/settings/security': typeof SettingsSecurityRoute
   '/admin/shared-mailboxes/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
   '/admin/shared-mailboxes/new': typeof AdminSharedMailboxesNewRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
@@ -204,6 +211,7 @@ export interface FileRoutesByTo {
   '/digest/settings': typeof DigestSettingsRoute
   '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/settings/security': typeof SettingsSecurityRoute
   '/admin/shared-mailboxes/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
   '/admin/shared-mailboxes/new': typeof AdminSharedMailboxesNewRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
@@ -231,6 +239,7 @@ export interface FileRoutesById {
   '/digest_/settings': typeof DigestSettingsRoute
   '/settings_/categories': typeof SettingsCategoriesRoute
   '/settings_/mailboxes': typeof SettingsMailboxesRoute
+  '/settings_/security': typeof SettingsSecurityRoute
   '/admin_/shared-mailboxes_/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
   '/admin_/shared-mailboxes_/new': typeof AdminSharedMailboxesNewRoute
   '/settings_/mailboxes_/new': typeof SettingsMailboxesNewRoute
@@ -259,6 +268,7 @@ export interface FileRouteTypes {
     | '/digest/settings'
     | '/settings/categories'
     | '/settings/mailboxes'
+    | '/settings/security'
     | '/admin/shared-mailboxes/$mailboxId'
     | '/admin/shared-mailboxes/new'
     | '/settings/mailboxes/new'
@@ -285,6 +295,7 @@ export interface FileRouteTypes {
     | '/digest/settings'
     | '/settings/categories'
     | '/settings/mailboxes'
+    | '/settings/security'
     | '/admin/shared-mailboxes/$mailboxId'
     | '/admin/shared-mailboxes/new'
     | '/settings/mailboxes/new'
@@ -311,6 +322,7 @@ export interface FileRouteTypes {
     | '/digest_/settings'
     | '/settings_/categories'
     | '/settings_/mailboxes'
+    | '/settings_/security'
     | '/admin_/shared-mailboxes_/$mailboxId'
     | '/admin_/shared-mailboxes_/new'
     | '/settings_/mailboxes_/new'
@@ -338,6 +350,7 @@ export interface RootRouteChildren {
   DigestSettingsRoute: typeof DigestSettingsRoute
   SettingsCategoriesRoute: typeof SettingsCategoriesRoute
   SettingsMailboxesRoute: typeof SettingsMailboxesRoute
+  SettingsSecurityRoute: typeof SettingsSecurityRoute
   AdminSharedMailboxesMailboxIdRoute: typeof AdminSharedMailboxesMailboxIdRoute
   AdminSharedMailboxesNewRoute: typeof AdminSharedMailboxesNewRoute
   SettingsMailboxesNewRoute: typeof SettingsMailboxesNewRoute
@@ -492,6 +505,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMailboxesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings_/security': {
+      id: '/settings_/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof SettingsSecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/shared-mailboxes_/$mailboxId': {
       id: '/admin_/shared-mailboxes_/$mailboxId'
       path: '/admin/shared-mailboxes/$mailboxId'
@@ -538,6 +558,7 @@ const rootRouteChildren: RootRouteChildren = {
   DigestSettingsRoute: DigestSettingsRoute,
   SettingsCategoriesRoute: SettingsCategoriesRoute,
   SettingsMailboxesRoute: SettingsMailboxesRoute,
+  SettingsSecurityRoute: SettingsSecurityRoute,
   AdminSharedMailboxesMailboxIdRoute: AdminSharedMailboxesMailboxIdRoute,
   AdminSharedMailboxesNewRoute: AdminSharedMailboxesNewRoute,
   SettingsMailboxesNewRoute: SettingsMailboxesNewRoute,

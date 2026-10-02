@@ -18,6 +18,7 @@ import { describeApiError } from "@/api/errors";
 import { AddProviderSheet } from "@/components/admin/add-provider-sheet";
 import { AdminSection, AdminSubPage } from "@/components/admin/admin-page";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
+import { MfaEnforcementSection } from "@/components/admin/mfa-enforcement";
 import { Notice } from "@/components/admin/notice";
 import {
   type ProviderItem,
@@ -172,6 +173,7 @@ function SignInMethods({
           </Button>
         </Notice>
       )}
+      <MfaEnforcementSection value={settings.data.mfa_enforcement} />
       <div className="mt-6 flex flex-col gap-1.5 text-ui text-muted-foreground">
         <p>{t("pages.signIn.adminAccess", { count: access.usable_admins })}</p>
         <p>

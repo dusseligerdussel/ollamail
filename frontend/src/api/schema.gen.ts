@@ -321,8 +321,9 @@ export interface paths {
         head?: never;
         /**
          * Update Auth Settings
-         * @description Switch local login on or off. Switching it off is refused (409) unless another
-         *     admin access (external provider) keeps working.
+         * @description Switch local login on or off and set which local accounts need a second factor.
+         *     Switching local login off is refused (409) unless another admin access (external
+         *     provider) keeps working.
          */
         patch: operations["admin_update_auth_settings"];
         trace?: never;
@@ -746,6 +747,9 @@ export interface paths {
         /**
          * Login
          * @description Sign in with a local account (unless an admin switched local login off).
+         *
+         *     Accounts with a second factor (or that must set one up) get 202 and no session yet;
+         *     the login continues under ``/auth/mfa`` (app/auth/mfa/router.py).
          */
         post: operations["auth_login"];
         delete?: never;
@@ -818,6 +822,247 @@ export interface paths {
         patch: operations["auth_update_me"];
         trace?: never;
     };
+    "/auth/mfa": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Status
+         * @description Second factors of the own account.
+         */
+        get: operations["auth_get_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/cancel": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Cancel
+         * @description Abort a pending login (back to the password).
+         */
+        post: operations["auth_cancel"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/passkeys": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Passkey
+         * @description Store a new passkey after verifying the browser's response.
+         */
+        post: operations["auth_register_passkey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/passkeys/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Registration Options
+         * @description WebAuthn creation options for a new passkey (``navigator.credentials.create``).
+         */
+        post: operations["auth_passkey_registration_options"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/passkeys/{passkey_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Passkey
+         * @description Remove one of the own passkeys.
+         */
+        delete: operations["auth_remove_passkey"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/recovery-codes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Regenerate Recovery Codes
+         * @description New recovery codes; the previous ones stop working.
+         */
+        post: operations["auth_regenerate_recovery_codes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/totp": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Totp
+         * @description Remove the authenticator app.
+         */
+        delete: operations["auth_remove_totp"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/totp/confirm": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Totp
+         * @description Activate the authenticator app with a current code. The first factor of an account
+         *     comes with recovery codes; during an enforced enrolment this also signs in.
+         */
+        post: operations["auth_confirm_totp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/totp/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Setup Totp
+         * @description Start setting up an authenticator app: a new secret and its QR code.
+         */
+        post: operations["auth_setup_totp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify
+         * @description Second step of the login with a TOTP code or a recovery code.
+         */
+        post: operations["auth_verify"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/verify/passkey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Passkey
+         * @description Second step of the login with a passkey.
+         */
+        post: operations["auth_verify_passkey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/mfa/verify/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Verify Passkey Options
+         * @description WebAuthn request options for the second step (``navigator.credentials.get``).
+         */
+        post: operations["auth_verify_passkey_options"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/oidc/logout": {
         parameters: {
             query?: never;
@@ -874,6 +1119,46 @@ export interface paths {
         get: operations["auth_oidc_login"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkey/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Login
+         * @description Sign in with a passkey (counts as two factors: possession and user verification).
+         */
+        post: operations["auth_passkey_login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Login Options
+         * @description WebAuthn request options for signing in with a passkey instead of a password.
+         */
+        post: operations["auth_passkey_login_options"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2496,7 +2781,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -2559,6 +2844,11 @@ export interface components {
             local_login: boolean;
             /** Local Registration */
             local_registration: boolean;
+            /**
+             * Passkey Login
+             * @default false
+             */
+            passkey_login: boolean;
             /** Providers */
             providers: components["schemas"]["AuthProviderInfo"][];
         };
@@ -2569,6 +2859,8 @@ export interface components {
             local_login_enabled: boolean;
             /** Local Registration */
             local_registration: boolean;
+            /** @default off */
+            mfa_enforcement: components["schemas"]["MfaEnforcement"];
             /** Provider Kinds */
             provider_kinds: string[];
         };
@@ -2576,6 +2868,7 @@ export interface components {
         AuthSettingsUpdate: {
             /** Local Login Enabled */
             local_login_enabled?: boolean | null;
+            mfa_enforcement?: components["schemas"]["MfaEnforcement"] | null;
         };
         /** AutodiscoverRequest */
         AutodiscoverRequest: {
@@ -2689,6 +2982,11 @@ export interface components {
             provider: string;
             /** Tasks */
             tasks: components["schemas"]["LLMTask"][];
+        };
+        /** CodeRequest */
+        CodeRequest: {
+            /** Code */
+            code: string;
         };
         /** ConnectionTestResult */
         ConnectionTestResult: {
@@ -3832,6 +4130,62 @@ export interface components {
             /** Seen */
             seen: boolean;
         };
+        /**
+         * MfaChallenge
+         * @description Answer of ``POST /auth/login`` (202) when the password was right but the login
+         *     needs a second step. No session exists yet; the step is bound to a short-lived cookie.
+         */
+        MfaChallenge: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Methods */
+            methods: ("webauthn" | "totp" | "recovery")[];
+            /**
+             * Status
+             * @enum {string}
+             */
+            status: "mfa_required" | "mfa_enrollment_required";
+        };
+        /**
+         * MfaEnforcement
+         * @description Which local accounts must use a second factor (app/auth/mfa).
+         * @enum {string}
+         */
+        MfaEnforcement: "off" | "admins" | "all";
+        /** MfaEnrolled */
+        MfaEnrolled: {
+            /** Recovery Codes */
+            recovery_codes: string[] | null;
+            user?: components["schemas"]["UserRead"] | null;
+        };
+        /** MfaStatus */
+        MfaStatus: {
+            /** Available */
+            available: boolean;
+            /** Enforced */
+            enforced: boolean;
+            /** Passkeys */
+            passkeys: components["schemas"]["PasskeyRead"][];
+            /** Passkeys Configured */
+            passkeys_configured: boolean;
+            /** Recovery Codes Remaining */
+            recovery_codes_remaining: number;
+            /** Totp */
+            totp: boolean;
+        };
+        /** MfaVerifyRequest */
+        MfaVerifyRequest: {
+            /** Code */
+            code: string;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "totp" | "recovery";
+        };
         /** OIDCConnectionTest */
         OIDCConnectionTest: {
             /** Authorization Endpoint */
@@ -4078,6 +4432,48 @@ export interface components {
             /** Position */
             position?: number | null;
         };
+        /** PasskeyAssertion */
+        PasskeyAssertion: {
+            /** Credential */
+            credential: {
+                [key: string]: unknown;
+            };
+        };
+        /** PasskeyEnrolled */
+        PasskeyEnrolled: {
+            passkey: components["schemas"]["PasskeyRead"];
+            /** Recovery Codes */
+            recovery_codes: string[] | null;
+            user?: components["schemas"]["UserRead"] | null;
+        };
+        /** PasskeyRead */
+        PasskeyRead: {
+            /** Backed Up */
+            backed_up: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Name */
+            name: string;
+        };
+        /** PasskeyRegistration */
+        PasskeyRegistration: {
+            /** Credential */
+            credential: {
+                [key: string]: unknown;
+            };
+            /** Name */
+            name: string;
+        };
         /** ProfileRead */
         ProfileRead: {
             /** Chat Model */
@@ -4138,6 +4534,11 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "unavailable";
+        };
+        /** RecoveryCodes */
+        RecoveryCodes: {
+            /** Codes */
+            codes: string[];
         };
         /** RegisterRequest */
         RegisterRequest: {
@@ -4753,6 +5154,15 @@ export interface components {
             status?: components["schemas"]["TodoStatus"] | null;
             /** Title */
             title?: string | null;
+        };
+        /** TotpSetup */
+        TotpSetup: {
+            /** Qr Svg */
+            qr_svg: string;
+            /** Secret */
+            secret: string;
+            /** Uri */
+            uri: string;
         };
         /** TriageCorrection */
         TriageCorrection: {
@@ -7483,6 +7893,15 @@ export interface operations {
                     "application/json": components["schemas"]["UserRead"];
                 };
             };
+            /** @description Password correct, second step needed */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaChallenge"];
+                };
+            };
             /** @description Wrong credentials */
             401: {
                 headers: {
@@ -7677,6 +8096,489 @@ export interface operations {
             };
         };
     };
+    auth_get_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaStatus"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_cancel: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_register_passkey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyRegistration"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PasskeyEnrolled"];
+                };
+            };
+            /** @description The passkey could not be verified */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Passkeys are not configured, or 2FA not available for this account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_passkey_registration_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Passkeys are not configured, or 2FA not available for this account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_remove_passkey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                passkey_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such passkey */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 2FA enforced */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_regenerate_recovery_codes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RecoveryCodes"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No second factor set up */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_remove_totp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not set up */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description 2FA enforced */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_confirm_totp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CodeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaEnrolled"];
+                };
+            };
+            /** @description Wrong code, or the pending sign-in expired (mfa-expired) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts (rate limit or account lockout) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_setup_totp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpSetup"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Active */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MfaVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Wrong code, or the pending sign-in expired (mfa-expired) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts (rate limit or account lockout) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_verify_passkey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyAssertion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Wrong code, or the pending sign-in expired (mfa-expired) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Passkeys are not configured, or 2FA not available for this account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts (rate limit or account lockout) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_verify_passkey_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Wrong code, or the pending sign-in expired (mfa-expired) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Passkeys are not configured, or 2FA not available for this account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many attempts (rate limit or account lockout) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_oidc_logout: {
         parameters: {
             query?: never;
@@ -7754,6 +8656,117 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    auth_passkey_login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyAssertion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Wrong code, or the pending sign-in expired (mfa-expired) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Local login is disabled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Passkeys are not configured, or 2FA not available for this account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts (rate limit or account lockout) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_passkey_login_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Wrong code, or the pending sign-in expired (mfa-expired) */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Local login is disabled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Passkeys are not configured, or 2FA not available for this account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many attempts (rate limit or account lockout) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

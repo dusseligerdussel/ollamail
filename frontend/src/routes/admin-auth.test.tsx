@@ -21,6 +21,7 @@ const settings: AuthSettings = {
   local_registration: false,
   provider_kinds: ["ldap", "oidc"],
   admin_access: { usable_admins: 1, own_providers: ["local"] },
+  mfa_enforcement: "off",
 };
 
 const entra: OidcProvider = {
@@ -151,6 +152,27 @@ describe("admin: sign-in methods", () => {
     expect(within(section).getByText("Microsoft")).toBeInTheDocument();
     expect(within(section).getByText("Corporate directory")).toBeInTheDocument();
     expect(screen.getByText("1 administrator can currently sign in.")).toBeInTheDocument();
+  });
+
+  it("requires two-factor authentication for administrators", async () => {
+    const user = userEvent.setup();
+    const calls = mockAdminApi({
+      "PATCH /api/admin/auth/settings": () => json({ ...settings, mfa_enforcement: "admins" }),
+    });
+    await renderApp("/admin/sign-in");
+
+    const section = await screen.findByRole("region", { name: "Two-factor authentication" });
+    expect(
+      within(section).getByText("Recommended: at least for administrators."),
+    ).toBeInTheDocument();
+    await user.selectOptions(
+      within(section).getByLabelText("Local accounts"),
+      "Required for administrators",
+    );
+
+    await waitFor(() =>
+      expect(calls.find((c) => c.method === "PATCH")?.body).toEqual({ mfa_enforcement: "admins" }),
+    );
   });
 
   it("warns before disabling local login and shows the server's lockout refusal", async () => {
