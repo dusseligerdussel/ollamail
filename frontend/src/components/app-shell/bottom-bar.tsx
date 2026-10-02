@@ -14,7 +14,7 @@ import {
 import { useChangeLanguage, useCurrentUser, useLogout } from "@/hooks/use-current-user";
 
 import { visibleNavItems } from "./nav-items";
-import { SharedMailboxNav } from "./shared-mailbox-nav";
+import { SharedMailboxNav, useInboxActiveOptions } from "./shared-mailbox-nav";
 
 const tabClass =
   "flex min-w-0 flex-1 flex-col items-center justify-center gap-1 rounded-md text-xs text-muted-foreground outline-none focus-visible:ring-2 focus-visible:ring-ring data-[status=active]:text-foreground [&[data-status=active]_svg]:text-brand";
@@ -27,6 +27,7 @@ export function BottomBar() {
   const logout = useLogout();
   const [moreOpen, setMoreOpen] = useState(false);
   const items = visibleNavItems(isAdmin);
+  const inboxActive = useInboxActiveOptions();
 
   return (
     <nav
@@ -40,7 +41,11 @@ export function BottomBar() {
             const Icon = item.icon;
             return (
               <li key={item.key} className="flex flex-1">
-                <Link to={item.to} className={tabClass}>
+                <Link
+                  to={item.to}
+                  activeOptions={item.key === "inbox" ? inboxActive : undefined}
+                  className={tabClass}
+                >
                   <Icon className="size-4" aria-hidden="true" />
                   <span className="max-w-full truncate">{t(`nav.${item.key}`)}</span>
                 </Link>
@@ -68,7 +73,7 @@ export function BottomBar() {
             <SheetDescription className="sr-only">{t("nav.moreDescription")}</SheetDescription>
           </SheetHeader>
           <SharedMailboxNav
-            className="px-2 pb-2"
+            className="mx-2 mb-2 border-b pb-2"
             onNavigate={() => setMoreOpen(false)}
             headingClassName="px-2 pb-1 text-xs font-medium text-muted-foreground"
             linkClassName="flex h-11 items-center gap-3 rounded-md px-2 text-sm outline-none hover:bg-accent focus-visible:ring-2 focus-visible:ring-ring data-[status=active]:font-medium [&_svg]:text-muted-foreground [&[data-status=active]_svg]:text-brand"

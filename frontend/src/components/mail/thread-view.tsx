@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { ArrowLeft, ImageOff, Mail, MailOpen, Paperclip } from "lucide-react";
+import { ArrowLeft, Eye, ImageOff, Mail, MailOpen, Paperclip } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -66,8 +66,12 @@ export function ThreadView({ thread, messageId, unread, onToggleUnread, onBack }
               {unread ? <MailOpen /> : <Mail />}
             </Button>
           ) : (
-            <span className="text-xs text-muted-foreground" title={t("mail.readOnlyHint")}>
-              {t("mail.readOnly")}
+            <span
+              className="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground"
+              title={t("mail.readOnlyHint")}
+            >
+              <Eye aria-hidden className="size-3.5" />
+              <span className="max-md:sr-only">{t("mail.readOnly")}</span>
             </span>
           )
         }

@@ -1,10 +1,22 @@
 import { useQuery } from "@tanstack/react-query";
-import { Link } from "@tanstack/react-router";
+import { Link, useRouterState } from "@tanstack/react-router";
 import { Mails } from "lucide-react";
 import { useId } from "react";
 import { useTranslation } from "react-i18next";
 
 import { mailboxesQueryOptions } from "@/api/mail";
+
+/** Link options for the main inbox entry: inactive while a shared mailbox is open. */
+export function useInboxActiveOptions() {
+  const location = useRouterState({ select: (state) => state.location });
+  const mailboxes = useQuery(mailboxesQueryOptions);
+  const selected = (location.search as { mailbox?: unknown }).mailbox;
+  const shared =
+    location.pathname === "/inbox" &&
+    !!mailboxes.data?.some((mailbox) => mailbox.id === selected && mailbox.is_shared);
+  // The search of the open inbox then never equals the plain inbox link.
+  return shared ? { exact: true, includeSearch: true } : undefined;
+}
 
 /**
  * Shared mailboxes the user may read, apart from the main navigation: each opens the inbox

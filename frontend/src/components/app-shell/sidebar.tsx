@@ -22,7 +22,7 @@ import { isTheme, themes } from "@/lib/theme";
 
 import { AppMark } from "./app-mark";
 import { type NavItem, visibleNavItems } from "./nav-items";
-import { SharedMailboxNav } from "./shared-mailbox-nav";
+import { SharedMailboxNav, useInboxActiveOptions } from "./shared-mailbox-nav";
 import { useShortcutsOverlay } from "./shortcuts-overlay";
 
 const rowClass =
@@ -32,9 +32,14 @@ const linkClass = `${rowClass} data-[status=active]:bg-sidebar-accent data-[stat
 
 function SidebarLink({ item }: { item: NavItem }) {
   const { t } = useTranslation();
+  const inboxActive = useInboxActiveOptions();
   const Icon = item.icon;
   return (
-    <Link to={item.to} className={linkClass}>
+    <Link
+      to={item.to}
+      activeOptions={item.key === "inbox" ? inboxActive : undefined}
+      className={linkClass}
+    >
       <Icon className="size-4 shrink-0" aria-hidden="true" />
       <span className="truncate">{t(`nav.${item.key}`)}</span>
     </Link>

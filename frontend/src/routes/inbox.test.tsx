@@ -231,6 +231,12 @@ describe("inbox", () => {
       `/inbox?mailbox=${SHARED_ID}`,
     );
     expect(screen.getByRole("heading", { level: 1, name: "Support" })).toBeInTheDocument();
+    // Only the shared mailbox is the current page, not the inbox as a whole.
+    expect(within(section).getByRole("link", { name: "Support" })).toHaveAttribute(
+      "aria-current",
+      "page",
+    );
+    expect(screen.getAllByRole("link", { name: "Inbox" })[0]).not.toHaveAttribute("aria-current");
     expect(
       within(screen.getByRole("combobox", { name: "Mailbox" })).getByRole("group", {
         name: "Shared mailboxes",
