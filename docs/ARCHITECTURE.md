@@ -73,6 +73,7 @@ backend/app/
   rag/           Chat, Zitate (nutzt search/)
   admin/         Instanz-Einstellungen, Auth-Provider, Audit-Log, Statistiken
   audit/         Audit-Log: record(), append-only Tabelle mit Hash-Kette, Admin-API (Liste, CSV)
+  privacy/       Aufbewahrungsfristen (Admin + täglicher Job), Datenexport (ZIP), Konto-/Nutzerlöschung
   worker.py      Procrastinate-App und Task-Registrierung
 ```
 
@@ -466,6 +467,9 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   (`DEFAULT_RETRY`); Lock-Keys pro Ressource (`resource_lock("mailbox", id)` als `lock`/`queueing_lock`);
   Periodic Tasks per `@app.periodic(cron=...)`. Task-Module werden in `TASK_MODULES` eingetragen.
 - **Housekeeping:** täglicher Job `worker.remove_old_jobs` löscht abgeschlossene Jobs nach 7 Tagen.
+  Aufbewahrungsfristen setzen `privacy.retention` (täglich), `digest.cleanup` (stündlich) und
+  `rag.purge_conversations` (täglich) mit den Werten aus Admin → Aufbewahrung durch
+  (`app/privacy/policy.py`, sonst Umgebung); `privacy.cleanup_exports` löscht abgelaufene Exporte.
 - **Shutdown:** Bei SIGTERM nimmt der Worker keine neuen Jobs an; laufende Jobs haben
   `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` Sekunden, dann endet der Prozess mit Exit-Code 0.
 - **Events:** `publish(session, user_id, Event(...))` sendet per `pg_notify` beim Commit. Jeder
@@ -704,8 +708,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   Der Feed (RSS 2.0 mit iTunes-Namespace, `itunes:block`) enthält fertige Digests mit Audio;
   die Audio-URLs `/api/feeds/{token}/{digest_id}.mp3` sind ebenfalls nur mit Token abrufbar und
   unterstützen `HEAD` und Range-Requests. Feed-Routen sind nicht Teil des OpenAPI-Schemas.
-- **Aufbewahrung:** Der stündliche Job `digest.cleanup` löscht Digests älter als
-  `OLLAMAIL_DIGEST_RETENTION_DAYS` (Standard 30) samt Dateien, Digests eines inzwischen
+- **Aufbewahrung:** Der stündliche Job `digest.cleanup` löscht Digests älter als die Frist aus
+  Admin → Aufbewahrung (sonst `OLLAMAIL_DIGEST_RETENTION_DAYS`, Standard 30) samt Dateien, Digests eines inzwischen
   gelöschten Postfachs, Dateien ohne Digest (z. B. gelöschter Nutzer) und markiert seit Stunden
   hängende Digests als fehlgeschlagen.
 

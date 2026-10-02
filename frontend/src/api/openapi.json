@@ -537,6 +537,41 @@
         "title": "AIStatusRead",
         "type": "object"
       },
+      "AccountDeletion": {
+        "additionalProperties": false,
+        "description": "Confirmation of the own account's deletion: the account's e-mail address.",
+        "properties": {
+          "confirm_email": {
+            "maxLength": 320,
+            "title": "Confirm Email",
+            "type": "string"
+          }
+        },
+        "required": [
+          "confirm_email"
+        ],
+        "title": "AccountDeletion",
+        "type": "object"
+      },
+      "AccountPrivacyRead": {
+        "description": "What the account page offers.",
+        "properties": {
+          "export_expiry_hours": {
+            "title": "Export Expiry Hours",
+            "type": "integer"
+          },
+          "self_delete_enabled": {
+            "title": "Self Delete Enabled",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "self_delete_enabled",
+          "export_expiry_hours"
+        ],
+        "title": "AccountPrivacyRead",
+        "type": "object"
+      },
       "ActorKind": {
         "enum": [
           "user",
@@ -906,6 +941,7 @@
           "mailbox.shared",
           "data.exported",
           "data.deleted",
+          "data.retention_changed",
           "crypto.keys_rotated",
           "audit.exported"
         ],
@@ -1631,6 +1667,80 @@
         "title": "ConversationSummary",
         "type": "object"
       },
+      "DataExportRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "expires_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Expires At"
+          },
+          "finished_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Finished At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "size": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Size"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ExportStatus"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "error_code",
+          "size",
+          "created_at",
+          "finished_at",
+          "expires_at"
+        ],
+        "title": "DataExportRead",
+        "type": "object"
+      },
       "DigestLength": {
         "enum": [
           "short",
@@ -2251,6 +2361,16 @@
           "openldap"
         ],
         "title": "DirectoryType",
+        "type": "string"
+      },
+      "ExportStatus": {
+        "enum": [
+          "pending",
+          "running",
+          "ready",
+          "failed"
+        ],
+        "title": "ExportStatus",
         "type": "string"
       },
       "FeedCreated": {
@@ -5302,6 +5422,224 @@
         "title": "RemoteFolderRead",
         "type": "object"
       },
+      "RetentionRun": {
+        "description": "Counters of the last run of the retention job.",
+        "properties": {
+          "attachments": {
+            "default": 0,
+            "title": "Attachments",
+            "type": "integer"
+          },
+          "audit_events": {
+            "default": 0,
+            "title": "Audit Events",
+            "type": "integer"
+          },
+          "finished_at": {
+            "format": "date-time",
+            "title": "Finished At",
+            "type": "string"
+          },
+          "mails": {
+            "default": 0,
+            "title": "Mails",
+            "type": "integer"
+          },
+          "search_chunks": {
+            "default": 0,
+            "title": "Search Chunks",
+            "type": "integer"
+          },
+          "threads": {
+            "default": 0,
+            "title": "Threads",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "finished_at"
+        ],
+        "title": "RetentionRun",
+        "type": "object"
+      },
+      "RetentionSettingsRead": {
+        "description": "Effective retention, the environment defaults and the last run.",
+        "properties": {
+          "defaults": {
+            "$ref": "#/components/schemas/RetentionValues"
+          },
+          "initial_sync_days": {
+            "title": "Initial Sync Days",
+            "type": "integer"
+          },
+          "last_run": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/RetentionRun"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "overridden": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Overridden",
+            "type": "array"
+          },
+          "values": {
+            "$ref": "#/components/schemas/RetentionValues"
+          }
+        },
+        "required": [
+          "values",
+          "defaults",
+          "overridden",
+          "initial_sync_days",
+          "last_run"
+        ],
+        "title": "RetentionSettingsRead",
+        "type": "object"
+      },
+      "RetentionSettingsUpdate": {
+        "additionalProperties": false,
+        "description": "New values; ``null`` resets a field to the environment default. Omitted fields\nkeep their value.",
+        "properties": {
+          "attachment_days": {
+            "anyOf": [
+              {
+                "maximum": 36500.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachment Days"
+          },
+          "audit_days": {
+            "anyOf": [
+              {
+                "maximum": 36500.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Audit Days"
+          },
+          "digest_days": {
+            "anyOf": [
+              {
+                "maximum": 3650.0,
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Digest Days"
+          },
+          "mail_days": {
+            "anyOf": [
+              {
+                "maximum": 36500.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mail Days"
+          },
+          "rag_history_days": {
+            "anyOf": [
+              {
+                "maximum": 36500.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Rag History Days"
+          },
+          "search_index_days": {
+            "anyOf": [
+              {
+                "maximum": 36500.0,
+                "minimum": 0.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Search Index Days"
+          }
+        },
+        "title": "RetentionSettingsUpdate",
+        "type": "object"
+      },
+      "RetentionValues": {
+        "description": "Retention in days per data category; 0 keeps the data.",
+        "properties": {
+          "attachment_days": {
+            "maximum": 36500.0,
+            "minimum": 0.0,
+            "title": "Attachment Days",
+            "type": "integer"
+          },
+          "audit_days": {
+            "maximum": 36500.0,
+            "minimum": 0.0,
+            "title": "Audit Days",
+            "type": "integer"
+          },
+          "digest_days": {
+            "maximum": 3650.0,
+            "minimum": 1.0,
+            "title": "Digest Days",
+            "type": "integer"
+          },
+          "mail_days": {
+            "maximum": 36500.0,
+            "minimum": 0.0,
+            "title": "Mail Days",
+            "type": "integer"
+          },
+          "rag_history_days": {
+            "maximum": 36500.0,
+            "minimum": 0.0,
+            "title": "Rag History Days",
+            "type": "integer"
+          },
+          "search_index_days": {
+            "maximum": 36500.0,
+            "minimum": 0.0,
+            "title": "Search Index Days",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "mail_days",
+          "attachment_days",
+          "search_index_days",
+          "rag_history_days",
+          "digest_days",
+          "audit_days"
+        ],
+        "title": "RetentionValues",
+        "type": "object"
+      },
       "RoleMappingRead": {
         "properties": {
           "default_role": {
@@ -6419,6 +6757,30 @@
           "password"
         ],
         "title": "UserCreate",
+        "type": "object"
+      },
+      "UserDeletionResult": {
+        "properties": {
+          "deleted": {
+            "title": "Deleted",
+            "type": "boolean"
+          },
+          "mailboxes": {
+            "title": "Mailboxes",
+            "type": "integer"
+          },
+          "user_id": {
+            "format": "uuid",
+            "title": "User Id",
+            "type": "string"
+          }
+        },
+        "required": [
+          "user_id",
+          "deleted",
+          "mailboxes"
+        ],
+        "title": "UserDeletionResult",
         "type": "object"
       },
       "UserInvite": {
@@ -7669,6 +8031,136 @@
         "summary": "Update Auth Settings",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/admin/privacy/retention": {
+      "get": {
+        "description": "Effective retention periods, their environment defaults and the last run.",
+        "operationId": "privacy_get_retention",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "Get Retention",
+        "tags": [
+          "privacy"
+        ]
+      },
+      "patch": {
+        "description": "Change retention periods; ``null`` resets one to the environment default. Applies\nfrom the next run of the retention jobs.",
+        "operationId": "privacy_update_retention",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetentionSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetentionSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Retention",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/admin/privacy/users/{user_id}": {
+      "delete": {
+        "description": "Delete a user with all their data and files (Art. 17). Not reversible.",
+        "operationId": "privacy_delete_user",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserDeletionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such user"
+          },
+          "409": {
+            "description": "Last active administrator"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete User",
+        "tags": [
+          "privacy"
         ]
       }
     },
@@ -10625,6 +11117,207 @@
         "summary": "Get Thread",
         "tags": [
           "messages"
+        ]
+      }
+    },
+    "/privacy/account": {
+      "delete": {
+        "description": "Delete the own account with all data (mailboxes, mails, todos, digests, ...) and\nfiles. Confirmed by entering the account's e-mail address. Not reversible.",
+        "operationId": "privacy_delete_account",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AccountDeletion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Self-deletion is disabled"
+          },
+          "409": {
+            "description": "Last active administrator"
+          },
+          "422": {
+            "description": "Confirmation does not match"
+          }
+        },
+        "summary": "Delete Account",
+        "tags": [
+          "privacy"
+        ]
+      },
+      "get": {
+        "description": "Whether the own account can be deleted here, and how long exports stay available.",
+        "operationId": "privacy_get_account_privacy",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AccountPrivacyRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Account Privacy",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/privacy/exports": {
+      "get": {
+        "description": "The own data exports that have not expired, newest first.",
+        "operationId": "privacy_list_exports",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DataExportRead"
+                  },
+                  "title": "Response Privacy List Exports",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Exports",
+        "tags": [
+          "privacy"
+        ]
+      },
+      "post": {
+        "description": "Start an export of the own data (ZIP with JSON and digest audio) as a background\njob. While one is in progress, that one is returned.",
+        "operationId": "privacy_request_export",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DataExportRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Request Export",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/privacy/exports/{export_id}": {
+      "delete": {
+        "description": "Delete an own export and its file before it expires.",
+        "operationId": "privacy_delete_export",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "export_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Export Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such export"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Export",
+        "tags": [
+          "privacy"
+        ]
+      }
+    },
+    "/privacy/exports/{export_id}/download": {
+      "get": {
+        "description": "Download a finished export before it expires. Only its owner can.",
+        "operationId": "privacy_download_export",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "export_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Export Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/zip": {}
+            },
+            "description": "The ZIP file"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such export"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Export",
+        "tags": [
+          "privacy"
         ]
       }
     },
