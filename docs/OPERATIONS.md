@@ -9,6 +9,7 @@ Backup/Restore, Updates, Datenschutz und Fehlersuche.
 > Dokument mit **geplant (#nr)** markiert und verweist auf das zugehörige Issue.
 
 Referenz für Dienste, Profile, Volumes und Entwicklungsmodus: [`deploy/README.md`](../deploy/README.md).
+Betrieb auf Kubernetes mit dem Helm-Chart: [`operations/kubernetes.md`](operations/kubernetes.md).
 Alle Einstellungen: [`deploy/.env.example`](../deploy/.env.example).
 
 ## Inhalt

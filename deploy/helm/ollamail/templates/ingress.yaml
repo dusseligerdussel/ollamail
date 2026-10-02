@@ -1,0 +1,50 @@
+{{- if .Values.ingress.enabled }}
+{{- $fullname := include "ollamail.fullname" . }}
+{{- $tls := .Values.ingress.tls }}
+{{- if and .Values.ingress.certManager.enabled (not $tls) }}
+{{- $tls = list (dict "secretName" (printf "%s-tls" $fullname) "hosts" .Values.ingress.hosts) }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ $fullname }}
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" . "component" "frontend") | nindent 4 }}
+  {{- if or .Values.ingress.annotations .Values.ingress.certManager.enabled }}
+  annotations:
+    {{- with .Values.ingress.certManager }}
+    {{- if .enabled }}
+    {{- if eq .issuerKind "ClusterIssuer" }}
+    cert-manager.io/cluster-issuer: {{ .issuerName | quote }}
+    {{- else }}
+    cert-manager.io/issuer: {{ .issuerName | quote }}
+    {{- end }}
+    {{- end }}
+    {{- end }}
+    {{- with .Values.ingress.annotations }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+  {{- end }}
+spec:
+  {{- with .Values.ingress.className }}
+  ingressClassName: {{ . }}
+  {{- end }}
+  {{- with $tls }}
+  tls:
+    {{- toYaml . | nindent 4 }}
+  {{- end }}
+  rules:
+    {{- range .Values.ingress.hosts }}
+    - host: {{ . | quote }}
+      http:
+        paths:
+          # Everything goes to the frontend; it serves the UI and proxies /api.
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ $fullname }}-frontend
+                port:
+                  name: http
+    {{- end }}
+{{- end }}

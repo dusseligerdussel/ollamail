@@ -1,0 +1,20 @@
+# PostgreSQL 16 with pgvector via the CloudNativePG operator (https://cloudnative-pg.io).
+# Install the operator first, then apply this in the namespace of ollamail and install the
+# chart with --set database.cloudnativepg.cluster=ollamail-db (docs/operations/kubernetes.md).
+apiVersion: postgresql.cnpg.io/v1
+kind: Cluster
+metadata:
+  name: ollamail-db
+spec:
+  instances: 1
+  # "standard" images contain pgvector.
+  imageName: ghcr.io/cloudnative-pg/postgresql:16.15-standard-trixie
+  storage:
+    size: 20Gi
+  bootstrap:
+    initdb:
+      database: ollamail
+      owner: ollamail
+      # The application user is no superuser; the migration needs the extension.
+      postInitApplicationSQL:
+        - CREATE EXTENSION IF NOT EXISTS vector

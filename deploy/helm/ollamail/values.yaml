@@ -1,0 +1,349 @@
+# Default values for the ollamail chart. Documentation: docs/operations/kubernetes.md
+# Application settings (OLLAMAIL_*) are described in deploy/.env.example.
+
+nameOverride: ""
+fullnameOverride: ""
+
+# -----------------------------------------------------------------------------
+# Images (GHCR, multi-arch amd64/arm64, see deploy/README.md#images)
+# -----------------------------------------------------------------------------
+image:
+  # Used by api, worker, the migration job and the Helm test.
+  backend:
+    repository: ghcr.io/dusseligerdussel/ollamail-api
+    # Defaults to the chart's appVersion.
+    tag: ""
+  frontend:
+    repository: ghcr.io/dusseligerdussel/ollamail-frontend
+    tag: ""
+  # Empty: "Always" for the moving tags latest/edge, otherwise "IfNotPresent".
+  pullPolicy: ""
+
+# Needed while the GHCR packages are private, e.g.
+#   kubectl create secret docker-registry ghcr --docker-server=ghcr.io \
+#     --docker-username=<github-user> --docker-password=<PAT with read:packages>
+# imagePullSecrets: [{name: ghcr}]
+imagePullSecrets: []
+
+# -----------------------------------------------------------------------------
+# Secrets: the chart never creates secret values itself.
+# -----------------------------------------------------------------------------
+secrets:
+  # Required. Existing Secret (plain, Sealed Secrets, External Secrets Operator, ...)
+  # whose keys are passed to api, worker and the migration job as environment variables.
+  # Must contain OLLAMAIL_SECRET_KEY (`openssl rand -base64 32`); may contain every other
+  # sensitive setting: OLLAMAIL_DATABASE_URL, OLLAMAIL_SECRET_KEYS_OLD, OLLAMAIL_SETUP_TOKEN,
+  # OLLAMAIL_LLM_API_KEY, OLLAMAIL_LLM_ENDPOINTS, OLLAMAIL_AUTH_OIDC_PROVIDERS,
+  # OLLAMAIL_MAIL_GRAPH_CLIENT_SECRET, OLLAMAIL_GMAIL_CLIENT_SECRET, ...
+  existingSecret: ""
+
+# -----------------------------------------------------------------------------
+# Database: PostgreSQL 16 with the pgvector extension (required)
+# -----------------------------------------------------------------------------
+# Exactly one source for OLLAMAIL_DATABASE_URL (postgresql+asyncpg://...):
+#   1. default: the key OLLAMAIL_DATABASE_URL in secrets.existingSecret
+#   2. database.existingSecret / existingSecretKey: another Secret holding the full URL
+#   3. database.cloudnativepg.cluster: a CloudNativePG cluster in the same namespace
+#   4. database.external.host: URL built from host, port, name, user and a password Secret
+database:
+  existingSecret: ""
+  existingSecretKey: OLLAMAIL_DATABASE_URL
+  cloudnativepg:
+    # Name of a CloudNativePG `Cluster` (see deploy/helm/examples/cnpg-cluster.yaml).
+    # Uses the service <cluster>-rw and the generated Secret <cluster>-app.
+    cluster: ""
+  external:
+    host: ""
+    port: 5432
+    name: ollamail
+    user: ollamail
+    # Secret and key holding the password. Use URL-safe characters or option 2.
+    passwordSecret: ""
+    passwordSecretKey: password
+
+# -----------------------------------------------------------------------------
+# Application settings (non-secret), see deploy/.env.example
+# -----------------------------------------------------------------------------
+# Rendered as environment variables of api, worker and the migration job. Maps and lists
+# are passed as JSON. Secret settings (keys, tokens, passwords, client secrets, the
+# database URL) are rejected here: put them into secrets.existingSecret.
+config:
+  OLLAMAIL_LOG_LEVEL: INFO
+  OLLAMAIL_LOG_FORMAT: json
+  # Public URL of the web UI (OIDC redirect URIs), e.g. https://mail.example.com
+  # OLLAMAIL_AUTH_PUBLIC_URL: ""
+  # External LLM endpoint instead of the bundled Ollama, e.g. vLLM:
+  # OLLAMAIL_LLM_PROVIDER: openai_compatible
+  # OLLAMAIL_LLM_BASE_URL: http://vllm.llm.svc.cluster.local:8000/v1
+  # OLLAMAIL_LLM_PROFILE: cpu
+
+# Additional environment variables (EnvVar objects) for api, worker and the migration job.
+extraEnv: []
+# Additional envFrom sources (e.g. a second Secret or ConfigMap).
+extraEnvFrom: []
+# Additional volumes and mounts for api and worker, e.g. a Gmail service account key
+# (OLLAMAIL_GMAIL_SERVICE_ACCOUNT_FILE) or a CA bundle for a mail server (SSL_CERT_FILE).
+extraVolumes: []
+extraVolumeMounts: []
+
+serviceAccount:
+  create: true
+  # Defaults to the full name of the release.
+  name: ""
+  annotations: {}
+
+# Pod and container security for api, worker, frontend, migration job and test
+# (images run as UID/GID 10001).
+podSecurityContext:
+  runAsNonRoot: true
+  runAsUser: 10001
+  runAsGroup: 10001
+  fsGroup: 10001
+  fsGroupChangePolicy: OnRootMismatch
+  seccompProfile:
+    type: RuntimeDefault
+containerSecurityContext:
+  allowPrivilegeEscalation: false
+  readOnlyRootFilesystem: true
+  capabilities:
+    drop: [ALL]
+
+# -----------------------------------------------------------------------------
+# api (FastAPI)
+# -----------------------------------------------------------------------------
+api:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8000
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 1Gi
+  startupProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 3
+    failureThreshold: 30
+  livenessProbe:
+    httpGet:
+      path: /healthz
+      port: http
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  # /readyz checks the database (and the LLM with OLLAMAIL_LLM_READINESS_CHECK=true).
+  readinessProbe:
+    httpGet:
+      path: /readyz
+      port: http
+    periodSeconds: 10
+    timeoutSeconds: 5
+    failureThreshold: 3
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+
+# -----------------------------------------------------------------------------
+# worker (Procrastinate, python -m app.worker)
+# -----------------------------------------------------------------------------
+worker:
+  # Seconds running jobs get after SIGTERM (OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT); must be
+  # lower than terminationGracePeriodSeconds.
+  shutdownTimeout: 30
+  terminationGracePeriodSeconds: 45
+  # Defaults for every group below.
+  concurrency: 4
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      memory: 2Gi
+  # The worker has no HTTP endpoint; set an exec probe here if needed.
+  livenessProbe: {}
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+  # One Deployment per group (<release>-worker-<name>). Queues: sync, llm, tts, default;
+  # every queue must be consumed by at least one group. Per group: name, replicaCount,
+  # queues, concurrency, llmMaxConcurrency (OLLAMAIL_LLM_MAX_CONCURRENCY), config (extra
+  # settings), resources, nodeSelector, tolerations, affinity, topologySpreadConstraints,
+  # podAnnotations, podLabels. A list, so your own groups replace the default one.
+  # Example: LLM jobs on a separate GPU node pool
+  #   groups:
+  #     - name: main
+  #       queues: [sync, tts, default]
+  #     - name: llm
+  #       replicaCount: 2
+  #       queues: [llm]
+  #       llmMaxConcurrency: 8
+  #       nodeSelector: {node-pool: gpu}
+  groups:
+    - name: all
+      replicaCount: 1
+      queues: [sync, llm, tts, default]
+
+# -----------------------------------------------------------------------------
+# frontend (static UI + reverse proxy /api -> api, Caddy)
+# -----------------------------------------------------------------------------
+frontend:
+  replicaCount: 1
+  service:
+    type: ClusterIP
+    port: 8080
+  resources:
+    requests:
+      cpu: 50m
+      memory: 32Mi
+    limits:
+      memory: 128Mi
+  livenessProbe:
+    httpGet:
+      path: /
+      port: http
+    periodSeconds: 10
+    timeoutSeconds: 3
+  readinessProbe:
+    httpGet:
+      path: /
+      port: http
+    periodSeconds: 5
+    timeoutSeconds: 3
+  podAnnotations: {}
+  podLabels: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  topologySpreadConstraints: []
+
+# -----------------------------------------------------------------------------
+# Database migrations (alembic upgrade head) as Helm hook before install/upgrade
+# -----------------------------------------------------------------------------
+migrations:
+  enabled: true
+  backoffLimit: 6
+  activeDeadlineSeconds: 900
+  # Service account of the job. It runs before the chart's own ServiceAccount exists,
+  # so it uses the namespace's default account unless an existing one is named here.
+  serviceAccountName: ""
+  resources:
+    requests:
+      cpu: 100m
+      memory: 256Mi
+    limits:
+      memory: 512Mi
+
+# -----------------------------------------------------------------------------
+# Data volume (/data: attachments, audio digests, TTS voices, exports)
+# -----------------------------------------------------------------------------
+# Shared by api and all workers. With more than one node use ReadWriteMany (NFS, CephFS,
+# EFS, Azure Files, ...) or keep all pods on one node; ReadWriteOnce only works when every
+# pod runs on the same node.
+persistence:
+  enabled: true
+  existingClaim: ""
+  storageClass: ""
+  accessModes: [ReadWriteOnce]
+  size: 20Gi
+  annotations: {}
+
+# -----------------------------------------------------------------------------
+# Ingress (to the frontend; /api is proxied by the frontend)
+# -----------------------------------------------------------------------------
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts:
+    - ollamail.example.com
+  # Explicit TLS entries; with certManager.enabled and an empty list one entry for all
+  # hosts is created (secret <release>-tls).
+  tls: []
+  #  - secretName: ollamail-tls
+  #    hosts: [ollamail.example.com]
+  certManager:
+    enabled: false
+    issuerName: ""
+    # ClusterIssuer or Issuer
+    issuerKind: ClusterIssuer
+
+# -----------------------------------------------------------------------------
+# Optional Ollama server (otherwise point OLLAMAIL_LLM_BASE_URL to an external one)
+# -----------------------------------------------------------------------------
+ollama:
+  enabled: false
+  image:
+    repository: ollama/ollama
+    tag: "0.35.0"
+    pullPolicy: IfNotPresent
+  service:
+    port: 11434
+  resources:
+    requests:
+      cpu: "1"
+      memory: 4Gi
+    limits:
+      memory: 16Gi
+  gpu:
+    # Requests GPUs from the device plugin (resourceName) for the Ollama pod.
+    enabled: false
+    resourceName: nvidia.com/gpu
+    count: 1
+  runtimeClassName: ""
+  extraEnv: []
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}
+  podAnnotations: {}
+  podSecurityContext:
+    runAsNonRoot: true
+    runAsUser: 10001
+    runAsGroup: 10001
+    fsGroup: 10001
+    fsGroupChangePolicy: OnRootMismatch
+    seccompProfile:
+      type: RuntimeDefault
+  containerSecurityContext:
+    allowPrivilegeEscalation: false
+    readOnlyRootFilesystem: true
+    capabilities:
+      drop: [ALL]
+  persistence:
+    enabled: true
+    existingClaim: ""
+    storageClass: ""
+    accessModes: [ReadWriteOnce]
+    size: 50Gi
+
+# -----------------------------------------------------------------------------
+# NetworkPolicies (needs a CNI that enforces them)
+# -----------------------------------------------------------------------------
+networkPolicy:
+  enabled: false
+  frontend:
+    # Peers (NetworkPolicyPeer) allowed to reach the frontend, e.g. the ingress
+    # controller's namespace. Empty: from everywhere.
+    from: []
+  egress:
+    # Restrict outgoing traffic of api, worker and migration job to DNS, the release's
+    # own pods and the rules below. Mail servers, identity providers, LLM endpoints,
+    # the database and the TTS voice download must then be allowed explicitly.
+    enabled: false
+    extraRules: []
+    # - to: [{ipBlock: {cidr: 10.0.0.0/8}}]
+    #   ports: [{port: 5432, protocol: TCP}]
+
+# `helm test`: GET /api/readyz through the frontend must return 200.
+tests:
+  enabled: true
