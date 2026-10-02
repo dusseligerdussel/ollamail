@@ -43,13 +43,7 @@ export function CopyField({
         {label}
       </Label>
       <div className="flex gap-2">
-        <Input
-          id={id}
-          readOnly
-          value={value}
-          className="font-mono text-xs md:text-xs"
-          onFocus={(event) => event.currentTarget.select()}
-        />
+        <Input id={id} readOnly value={value} className="font-mono text-xs md:text-xs" />
         <Button
           type="button"
           variant="outline"
