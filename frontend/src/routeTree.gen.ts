@@ -32,6 +32,7 @@ import { Route as DigestSettingsRouteImport } from './routes/digest_.settings'
 import { Route as SettingsCategoriesRouteImport } from './routes/settings_.categories'
 import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
 import { Route as SettingsSecurityRouteImport } from './routes/settings_.security'
+import { Route as SettingsTaskExportRouteImport } from './routes/settings_.task-export'
 import { Route as AdminSharedMailboxesMailboxIdRouteImport } from './routes/admin_.shared-mailboxes_.$mailboxId'
 import { Route as AdminSharedMailboxesNewRouteImport } from './routes/admin_.shared-mailboxes_.new'
 import { Route as SettingsMailboxesNewRouteImport } from './routes/settings_.mailboxes_.new'
@@ -151,6 +152,11 @@ const SettingsSecurityRoute = SettingsSecurityRouteImport.update({
   path: '/settings/security',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsTaskExportRoute = SettingsTaskExportRouteImport.update({
+  id: '/settings_/task-export',
+  path: '/settings/task-export',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminSharedMailboxesMailboxIdRoute =
   AdminSharedMailboxesMailboxIdRouteImport.update({
     id: '/admin_/shared-mailboxes_/$mailboxId',
@@ -192,6 +198,7 @@ export interface FileRoutesByFullPath {
   '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/security': typeof SettingsSecurityRoute
+  '/settings/task-export': typeof SettingsTaskExportRoute
   '/admin/shared-mailboxes/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
   '/admin/shared-mailboxes/new': typeof AdminSharedMailboxesNewRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
@@ -220,6 +227,7 @@ export interface FileRoutesByTo {
   '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/security': typeof SettingsSecurityRoute
+  '/settings/task-export': typeof SettingsTaskExportRoute
   '/admin/shared-mailboxes/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
   '/admin/shared-mailboxes/new': typeof AdminSharedMailboxesNewRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
@@ -249,6 +257,7 @@ export interface FileRoutesById {
   '/settings_/categories': typeof SettingsCategoriesRoute
   '/settings_/mailboxes': typeof SettingsMailboxesRoute
   '/settings_/security': typeof SettingsSecurityRoute
+  '/settings_/task-export': typeof SettingsTaskExportRoute
   '/admin_/shared-mailboxes_/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
   '/admin_/shared-mailboxes_/new': typeof AdminSharedMailboxesNewRoute
   '/settings_/mailboxes_/new': typeof SettingsMailboxesNewRoute
@@ -279,6 +288,7 @@ export interface FileRouteTypes {
     | '/settings/categories'
     | '/settings/mailboxes'
     | '/settings/security'
+    | '/settings/task-export'
     | '/admin/shared-mailboxes/$mailboxId'
     | '/admin/shared-mailboxes/new'
     | '/settings/mailboxes/new'
@@ -307,6 +317,7 @@ export interface FileRouteTypes {
     | '/settings/categories'
     | '/settings/mailboxes'
     | '/settings/security'
+    | '/settings/task-export'
     | '/admin/shared-mailboxes/$mailboxId'
     | '/admin/shared-mailboxes/new'
     | '/settings/mailboxes/new'
@@ -335,6 +346,7 @@ export interface FileRouteTypes {
     | '/settings_/categories'
     | '/settings_/mailboxes'
     | '/settings_/security'
+    | '/settings_/task-export'
     | '/admin_/shared-mailboxes_/$mailboxId'
     | '/admin_/shared-mailboxes_/new'
     | '/settings_/mailboxes_/new'
@@ -364,6 +376,7 @@ export interface RootRouteChildren {
   SettingsCategoriesRoute: typeof SettingsCategoriesRoute
   SettingsMailboxesRoute: typeof SettingsMailboxesRoute
   SettingsSecurityRoute: typeof SettingsSecurityRoute
+  SettingsTaskExportRoute: typeof SettingsTaskExportRoute
   AdminSharedMailboxesMailboxIdRoute: typeof AdminSharedMailboxesMailboxIdRoute
   AdminSharedMailboxesNewRoute: typeof AdminSharedMailboxesNewRoute
   SettingsMailboxesNewRoute: typeof SettingsMailboxesNewRoute
@@ -532,6 +545,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsSecurityRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings_/task-export': {
+      id: '/settings_/task-export'
+      path: '/settings/task-export'
+      fullPath: '/settings/task-export'
+      preLoaderRoute: typeof SettingsTaskExportRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/shared-mailboxes_/$mailboxId': {
       id: '/admin_/shared-mailboxes_/$mailboxId'
       path: '/admin/shared-mailboxes/$mailboxId'
@@ -580,6 +600,7 @@ const rootRouteChildren: RootRouteChildren = {
   SettingsCategoriesRoute: SettingsCategoriesRoute,
   SettingsMailboxesRoute: SettingsMailboxesRoute,
   SettingsSecurityRoute: SettingsSecurityRoute,
+  SettingsTaskExportRoute: SettingsTaskExportRoute,
   AdminSharedMailboxesMailboxIdRoute: AdminSharedMailboxesMailboxIdRoute,
   AdminSharedMailboxesNewRoute: AdminSharedMailboxesNewRoute,
   SettingsMailboxesNewRoute: SettingsMailboxesNewRoute,

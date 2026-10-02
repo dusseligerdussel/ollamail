@@ -41,6 +41,7 @@ dev = [
     "mypy>=1.10",
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
+    "radicale>=3.5",
     "respx>=0.23.1",
     "ruff>=0.5",
     "types-ldap3>=2.9.13.20260827",

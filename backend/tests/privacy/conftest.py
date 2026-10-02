@@ -24,6 +24,7 @@ from app.processing.models import MailboxProcessingSettings, MessageProcessing, 
 from app.rag.models import RagCitation, RagConversation, RagMessage, RagRole
 from app.scim.models import ScimGroup, ScimUser, scim_group_members
 from app.search.models import ChunkSource, SearchChunk, SearchEmbedding
+from app.todos.export.models import TodoExportTarget
 from app.todos.models import Todo
 from app.triage.models import (
     TriageCategory,
@@ -149,7 +150,14 @@ async def seed_user_data(
         ts_config="simple",
     )
     conversation = RagConversation(user_id=user_id, title=f"Conversation {marker}")
-    session.add_all([todo, chunk, conversation])
+    export_target = TodoExportTarget(
+        user_id=user_id,
+        sink="caldav",
+        config={"url": "https://dav.example.org/", "username": marker, "password": "x"},
+        list_id=f"/calendars/{marker}/tasks/",
+        list_name=f"Tasks {marker}",
+    )
+    session.add_all([todo, chunk, conversation, export_target])
     await session.flush()
     question = RagMessage(
         conversation_id=conversation.id, position=0, role=RagRole.USER, content=f"Ask {marker}"

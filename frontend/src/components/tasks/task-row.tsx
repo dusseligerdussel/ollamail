@@ -4,6 +4,7 @@ import { type KeyboardEvent, useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import type { Todo } from "@/api/todos";
+import { ExportTaskButton, TaskExportIndicator } from "@/components/task-export/task-export-status";
 import { DueDatePicker } from "@/components/tasks/due-date-picker";
 import { isOptimistic, useTodoMutations } from "@/components/tasks/use-todo-mutations";
 import { Button } from "@/components/ui/button";
@@ -118,20 +119,29 @@ export function TaskRow({
             }}
           />
         ) : (
-          <button
-            ref={titleRef}
-            type="button"
-            data-task-title
-            disabled={pending}
-            onClick={() => onEditingChange(true)}
-            title={t("tasks.rename")}
-            className={cn(
-              "-mx-1 truncate rounded-sm px-1 py-0.5 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
-              done && "text-muted-foreground line-through decoration-muted-foreground/60",
+          <div className="flex min-w-0 items-center gap-1.5">
+            <button
+              ref={titleRef}
+              type="button"
+              data-task-title
+              disabled={pending}
+              onClick={() => onEditingChange(true)}
+              title={t("tasks.rename")}
+              className={cn(
+                "-mx-1 min-w-0 truncate rounded-sm px-1 py-0.5 text-left outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                done && "text-muted-foreground line-through decoration-muted-foreground/60",
+              )}
+            >
+              {todo.title}
+            </button>
+            <TaskExportIndicator todo={todo} />
+            {!pending && (
+              <ExportTaskButton
+                todo={todo}
+                className="-my-1 opacity-0 group-focus-within:opacity-100 group-hover:opacity-100 group-data-active:opacity-100 pointer-coarse:opacity-100 max-sm:opacity-100"
+              />
             )}
-          >
-            {todo.title}
-          </button>
+          </div>
         )}
         {todo.description && !editing && (
           <span className="truncate text-xs text-muted-foreground">{todo.description}</span>

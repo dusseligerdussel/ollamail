@@ -1,7 +1,7 @@
 """add mfa
 
 Revision ID: 1efbd562bd72
-Revises: ff4e75fd2ab8
+Revises: 2183db5869b4
 Create Date: 2026-10-02 11:33:56.359920+00:00
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "1efbd562bd72"
-down_revision: str | Sequence[str] | None = "ff4e75fd2ab8"
+down_revision: str | Sequence[str] | None = "2183db5869b4"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
