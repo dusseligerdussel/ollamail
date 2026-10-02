@@ -22,7 +22,7 @@ from app.mail.providers.base import (
     OutgoingReply,
     SendError,
 )
-from app.mail.providers.imap import ImapProvider
+from app.mail.providers.imap import ImapProvider, parse_ref
 from app.mail.providers.smtp import SmtpTarget, _xoauth2, submit
 from tests.mail import smtp_server
 from tests.mail.imap_server import INSECURE, TestAccount
@@ -208,7 +208,9 @@ async def test_imap_mailbox_sends_via_smtp_and_keeps_a_copy_in_sent(
         [stored] = [e.message for e in events if isinstance(e, MessageFetched)]
         assert stored.raw.replace(b"\r\n", b"\n") == outgoing.raw.replace(b"\r\n", b"\n")
         assert "seen" in stored.flags
-        assert stored.remote_ref == result.remote_ref
+        # Same folder and UID. The UIDVALIDITY of APPENDUID can differ from a later SELECT:
+        # Dovecot rebuilds the index of a mailbox it has just auto-created.
+        assert parse_ref(stored.remote_ref)[::2] == parse_ref(result.remote_ref)[::2]
     finally:
         await imap.aclose()
 
