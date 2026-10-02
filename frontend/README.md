@@ -236,6 +236,9 @@ API und Query-Keys in `src/api/triage.ts`, Komponenten in `src/components/triage
 - **Begründung im Detail** (`TriageReason`): eine Zeile über dem Thread, z. B. „Eingeordnet als
   Handlungsbedarf. <Begründung>“, bei Regeln „…, weil die Nachricht einen Abmeldelink enthält“.
   Rechts daneben öffnet „Kategorie ändern“ ein Menü zum Korrigieren.
+  Können die Kategorien nicht geladen werden, steht dort ein Hinweis mit „Erneut versuchen“;
+  die Mail bleibt lesbar. Bedingt gemountete Kinder bekommen die Kategorien als Prop statt eines
+  eigenen `useCategories()` (jeder Mount auf eine fehlgeschlagene Query startet eine neue Anfrage, #86).
 - **Korrektur:** Klick (Menü), Command Palette („Einordnen als …“) oder `c` → Kategorieauswahl, dort
   wählen die Ziffern `1`–`9` direkt (zwei Tastendrücke). Die Priorität bleibt erhalten.
 - **Inbox nach Kategorie:** Auswahl „Ansicht“ im Seitenkopf bzw. Suchparameter `category`

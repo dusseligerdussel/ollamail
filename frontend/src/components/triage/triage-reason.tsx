@@ -1,8 +1,8 @@
-import { Check } from "lucide-react";
+import { Check, CircleAlert } from "lucide-react";
 import type { ReactNode } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
-import type { Triage } from "@/api/triage";
+import type { Category, Triage } from "@/api/triage";
 import { KeyHint } from "@/components/key-hint";
 import { Button } from "@/components/ui/button";
 import {
@@ -17,7 +17,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
 
 import { CHANGE_CATEGORY_KEYS, useCorrectCategory } from "./triage-controls";
-import { useCategories, useCategoryName, useMessageTriage } from "./use-triage";
+import { useCategoryName, useMessageTriage } from "./use-triage";
 
 const RULES = new Set([
   "list_unsubscribe",
@@ -34,8 +34,12 @@ const RULES = new Set([
 export function TriageReason({ messageId }: { messageId: string }) {
   const { t } = useTranslation();
   const categoryName = useCategoryName();
-  const { triage, category, isPending } = useMessageTriage(messageId);
+  const { triage, category, categories, isPending } = useMessageTriage(messageId);
 
+  // The message stays readable without categories; retrying is up to the user.
+  if (categories.isError) {
+    return <CategoriesError onRetry={() => void categories.refetch()} />;
+  }
   if (isPending) return <Skeleton className="h-5 w-72 max-w-full" />;
 
   let text: ReactNode;
@@ -83,16 +87,51 @@ export function TriageReason({ messageId }: { messageId: string }) {
           <span className="text-foreground"> · {t("triage.highPriority")}</span>
         )}
       </p>
-      <CategoryMenu messageId={messageId} triage={category ? triage : undefined} />
+      <CategoryMenu
+        messageId={messageId}
+        triage={category ? triage : undefined}
+        categories={categories.visible}
+      />
     </div>
   );
 }
 
-function CategoryMenu({ messageId, triage }: { messageId: string; triage: Triage | undefined }) {
+function CategoriesError({ onRetry }: { onRetry: () => void }) {
+  const { t } = useTranslation();
+  return (
+    <div
+      data-testid="triage-reason"
+      className="flex items-start gap-3 px-1 text-ui text-muted-foreground"
+    >
+      <p role="alert" className="flex min-w-0 flex-1 items-start gap-2 py-0.5">
+        <CircleAlert aria-hidden="true" className="mt-0.5 size-4 shrink-0 text-destructive" />
+        {t("triage.categoriesError")}
+      </p>
+      <Button
+        variant="ghost"
+        size="xs"
+        className="-my-0.5 shrink-0 text-muted-foreground"
+        onClick={onRetry}
+      >
+        {t("triage.retry")}
+      </Button>
+    </div>
+  );
+}
+
+/** Gets the categories as a prop: it mounts and unmounts with the skeleton above (#86). */
+function CategoryMenu({
+  messageId,
+  triage,
+  categories,
+}: {
+  messageId: string;
+  triage: Triage | undefined;
+  categories: Category[];
+}) {
   const { t } = useTranslation();
   const categoryName = useCategoryName();
   const hasKeyboard = useMediaQuery(mediaQueries.keyboard);
-  const { visible } = useCategories();
   const correct = useCorrectCategory(messageId, triage);
 
   return (
@@ -112,7 +151,7 @@ function CategoryMenu({ messageId, triage }: { messageId: string; triage: Triage
           {t("triage.picker.title")}
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {visible.map((category) => (
+        {categories.map((category) => (
           <DropdownMenuItem key={category.id} onSelect={() => correct(category)}>
             <span className="flex-1">{categoryName(category)}</span>
             {category.id === triage?.category_id && (
