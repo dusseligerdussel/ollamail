@@ -1261,6 +1261,8 @@
     "noMailboxesDescription": "Search covers all synced messages and attachments of a connected mailbox.",
     "detailHint": "Select a result or source to open the message at the matching passage. <0></0> / <1></1> moves between results.",
     "detailHintTouch": "Select a result or source to open the message at the matching passage.",
+    "ocr": "(OCR)",
+    "ocrHint": "Text recognised from a scan (OCR), may contain reading errors",
     "shortcuts": {
       "open": "Open result"
     },
