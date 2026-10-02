@@ -38,20 +38,22 @@ export function MfaEnforcementSection({ value }: { value: MfaEnforcement }) {
             </p>
           )}
         </div>
-        <NativeSelect
-          id="sign-in-mfa-enforcement"
-          size="sm"
-          className="w-full sm:w-60"
-          value={current}
-          disabled={change.isPending}
-          onChange={(event) => change.mutate(event.target.value as MfaEnforcement)}
-        >
-          {OPTIONS.map((option) => (
-            <NativeSelectOption key={option} value={option}>
-              {t(`pages.signIn.mfa.options.${option}`)}
-            </NativeSelectOption>
-          ))}
-        </NativeSelect>
+        <div className="w-full shrink-0 sm:w-60">
+          <NativeSelect
+            id="sign-in-mfa-enforcement"
+            size="sm"
+            className="w-full"
+            value={current}
+            disabled={change.isPending}
+            onChange={(event) => change.mutate(event.target.value as MfaEnforcement)}
+          >
+            {OPTIONS.map((option) => (
+              <NativeSelectOption key={option} value={option}>
+                {t(`pages.signIn.mfa.options.${option}`)}
+              </NativeSelectOption>
+            ))}
+          </NativeSelect>
+        </div>
       </div>
     </AdminSection>
   );
