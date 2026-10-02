@@ -144,7 +144,7 @@ test("keyboard: j/k, Enter, u and Esc", async ({ page }) => {
   await page.keyboard.press("Enter");
   await expect(page).toHaveURL(new RegExp(`message=${messageId(0)}`));
   await expect(
-    page.getByRole("heading", { level: 1, name: "Abstimmung Quartalsplanung" }),
+    page.getByRole("heading", { level: 2, name: "Abstimmung Quartalsplanung" }),
   ).toBeVisible();
   // Opening marked it read; u marks it unread again.
   await expect(page.getByRole("button", { name: "Mark as unread" })).toBeVisible();

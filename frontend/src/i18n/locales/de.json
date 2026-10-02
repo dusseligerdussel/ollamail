@@ -1145,6 +1145,7 @@
     "shortcuts": {
       "new": "Neue Aufgabe",
       "toggleDone": "Aufgabe erledigen oder wieder öffnen",
+      "done": "Aufgabe erledigen",
       "date": "Fälligkeitsdatum ändern"
     },
     "export": {

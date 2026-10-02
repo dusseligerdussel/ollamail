@@ -1145,6 +1145,7 @@
     "shortcuts": {
       "new": "New task",
       "toggleDone": "Mark task as done or open",
+      "done": "Mark task as done",
       "date": "Change due date"
     },
     "export": {

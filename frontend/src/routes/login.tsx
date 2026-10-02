@@ -11,6 +11,7 @@ import { type MfaChallenge, signInWithPasskey } from "@/api/mfa";
 import { EnrollStep, SecondFactorStep } from "@/components/auth/second-factor";
 import { FormError, FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { supportedLanguages } from "@/i18n";
 import { isWebauthnAbort, webauthnSupported } from "@/lib/webauthn";
 
@@ -113,6 +114,7 @@ function LoginPage() {
     setExpired(afterExpiry);
   }
 
+  useDocumentTitle(challenge ? undefined : t("auth.login.title"));
   if (challenge) {
     const Step = challenge.status === "mfa_enrollment_required" ? EnrollStep : SecondFactorStep;
     return (

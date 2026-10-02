@@ -7,6 +7,7 @@ import { createFirstAdmin, setSignedIn, type User } from "@/api/auth";
 import { describeApiError, isApiError } from "@/api/errors";
 import { FormError, FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { supportedLanguages } from "@/i18n";
 import { browserTimeZone } from "@/lib/time-zones";
 
@@ -27,6 +28,7 @@ function SetupPage() {
 
 function SetupForm({ onDone }: { onDone: (admin: User) => void }) {
   const { t, i18n } = useTranslation();
+  useDocumentTitle(t("auth.setup.title"));
   const queryClient = useQueryClient();
   const [displayName, setDisplayName] = useState("");
   const [email, setEmail] = useState("");
@@ -135,6 +137,7 @@ function SetupForm({ onDone }: { onDone: (admin: User) => void }) {
 
 function SetupDone({ admin }: { admin: User }) {
   const { t } = useTranslation();
+  useDocumentTitle(t("auth.setup.doneTitle"));
   return (
     <div className="flex flex-col gap-6">
       <div className="flex flex-col gap-1">
