@@ -105,3 +105,15 @@ class OIDCPresetRead(BaseModel):
 class LogoutResult(BaseModel):
     # Where the browser should go to end the IdP session as well; null if not supported.
     redirect_url: str | None
+
+
+class OIDCConnectionTest(BaseModel):
+    ok: bool
+    # Error code (provider_unavailable: discovery or keys not reachable or invalid).
+    error: str | None = None
+    issuer: str | None = None
+    authorization_endpoint: str | None = None
+    token_endpoint: str | None = None
+    # RP-initiated logout (end_session_endpoint) available.
+    end_session_supported: bool = False
+    signing_keys: int = 0

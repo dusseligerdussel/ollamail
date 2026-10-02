@@ -290,6 +290,27 @@ async def test_group_mapping_sets_role(
 
 
 @pytest.mark.ldap
+async def test_central_role_mapping_applies_to_ldap_logins(corp: AsyncClient) -> None:
+    """The admin's group → role rules (#33) are evaluated at every LDAP login, too."""
+    corp.cookies.clear()
+    await login(corp, "admin@example.org")
+    rule = {"group": group_dn("admins").upper(), "provider": "ldap:corp", "role": "admin"}
+    mapping = {"enabled": True, "default_role": "user", "rules": [rule]}
+    assert (await corp.put("/admin/auth/role-mapping", json=mapping)).status_code == 200
+
+    # erika is in admins through the nested group staff; DNs compare case-insensitively.
+    assert (await _ldap_login(corp, "erika")).json()["role"] == "admin"
+
+    corp.cookies.clear()
+    await login(corp, "admin@example.org")
+    rule["group"] = group_dn("other")
+    await corp.put("/admin/auth/role-mapping", json=mapping)
+
+    assert (await _ldap_login(corp, "erika")).json()["role"] == "user"
+    assert (await _ldap_login(corp, "max")).json()["role"] == "admin"
+
+
+@pytest.mark.ldap
 async def test_allowed_groups(corp: AsyncClient, slapd: Slapd) -> None:
     update = _body(slapd, allowed_groups=[group_dn("other")])
     del update["name"], update["bind_password"]

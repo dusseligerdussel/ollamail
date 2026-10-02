@@ -112,9 +112,13 @@
     "admin": {
       "security": "Sicherheit",
       "auditDescription": "Anmeldungen, Rollenänderungen, Schlüsselrotation und weitere Sicherheitsereignisse.",
-      "more": "Benutzer, Anmeldeverfahren und Mail-Provider werden hier verwaltet, sobald diese Bereiche verfügbar sind.",
+      "more": "Mail-Provider werden hier verwaltet, sobald dieser Bereich verfügbar ist.",
       "ai": "Sprachmodelle",
-      "aiDescription": "Provider, Modelle je Aufgabe, Hardware-Profil und Cloud-Freigabe."
+      "aiDescription": "Provider, Modelle je Aufgabe, Hardware-Profil und Cloud-Freigabe.",
+      "access": "Anmeldung und Nutzer",
+      "signInDescription": "Identity-Provider, LDAP-Verzeichnisse und lokale Konten.",
+      "roleMappingDescription": "Rollen aus den Gruppen deines Identity-Providers ableiten.",
+      "usersDescription": "Rollen, Deaktivierung, Sitzungen und Einladungen."
     },
     "audit": {
       "title": "Audit-Log",
@@ -169,7 +173,11 @@
         "user": {
           "created": "Benutzer angelegt",
           "role_changed": "Rolle geändert",
-          "deleted": "Benutzer gelöscht"
+          "deleted": "Benutzer gelöscht",
+          "deactivated": "Benutzer deaktiviert",
+          "reactivated": "Benutzer reaktiviert",
+          "invited": "Benutzer eingeladen",
+          "password_set": "Passwort gesetzt"
         },
         "idp": {
           "config_changed": "Anmeldeverfahren geändert"
@@ -316,6 +324,227 @@
         "saved": "Einstellungen gespeichert"
       },
       "default": "Standard"
+    },
+    "signIn": {
+      "title": "Anmeldung",
+      "back": "Zurück zum Admin-Bereich",
+      "addProvider": "Anbieter hinzufügen",
+      "methods": "Anmeldeverfahren",
+      "local": "Lokale Konten",
+      "localDescription": "E-Mail-Adresse und Passwort, in ollamail gespeichert.",
+      "enabled": "Aktiv",
+      "disabled": "Deaktiviert",
+      "fromEnvironment": "Umgebung",
+      "enable": "Aktivieren",
+      "disable": "Deaktivieren",
+      "adminAccess_one": "Zurzeit kann sich {{count}} Admin anmelden.",
+      "adminAccess_other": "Zurzeit können sich {{count}} Admins anmelden.",
+      "emergency": "Notfallzugang, falls jede Anmeldung scheitert: <code>python -m app.cli reset-password</code> im api-Container.",
+      "emptyProviders": "Noch kein Identity-Provider. Füge Microsoft Entra ID, Google, OpenID Connect oder LDAP hinzu, damit sich alle mit ihrem bestehenden Konto anmelden können.",
+      "kinds": {
+        "oidc": "OpenID Connect",
+        "ldap": "LDAP / Active Directory",
+        "github": "GitHub",
+        "local": "Lokales Konto",
+        "other": "Sonstige"
+      },
+      "disableLocal": {
+        "title": "Lokale Anmeldung deaktivieren?",
+        "description": "Danach melden sich alle nur noch über einen Identity-Provider an. Lokale Passwörter bleiben gespeichert und funktionieren wieder, sobald die lokale Anmeldung aktiv ist.",
+        "selfWarning": "Du meldest dich zurzeit nur mit einem lokalen Konto an. Stelle sicher, dass du dich über einen Identity-Provider anmelden kannst, sonst sperrst du dich aus.",
+        "lockout": "Nicht möglich: Danach könnte sich kein Admin mehr anmelden. Gib zuerst einem Admin Zugang über einen aktiven Identity-Provider.",
+        "confirm": "Lokale Anmeldung deaktivieren",
+        "cancel": "Abbrechen"
+      },
+      "lockout": "Nicht möglich: Danach könnte sich kein Admin mehr anmelden.",
+      "provider": {
+        "type": "Typ",
+        "key": "Kennung",
+        "issuer": "Issuer",
+        "clientId": "Client-ID",
+        "servers": "Server",
+        "baseDn": "Suchbasis Benutzer",
+        "redirectUri": "Redirect-URI",
+        "redirectUriHint": "Trage diese Adresse beim Identity-Provider als Redirect-URI (Plattform Web) ein.",
+        "readOnly": "In der Umgebung konfiguriert (OLLAMAIL_AUTH_OIDC_PROVIDERS); Änderungen dort vornehmen.",
+        "test": "Verbindung testen",
+        "testing": "Teste…",
+        "testOk": "Verbindung funktioniert.",
+        "testOkOidc": "Discovery-Dokument und {{count}} Signaturschlüssel geladen.",
+        "testFailed": "Verbindung fehlgeschlagen: {{error}}",
+        "testSecretHint": "Das Client-Secret wird bei der ersten echten Anmeldung geprüft.",
+        "serverOk": "{{latency}} ms",
+        "lookup": "Benutzer suchen",
+        "lookupLabel": "Benutzername",
+        "lookupNotFound": "Kein solcher Benutzer im Verzeichnis.",
+        "lookupResult": "{{name}} · {{email}}",
+        "lookupGroups_one": "{{count}} Gruppe",
+        "lookupGroups_other": "{{count}} Gruppen",
+        "lookupNotAllowed": "Darf sich nicht anmelden (erlaubte Gruppen).",
+        "remove": "Entfernen",
+        "removeConfirm": "Endgültig entfernen",
+        "removeHint": "Nutzer bleiben erhalten, können sich aber nicht mehr über diesen Anbieter anmelden.",
+        "changed": "Anbieter geändert",
+        "removed": "Anbieter entfernt",
+        "server": "Server",
+        "organizations": "Organisationen",
+        "githubCheck": "GitHub bietet keinen Verbindungstest: Client-ID, Secret und Organisationszugehörigkeit werden bei der ersten Anmeldung geprüft."
+      },
+      "wizard": {
+        "title": "Anbieter hinzufügen",
+        "step": "Schritt {{step}} von 3",
+        "chooseType": "Womit melden sich deine Leute an?",
+        "back": "Zurück",
+        "next": "Speichern und weiter",
+        "saving": "Speichere…",
+        "activate": "Jetzt aktivieren",
+        "later": "Später aktivieren",
+        "done": "Anbieter aktiviert",
+        "notAvailable": "Noch nicht verfügbar",
+        "presets": {
+          "entra": "Microsoft Entra ID",
+          "entraDescription": "Microsoft-365-Arbeitskonten",
+          "google": "Google Workspace",
+          "googleDescription": "Konten deiner Workspace-Domain",
+          "github": "GitHub",
+          "githubDescription": "Mitglieder deiner Organisation",
+          "oidc": "OpenID Connect",
+          "oidcDescription": "Keycloak, Authentik und weitere Anbieter",
+          "ldap": "LDAP / Active Directory",
+          "ldapDescription": "Anmeldung mit Benutzername und Passwort aus dem Verzeichnis",
+          "githubEnterprise": "GitHub Enterprise Server"
+        },
+        "fields": {
+          "displayName": "Name auf der Login-Seite",
+          "name": "Kennung",
+          "nameHint": "Kleinbuchstaben, Ziffern und Bindestriche; Teil der Redirect-URI. Später nicht änderbar.",
+          "tenant": "Verzeichnis-ID (Tenant-ID)",
+          "tenantHint": "Übersichtsseite der App-Registrierung in Entra ID.",
+          "hostedDomain": "Workspace-Domain",
+          "hostedDomainHint": "Nur Konten dieser Domain können sich anmelden.",
+          "preset": "Produkt",
+          "issuer": "Issuer-URL",
+          "clientId": "Client-ID",
+          "clientSecret": "Client-Secret",
+          "clientSecretHint": "Wird verschlüsselt gespeichert. Leer lassen für öffentliche Clients (nur PKCE).",
+          "directoryType": "Verzeichnis",
+          "serverUrl": "Server",
+          "serverUrlHint": "Zum Beispiel ldaps://dc1.example.org",
+          "tlsMode": "Verschlüsselung",
+          "bindDn": "Dienstkonto (Bind-DN)",
+          "bindPassword": "Passwort des Dienstkontos",
+          "userBaseDn": "Suchbasis für Benutzer",
+          "organizations": "Erlaubte Organisationen",
+          "organizationsHint": "Namen der Organisationen, durch Kommas getrennt. Leer: Jedes GitHub-Konto kann sich anmelden.",
+          "baseUrl": "URL des GitHub Enterprise Servers",
+          "baseUrlHint": "Für github.com leer lassen."
+        },
+        "presetsOidc": {
+          "keycloak": "Keycloak",
+          "authentik": "Authentik",
+          "generic": "Andere (OpenID Connect)"
+        },
+        "directoryTypes": {
+          "active_directory": "Active Directory",
+          "openldap": "OpenLDAP"
+        },
+        "tlsModes": {
+          "ldaps": "LDAPS",
+          "starttls": "StartTLS",
+          "none": "Keine (nur Testumgebungen)"
+        },
+        "verifyOidc": "Trage die Redirect-URI beim Identity-Provider ein und teste dann die Verbindung.",
+        "verifyLdap": "Teste die Verbindung und suche optional einen Benutzer, bevor du das Verzeichnis aktivierst.",
+        "savedDisabled": "Gespeichert, noch nicht aktiv: Niemand kann sich darüber anmelden, bis du es aktivierst.",
+        "verifyGithub": "Trage die Callback-URL in der OAuth-App bei GitHub ein und aktiviere dann den Anbieter."
+      }
+    },
+    "roleMapping": {
+      "title": "Rollen-Zuordnung",
+      "back": "Zurück zum Admin-Bereich",
+      "enabled": "Rollen aus Gruppen ableiten",
+      "enabledDescription": "Bei jeder Anmeldung über einen Identity-Provider wird die Rolle aus den Gruppen bestimmt. Von Hand vergebene Rollen werden für diese Nutzer überschrieben.",
+      "off": "Aus",
+      "on": "An",
+      "defaultRole": "Standardrolle",
+      "defaultRoleDescription": "Für alle, auf die keine Regel zutrifft.",
+      "rules": "Regeln",
+      "rulesHint": "Gruppe so, wie der Anbieter sie meldet: Objekt-ID (Entra ID), Gruppen-DN (LDAP), Gruppenname (OIDC). Groß-/Kleinschreibung egal.",
+      "group": "Gruppe",
+      "provider": "Anbieter",
+      "role": "Rolle",
+      "allProviders": "Alle Anbieter",
+      "addRule": "Regel hinzufügen",
+      "removeRule": "Regel entfernen",
+      "noRules": "Noch keine Regeln. Alle erhalten die Standardrolle.",
+      "save": "Speichern",
+      "saving": "Speichere…",
+      "saved": "Rollen-Zuordnung gespeichert",
+      "lastAdminHint": "Der letzte aktive Admin wird bei der Anmeldung nie herabgestuft.",
+      "duplicate": "Pro Anbieter darf jede Gruppe nur eine Regel haben.",
+      "test": "Ausprobieren",
+      "testDescription": "Welche Rolle bekäme eine Anmeldung mit diesen Gruppen (gespeicherte Regeln)?",
+      "testGroups": "Gruppen, eine pro Zeile",
+      "testRun": "Prüfen",
+      "testResult": "Rolle: {{role}}",
+      "testMatched": "Passende Regeln: {{groups}}",
+      "testNoMatch": "Keine Regel passt; Standardrolle.",
+      "testOff": "Rollen-Zuordnung ist aus; Rollen bleiben, wie sie sind.",
+      "general": "Allgemein"
+    },
+    "users": {
+      "title": "Nutzer",
+      "back": "Zurück zum Admin-Bereich",
+      "invite": "Nutzer einladen",
+      "count_one": "{{count}} Nutzer",
+      "count_other": "{{count}} Nutzer",
+      "columns": {
+        "user": "Nutzer",
+        "role": "Rolle",
+        "signIn": "Anmeldung",
+        "status": "Status",
+        "lastLogin": "Letzte Anmeldung",
+        "actions": "Aktionen"
+      },
+      "status": {
+        "active": "Aktiv",
+        "inactive": "Deaktiviert",
+        "invited": "Eingeladen"
+      },
+      "you": "Du",
+      "never": "Nie",
+      "sessions_one": "{{count}} Sitzung",
+      "sessions_other": "{{count}} Sitzungen",
+      "actionsFor": "Aktionen für {{name}}",
+      "makeAdmin": "Zum Admin machen",
+      "makeUser": "Admin-Rolle entziehen",
+      "deactivate": "Deaktivieren",
+      "reactivate": "Reaktivieren",
+      "revokeSessions": "Überall abmelden",
+      "newInvitation": "Neuer Einladungslink",
+      "updated": "Nutzer geändert",
+      "sessionsRevoked": "Sitzungen beendet",
+      "noMailAccess": "Admins verwalten Konten, sehen aber nie fremde Mails.",
+      "lockout": "Nicht möglich: Danach könnte sich kein Admin mehr anmelden. Mache zuerst einen anderen Nutzer zum Admin.",
+      "roleManaged": "Rollen-Zuordnung ist an: Die Rolle von Nutzern, die sich über einen Identity-Provider anmelden, wird bei der nächsten Anmeldung neu bestimmt.",
+      "self": {
+        "demoteTitle": "Dir selbst die Admin-Rolle entziehen?",
+        "deactivateTitle": "Dein eigenes Konto deaktivieren?",
+        "warning": "Du verlierst sofort den Zugang zum Admin-Bereich und kannst das nicht selbst rückgängig machen.",
+        "confirm": "Fortfahren",
+        "cancel": "Abbrechen"
+      },
+      "inviteSheet": {
+        "title": "Nutzer einladen",
+        "description": "Legt ein lokales Konto an. Gib den Link weiter; die Person setzt ihr Passwort selbst.",
+        "language": "Sprache",
+        "submit": "Einladung erstellen",
+        "submitting": "Erstelle…",
+        "linkTitle": "Einladungslink",
+        "linkDescription": "Gültig bis {{date}}. Er wird nur einmal angezeigt; du kannst jederzeit einen neuen erstellen.",
+        "done": "Fertig",
+        "localDisabled": "Die lokale Anmeldung ist deaktiviert; eingeladene Nutzer könnten sich nicht anmelden."
+      }
     }
   },
   "notFound": {
@@ -376,6 +605,17 @@
       "providersDescription": "Binde Microsoft Entra ID, Google, GitHub oder LDAP an, damit sich andere mit ihrem bestehenden Konto anmelden können. Das geht auch später im Admin-Bereich.",
       "providersAction": "Identity-Provider einrichten",
       "continue": "Weiter zum Posteingang"
+    },
+    "invite": {
+      "title": "Passwort festlegen",
+      "description": "Du wurdest als {{email}} zu ollamail eingeladen.",
+      "loading": "Prüfe Einladung…",
+      "invalid": "Dieser Einladungslink ist ungültig oder abgelaufen. Bitte deinen Admin um einen neuen.",
+      "confirm": "Passwort wiederholen",
+      "mismatch": "Die Passwörter stimmen nicht überein.",
+      "submit": "Passwort festlegen und anmelden",
+      "submitting": "Melde an…",
+      "toLogin": "Zur Anmeldung"
     }
   },
   "account": {
@@ -634,5 +874,10 @@
       "token_exchange_failed": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
       "offline_access_missing": "Dauerhafter Zugriff wurde nicht erlaubt. Bitte versuche es erneut und erlaube ihn."
     }
+  },
+  "copy": {
+    "copy": "Kopieren",
+    "copied": "Kopiert",
+    "label": "{{label}} kopieren"
   }
 }

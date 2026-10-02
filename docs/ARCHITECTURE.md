@@ -847,7 +847,9 @@ wird nur verknüpft, wenn der Provider es erlaubt (`link_by_email`) **und** die 
 verifiziert meldet; sonst 409 (`account-exists`), denn wer ein E-Mail-Attribut im externen
 Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Dazu kommen
 Domain-Allowlist und Abschalten der Kontoanlage je Provider. `role` kommt aus dem Gruppen-Mapping
-des Providers; `None` heißt, der Provider verwaltet keine Rollen. Kontoanlage und Rollenwechsel
+des Providers; `None` heißt, der Provider verwaltet keine Rollen. Ist die zentrale
+Rollen-Zuordnung (#33) aktiv, bestimmt sie die Rolle für alle Provider gleich
+(`app.auth.policy.resolve_role`); der letzte aktive Admin wird dabei nie herabgestuft. Kontoanlage und Rollenwechsel
 landen im Audit-Log. Fehler sind `ProvisioningError` (ein `ProblemError` mit statischem `code`).
 
 **Externe Logins im Browser** (`app/auth/redirect_flow.py`): Der Flow für Redirect-Provider
@@ -881,8 +883,16 @@ HKDF aus `OLLAMAIL_SECRET_KEY` abgeleitet, auf allen API-Instanzen gleich, beim 
 und per `python -m app.cli setup-token` abrufbar). Ein transaktionaler Advisory Lock
 (`pg_advisory_xact_lock`) serialisiert parallele Requests: genau einer gewinnt, alle anderen und
 jeder spätere Versuch erhalten 409. Danach ist die Selbstregistrierung aus
-(`OLLAMAIL_AUTH_LOCAL_REGISTRATION`); Admins legen Konten über `POST /api/users` an.
-Notfallzugang: `python -m app.cli create-admin`.
+(`OLLAMAIL_AUTH_LOCAL_REGISTRATION`); Admins legen Konten über `POST /api/users` an oder laden
+per Link ein (`POST /api/users/invitations`). Notfallzugang: `python -m app.cli reset-password`
+bzw. `create-admin`.
+
+**Admin-Verwaltung** (#33, Details: [`auth/admin.md`](auth/admin.md)): Provider-Assistent mit
+Redirect-URI und Verbindungstest, lokale Anmeldung abschaltbar (`auth_policy`), zentrale
+Gruppen→Rollen-Zuordnung (`auth_role_mapping_rules`, ausgewertet in `provision_user` bei jedem
+externen Login), Nutzerverwaltung (Rolle, Deaktivierung, Sitzungen, Einladungen in
+`auth_invitations`). `app/auth/admin_access.py` erzwingt serverseitig, dass mindestens ein
+aktiver Admin einen funktionierenden Zugang behält (409 `admin-lockout`).
 
 **Login** (`POST /api/auth/login`): Zuerst zählen zwei Fixed-Window-Zähler in Postgres
 (atomares Upsert, vor der Passwortprüfung committet): pro Client-IP (`OLLAMAIL_AUTH_IP_MAX_ATTEMPTS`)
