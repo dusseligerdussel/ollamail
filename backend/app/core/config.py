@@ -346,6 +346,8 @@ class AuthSettings(BaseSettings):
     oidc_allow_insecure_http: bool = False
     # Seconds discovery documents and signing keys (JWKS) are cached.
     oidc_metadata_cache_seconds: int = Field(default=3600, ge=0)
+    # Validity of invitation links for local accounts (admin user list), in hours.
+    invitation_lifetime_hours: int = Field(default=7 * 24, ge=1, le=90 * 24)
 
     @field_validator("public_url")
     @classmethod

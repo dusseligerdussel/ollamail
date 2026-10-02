@@ -55,7 +55,8 @@ Browser ◀── 303 zurück in die App (Session-Cookie) ── ollamail
   `<name>` ist der Kurzname des Providers in ollamail (z. B. `github`). Die Admin-API zeigt die
   fertige URL im Feld `redirect_uri` an.
 - Es gibt keine neuen Umgebungsvariablen. GitHub-Provider werden ausschließlich über die
-  Admin-API gepflegt (verschlüsselt in der Datenbank). Eine Oberfläche dafür folgt mit #33.
+  Admin-API bzw. unter Admin → Anmeldung gepflegt (verschlüsselt in der Datenbank, siehe
+  [`admin.md`](admin.md)).
 
 ## 3. OAuth App anlegen
 
@@ -170,8 +171,9 @@ Die Prüfung läuft bei **jedem** Login serverseitig, nach dem Code-Austausch:
 **Gruppen:** Die Teams des Nutzers werden als `<org>/<team-slug>` (klein geschrieben) in
 `auth_identities.groups` gespeichert, bei jedem Login aktualisiert. Ist eine Beschränkung
 gesetzt, nur Teams der erlaubten Organisationen (bzw. der Organisationen der erlaubten Teams);
-Teams in fremden Organisationen gehen ollamail nichts an. Das Rollen-Mapping (#33) wertet die
-Gruppen aus; dieses Issue speichert sie nur.
+Teams in fremden Organisationen gehen ollamail nichts an. Die Rollen-Zuordnung
+([`admin.md`](admin.md#3-rollen-zuordnung-gruppen--rollen)) wertet diese Gruppen bei jedem
+Login aus.
 
 ## 8. E-Mail-Adresse, Kontoanlage und Verknüpfung
 

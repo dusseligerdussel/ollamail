@@ -23,7 +23,12 @@ export type InvalidationRule = (event: ServerEvent) => QueryKey[];
  * invalidates all queries whose key starts with `[<resource>]`, e.g. `message.synced` →
  * `["message", …]`. Feature modules add entries here, keyed by event type.
  */
-export const invalidationRules: Record<string, InvalidationRule> = {};
+export const invalidationRules: Record<string, InvalidationRule> = {
+  // Sync progress changes the mailbox status and brings new mails into the inbox.
+  "mailbox.sync": () => [["mailbox"], ["message", "list"]],
+  // A removed or reconfigured mailbox changes which mails are listed.
+  "mailbox.changed": () => [["mailbox"], ["message"]],
+};
 
 export function defaultInvalidation(event: ServerEvent): QueryKey[] {
   const resource = event.type.split(".")[0];

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
-import { createFileRoute } from "@tanstack/react-router";
-import { LogOut } from "lucide-react";
+import { createFileRoute, Link } from "@tanstack/react-router";
+import { ChevronRight, LogOut, Mail } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -165,6 +165,21 @@ function SettingsPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
           <AccountSection />
+          <SettingsSection id="settings-mailboxes" title={t("mailboxes.title")} className="mt-8">
+            <Link
+              to="/settings/mailboxes"
+              className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+            >
+              <Mail aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-ui font-medium">{t("mailboxes.manage")}</span>
+                <span className="block text-ui text-muted-foreground">
+                  {t("mailboxes.settingsDescription")}
+                </span>
+              </span>
+              <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            </Link>
+          </SettingsSection>
           <SettingsSection
             id="settings-appearance"
             title={t("pages.settings.appearance")}

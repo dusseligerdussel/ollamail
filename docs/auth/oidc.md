@@ -185,7 +185,9 @@ eine nicht eingecheckte `.env` verwenden.
 
 ## 9. Admin-API
 
-Alle Endpunkte erfordern die Rolle `admin`. Eine Oberfläche dafür folgt mit #33.
+Alle Endpunkte erfordern die Rolle `admin`. Die Oberfläche dafür ist Admin → Anmeldung
+([`admin.md`](admin.md)). Deaktivieren, Ändern und Löschen werden mit 409 (`admin-lockout`)
+abgelehnt, wenn sich danach kein Admin mehr anmelden könnte.
 
 | Methode | Pfad | Zweck |
 |---|---|---|
@@ -237,7 +239,8 @@ verifizierte Adressen. Für Entra ohne `xms_edov` deshalb die Allowlist leer las
 (`tid`) ist dort die Grenze.
 
 **Gruppen** stehen in `auth_identities.groups` (je Identität, maximal 500, Stand des letzten
-Logins). Das Rollen-Mapping (#33) wertet sie aus; dieses Issue speichert sie nur.
+Logins). Die Rollen-Zuordnung ([`admin.md`](admin.md#3-rollen-zuordnung-gruppen--rollen)) wertet
+sie bei jedem Login aus; bei Entra ID sind es die Objekt-IDs der Gruppen.
 
 ## 11. Abmelden
 

@@ -259,6 +259,7 @@ und `delete_mailbox`; sie baut nichts davon nach.
 | `GET /mailboxes/{id}/status` | Nur der Sync-Status |
 | `POST /mailboxes/{id}/sync` | Sync sofort anstoßen (202, `queued`); 409, wenn pausiert |
 | `GET/PATCH /mailboxes/{id}/folders` | Ordner mit Auswahl und Status je Ordner; Auswahl setzen |
+| `GET /mailboxes/providers` | Postfachtypen, die sich auf dieser Instanz anlegen lassen: `credentials` (Formular, z. B. IMAP) oder `oauth` mit `oauth_start_path`. OAuth-Typen erscheinen nur, wenn der Provider registriert und sein OAuth-Client konfiguriert ist (`app/mail/api/providers.py`, ein Eintrag je Provider) |
 
 - **Zugriff:** ausschließlich über `app/mail/api/access.py` (`get_mailbox`, `visible_to`,
   Berechtigungen `read`/`sync`/`manage`). Heute nur der Besitzer; #34 erweitert diese Funktionen
@@ -283,6 +284,29 @@ und `delete_mailbox`; sie baut nichts davon nach.
   (der Start der API hängt nicht an der Queue) und schließt sie beim Shutdown.
 - **Audit:** `mailbox.created` und `mailbox.deleted` (über `delete_mailbox`) mit dem Nutzer als
   Akteur, in derselben Transaktion wie die Änderung.
+
+#### Mail-Lese-API (`backend/app/mail/api/messages.py`)
+
+Grundlage der Inbox (#16). Zugriff wie bei der Postfach-API über `access.visible_to`: Mails fremder
+Postfächer antworten 404.
+
+| Endpunkt | Zweck |
+|---|---|
+| `GET /messages` | Eine Zeile je Mail, neueste zuerst, Keyset-Paging (`cursor`, `limit` ≤ 200), `total` für die virtualisierte Liste. Filter: `mailbox_id`, `folder_id` (ohne: Ordner mit Rolle `inbox`), `unread`. Ohne Bodies; nur ein Snippet aus `body_main` |
+| `GET /messages/{id}/thread` | Konversation der Mail, älteste zuerst (höchstens die neuesten 100), mit Empfängern, Text, sanitisiertem HTML (`body.html`, `body.blocked_images`) und Anhängen |
+| `GET /messages/{id}/body?external_images=true` | HTML mit externen Bildern – erst, wenn der Nutzer sie für diese Mail anfordert |
+| `PATCH /messages/{id}` | `{"seen": bool}`: gelesen/ungelesen. Sofort gespeichert, Event `message.updated`, Job `mail.write_flags` schreibt die Flags auf den Server |
+| `GET /messages/{id}/attachments/{attachment_id}` | Download (`Content-Disposition: attachment`, `application/octet-stream`, `nosniff`, CSP `sandbox`). `?inline=true` nur für PNG/JPEG/GIF/WebP (`cid:`-Bilder im HTML) |
+
+- **HTML:** immer serverseitig mit `sanitize_html` bereinigt; das Roh-HTML verlässt den Server nie.
+  `cid:`-Bilder zeigen auf `/api/messages/{id}/attachments/{aid}?inline=true`.
+- **Gelesen/ungelesen:** Quelle ist der gespeicherte Flag-Satz. `mail.write_flags` (Queue `sync`,
+  Lock je Mail) schreibt beim Ausführen den aktuellen Stand per `MailProvider.set_flags`; dauerhafte
+  Fehler (Mail weg, nur Lesezugriff, Anmeldung) werden als Code geloggt und verworfen,
+  Verbindungsfehler wiederholt.
+- **Anzeige im Frontend:** sandboxed `iframe` (`srcdoc`, ohne `allow-scripts`) mit eigener CSP
+  (`default-src 'none'`, Bilder nur `'self'`/`data:` bis zum Klick auf „Bilder laden“), siehe
+  `frontend/README.md`.
 
 ### 3.2 LLM-Provider
 
@@ -827,7 +851,9 @@ wird nur verknüpft, wenn der Provider es erlaubt (`link_by_email`) **und** die 
 verifiziert meldet; sonst 409 (`account-exists`), denn wer ein E-Mail-Attribut im externen
 Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Dazu kommen
 Domain-Allowlist und Abschalten der Kontoanlage je Provider. `role` kommt aus dem Gruppen-Mapping
-des Providers; `None` heißt, der Provider verwaltet keine Rollen. Kontoanlage und Rollenwechsel
+des Providers; `None` heißt, der Provider verwaltet keine Rollen. Ist die zentrale
+Rollen-Zuordnung (#33) aktiv, bestimmt sie die Rolle für alle Provider gleich
+(`app.auth.policy.resolve_role`); der letzte aktive Admin wird dabei nie herabgestuft. Kontoanlage und Rollenwechsel
 landen im Audit-Log. Fehler sind `ProvisioningError` (ein `ProblemError` mit statischem `code`).
 
 **Externe Logins im Browser** (`app/auth/redirect_flow.py`): Der Flow für Redirect-Provider
@@ -861,8 +887,16 @@ HKDF aus `OLLAMAIL_SECRET_KEY` abgeleitet, auf allen API-Instanzen gleich, beim 
 und per `python -m app.cli setup-token` abrufbar). Ein transaktionaler Advisory Lock
 (`pg_advisory_xact_lock`) serialisiert parallele Requests: genau einer gewinnt, alle anderen und
 jeder spätere Versuch erhalten 409. Danach ist die Selbstregistrierung aus
-(`OLLAMAIL_AUTH_LOCAL_REGISTRATION`); Admins legen Konten über `POST /api/users` an.
-Notfallzugang: `python -m app.cli create-admin`.
+(`OLLAMAIL_AUTH_LOCAL_REGISTRATION`); Admins legen Konten über `POST /api/users` an oder laden
+per Link ein (`POST /api/users/invitations`). Notfallzugang: `python -m app.cli reset-password`
+bzw. `create-admin`.
+
+**Admin-Verwaltung** (#33, Details: [`auth/admin.md`](auth/admin.md)): Provider-Assistent mit
+Redirect-URI und Verbindungstest, lokale Anmeldung abschaltbar (`auth_policy`), zentrale
+Gruppen→Rollen-Zuordnung (`auth_role_mapping_rules`, ausgewertet in `provision_user` bei jedem
+externen Login), Nutzerverwaltung (Rolle, Deaktivierung, Sitzungen, Einladungen in
+`auth_invitations`). `app/auth/admin_access.py` erzwingt serverseitig, dass mindestens ein
+aktiver Admin einen funktionierenden Zugang behält (409 `admin-lockout`).
 
 **Login** (`POST /api/auth/login`): Zuerst zählen zwei Fixed-Window-Zähler in Postgres
 (atomares Upsert, vor der Passwortprüfung committet): pro Client-IP (`OLLAMAIL_AUTH_IP_MAX_ATTEMPTS`)

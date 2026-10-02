@@ -7,6 +7,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     DateTime,
+    Enum,
     ForeignKey,
     Integer,
     LargeBinary,
@@ -14,11 +15,13 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    true,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
+from app.users.models import UserRole
 
 LOCAL_PROVIDER = "local"
 
@@ -80,3 +83,60 @@ rate_limits = Table(
     Column("window_start", DateTime(timezone=True), nullable=False, index=True),
     Column("hits", Integer, nullable=False),
 )
+
+
+def _role_column() -> Enum:
+    # Same representation as ``users.role`` (VARCHAR + CHECK).
+    return Enum(
+        UserRole,
+        name="user_role",
+        native_enum=False,
+        create_constraint=True,
+        length=16,
+        values_callable=lambda members: [member.value for member in members],
+    )
+
+
+class AuthPolicy(Base):
+    """Instance-wide sign-in settings (admin UI, #33). At most one row; missing means
+    defaults (``app.auth.policy.get_policy``)."""
+
+    __tablename__ = "auth_policy"
+    __table_args__ = (CheckConstraint("singleton", name="singleton"),)
+
+    # Always true; the unique constraint allows only one row.
+    singleton: Mapped[bool] = mapped_column(server_default=true(), default=True, unique=True)
+    # Sign-in with local accounts (e-mail + password). Can only be switched off while
+    # another admin access works (app.auth.admin_access).
+    local_login_enabled: Mapped[bool] = mapped_column(server_default=true(), default=True)
+    # Derive the role of external users from their groups at every login.
+    role_mapping_enabled: Mapped[bool] = mapped_column(default=False)
+    # Role of external users no mapping rule matches (role mapping on).
+    default_role: Mapped[UserRole] = mapped_column(_role_column(), default=UserRole.USER)
+
+
+class RoleMappingRule(Base):
+    """Group → role rule: members of ``group`` (at ``provider``, or any provider if null)
+    get ``role``. The highest matching role wins; group names compare case-insensitively.
+    """
+
+    __tablename__ = "auth_role_mapping_rules"
+
+    # Group as the provider reports it: Entra group object ID, LDAP group DN, OIDC group name.
+    group: Mapped[str] = mapped_column(String(255))
+    # Provider key (``oidc:entra``, ``ldap:corp``); null applies to all providers.
+    provider: Mapped[str | None] = mapped_column(String(64))
+    role: Mapped[UserRole] = mapped_column(_role_column())
+
+
+class Invitation(Base):
+    """Invitation link for a local account without password. Only the SHA-256 of the
+    token is stored; accepting it sets the password and deletes the row."""
+
+    __tablename__ = "auth_invitations"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), unique=True
+    )
+    token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True)
+    expires_at: Mapped[datetime] = mapped_column(index=True)

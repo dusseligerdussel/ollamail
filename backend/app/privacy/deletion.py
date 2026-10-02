@@ -16,6 +16,7 @@ from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
+from app.auth.admin_access import AdminAccessGuard
 from app.core.errors import ProblemError
 from app.core.logging import get_logger
 from app.digest.storage import DigestStorage
@@ -68,11 +69,13 @@ async def delete_user(
     *,
     actor: audit.Actor,
     via: str,
+    access_guard: AdminAccessGuard | None = None,
 ) -> DeletionResult | None:
     """Hard-delete a user and everything they own, commit, then remove their files.
 
     ``via`` (``self``, ``admin``) goes into the audit entry. Returns ``None`` if the user
-    does not exist; raises 409 for the last active admin.
+    does not exist; raises 409 for the last active admin and, with ``access_guard``, if no
+    admin who can sign in would be left (``admin-lockout``).
     """
     user = await session.get(User, user_id, with_for_update=True)
     if user is None:
@@ -83,6 +86,8 @@ async def delete_user(
         await session.scalars(select(Mailbox.id).where(Mailbox.owner_user_id == user_id))
     )
     await session.execute(delete(User).where(User.id == user_id))
+    if access_guard is not None:
+        await access_guard.check()
     await audit.record(
         session,
         actor,

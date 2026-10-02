@@ -1,4 +1,4 @@
-"""LDAP login and directory administration (admin only; the admin UI follows in #33)."""
+"""LDAP login and directory administration (admin only; admin UI: Admin → Sign-in)."""
 
 import asyncio
 from typing import Annotated, Any
@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.auth import service
+from app.auth.admin_access import AdminAccessGuard
 from app.auth.dependencies import AdminSessionDep, SettingsDep
 from app.auth.providers.ldap import service as ldap_service
 from app.auth.providers.ldap.client import LdapError
@@ -219,22 +220,33 @@ async def get_directory(name: str, _: AdminSessionDep, db: DbDep) -> LdapDirecto
     return _read(await _directory(db, name))
 
 
-@router.put("/{name}", responses={**_NOT_FOUND, 422: {"description": "Invalid settings"}})
+_LOCKOUT: dict[int | str, dict[str, Any]] = {
+    409: {"description": "No administrator could sign in afterwards (admin-lockout)"}
+}
+
+
+@router.put(
+    "/{name}",
+    responses={**_NOT_FOUND, **_LOCKOUT, 422: {"description": "Invalid settings"}},
+)
 async def update_directory(
     name: str,
     body: LdapDirectoryUpdate,
     admin: AdminSessionDep,
+    request: Request,
     db: DbDep,
     settings: SettingsDep,
 ) -> LdapDirectoryRead:
     """Replace the configuration. Without ``bind_password`` the stored one is kept."""
     ldap_service.check_transport_security(settings.auth, body.settings)
+    guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
     directory = await _directory(db, name)
     directory.display_name = body.display_name
     directory.enabled = body.enabled
     directory.settings = body.settings.model_dump(mode="json")
     if body.bind_password is not None:
         directory.bind_password = body.bind_password
+    await guard.check()
     await _config_changed(db, admin.user_id, directory.id, "updated")
     await db.commit()
     await db.refresh(directory)
@@ -242,12 +254,18 @@ async def update_directory(
     return _read(directory)
 
 
-@router.delete("/{name}", status_code=status.HTTP_204_NO_CONTENT, responses=_NOT_FOUND)
-async def delete_directory(name: str, admin: AdminSessionDep, db: DbDep) -> Response:
+@router.delete(
+    "/{name}", status_code=status.HTTP_204_NO_CONTENT, responses={**_NOT_FOUND, **_LOCKOUT}
+)
+async def delete_directory(
+    name: str, admin: AdminSessionDep, request: Request, db: DbDep
+) -> Response:
     """Remove the directory and all sign-in links through it (the users stay)."""
+    guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
     directory = await _directory(db, name)
     directory_id = directory.id
     await ldap_service.delete_directory(db, directory)
+    await guard.check()
     await _config_changed(db, admin.user_id, directory_id, "deleted")
     await db.commit()
     log.info("ldap_directory_deleted", directory_id=directory_id, by_user_id=admin.user_id)

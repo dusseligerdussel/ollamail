@@ -581,6 +581,160 @@
         "title": "ActorKind",
         "type": "string"
       },
+      "AddressRead": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "title": "AddressRead",
+        "type": "object"
+      },
+      "AdminAccess": {
+        "properties": {
+          "own_providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Own Providers",
+            "type": "array"
+          },
+          "usable_admins": {
+            "title": "Usable Admins",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "usable_admins",
+          "own_providers"
+        ],
+        "title": "AdminAccess",
+        "type": "object"
+      },
+      "AdminUserRead": {
+        "description": "A user in the admin list: account data and sign-in state, never mailbox data.",
+        "properties": {
+          "active_sessions": {
+            "title": "Active Sessions",
+            "type": "integer"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "invitation_pending": {
+            "title": "Invitation Pending",
+            "type": "boolean"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "last_login_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Login At"
+          },
+          "providers": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Providers",
+            "type": "array"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "timezone": {
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "email",
+          "display_name",
+          "role",
+          "language",
+          "timezone",
+          "is_active",
+          "created_at",
+          "last_login_at",
+          "providers",
+          "invitation_pending",
+          "active_sessions"
+        ],
+        "title": "AdminUserRead",
+        "type": "object"
+      },
+      "AdminUserUpdate": {
+        "description": "Changes by an admin; omitted fields stay. Refused (409) if no admin could sign in\nafterwards.",
+        "properties": {
+          "is_active": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Active"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "title": "AdminUserUpdate",
+        "type": "object"
+      },
       "AnswerStatus": {
         "enum": [
           "answered",
@@ -725,6 +879,47 @@
         "title": "AskRequest",
         "type": "object"
       },
+      "AttachmentRead": {
+        "properties": {
+          "content_type": {
+            "title": "Content Type",
+            "type": "string"
+          },
+          "filename": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Filename"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_inline": {
+            "title": "Is Inline",
+            "type": "boolean"
+          },
+          "size": {
+            "title": "Size",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "filename",
+          "content_type",
+          "size",
+          "is_inline"
+        ],
+        "title": "AttachmentRead",
+        "type": "object"
+      },
       "AuditAction": {
         "enum": [
           "auth.setup_completed",
@@ -734,6 +929,10 @@
           "auth.session_revoked",
           "user.created",
           "user.role_changed",
+          "user.deactivated",
+          "user.reactivated",
+          "user.invited",
+          "user.password_set",
           "user.deleted",
           "idp.config_changed",
           "ai.settings_changed",
@@ -980,6 +1179,53 @@
           "providers"
         ],
         "title": "AuthProviders",
+        "type": "object"
+      },
+      "AuthSettingsRead": {
+        "properties": {
+          "admin_access": {
+            "$ref": "#/components/schemas/AdminAccess"
+          },
+          "local_login_enabled": {
+            "title": "Local Login Enabled",
+            "type": "boolean"
+          },
+          "local_registration": {
+            "title": "Local Registration",
+            "type": "boolean"
+          },
+          "provider_kinds": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Provider Kinds",
+            "type": "array"
+          }
+        },
+        "required": [
+          "local_login_enabled",
+          "local_registration",
+          "provider_kinds",
+          "admin_access"
+        ],
+        "title": "AuthSettingsRead",
+        "type": "object"
+      },
+      "AuthSettingsUpdate": {
+        "properties": {
+          "local_login_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Local Login Enabled"
+          }
+        },
+        "title": "AuthSettingsUpdate",
         "type": "object"
       },
       "AutodiscoverRequest": {
@@ -2877,6 +3123,90 @@
         "title": "InboxMessage",
         "type": "object"
       },
+      "InvitationAccept": {
+        "properties": {
+          "password": {
+            "maxLength": 1024,
+            "minLength": 1,
+            "title": "Password",
+            "type": "string"
+          },
+          "token": {
+            "maxLength": 128,
+            "minLength": 16,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token",
+          "password"
+        ],
+        "title": "InvitationAccept",
+        "type": "object"
+      },
+      "InvitationInfo": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "display_name",
+          "expires_at"
+        ],
+        "title": "InvitationInfo",
+        "type": "object"
+      },
+      "InvitationIssued": {
+        "properties": {
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "invite_url": {
+            "title": "Invite Url",
+            "type": "string"
+          },
+          "user": {
+            "$ref": "#/components/schemas/AdminUserRead"
+          }
+        },
+        "required": [
+          "user",
+          "invite_url",
+          "expires_at"
+        ],
+        "title": "InvitationIssued",
+        "type": "object"
+      },
+      "InvitationLookup": {
+        "properties": {
+          "token": {
+            "maxLength": 128,
+            "minLength": 16,
+            "title": "Token",
+            "type": "string"
+          }
+        },
+        "required": [
+          "token"
+        ],
+        "title": "InvitationLookup",
+        "type": "object"
+      },
       "LLMTask": {
         "description": "Features that use an LLM; each can be assigned its own endpoint and model.",
         "enum": [
@@ -3509,6 +3839,39 @@
         "title": "MailboxDeleted",
         "type": "object"
       },
+      "MailboxProviderRead": {
+        "description": "A mailbox type that can be added on this instance.",
+        "properties": {
+          "connect": {
+            "enum": [
+              "credentials",
+              "oauth"
+            ],
+            "title": "Connect",
+            "type": "string"
+          },
+          "oauth_start_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Oauth Start Path"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MailboxType"
+          }
+        },
+        "required": [
+          "type",
+          "connect"
+        ],
+        "title": "MailboxProviderRead",
+        "type": "object"
+      },
       "MailboxRead": {
         "properties": {
           "address": {
@@ -3738,6 +4101,350 @@
           }
         },
         "title": "MailboxUpdate",
+        "type": "object"
+      },
+      "MessageBody": {
+        "description": "Sanitised HTML of a message. External images are removed unless requested.",
+        "properties": {
+          "blocked_images": {
+            "title": "Blocked Images",
+            "type": "integer"
+          },
+          "html": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Html"
+          }
+        },
+        "required": [
+          "html",
+          "blocked_images"
+        ],
+        "title": "MessageBody",
+        "type": "object"
+      },
+      "MessageDetail": {
+        "properties": {
+          "attachments": {
+            "items": {
+              "$ref": "#/components/schemas/AttachmentRead"
+            },
+            "title": "Attachments",
+            "type": "array"
+          },
+          "body": {
+            "$ref": "#/components/schemas/MessageBody"
+          },
+          "cc": {
+            "items": {
+              "$ref": "#/components/schemas/AddressRead"
+            },
+            "title": "Cc",
+            "type": "array"
+          },
+          "date": {
+            "format": "date-time",
+            "title": "Date",
+            "type": "string"
+          },
+          "flagged": {
+            "title": "Flagged",
+            "type": "boolean"
+          },
+          "has_attachments": {
+            "title": "Has Attachments",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "reply_to": {
+            "items": {
+              "$ref": "#/components/schemas/AddressRead"
+            },
+            "title": "Reply To",
+            "type": "array"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AddressRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "to": {
+            "items": {
+              "$ref": "#/components/schemas/AddressRead"
+            },
+            "title": "To",
+            "type": "array"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "mailbox_id",
+          "thread_id",
+          "subject",
+          "sender",
+          "snippet",
+          "date",
+          "unread",
+          "flagged",
+          "has_attachments",
+          "to",
+          "cc",
+          "reply_to",
+          "sent_at",
+          "text",
+          "body",
+          "attachments"
+        ],
+        "title": "MessageDetail",
+        "type": "object"
+      },
+      "MessagePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/MessageSummary"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "next_cursor",
+          "total"
+        ],
+        "title": "MessagePage",
+        "type": "object"
+      },
+      "MessageSummary": {
+        "description": "One row of the inbox list.",
+        "properties": {
+          "date": {
+            "format": "date-time",
+            "title": "Date",
+            "type": "string"
+          },
+          "flagged": {
+            "title": "Flagged",
+            "type": "boolean"
+          },
+          "has_attachments": {
+            "title": "Has Attachments",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AddressRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "unread": {
+            "title": "Unread",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "id",
+          "mailbox_id",
+          "thread_id",
+          "subject",
+          "sender",
+          "snippet",
+          "date",
+          "unread",
+          "flagged",
+          "has_attachments"
+        ],
+        "title": "MessageSummary",
+        "type": "object"
+      },
+      "MessageUpdate": {
+        "properties": {
+          "seen": {
+            "title": "Seen",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "seen"
+        ],
+        "title": "MessageUpdate",
+        "type": "object"
+      },
+      "OIDCConnectionTest": {
+        "properties": {
+          "authorization_endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Authorization Endpoint"
+          },
+          "end_session_supported": {
+            "default": false,
+            "title": "End Session Supported",
+            "type": "boolean"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "issuer": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Issuer"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "signing_keys": {
+            "default": 0,
+            "title": "Signing Keys",
+            "type": "integer"
+          },
+          "token_endpoint": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Token Endpoint"
+          }
+        },
+        "required": [
+          "ok"
+        ],
+        "title": "OIDCConnectionTest",
         "type": "object"
       },
       "OIDCPreset": {
@@ -4900,6 +5607,178 @@
         "title": "RetentionValues",
         "type": "object"
       },
+      "RoleMappingRead": {
+        "properties": {
+          "default_role": {
+            "$ref": "#/components/schemas/UserRole"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "rules": {
+            "items": {
+              "$ref": "#/components/schemas/RoleMappingRuleRead"
+            },
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "default_role",
+          "rules"
+        ],
+        "title": "RoleMappingRead",
+        "type": "object"
+      },
+      "RoleMappingRuleFields": {
+        "properties": {
+          "group": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Group",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_-]*(:[a-z0-9_-]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        },
+        "required": [
+          "group",
+          "role"
+        ],
+        "title": "RoleMappingRuleFields",
+        "type": "object"
+      },
+      "RoleMappingRuleRead": {
+        "properties": {
+          "group": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Group",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "pattern": "^[a-z][a-z0-9_-]*(:[a-z0-9_-]+)?$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole"
+          }
+        },
+        "required": [
+          "group",
+          "role",
+          "id"
+        ],
+        "title": "RoleMappingRuleRead",
+        "type": "object"
+      },
+      "RoleMappingTest": {
+        "properties": {
+          "groups": {
+            "default": [],
+            "items": {
+              "maxLength": 255,
+              "minLength": 1,
+              "type": "string"
+            },
+            "maxItems": 500,
+            "title": "Groups",
+            "type": "array"
+          },
+          "provider": {
+            "pattern": "^[a-z][a-z0-9_-]*(:[a-z0-9_-]+)?$",
+            "title": "Provider",
+            "type": "string"
+          }
+        },
+        "required": [
+          "provider"
+        ],
+        "title": "RoleMappingTest",
+        "type": "object"
+      },
+      "RoleMappingTestResult": {
+        "properties": {
+          "matched_groups": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Matched Groups",
+            "type": "array"
+          },
+          "role": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/UserRole"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "role",
+          "matched_groups"
+        ],
+        "title": "RoleMappingTestResult",
+        "type": "object"
+      },
+      "RoleMappingUpdate": {
+        "description": "Replaces the mapping (all rules).",
+        "properties": {
+          "default_role": {
+            "$ref": "#/components/schemas/UserRole",
+            "default": "user"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "rules": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/RoleMappingRuleFields"
+            },
+            "maxItems": 200,
+            "title": "Rules",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled"
+        ],
+        "title": "RoleMappingUpdate",
+        "type": "object"
+      },
       "SenderRuleCreate": {
         "properties": {
           "category_id": {
@@ -5326,6 +6205,47 @@
           "blocked"
         ],
         "title": "TaskSettingRead",
+        "type": "object"
+      },
+      "ThreadRead": {
+        "description": "A conversation, oldest message first. A message without thread is its own thread.",
+        "properties": {
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/MessageDetail"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          }
+        },
+        "required": [
+          "thread_id",
+          "mailbox_id",
+          "subject",
+          "messages"
+        ],
+        "title": "ThreadRead",
         "type": "object"
       },
       "TlsMode": {
@@ -5828,6 +6748,47 @@
           "mailboxes"
         ],
         "title": "UserDeletionResult",
+        "type": "object"
+      },
+      "UserInvite": {
+        "description": "A local account that sets its own password via an invitation link.",
+        "properties": {
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "email": {
+            "maxLength": 320,
+            "title": "Email",
+            "type": "string"
+          },
+          "language": {
+            "default": "en",
+            "enum": [
+              "de",
+              "en"
+            ],
+            "title": "Language",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/UserRole",
+            "default": "user"
+          },
+          "timezone": {
+            "default": "UTC",
+            "maxLength": 64,
+            "title": "Timezone",
+            "type": "string"
+          }
+        },
+        "required": [
+          "email",
+          "display_name"
+        ],
+        "title": "UserInvite",
         "type": "object"
       },
       "UserRead": {
@@ -6412,6 +7373,9 @@
           "404": {
             "description": "Unknown provider"
           },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
+          },
           "422": {
             "content": {
               "application/json": {
@@ -6520,6 +7484,9 @@
           },
           "404": {
             "description": "Unknown provider"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
           },
           "422": {
             "description": "Invalid settings"
@@ -6666,7 +7633,7 @@
             "description": "Unknown provider"
           },
           "409": {
-            "description": "Configured in the environment"
+            "description": "Configured in the environment, or admin lockout"
           },
           "422": {
             "content": {
@@ -6778,13 +7745,257 @@
             "description": "Unknown provider"
           },
           "409": {
-            "description": "Configured in the environment"
+            "description": "Configured in the environment, or admin lockout"
           },
           "422": {
             "description": "Invalid settings"
           }
         },
         "summary": "Update Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/oidc/providers/{name}/test": {
+      "post": {
+        "description": "Fetch the discovery document and signing keys (bypassing the cache), as a login\nwould. The client secret can only be checked by a real login.",
+        "operationId": "admin_test_oidc_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OIDCConnectionTest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Oidc Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/role-mapping": {
+      "get": {
+        "description": "Group → role rules, applied at every login with an external provider.",
+        "operationId": "admin_get_role_mapping",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMappingRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "Get Role Mapping",
+        "tags": [
+          "admin"
+        ]
+      },
+      "put": {
+        "description": "Replace the mapping. Takes effect at each user's next login; the last active admin\nis never demoted by it.",
+        "operationId": "admin_update_role_mapping",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleMappingUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMappingRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "description": "Duplicate rules"
+          }
+        },
+        "summary": "Update Role Mapping",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/role-mapping/test": {
+      "post": {
+        "description": "Which role a login with these groups would get under the saved mapping.",
+        "operationId": "admin_test_role_mapping",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RoleMappingTest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RoleMappingTestResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Test Role Mapping",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/settings": {
+      "get": {
+        "description": "Sign-in settings and which admins can currently sign in (counts only).",
+        "operationId": "admin_get_auth_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "Get Auth Settings",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "Switch local login on or off. Switching it off is refused (409) unless another\nadmin access (external provider) keeps working.",
+        "operationId": "admin_update_auth_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AuthSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AuthSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Auth Settings",
         "tags": [
           "admin"
         ]
@@ -7374,6 +8585,108 @@
         ]
       }
     },
+    "/auth/invitations/accept": {
+      "post": {
+        "description": "Set the password of the invited account and sign in.",
+        "operationId": "auth_accept_invitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationAccept"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UserRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Local login is disabled"
+          },
+          "404": {
+            "description": "Invalid or expired invitation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        },
+        "summary": "Accept Invitation",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/invitations/lookup": {
+      "post": {
+        "description": "Who the invitation is for (shown on the \"set password\" page).",
+        "operationId": "auth_lookup_invitation",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InvitationLookup"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationInfo"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "403": {
+            "description": "Local login is disabled"
+          },
+          "404": {
+            "description": "Invalid or expired invitation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        },
+        "summary": "Lookup Invitation",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/ldap/directories": {
       "get": {
         "description": "All configured directories (without bind passwords).",
@@ -7475,6 +8788,9 @@
           },
           "404": {
             "description": "No such directory"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
           },
           "422": {
             "content": {
@@ -7584,6 +8900,9 @@
           },
           "404": {
             "description": "No such directory"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
           },
           "422": {
             "description": "Invalid settings"
@@ -7711,7 +9030,7 @@
     },
     "/auth/login": {
       "post": {
-        "description": "Sign in with a local account.",
+        "description": "Sign in with a local account (unless an admin switched local login off).",
         "operationId": "auth_login",
         "requestBody": {
           "content": {
@@ -7736,6 +9055,9 @@
           },
           "401": {
             "description": "Wrong credentials"
+          },
+          "403": {
+            "description": "Local login is disabled"
           },
           "422": {
             "content": {
@@ -8953,6 +10275,35 @@
         ]
       }
     },
+    "/mailboxes/providers": {
+      "get": {
+        "description": "Mailbox types that can be added on this instance and how they are connected.\nOAuth types appear only if their OAuth client is configured.",
+        "operationId": "mailboxes_list_mailbox_providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MailboxProviderRead"
+                  },
+                  "title": "Response Mailboxes List Mailbox Providers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Mailbox Providers",
+        "tags": [
+          "mailboxes"
+        ]
+      }
+    },
     "/mailboxes/test": {
       "post": {
         "description": "Connect and list the folders without saving anything. A failed test is a normal\nresult (``ok: false`` with an error code), not an HTTP error.",
@@ -9355,6 +10706,355 @@
         "summary": "Sync Mailbox",
         "tags": [
           "mailboxes"
+        ]
+      }
+    },
+    "/messages": {
+      "get": {
+        "description": "Messages of the user's mailboxes, newest first, one row per message. Pages with\n``cursor``; ``total`` counts all matching messages.",
+        "operationId": "messages_list_messages",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "mailbox_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Mailbox Id"
+            }
+          },
+          {
+            "description": "Default: the inbox folders of all mailboxes",
+            "in": "query",
+            "name": "folder_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Default: the inbox folders of all mailboxes",
+              "title": "Folder Id"
+            }
+          },
+          {
+            "description": "Only unread (true) or read (false)",
+            "in": "query",
+            "name": "unread",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "type": "boolean"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Only unread (true) or read (false)",
+              "title": "Unread"
+            }
+          },
+          {
+            "in": "query",
+            "name": "cursor",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 200,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 100,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessagePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Invalid cursor"
+          }
+        },
+        "summary": "List Messages",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}": {
+      "patch": {
+        "description": "Mark read or unread. Stored at once, written back to the server by a job.",
+        "operationId": "messages_update_message",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageSummary"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Message",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}/attachments/{attachment_id}": {
+      "get": {
+        "description": "The attachment file. Downloaded (``Content-Disposition: attachment``) unless\n``inline=true`` and it is a raster image (for ``cid:`` images in the mail).",
+        "operationId": "messages_download_attachment",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "attachment_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Attachment Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "inline",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Inline",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/octet-stream": {}
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Download Attachment",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}/body": {
+      "get": {
+        "description": "Sanitised HTML; with ``external_images=true`` remote images are kept (the user\nchose to load them for this message).",
+        "operationId": "messages_get_message_body",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "external_images",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "External Images",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageBody"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Message Body",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}/thread": {
+      "get": {
+        "description": "The conversation of a message, oldest first (at most the newest 100 messages).\nHTML comes sanitised with external images removed.",
+        "operationId": "messages_get_thread",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ThreadRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Thread",
+        "tags": [
+          "messages"
         ]
       }
     },
@@ -11364,7 +13064,7 @@
     },
     "/users": {
       "get": {
-        "description": "All users, ordered by e-mail address.",
+        "description": "All users, ordered by e-mail address, with their sign-in methods.",
         "operationId": "users_list_users",
         "responses": {
           "200": {
@@ -11372,7 +13072,7 @@
               "application/json": {
                 "schema": {
                   "items": {
-                    "$ref": "#/components/schemas/UserRead"
+                    "$ref": "#/components/schemas/AdminUserRead"
                   },
                   "title": "Response Users List Users",
                   "type": "array"
@@ -11438,6 +13138,225 @@
           }
         },
         "summary": "Create User",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/invitations": {
+      "post": {
+        "description": "Create a local account without password and return a one-time invitation link.",
+        "operationId": "users_invite_user",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UserInvite"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "E-mail address taken or local login disabled"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Invite User",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{user_id}": {
+      "patch": {
+        "description": "Change role or active state. Deactivating ends all sessions of the user.",
+        "operationId": "users_update_user",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AdminUserUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AdminUserRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such user"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update User",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{user_id}/invitation": {
+      "post": {
+        "description": "New invitation link for an invited user who has not set a password yet (the old\nlink stops working).",
+        "operationId": "users_reissue_invitation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvitationIssued"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such user"
+          },
+          "409": {
+            "description": "The user already has a password"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Reissue Invitation",
+        "tags": [
+          "users"
+        ]
+      }
+    },
+    "/users/{user_id}/sessions": {
+      "delete": {
+        "description": "Sign the user out everywhere (also the admin's own sessions, if it is them).",
+        "operationId": "users_revoke_sessions",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "user_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "User Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such user"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Revoke Sessions",
         "tags": [
           "users"
         ]

@@ -14,9 +14,13 @@ identity; this module decides whether that identity may use the instance:
 The domain allowlist is checked on every login (also for known identities, so narrowing
 it takes effect immediately) and only accepts verified addresses.
 
-Providers that derive the role from groups pass ``role``; it is applied on every login.
-Without it new users get ``user`` and existing users keep their role. Creating a user and
-changing a role are recorded in the audit log (actor ``system``).
+The role is resolved centrally on every login (``app.auth.policy.resolve_role``, #33): with
+the group → role mapping switched on, the admin's rules and default role decide, for all
+providers alike; a role the provider derives itself (``role``, LDAP ``admin_groups``) counts
+as a matching rule. With the mapping off, ``role`` is applied as is; without one new users
+get ``user`` and existing users keep their role. The last active admin is never demoted at
+login (the change is skipped and logged), so a wrong rule cannot lock the instance out.
+Creating a user and changing a role are recorded in the audit log (actor ``system``).
 
 ``ProvisioningError`` is a ``ProblemError``: JSON endpoints (password providers) can let it
 propagate, browser flows (``app.auth.redirect_flow``) use its static ``code``.
@@ -32,7 +36,9 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
+from app.auth.admin_access import other_active_admins
 from app.auth.models import Identity
+from app.auth.policy import resolve_role
 from app.auth.providers.base import VerifiedIdentity
 from app.core.errors import ProblemError
 from app.core.logging import get_logger
@@ -190,6 +196,7 @@ async def provision_user(
     policy = policy or ProvisioningPolicy()
     email = _email(identity)
     _check_domain(policy, identity, email)
+    role = await resolve_role(db, identity.provider, identity.groups, role)
 
     known = await _known(db, identity)
     if known is not None:
@@ -224,6 +231,9 @@ async def _sync_role(
     db: AsyncSession, user: User, identity: VerifiedIdentity, role: UserRole | None
 ) -> None:
     if role is None or user.role == role:
+        return
+    if user.role is UserRole.ADMIN and not await other_active_admins(db, user.id):
+        log.warning("user_role_sync_skipped", user_id=user.id, reason="last_admin")
         return
     log.info("user_role_synced", user_id=user.id, role=role, provider=identity.provider)
     await audit.record(

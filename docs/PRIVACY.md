@@ -13,7 +13,9 @@ Feature, sondern eine Randbedingung für jede Änderung.
 3. **Zweckbindung & Trennung** – Daten eines Nutzers werden nie für einen anderen genutzt
    (keine nutzerübergreifenden Few-Shot-Beispiele, RAG-Zugriff strikt per SQL-Filter).
 4. **Admin ≠ Leser** – Admins verwalten die Instanz, sehen aber **keine fremden Mail-Inhalte**,
-   nur Metadaten (Anzahl, Sync-Status, Fehler) und aggregierte Statistiken.
+   nur Metadaten (Anzahl, Sync-Status, Fehler) und aggregierte Statistiken. Die Nutzerverwaltung
+   (Admin → Nutzer) zeigt nur Kontodaten: Name, Adresse, Rolle, Anmeldeverfahren, Status, letzte
+   Anmeldung und Zahl der Sitzungen.
 5. **Transparenz** – Jede KI-Bewertung (Triage, Todo) ist für den Nutzer erklärbar und korrigierbar.
 
 ## Technische Maßnahmen
@@ -33,6 +35,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. Die eingebaute Telemetrie von ONNX Runtime (von Piper genutzt) ist per `ORT_DISABLE_TELEMETRY=1` abgeschaltet, im Code und im Image (Test: `tests/ai/tts/test_piper.py`) |
 | Triage | Few-Shot-Beispiele nur aus Korrekturen desselben Nutzers in eigenen Postfächern (doppelt gefiltert, Test `tests/triage/test_isolation.py`); Kategorien anderer Nutzer werden nie angeboten. Prompts, Antworten und Begründungen nie in Logs, Fehlercodes statt Exception-Texten. Zurückschreiben aufs Postfach nur nach Opt-in je Postfach |
 | LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename und die Verzeichnis-ID (`objectGUID`/`entryUUID`); Gruppen werden bei jedem Login gelesen, nicht gespeichert. Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
+| Mails anzeigen | HTML serverseitig sanitisiert (`nh3`), im Browser zusätzlich in einem sandboxed `iframe` ohne Skripte mit eigener CSP. Externe Bilder (Tracking-Pixel) sind blockiert, bis der Nutzer sie für eine Mail lädt; dann ohne Referrer. Anhänge nur als Download (`application/octet-stream`, `nosniff`, CSP `sandbox`), inline nur Rasterbilder für `cid:`. Gelesen/ungelesen geht nur nach ausdrücklicher Aktion des Nutzers (Öffnen, `u`) an den Mailserver |
 | Anhänge lesen | Textextraktion (PDF, DOCX, TXT, HTML) in einem eigenen Prozess ohne Umgebungsvariablen (keine Secrets), mit Grenzen für Dateigröße, Laufzeit, Speicher und ohne Schreibrechte; Fehler nur als Statuscode |
 | Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/search/access.py`), getestet in `tests/search/test_service.py` und `tests/rag/` (Nutzer A erfährt nichts aus Mails von Nutzer B, auch nicht mit dessen Postfach als Filter). Mailinhalte stehen im Prompt nur als markierte Daten, die Antwort führt nichts aus; Zitate können nur auf tatsächlich abgerufene Chunks zeigen. Fragen, Antworten und Prompts nie in Logs (nur IDs, Anzahlen, Zeiten wie `ttft_ms`) |
 | Single Sign-on (OIDC) | Gespeichert werden nur `sub` (Identität), Gruppen-Claims (für das Rollen-Mapping) und beim ersten Login E-Mail-Adresse und Name; IdP-Tokens nie. Client-Secrets verschlüsselt. `state`/`nonce`/PKCE-Verifier nur im verschlüsselten Einmal-Cookie. Logs nur mit Provider und statischem Fehlercode, nie Claims oder Tokens |
@@ -133,10 +136,13 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `auth.setup_completed` | Ersteinrichtung (`POST /api/setup`) | aktiv |
 | `auth.login_succeeded`, `auth.login_failed` | Lokaler Login und LDAP (`provider`; Fehlschlag mit `reason`: `invalid_credentials`, `locked`, bei LDAP zusätzlich `user_inactive`, `directory_unavailable`) | aktiv; OIDC mit #30 |
 | `auth.logout`, `auth.session_revoked` | Logout, Beenden eigener Sitzungen | aktiv |
-| `user.created` | Admin legt Nutzer an, Selbstregistrierung, `app.cli create-admin`, JIT-Provisioning beim ersten LDAP-Login | aktiv |
-| `user.role_changed` | Rollen-Sync über LDAP-Gruppen (`admin_groups`) | aktiv; Nutzerverwaltung mit #33 |
+| `user.created` | Admin legt Nutzer an oder lädt ein (`via: invitation`), Selbstregistrierung, `app.cli create-admin`, JIT-Provisioning beim ersten externen Login | aktiv |
+| `user.role_changed` | Nutzerverwaltung (`via: admin`), Rollen-Zuordnung bzw. LDAP-`admin_groups` beim Login (Akteur `system`, `provider`) | aktiv |
+| `user.deactivated`, `user.reactivated` | Nutzerverwaltung (Deaktivieren beendet alle Sitzungen, `details.sessions`); `app.cli reset-password --activate` | aktiv |
+| `user.invited` | Einladung bzw. neuer Einladungslink (`renewed`) | aktiv |
+| `user.password_set` | Einladung angenommen (`via: invitation`), `app.cli reset-password` (`via: cli`) | aktiv |
 | `user.deleted` | Konto löschen (`DELETE /api/privacy/account`, `details.via: self`) und Nutzer löschen durch Admins (`DELETE /api/admin/privacy/users/{id}`, `via: admin`); `details.mailboxes` = Anzahl gelöschter Postfächer | aktiv |
-| `idp.config_changed` | LDAP-Verzeichnis angelegt, geändert, gelöscht (`details.change`) | aktiv; OIDC mit #30 |
+| `idp.config_changed` | LDAP-Verzeichnis bzw. OIDC-Provider angelegt, geändert, gelöscht (`details.change`); lokale Anmeldung an/aus (`kind: local`); Rollen-Zuordnung gespeichert (`kind: role_mapping`, nur Anzahlen) | aktiv |
 | `ai.settings_changed` | KI-Einstellungen im Admin-Bereich: Provider anlegen/ändern/löschen (`details.change`, `provider`, `is_cloud`), Modell-Zuordnung, Profil, Parallelität, Cloud-Freigabe (`details.cloud_enabled`) | aktiv |
 | `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
 | `mailbox.shared` | Shared Mailboxes | geplant (#34) |
@@ -216,7 +222,8 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   (`DELETE /api/privacy/account`, Bestätigung durch Eingabe der eigenen E-Mail-Adresse; per
   `OLLAMAIL_PRIVACY_SELF_DELETE_ENABLED=false` abschaltbar), ein Admin löscht beliebige Nutzer
   (`DELETE /api/admin/privacy/users/{id}`). Der letzte aktive Admin kann nicht gelöscht werden
-  (409). `app/privacy/deletion.py` löscht die Zeile in `users`; alle Tabellen mit Nutzerbezug
+  (409), ebenso kein Admin, ohne den kein Admin mit funktionierender Anmeldung bliebe
+  (`admin-lockout`, `app/auth/admin_access.py`). `app/privacy/deletion.py` löscht die Zeile in `users`; alle Tabellen mit Nutzerbezug
   hängen direkt oder über Postfach, Mail, Gespräch usw. per `ON DELETE CASCADE` daran (Liste
   unten). Nach dem Commit werden die Dateien entfernt: Anhänge je Postfach, Digest-Audio und
   Exporte je Nutzer. Sitzungen enden sofort. Nachweis: ein `user.deleted`-Eintrag nur mit IDs und

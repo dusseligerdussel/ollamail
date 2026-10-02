@@ -11,7 +11,7 @@ from sqlalchemy.pool import NullPool
 
 from app.core.config import DatabaseSettings, MailSettings, Settings, WorkerSettings
 from app.mail import hooks
-from app.mail.sync.tasks import request_sync
+from app.mail.sync.tasks import request_flag_write, request_sync
 from app.worker import app, background_services, build_connector
 
 
@@ -46,6 +46,18 @@ async def test_request_sync_queues_one_job_per_mailbox(queue: None) -> None:
     )
     assert {job.queue for job in jobs} == {"sync"}
     assert {job.lock for job in jobs} == {f"mailbox:{first}", f"mailbox:{second}"}
+
+
+@pytest.mark.db
+async def test_request_flag_write_serialises_jobs_per_message(queue: None) -> None:
+    message_id = uuid.uuid4()
+    await request_flag_write(message_id)
+    await request_flag_write(message_id)
+
+    jobs = await app.job_manager.list_jobs_async(task="mail.write_flags")
+    assert [job.task_kwargs["message_id"] for job in jobs] == [str(message_id)] * 2
+    assert {job.lock for job in jobs} == {f"message_flags:{message_id}"}
+    assert {job.queue for job in jobs} == {"sync"}
 
 
 async def test_watcher_runs_only_in_sync_workers() -> None:

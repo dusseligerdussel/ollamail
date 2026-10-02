@@ -236,6 +236,97 @@ export interface paths {
         patch: operations["admin_update_oidc_provider"];
         trace?: never;
     };
+    "/admin/auth/oidc/providers/{name}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Oidc Provider
+         * @description Fetch the discovery document and signing keys (bypassing the cache), as a login
+         *     would. The client secret can only be checked by a real login.
+         */
+        post: operations["admin_test_oidc_provider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/role-mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Role Mapping
+         * @description Group → role rules, applied at every login with an external provider.
+         */
+        get: operations["admin_get_role_mapping"];
+        /**
+         * Update Role Mapping
+         * @description Replace the mapping. Takes effect at each user's next login; the last active admin
+         *     is never demoted by it.
+         */
+        put: operations["admin_update_role_mapping"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/role-mapping/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Role Mapping
+         * @description Which role a login with these groups would get under the saved mapping.
+         */
+        post: operations["admin_test_role_mapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Auth Settings
+         * @description Sign-in settings and which admins can currently sign in (counts only).
+         */
+        get: operations["admin_get_auth_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Auth Settings
+         * @description Switch local login on or off. Switching it off is refused (409) unless another
+         *     admin access (external provider) keeps working.
+         */
+        patch: operations["admin_update_auth_settings"];
+        trace?: never;
+    };
     "/admin/privacy/retention": {
         parameters: {
             query?: never;
@@ -401,6 +492,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Invitation
+         * @description Set the password of the invited account and sign in.
+         */
+        post: operations["auth_accept_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invitations/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lookup Invitation
+         * @description Who the invitation is for (shown on the "set password" page).
+         */
+        post: operations["auth_lookup_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/ldap/directories": {
         parameters: {
             query?: never;
@@ -502,7 +633,7 @@ export interface paths {
         put?: never;
         /**
          * Login
-         * @description Sign in with a local account.
+         * @description Sign in with a local account (unless an admin switched local login off).
          */
         post: operations["auth_login"];
         delete?: never;
@@ -989,6 +1120,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mailboxes/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Mailbox Providers
+         * @description Mailbox types that can be added on this instance and how they are connected.
+         *     OAuth types appear only if their OAuth client is configured.
+         */
+        get: operations["mailboxes_list_mailbox_providers"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/mailboxes/test": {
         parameters: {
             query?: never;
@@ -1099,6 +1251,110 @@ export interface paths {
          * @description Start a sync now. Progress arrives as ``mailbox.sync`` events.
          */
         post: operations["mailboxes_sync_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Messages
+         * @description Messages of the user's mailboxes, newest first, one row per message. Pages with
+         *     ``cursor``; ``total`` counts all matching messages.
+         */
+        get: operations["messages_list_messages"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Message
+         * @description Mark read or unread. Stored at once, written back to the server by a job.
+         */
+        patch: operations["messages_update_message"];
+        trace?: never;
+    };
+    "/messages/{message_id}/attachments/{attachment_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Attachment
+         * @description The attachment file. Downloaded (``Content-Disposition: attachment``) unless
+         *     ``inline=true`` and it is a raster image (for ``cid:`` images in the mail).
+         */
+        get: operations["messages_download_attachment"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/{message_id}/body": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Message Body
+         * @description Sanitised HTML; with ``external_images=true`` remote images are kept (the user
+         *     chose to load them for this message).
+         */
+        get: operations["messages_get_message_body"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/messages/{message_id}/thread": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Thread
+         * @description The conversation of a message, oldest first (at most the newest 100 messages).
+         *     HTML comes sanitised with external images removed.
+         */
+        get: operations["messages_get_thread"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -1613,7 +1869,7 @@ export interface paths {
         };
         /**
          * List Users
-         * @description All users, ordered by e-mail address.
+         * @description All users, ordered by e-mail address, with their sign-in methods.
          */
         get: operations["users_list_users"];
         put?: never;
@@ -1623,6 +1879,87 @@ export interface paths {
          */
         post: operations["users_create_user"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite User
+         * @description Create a local account without password and return a one-time invitation link.
+         */
+        post: operations["users_invite_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update User
+         * @description Change role or active state. Deactivating ends all sessions of the user.
+         */
+        patch: operations["users_update_user"];
+        trace?: never;
+    };
+    "/users/{user_id}/invitation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reissue Invitation
+         * @description New invitation link for an invited user who has not set a password yet (the old
+         *     link stops working).
+         */
+        post: operations["users_reissue_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Sessions
+         * @description Sign the user out everywhere (also the admin's own sessions, if it is them).
+         */
+        delete: operations["users_revoke_sessions"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1822,6 +2159,65 @@ export interface components {
          * @enum {string}
          */
         ActorKind: "user" | "system" | "anonymous";
+        /** AddressRead */
+        AddressRead: {
+            /** Address */
+            address: string;
+            /** Name */
+            name?: string | null;
+        };
+        /** AdminAccess */
+        AdminAccess: {
+            /** Own Providers */
+            own_providers: string[];
+            /** Usable Admins */
+            usable_admins: number;
+        };
+        /**
+         * AdminUserRead
+         * @description A user in the admin list: account data and sign-in state, never mailbox data.
+         */
+        AdminUserRead: {
+            /** Active Sessions */
+            active_sessions: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invitation Pending */
+            invitation_pending: boolean;
+            /** Is Active */
+            is_active: boolean;
+            /** Language */
+            language: string;
+            /** Last Login At */
+            last_login_at: string | null;
+            /** Providers */
+            providers: string[];
+            role: components["schemas"]["UserRole"];
+            /** Timezone */
+            timezone: string;
+        };
+        /**
+         * AdminUserUpdate
+         * @description Changes by an admin; omitted fields stay. Refused (409) if no admin could sign in
+         *     afterwards.
+         */
+        AdminUserUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            role?: components["schemas"]["UserRole"] | null;
+        };
         /**
          * AnswerStatus
          * @enum {string}
@@ -1855,11 +2251,27 @@ export interface components {
             /** Question */
             question: string;
         };
+        /** AttachmentRead */
+        AttachmentRead: {
+            /** Content Type */
+            content_type: string;
+            /** Filename */
+            filename: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Inline */
+            is_inline: boolean;
+            /** Size */
+            size: number;
+        };
         /**
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -1924,6 +2336,21 @@ export interface components {
             local_registration: boolean;
             /** Providers */
             providers: components["schemas"]["AuthProviderInfo"][];
+        };
+        /** AuthSettingsRead */
+        AuthSettingsRead: {
+            admin_access: components["schemas"]["AdminAccess"];
+            /** Local Login Enabled */
+            local_login_enabled: boolean;
+            /** Local Registration */
+            local_registration: boolean;
+            /** Provider Kinds */
+            provider_kinds: string[];
+        };
+        /** AuthSettingsUpdate */
+        AuthSettingsUpdate: {
+            /** Local Login Enabled */
+            local_login_enabled?: boolean | null;
         };
         /** AutodiscoverRequest */
         AutodiscoverRequest: {
@@ -2598,6 +3025,41 @@ export interface components {
             /** Subject */
             subject: string;
         };
+        /** InvitationAccept */
+        InvitationAccept: {
+            /** Password */
+            password: string;
+            /** Token */
+            token: string;
+        };
+        /** InvitationInfo */
+        InvitationInfo: {
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** InvitationIssued */
+        InvitationIssued: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Invite Url */
+            invite_url: string;
+            user: components["schemas"]["AdminUserRead"];
+        };
+        /** InvitationLookup */
+        InvitationLookup: {
+            /** Token */
+            token: string;
+        };
         /**
          * LLMTask
          * @description Features that use an LLM; each can be assigned its own endpoint and model.
@@ -2850,6 +3312,20 @@ export interface components {
             /** Messages */
             messages: number;
         };
+        /**
+         * MailboxProviderRead
+         * @description A mailbox type that can be added on this instance.
+         */
+        MailboxProviderRead: {
+            /**
+             * Connect
+             * @enum {string}
+             */
+            connect: "credentials" | "oauth";
+            /** Oauth Start Path */
+            oauth_start_path?: string | null;
+            type: components["schemas"]["MailboxType"];
+        };
         /** MailboxRead */
         MailboxRead: {
             /** Address */
@@ -2941,6 +3417,131 @@ export interface components {
             /** Sync Enabled */
             sync_enabled?: boolean | null;
             sync_settings?: components["schemas"]["SyncSettingsUpdate"] | null;
+        };
+        /**
+         * MessageBody
+         * @description Sanitised HTML of a message. External images are removed unless requested.
+         */
+        MessageBody: {
+            /** Blocked Images */
+            blocked_images: number;
+            /** Html */
+            html: string | null;
+        };
+        /** MessageDetail */
+        MessageDetail: {
+            /** Attachments */
+            attachments: components["schemas"]["AttachmentRead"][];
+            body: components["schemas"]["MessageBody"];
+            /** Cc */
+            cc: components["schemas"]["AddressRead"][];
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /** Flagged */
+            flagged: boolean;
+            /** Has Attachments */
+            has_attachments: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /** Reply To */
+            reply_to: components["schemas"]["AddressRead"][];
+            sender: components["schemas"]["AddressRead"] | null;
+            /** Sent At */
+            sent_at: string | null;
+            /** Snippet */
+            snippet: string;
+            /** Subject */
+            subject: string;
+            /** Text */
+            text: string;
+            /** Thread Id */
+            thread_id: string | null;
+            /** To */
+            to: components["schemas"]["AddressRead"][];
+            /** Unread */
+            unread: boolean;
+        };
+        /** MessagePage */
+        MessagePage: {
+            /** Items */
+            items: components["schemas"]["MessageSummary"][];
+            /** Next Cursor */
+            next_cursor: string | null;
+            /** Total */
+            total: number;
+        };
+        /**
+         * MessageSummary
+         * @description One row of the inbox list.
+         */
+        MessageSummary: {
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /** Flagged */
+            flagged: boolean;
+            /** Has Attachments */
+            has_attachments: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            sender: components["schemas"]["AddressRead"] | null;
+            /** Snippet */
+            snippet: string;
+            /** Subject */
+            subject: string;
+            /** Thread Id */
+            thread_id: string | null;
+            /** Unread */
+            unread: boolean;
+        };
+        /** MessageUpdate */
+        MessageUpdate: {
+            /** Seen */
+            seen: boolean;
+        };
+        /** OIDCConnectionTest */
+        OIDCConnectionTest: {
+            /** Authorization Endpoint */
+            authorization_endpoint?: string | null;
+            /**
+             * End Session Supported
+             * @default false
+             */
+            end_session_supported: boolean;
+            /** Error */
+            error?: string | null;
+            /** Issuer */
+            issuer?: string | null;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Signing Keys
+             * @default 0
+             */
+            signing_keys: number;
+            /** Token Endpoint */
+            token_endpoint?: string | null;
         };
         /**
          * OIDCPreset
@@ -3346,6 +3947,66 @@ export interface components {
             /** Search Index Days */
             search_index_days: number;
         };
+        /** RoleMappingRead */
+        RoleMappingRead: {
+            default_role: components["schemas"]["UserRole"];
+            /** Enabled */
+            enabled: boolean;
+            /** Rules */
+            rules: components["schemas"]["RoleMappingRuleRead"][];
+        };
+        /** RoleMappingRuleFields */
+        RoleMappingRuleFields: {
+            /** Group */
+            group: string;
+            /** Provider */
+            provider?: string | null;
+            role: components["schemas"]["UserRole"];
+        };
+        /** RoleMappingRuleRead */
+        RoleMappingRuleRead: {
+            /** Group */
+            group: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider */
+            provider?: string | null;
+            role: components["schemas"]["UserRole"];
+        };
+        /** RoleMappingTest */
+        RoleMappingTest: {
+            /**
+             * Groups
+             * @default []
+             */
+            groups: string[];
+            /** Provider */
+            provider: string;
+        };
+        /** RoleMappingTestResult */
+        RoleMappingTestResult: {
+            /** Matched Groups */
+            matched_groups: string[];
+            role: components["schemas"]["UserRole"] | null;
+        };
+        /**
+         * RoleMappingUpdate
+         * @description Replaces the mapping (all rules).
+         */
+        RoleMappingUpdate: {
+            /** @default user */
+            default_role: components["schemas"]["UserRole"];
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Rules
+             * @default []
+             */
+            rules: components["schemas"]["RoleMappingRuleFields"][];
+        };
         /** SenderRuleCreate */
         SenderRuleCreate: {
             /**
@@ -3528,6 +4189,23 @@ export interface components {
             task: components["schemas"]["LLMTask"];
         };
         /**
+         * ThreadRead
+         * @description A conversation, oldest message first. A message without thread is its own thread.
+         */
+        ThreadRead: {
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /** Messages */
+            messages: components["schemas"]["MessageDetail"][];
+            /** Subject */
+            subject: string;
+            /** Thread Id */
+            thread_id: string | null;
+        };
+        /**
          * TlsMode
          * @enum {string}
          */
@@ -3701,6 +4379,29 @@ export interface components {
              * Format: uuid
              */
             user_id: string;
+        };
+        /**
+         * UserInvite
+         * @description A local account that sets its own password via an invitation link.
+         */
+        UserInvite: {
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string;
+            /**
+             * Language
+             * @default en
+             * @enum {string}
+             */
+            language: "de" | "en";
+            /** @default user */
+            role: components["schemas"]["UserRole"];
+            /**
+             * Timezone
+             * @default UTC
+             */
+            timezone: string;
         };
         /** UserRead */
         UserRead: {
@@ -4322,6 +5023,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -4373,6 +5081,13 @@ export interface operations {
             };
             /** @description Unknown provider */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4598,7 +5313,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Configured in the environment */
+            /** @description Configured in the environment, or admin lockout */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4661,7 +5376,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Configured in the environment */
+            /** @description Configured in the environment, or admin lockout */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4674,6 +5389,272 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    admin_test_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCConnectionTest"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_role_mapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMappingRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_update_role_mapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMappingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMappingRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Duplicate rules */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_test_role_mapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMappingTest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMappingTestResult"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_auth_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_update_auth_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -5038,6 +6019,114 @@ export interface operations {
             };
         };
     };
+    auth_accept_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationAccept"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Local login is disabled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired invitation */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_lookup_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationLookup"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationInfo"];
+                };
+            };
+            /** @description Local login is disabled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired invitation */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_list_directories: {
         parameters: {
             query?: never;
@@ -5221,6 +6310,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Invalid settings */
             422: {
                 headers: {
@@ -5264,6 +6360,13 @@ export interface operations {
             };
             /** @description No such directory */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5412,6 +6515,13 @@ export interface operations {
             };
             /** @description Wrong credentials */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Local login is disabled */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6502,6 +7612,33 @@ export interface operations {
             };
         };
     };
+    mailboxes_list_mailbox_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxProviderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     mailboxes_test_mailbox_connection: {
         parameters: {
             query?: never;
@@ -6852,6 +7989,237 @@ export interface operations {
             };
             /** @description Syncing is paused */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    messages_list_messages: {
+        parameters: {
+            query?: {
+                mailbox_id?: string | null;
+                /** @description Default: the inbox folders of all mailboxes */
+                folder_id?: string | null;
+                /** @description Only unread (true) or read (false) */
+                unread?: boolean | null;
+                cursor?: string | null;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessagePage"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid cursor */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    messages_update_message: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageSummary"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    messages_download_attachment: {
+        parameters: {
+            query?: {
+                inline?: boolean;
+            };
+            header?: never;
+            path: {
+                message_id: string;
+                attachment_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    messages_get_message_body: {
+        parameters: {
+            query?: {
+                external_images?: boolean;
+            };
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageBody"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    messages_get_thread: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ThreadRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -8496,7 +9864,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserRead"][];
+                    "application/json": components["schemas"]["AdminUserRead"][];
                 };
             };
             /** @description Not signed in */
@@ -8553,6 +9921,232 @@ export interface operations {
             };
             /** @description E-mail address taken */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    users_invite_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserInvite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationIssued"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description E-mail address taken or local login disabled */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    users_update_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    users_reissue_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationIssued"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user already has a password */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    users_revoke_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such user */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

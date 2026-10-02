@@ -2,6 +2,7 @@
 ``tmp_path``) and a helper that gives a user data in every module. All names, addresses
 and texts are invented."""
 
+import os
 import uuid
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -11,6 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import Invitation
 from app.core.config import get_settings
 from app.digest.models import Digest, DigestLength, DigestStatus, DigestTrigger, DigestUserSettings
 from app.digest.storage import DigestStorage
@@ -182,6 +184,9 @@ async def seed_user_data(
             ),
             TriageCategoryPreference(user_id=user_id, category_id=category.id, hidden=False),
             DigestUserSettings(user_id=user_id, enabled=True),
+            Invitation(
+                user_id=user_id, token_hash=os.urandom(32), expires_at=NOW + timedelta(days=1)
+            ),
         ]
     )
     await session.commit()

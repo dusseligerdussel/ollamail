@@ -26,6 +26,7 @@ from app.users.models import User, UserRole
 from tests.audit.conftest import audit_rows
 from tests.auth.conftest import login, make_local_user
 from tests.conftest import api_client
+from tests.factories import make_user
 from tests.privacy.conftest import FakeServer, current_user_id, seed_user_data
 from tests.privacy.foreign_keys import (
     blocking_keys,
@@ -248,3 +249,22 @@ async def test_admin_deletes_a_user(
     assert entry.details == {"via": "admin", "mailboxes": 1}
     remaining = await db_session.scalars(select(User.email).order_by(User.email))
     assert list(remaining) == ["admin@example.org", "erika@example.org"]
+
+
+async def test_deletion_keeps_an_admin_who_can_sign_in(
+    app: FastAPI, db_session: AsyncSession
+) -> None:
+    admin_id = (await make_local_user(db_session, "admin@example.org", role=UserRole.ADMIN)).id
+    # Another active admin, but without any identity: nobody could sign in as admin.
+    await make_user(db_session, role=UserRole.ADMIN)
+    await db_session.commit()
+    async with api_client(app) as client:
+        assert (await login(client, "admin@example.org")).status_code == 200
+        response = await client.request(
+            "DELETE", "/privacy/account", json={"confirm_email": "admin@example.org"}
+        )
+
+    assert response.status_code == 409
+    assert response.json()["type"] == "urn:ollamail:problem:admin-lockout"
+    db_session.expunge_all()
+    assert await db_session.get(User, admin_id) is not None

@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
+from app.auth.admin_access import AdminAccessGuard
 from app.auth.dependencies import AdminSessionDep, CurrentSessionDep, CurrentUserDep, SettingsDep
 from app.auth.sessions import clear_session_cookie
 from app.core.config import Settings
@@ -174,6 +175,7 @@ async def delete_export(
     },
 )
 async def delete_account(
+    request: Request,
     body: AccountDeletion,
     user: CurrentUserDep,
     db: DbDep,
@@ -194,7 +196,10 @@ async def delete_account(
             detail="The confirmation does not match the account.",
             type="urn:ollamail:problem:confirmation-mismatch",
         )
-    await deletion.delete_user(db, user.id, stores, actor=audit.Actor.user(user.id), via="self")
+    guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
+    await deletion.delete_user(
+        db, user.id, stores, actor=audit.Actor.user(user.id), via="self", access_guard=guard
+    )
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     clear_session_cookie(response, settings.auth)
     return response
@@ -268,11 +273,21 @@ async def update_retention(
     },
 )
 async def delete_user(
-    user_id: uuid.UUID, admin: AdminSessionDep, db: DbDep, stores: FileStoresDep
+    request: Request,
+    user_id: uuid.UUID,
+    admin: AdminSessionDep,
+    db: DbDep,
+    stores: FileStoresDep,
 ) -> UserDeletionResult:
     """Delete a user with all their data and files (Art. 17). Not reversible."""
+    guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
     result = await deletion.delete_user(
-        db, user_id, stores, actor=audit.Actor.user(admin.user_id), via="admin"
+        db,
+        user_id,
+        stores,
+        actor=audit.Actor.user(admin.user_id),
+        via="admin",
+        access_guard=guard,
     )
     if result is None:
         raise ProblemError(404, detail="User not found.")

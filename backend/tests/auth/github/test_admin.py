@@ -167,3 +167,28 @@ async def test_duplicate_name(gh: GitHubTestApp, db_session: AsyncSession) -> No
     response = await client.post(BASE, json=_body())
 
     assert response.status_code == 409
+
+
+async def test_disabling_the_only_admin_access_is_refused(
+    gh: GitHubTestApp, db_session: AsyncSession
+) -> None:
+    """The admin signs in with GitHub only (#33): disabling or deleting it would lock out."""
+    client = await _admin(gh, db_session)
+    assert (await client.post(BASE, json=_body())).status_code == 201
+    admin_id = await db_session.scalar(text("SELECT id FROM users"))
+    await db_session.execute(
+        text(
+            "UPDATE auth_identities SET provider = 'github:github', subject = '1', "
+            "password_hash = NULL WHERE user_id = :id"
+        ),
+        {"id": admin_id},
+    )
+    await db_session.commit()
+
+    disable = await client.patch(f"{BASE}/github", json={"enabled": False})
+    delete = await client.delete(f"{BASE}/github")
+
+    assert disable.status_code == 409
+    assert disable.json()["type"] == "urn:ollamail:problem:admin-lockout"
+    assert delete.status_code == 409
+    assert (await client.get(f"{BASE}/github")).json()["enabled"] is True
