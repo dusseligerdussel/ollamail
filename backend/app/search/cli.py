@@ -7,8 +7,11 @@ import asyncio
 from typing import Annotated
 
 import typer
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.ai.llm import EnvConfigResolver, LLMTask
+from app.ai.llm import LLMTask
+from app.ai.llm.config import ResolvedConfig
+from app.ai.settings.store import load_overrides
 from app.core.config import get_settings
 from app.core.db import Database
 from app.search import service
@@ -16,16 +19,18 @@ from app.search import service
 search_cli = typer.Typer(name="search", no_args_is_help=True, help="Hybrid search index.")
 
 
-async def _current_model() -> str:
-    resolver = EnvConfigResolver(get_settings().llm)
-    return (await resolver.resolve(LLMTask.EMBEDDINGS)).model
+async def _current_model(session: AsyncSession) -> str:
+    """Embedding model incl. the admin settings (app/ai/settings)."""
+    settings = get_settings().llm
+    config = ResolvedConfig(settings, await load_overrides(session, settings.timeout))
+    return config.assignment(LLMTask.EMBEDDINGS).model
 
 
 async def _status() -> tuple[service.IndexStatus, str]:
     database = Database(get_settings().database)
     try:
         async with database.sessionmaker() as session:
-            return await service.index_status(session), await _current_model()
+            return await service.index_status(session), await _current_model(session)
     finally:
         await database.dispose()
 
@@ -49,7 +54,7 @@ async def _resize(dimensions: int) -> None:
     database = Database(get_settings().database)
     try:
         async with database.sessionmaker() as session:
-            await service.resize_embeddings(session, dimensions, await _current_model())
+            await service.resize_embeddings(session, dimensions, await _current_model(session))
             await session.commit()
     finally:
         await database.dispose()

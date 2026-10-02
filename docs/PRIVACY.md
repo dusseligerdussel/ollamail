@@ -73,6 +73,19 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
   nicht zufällig) startet die API nicht. Keys und Klartexte erscheinen nie in Logs oder
   Fehlermeldungen; geloggt wird nur eine nicht umkehrbare Key-ID.
 
+### Cloud-LLMs im Detail
+
+- Standard: aus. Der Admin erlaubt Cloud-LLMs im Admin-Bereich „KI“ ausdrücklich; vor dem
+  Einschalten bestätigt er einen Hinweis zur Datenübermittlung. Jede Änderung steht im Audit-Log.
+- Ein Provider gilt als Cloud-Provider, wenn er als „Cloud“ markiert ist. Solange Cloud-LLMs nicht
+  erlaubt sind, lehnt das Gateway jede Anfrage an ihn ab, bevor eine Verbindung entsteht.
+  Ist die Datenbank nicht lesbar, bleibt die Cloud gesperrt (fail closed).
+- Der Verbindungstest im Admin-Bereich ruft nur die Modellliste ab; es gehen keine Mail-Inhalte hinaus.
+- Für alle Nutzer zeigt die UI dauerhaft und dezent an, welcher Cloud-Provider für welche Aufgaben
+  (Triage, Aufgaben, Zusammenfassung, Fragen, Suchindex) Mail-Inhalte erhält (`GET /api/ai/status`).
+- API-Keys werden verschlüsselt gespeichert (`EncryptedStr`) und nie an das Frontend zurückgegeben
+  (nur „gesetzt/nicht gesetzt“).
+
 ### Audit-Log im Detail
 
 Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
@@ -106,7 +119,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `user.role_changed` | Rollen-Sync über LDAP-Gruppen (`admin_groups`) | aktiv; Nutzerverwaltung mit #33 |
 | `user.deleted` | Nutzerverwaltung | geplant (#33) |
 | `idp.config_changed` | LDAP-Verzeichnis angelegt, geändert, gelöscht (`details.change`) | aktiv; OIDC mit #30 |
-| `ai.settings_changed` | KI-Einstellungen inkl. Cloud-Freigabe (`details.cloud_enabled`) | geplant |
+| `ai.settings_changed` | KI-Einstellungen im Admin-Bereich: Provider anlegen/ändern/löschen (`details.change`, `provider`, `is_cloud`), Modell-Zuordnung, Profil, Parallelität, Cloud-Freigabe (`details.cloud_enabled`) | aktiv |
 | `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
 | `mailbox.shared` | Shared Mailboxes | geplant (#34) |
 | `mailbox.deleted` | `app.mail.service.delete_mailbox`; über die Postfach-API mit dem Nutzer als Akteur | aktiv |

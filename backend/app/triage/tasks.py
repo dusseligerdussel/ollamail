@@ -15,7 +15,8 @@ all messages are then triaged again, newest first; user corrections are kept.
 from collections.abc import Iterator
 from contextlib import contextmanager
 
-from app.ai.llm import EnvConfigResolver, LLMGateway
+from app.ai.llm import LLMGateway
+from app.ai.settings.runtime import worker_gateway
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.mail.providers.base import ProviderError
@@ -49,7 +50,8 @@ def get_llm() -> LLMGateway:
     """LLM gateway of the worker process, created on first use."""
     global _llm
     if _llm is None:
-        _llm = LLMGateway(EnvConfigResolver(get_settings().llm))
+        # Shared by all jobs of the process: admin settings, limited parallelism.
+        _llm = worker_gateway()
     return _llm
 
 

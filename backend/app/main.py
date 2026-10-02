@@ -6,7 +6,10 @@ from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
 
-from app.ai.llm import EnvConfigResolver, LLMGateway
+from app.ai.llm import LLMGateway
+from app.ai.settings.router import router as ai_settings_router
+from app.ai.settings.router import status_router as ai_status_router
+from app.ai.settings.runtime import build_resolver
 from app.audit.router import router as audit_router
 from app.auth.csrf import CSRFMiddleware
 from app.auth.providers import AuthProviderRegistry, oidc
@@ -39,7 +42,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or get_settings()
     configure_logging(settings.logging)
     database = Database(settings.database)
-    llm = LLMGateway(EnvConfigResolver(settings.llm))
+    # AI settings from the database (admin page), refreshed on change (app/ai/settings).
+    ai_resolver = build_resolver(settings, database)
+    llm = LLMGateway(ai_resolver)
     events = EventBroker(settings.database)
     job_queue = JobQueue()
 
@@ -48,6 +53,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         # Refuse to start without a valid OLLAMAIL_SECRET_KEY.
         configure_keyring(settings.security)
         await log_setup_status(database, settings)
+        ai_resolver.start()
         pull = None
         if settings.llm.pull_missing_models:
             pull = asyncio.create_task(llm.pull_missing_models())
@@ -57,6 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             with suppress(asyncio.CancelledError):
                 await pull
         await llm.aclose()
+        await ai_resolver.aclose()
         await events.stop()
         await job_queue.close()
         await database.dispose()
@@ -73,6 +80,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.readiness = ReadinessRegistry()
     register_readiness_check(app, "database", database.ping)
     app.state.llm = llm
+    app.state.ai_resolver = ai_resolver
     if settings.llm.readiness_check:
         register_readiness_check(app, "llm", llm.check_ready)
 
@@ -92,6 +100,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(todos_router)
     app.include_router(triage_router)
     app.include_router(audit_router)
+    app.include_router(ai_settings_router)
+    app.include_router(ai_status_router)
     app.include_router(mailboxes_router)
     app.include_router(gmail_connect_router)
     oidc.install(app, settings)

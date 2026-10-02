@@ -289,13 +289,15 @@ ai/llm/
   base.py           LLMProvider-Protocol (complete, stream, embed, list_models)
   ollama.py         native Ollama-API (/api/chat, /api/embed, /api/tags, /api/pull)
   openai_compat.py  Chat-Completions-API (base_url inkl. /v1)
-  config.py         LLMConfigResolver (Protocol) + EnvConfigResolver
+  config.py         LLMConfigResolver (Protocol), ResolvedConfig (Env + Admin-Overrides), EnvConfigResolver
+  limiter.py        zur Laufzeit änderbare Parallelität (Worker)
   profiles.py       Hardware-Profile cpu / gpu-consumer / gpu-server
   structured.py     Pydantic → JSON-Schema, Validierung, Retry, Prompt-Fallback
   context.py        Token-Schätzung, Kürzen langer Mails
   metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call`)
   gateway.py        LLMGateway – einziger Einstiegspunkt für Features
 ai/prompts/         versionierte, sprachabhängige Prompt-Templates (`name@version`)
+ai/settings/        KI-Einstellungen in der DB (#18): Modelle, Store, DbConfigResolver, Admin-API
 ```
 
 Features nutzen ausschließlich das `LLMGateway` (`app.state.llm`, FastAPI-Dependency `get_llm`):
@@ -309,12 +311,15 @@ triage = await llm.complete_structured(
 
 Das Gateway erledigt pro Aufruf:
 
-1. **Auflösung** Task → Endpunkt + Modell über einen `LLMConfigResolver`. In diesem Stand liest
-   `EnvConfigResolver` Umgebungsvariablen und Code-Defaults. Die Admin-Einstellungen in der DB (#18)
-   ersetzen nur den Resolver; Gateway und Features bleiben unverändert.
-   Reihenfolge: `OLLAMAIL_LLM_TASK_<TASK>_MODEL` → `OLLAMAIL_LLM_DEFAULT_{CHAT,EMBEDDING}_MODEL` → Profil.
-2. **Cloud-Sperre:** Endpunkte mit `is_cloud` werden nur genutzt, wenn `OLLAMAIL_LLM_CLOUD_ENABLED`
-   aktiv ist. Sonst `CloudLLMDisabledError`, bevor ein HTTP-Client entsteht.
+1. **Auflösung** Task → Endpunkt + Modell über einen `LLMConfigResolver`. API und Worker nutzen
+   `DbConfigResolver` (Admin-Einstellungen, siehe unten); `EnvConfigResolver` liest nur
+   Umgebungsvariablen (Evaluation, Tests). Gateway und Features kennen den Unterschied nicht.
+   Reihenfolge Modell: Admin-Zuordnung des Tasks → `OLLAMAIL_LLM_TASK_<TASK>_MODEL` →
+   `OLLAMAIL_LLM_DEFAULT_{CHAT,EMBEDDING}_MODEL` → Profil (Admin-Wahl, sonst `OLLAMAIL_LLM_PROFILE`).
+   Endpunkt: Admin-Zuordnung → `OLLAMAIL_LLM_TASK_<TASK>_ENDPOINT` → `default`.
+2. **Cloud-Sperre:** Endpunkte mit `is_cloud` werden nur genutzt, wenn Cloud-LLMs erlaubt sind
+   (Admin-Schalter, Standard `OLLAMAIL_LLM_CLOUD_ENABLED=false`). Sonst `CloudLLMDisabledError`,
+   bevor ein HTTP-Client entsteht.
 3. **Kontextlänge:** Die Prompts werden auf das Kontextfenster des Profils gekürzt
    (konservative Schätzung ≈ 3 Zeichen/Token, Platz für die Antwort wird reserviert). Gekürzt wird die
    längste Nicht-System-Nachricht vom Ende her, weil neue Inhalte in Mails oben stehen.
@@ -333,6 +338,30 @@ Readiness: Mit `OLLAMAIL_LLM_READINESS_CHECK=true` prüft `/readyz` (Check `llm`
 Modelle auf ihren Endpunkten verfügbar sind. Der Check ist standardmäßig aus, weil die API auch ohne
 LLM nutzbar bleibt (Postfächer, Todos, Einstellungen). Mit `OLLAMAIL_LLM_PULL_MISSING_MODELS=true`
 lädt die API fehlende Modelle beim Start im Hintergrund aus Ollama.
+
+#### KI-Einstellungen im Admin-Bereich (`backend/app/ai/settings/`)
+
+- **Speicher:** `ai_providers` (weitere Endpunkte; API-Key als `EncryptedStr`) und die einzeilige
+  Tabelle `ai_settings` (Cloud-Schalter, Profil, Parallelität, Zuordnung `{task: {provider, model}}`).
+  `NULL` bzw. ein fehlender Task heißt: Wert aus der Umgebung. Endpunkte aus der Umgebung
+  (`default`, `OLLAMAIL_LLM_ENDPOINTS`) erscheinen schreibgeschützt und gewinnen bei Namensgleichheit.
+- **Ohne Neustart:** Jeder Prozess cacht einen Snapshot (`DbConfigResolver`). Jede Änderung sendet
+  im selben Commit `NOTIFY ollamail_ai_settings`; jeder API- und Worker-Prozess hört per `LISTEN`
+  und verwirft seinen Snapshot. Fallback ohne Benachrichtigung: Snapshot höchstens 30 s alt. Der
+  nächste Job nutzt damit das neue Modell. Ist die DB nicht lesbar, bleibt der letzte Snapshot;
+  ohne Snapshot gelten die Umgebungswerte **mit gesperrter Cloud** (fail closed).
+- **Worker:** Alle Jobs eines Prozesses teilen ein Gateway (`app.ai.settings.runtime.worker_gateway`).
+  Die Parallelität (Admin, 1 bis `OLLAMAIL_LLM_MAX_CONCURRENCY`) begrenzt gleichzeitige
+  LLM-Anfragen im Gateway (`limiter.py`); die Job-Slots der `llm`-Queue sind die Obergrenze.
+- **Admin-API** (`/api/admin/ai`, nur Admins): `GET/PATCH /settings`, `GET/POST /providers`,
+  `PATCH/DELETE /providers/{name}`, `POST /providers/{name}/test` und `POST /providers/test`
+  (ungespeicherte Werte; ohne Key wird der gespeicherte genutzt). Der Verbindungstest ruft nur die
+  Modellliste ab, es gehen keine Mail-Inhalte hinaus. API-Keys sind write-only (`api_key_set`).
+  Ein Provider, dem Tasks zugeordnet sind, lässt sich nicht löschen (409).
+- **Nutzer:** `GET /api/ai/status` listet Cloud-Provider, die gerade Mail-Inhalte erhalten, je Task.
+  Die UI zeigt das dauerhaft und dezent über dem Inhalt an (`docs/PRIVACY.md`).
+- **Audit:** jede Änderung als `ai.settings_changed` (`change`, `provider`, `is_cloud`,
+  `cloud_enabled`, `profile`, `concurrency`, `tasks`; nie API-Keys).
 
 **Profil-Defaults** (`profiles.py`). Die Modellnamen sind **Beispiele** und lassen sich per Env
 überschreiben:
@@ -380,8 +409,10 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   `backend/migrations/sql/`); Autogenerate ignoriert die `procrastinate_*`-Tabellen.
   Ein Procrastinate-Update mit Schemaänderung braucht eine neue Migration – ein Test schlägt sonst an.
 - **Queues** `sync`, `llm`, `tts`, `default`. `OLLAMAIL_WORKER_QUEUES` wählt die Queues eines
-  Worker-Prozesses; `llm` hat eine eigene Parallelität (`OLLAMAIL_LLM_CONCURRENCY`), alle anderen
-  teilen sich `OLLAMAIL_WORKER_CONCURRENCY`.
+  Worker-Prozesses; `llm` hat eigene Job-Slots (`OLLAMAIL_LLM_MAX_CONCURRENCY`), von denen das
+  LLM-Gateway höchstens die im Admin-Bereich eingestellte Parallelität (Standard
+  `OLLAMAIL_LLM_CONCURRENCY`) gleichzeitig an das Modell lässt; alle anderen Queues teilen sich
+  `OLLAMAIL_WORKER_CONCURRENCY`.
 - **Task-Konventionen:** idempotent; Argumente nur IDs; Retry mit exponentiellem Backoff
   (`DEFAULT_RETRY`); Lock-Keys pro Ressource (`resource_lock("mailbox", id)` als `lock`/`queueing_lock`);
   Periodic Tasks per `@app.periodic(cron=...)`. Task-Module werden in `TASK_MODULES` eingetragen.

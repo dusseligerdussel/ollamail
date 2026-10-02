@@ -1,7 +1,7 @@
 import pytest
 from pydantic import BaseModel
 
-from app.ai.llm.config import EnvConfigResolver
+from app.ai.llm.config import EnvConfigResolver, env_endpoints
 from app.ai.llm.errors import (
     CloudLLMDisabledError,
     LLMNotReadyError,
@@ -232,7 +232,7 @@ def test_create_provider_by_kind() -> None:
     settings = LLMSettings.model_validate(
         {"endpoints": {"v": {"provider": "openai_compatible", "base_url": "http://v/v1"}}}
     )
-    resolver = EnvConfigResolver(settings)
+    endpoints = env_endpoints(settings)
 
-    assert isinstance(create_provider(resolver._endpoints["default"]), OllamaProvider)
-    assert isinstance(create_provider(resolver._endpoints["v"]), OpenAICompatibleProvider)
+    assert isinstance(create_provider(endpoints["default"]), OllamaProvider)
+    assert isinstance(create_provider(endpoints["v"]), OpenAICompatibleProvider)
