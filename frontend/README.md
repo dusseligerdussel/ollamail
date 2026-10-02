@@ -115,6 +115,11 @@ stehen in `src/api/auth.ts`.
 - **Konto** (`/settings`): Name, E-Mail, Rolle, Zeitzone (IANA, im Profil gespeichert), Abmelden;
   Darstellung (Theme lokal, Sprache im Profil); aktive Sitzungen mit Abmelden einzelner bzw. aller
   anderen Geräte.
+- **Deine Daten** (`/settings`, `src/components/account/`): Datenexport anfordern (Status live über
+  das Event `privacy.export`, Download-Link bis zum Ablauf) und Konto löschen (Dialog, Bestätigung
+  durch Eingabe der eigenen E-Mail-Adresse; danach Login-Seite). API: `src/api/privacy.ts`.
+- **Admin → Aufbewahrung** (`/admin/retention`): Fristen je Datenkategorie mit Standardwert aus der
+  Umgebung, „Standard verwenden“, Hinweis bei Mail-Frist unter dem Erstimport, letzter Lauf.
 
 ### Echtzeit-Events
 
@@ -227,7 +232,8 @@ Browser-Cache. Nach Änderungen an der Cache-Strategie `CACHE` in `sw.js` hochz�
 ### Tests
 
 `fetch` ist in allen Tests gemockt (`src/test/fetch.ts`): eine eingerichtete Instanz mit
-angemeldetem Admin (`/api/healthz`, Setup-Status, `auth/me`, Provider, Sitzungen), alles andere 404.
+angemeldetem Admin (`/api/healthz`, Setup-Status, `auth/me`, Provider, Sitzungen, Datenschutz-Optionen
+und leere Exportliste), alles andere 404.
 Andere Zustände mit `mockFetch(backend({ initialized: false, user: null }))`, eigene Antworten mit
 `mockFetch((request) => json(...))`.
 

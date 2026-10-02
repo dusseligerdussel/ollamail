@@ -21,6 +21,7 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as AdminAiRouteImport } from './routes/admin_.ai'
 import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
+import { Route as AdminRetentionRouteImport } from './routes/admin_.retention'
 import { Route as AdminRoleMappingRouteImport } from './routes/admin_.role-mapping'
 import { Route as AdminSignInRouteImport } from './routes/admin_.sign-in'
 import { Route as AdminUsersRouteImport } from './routes/admin_.users'
@@ -87,6 +88,11 @@ const AdminAuditRoute = AdminAuditRouteImport.update({
   path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminRetentionRoute = AdminRetentionRouteImport.update({
+  id: '/admin_/retention',
+  path: '/admin/retention',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRoleMappingRoute = AdminRoleMappingRouteImport.update({
   id: '/admin_/role-mapping',
   path: '/admin/role-mapping',
@@ -126,6 +132,7 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof TasksRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/retention': typeof AdminRetentionRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
@@ -145,6 +152,7 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/retention': typeof AdminRetentionRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
@@ -165,6 +173,7 @@ export interface FileRoutesById {
   '/tasks': typeof TasksRoute
   '/admin_/ai': typeof AdminAiRoute
   '/admin_/audit': typeof AdminAuditRoute
+  '/admin_/retention': typeof AdminRetentionRoute
   '/admin_/role-mapping': typeof AdminRoleMappingRoute
   '/admin_/sign-in': typeof AdminSignInRoute
   '/admin_/users': typeof AdminUsersRoute
@@ -186,6 +195,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/retention'
     | '/admin/role-mapping'
     | '/admin/sign-in'
     | '/admin/users'
@@ -205,6 +215,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/retention'
     | '/admin/role-mapping'
     | '/admin/sign-in'
     | '/admin/users'
@@ -224,6 +235,7 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin_/ai'
     | '/admin_/audit'
+    | '/admin_/retention'
     | '/admin_/role-mapping'
     | '/admin_/sign-in'
     | '/admin_/users'
@@ -244,6 +256,7 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   AdminAiRoute: typeof AdminAiRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminRetentionRoute: typeof AdminRetentionRoute
   AdminRoleMappingRoute: typeof AdminRoleMappingRoute
   AdminSignInRoute: typeof AdminSignInRoute
   AdminUsersRoute: typeof AdminUsersRoute
@@ -337,6 +350,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/retention': {
+      id: '/admin_/retention'
+      path: '/admin/retention'
+      fullPath: '/admin/retention'
+      preLoaderRoute: typeof AdminRetentionRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/role-mapping': {
       id: '/admin_/role-mapping'
       path: '/admin/role-mapping'
@@ -388,6 +408,7 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   AdminAiRoute: AdminAiRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminRetentionRoute: AdminRetentionRoute,
   AdminRoleMappingRoute: AdminRoleMappingRoute,
   AdminSignInRoute: AdminSignInRoute,
   AdminUsersRoute: AdminUsersRoute,

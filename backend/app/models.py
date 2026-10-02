@@ -12,6 +12,7 @@ from app.auth.providers.oidc import models as oidc_models
 from app.core.db import Base
 from app.digest import models as digest_models
 from app.mail import models as mail_models
+from app.privacy import models as privacy_models
 from app.processing import models as processing_models
 from app.rag import models as rag_models
 from app.search import models as search_models
@@ -29,6 +30,7 @@ __all__ = [
     "ldap_models",
     "mail_models",
     "oidc_models",
+    "privacy_models",
     "processing_models",
     "rag_models",
     "search_models",
