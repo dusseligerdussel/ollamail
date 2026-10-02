@@ -809,7 +809,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 
 ### 4.5 RAG („Frag deine Inbox“)
 
-- Chunking von Mail-Text und extrahiertem Anhangstext (PDF, DOCX, TXT; später OCR).
+- Chunking von Mail-Text und extrahiertem Anhangstext (PDF, DOCX, TXT, HTML; gescannte PDFs und Bilder per OCR).
 - **Hybrid-Retrieval**: Postgres-Volltextsuche (`tsvector`) + pgvector (HNSW), Fusion via Reciprocal Rank Fusion,
   optional Reranker.
 - Filter (Zeitraum, Absender, Ordner, Kategorie) werden aus der Frage extrahiert bzw. im UI gesetzt.
@@ -830,7 +830,22 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   abgelehnt), TXT, HTML. Je Datei ein Kindprozess (`python -m app.search._extract_child`) mit
   leerer Umgebung (keine Secrets), `RLIMIT_AS`/`RLIMIT_CPU`, ohne Dateischreibrechte, nach
   `OLLAMAIL_SEARCH_EXTRACTION_TIMEOUT` beendet. Ergebnisse als Statuscodes (`ok`, `too_large`,
-  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`). Kein OCR.
+  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`, `ocr_pending`).
+- **OCR** (#98, Tesseract, lokal): `OLLAMAIL_SEARCH_OCR_MODE` `off` / `pdf` (Standard) / `all`.
+  Der Schritt `index` erkennt nur, ob ein PDF Seiten ohne Textlayer, aber mit Bild hat (Modus
+  `detect` im Kindprozess, Status `ocr_pending`), indiziert den vorhandenen Textlayer sofort und
+  stellt den Job `search.ocr_attachment` auf die Queue `ocr` (eigene Job-Slots
+  `OLLAMAIL_SEARCH_OCR_CONCURRENCY`, niedrigste Priorität; gleicher Lock wie der `index`-Job der
+  Mail, startet also erst nach dessen Commit). Der Job liest das Anhang erneut im selben
+  isolierten Kindprozess (Modus `run`): Textlayer zuerst, nur Seiten ohne Text werden mit
+  `pypdfium2` als Graustufenbild (300 dpi, höchstens 40 Mpx) gerendert und an `tesseract`
+  (Kind des Kindprozesses, erbt leere Umgebung und Limits, Bild über stdin, Text über stdout)
+  gegeben, höchstens `OLLAMAIL_SEARCH_OCR_MAX_PAGES` Seiten. Bilder (PNG, JPEG, TIFF; nicht
+  inline) nur im Modus `all`. Bei Timeout (`OLLAMAIL_SEARCH_OCR_TIMEOUT`) wird die ganze
+  Prozessgruppe beendet. Ergebnis: Die Chunks des Anhangs werden ersetzt, mit Quelle
+  `attachment_ocr` („Anhang (OCR)“ in Treffern und Zitaten); Vektoren ergänzt
+  `search.fill_embeddings`. Der OCR-Job ruft nie das LLM auf. Fehler (`timeout`, `ocr_failed`,
+  `ocr_unavailable`) nur als Statuscode; der Textlayer bleibt dann im Index.
 - **Tabellen:** `search_chunks` (Text, `ts_config` `german`/`english`/`simple` aus der erkannten
   Sprache, generierte `tsvector`-Spalte mit GIN-Index), `search_embeddings` (`chunk_id`, `model`,
   `embedding vector(n)` mit HNSW-Index, Kosinus), `search_index_state` (aktives Modell). `n` kommt
@@ -849,7 +864,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   ODER-verknüpft, Rang `ts_rank_cd`. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
   `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
   (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
-  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang).
+  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang, mit oder ohne OCR).
 - **Zugriff:** Jede Abfrage enthält `mailbox_id IN (accessible_mailbox_ids(user_id))` aus
   `app.mail.access`, der einzigen Stelle dieser Regel (eigene und zugewiesene Shared Mailboxes).
 - **Kategorie-Filter** (`SearchFilters.category_ids`): Triage-Kategorie der Mail
@@ -968,9 +983,9 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
   - OIDC generisch + Presets: Microsoft Entra ID, Google, Keycloak/Authentik
   - GitHub (OAuth2), optional eingeschränkt auf Organisationen/Teams
   - LDAP / Active Directory (Bind + Suche, StartTLS/LDAPS, Gruppen)
-  - SAML: später
+  - SAML 2.0 (SP-initiiert): Entra ID, AD FS, Okta, Keycloak, generisch
 - **Just-in-Time-Provisioning**: Nutzer wird beim ersten Login angelegt; Rollen über Gruppen-Mapping
-  (Entra-Gruppen, LDAP-Gruppen, GitHub-Teams); Domain-Allowlist.
+  (Entra-Gruppen, LDAP-Gruppen, GitHub-Teams, SAML-Gruppenattribut); Domain-Allowlist.
 - **Sessions**: serverseitig in Postgres, `HttpOnly`/`Secure`/`SameSite=Lax`-Cookie, CSRF-Schutz.
   Keine JWTs im Browser-Storage.
 - **SCIM-Provisioning** (Entra ID, Okta): IdP legt Nutzer an, deaktiviert/löscht sie und pflegt Gruppen.
@@ -987,7 +1002,7 @@ mehrere Identitäten haben; lokal: `provider=local`, `subject` = Nutzer-ID, Argo
 und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups,
 email_verified)`. `PasswordAuthProvider.authenticate(login, password)` für lokale Konten und
 LDAP (#32), `RedirectAuthProvider.authorization_url(...)`/`complete(...)` (mit `state`, `nonce`
-und PKCE-`code_verifier`) für OIDC (#30) und GitHub (#31). Sperre, Session und Rollenprüfung
+und PKCE-`code_verifier`) für OIDC (#30), GitHub (#31) und SAML (#94). Sperre, Session und Rollenprüfung
 sind für alle Provider gleich. Externe Provider stehen in `app.state.auth_providers`: fest per
 `register` oder als *Quelle* per `add_source` (z. B. OIDC-Provider aus der Datenbank, pro Anfrage
 gelesen, damit Änderungen sofort auf allen API-Instanzen gelten). `GET /api/auth/providers`
@@ -1009,7 +1024,7 @@ landen im Audit-Log. Fehler sind `ProvisioningError` (ein `ProblemError` mit sta
 
 **Externe Logins im Browser** (`app/auth/redirect_flow.py`): Der Flow für Redirect-Provider
 (verschlüsseltes Einmal-Cookie mit `state`, `nonce`, PKCE-Verifier; Fehler als Redirect auf
-`/login?error=<code>`) ist providerunabhängig; GitHub (#31) nutzt ihn mit.
+`/login?error=<code>`) ist providerunabhängig; GitHub (#31) und SAML (#94) nutzen ihn mit.
 
 **OIDC** (`app/auth/providers/oidc/`, Anleitung: [`auth/oidc.md`](auth/oidc.md)): Provider aus der
 Datenbank (`auth_oidc_providers`, Client-Secret als `EncryptedStr`, Admin-API unter
@@ -1026,6 +1041,15 @@ Provider stehen in `auth_github_providers` (Client-Secret als `EncryptedStr`, Ad
 numerische GitHub-Nutzer-ID; E-Mail nur die verifizierte primäre Adresse. Org- und
 Team-Beschränkung (`allowed_organizations`, `allowed_teams`) wird serverseitig über die REST-API
 geprüft; Teams (`<org>/<team-slug>`) sind die Gruppen für das Rollen-Mapping (#33).
+
+**SAML 2.0** (`app/auth/providers/saml/`, Anleitung: [`auth/saml.md`](auth/saml.md)): SP-initiiert,
+HTTP-Redirect hin, HTTP-POST zurück an einen gemeinsamen ACS (`/api/auth/saml/acs`, von der
+CSRF-Prüfung ausgenommen; der Provider steht im Flow-Cookie, dessen `SameSite=None` den
+Cross-Site-POST erlaubt). Validierung mit python3-saml (strict, xmlsec, kein DTD/XXE, kein SHA-1),
+zusätzlich Pflicht auf `InResponseTo` (AuthnRequest-ID aus dem Flow-`nonce`), exakte
+`Destination`/`Recipient`, Audience und Replay-Schutz über `auth_saml_assertions` (SHA-256 der
+Assertion-ID, in Postgres für alle Instanzen). Provider in `auth_saml_providers` (IdP-Metadaten
+per URL oder Upload, Admin-API unter `/api/admin/auth/saml`), Presets nur für Attributnamen.
 
 **LDAP / Active Directory** (`app/auth/providers/ldap/`, Details: [`auth/ldap.md`](auth/ldap.md)):
 Verzeichnisse stehen in `auth_ldap_directories` (Einstellungen als JSONB, Bind-Passwort

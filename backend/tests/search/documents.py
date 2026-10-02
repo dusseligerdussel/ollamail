@@ -52,3 +52,36 @@ def make_docx(*paragraphs: str, document_xml: str | None = None) -> bytes:
         archive.writestr("[Content_Types].xml", "<Types/>")
         archive.writestr("word/document.xml", xml)
     return out.getvalue()
+
+
+def make_scan(*lines: str, fmt: str = "PNG", dpi: int = 300) -> bytes:
+    """A synthetic "scanned" A5 page: black text on white, rendered to pixels (needs Pillow).
+
+    ``fmt``: ``PNG``, ``JPEG``, ``TIFF`` or ``PDF`` (an image-only PDF without text layer).
+    """
+    from PIL import Image, ImageDraw, ImageFont
+
+    width, height = int(5.8 * dpi), int(8.3 * dpi)
+    image = Image.new("L", (width, height), 255)
+    draw = ImageDraw.Draw(image)
+    font = ImageFont.load_default(size=dpi // 6)
+    y = dpi // 2
+    for line in lines:
+        draw.text((dpi // 2, y), line, fill=0, font=font)
+        y += dpi // 4
+    out = io.BytesIO()
+    image.save(out, format=fmt, resolution=float(dpi), dpi=(dpi, dpi))
+    return out.getvalue()
+
+
+def make_scan_pdf(*pages: list[str] | str) -> bytes:
+    """A PDF of scanned pages (lists of lines) and text pages (strings, with text layer)."""
+    from pypdf import PdfReader, PdfWriter
+
+    writer = PdfWriter()
+    for page in pages:
+        data = make_pdf(page) if isinstance(page, str) else make_scan(*page, fmt="PDF")
+        writer.add_page(PdfReader(io.BytesIO(data)).pages[0])
+    out = io.BytesIO()
+    writer.write(out)
+    return out.getvalue()

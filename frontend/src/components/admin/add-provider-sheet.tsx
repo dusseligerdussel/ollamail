@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Building2, FolderTree, GitFork, Globe, KeyRound } from "lucide-react";
+import { Building2, FileKey, FolderTree, GitFork, Globe, KeyRound } from "lucide-react";
 import { type FormEvent, type ReactNode, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -9,6 +9,7 @@ import {
   createGitHubProvider,
   createLdapDirectory,
   createOidcProvider,
+  createSamlProvider,
   type GitHubProvider,
   type GitHubProviderCreate,
   type LdapDirectory,
@@ -17,13 +18,18 @@ import {
   type OidcPreset,
   type OidcProvider,
   type OidcProviderCreate,
+  type SamlPreset,
+  type SamlProvider,
+  type SamlProviderCreate,
   updateGitHubProvider,
   updateLdapDirectory,
   updateOidcProvider,
+  updateSamlProvider,
 } from "@/api/admin-auth";
 import { describeApiError, isApiError } from "@/api/errors";
 import { Notice } from "@/components/admin/notice";
 import { LdapTestPanel, OidcTestPanel } from "@/components/admin/provider-tests";
+import { SamlEndpoints } from "@/components/admin/saml-endpoints";
 import { CopyField } from "@/components/copy-field";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
@@ -40,11 +46,12 @@ import {
 import { cn } from "@/lib/utils";
 
 /** What the admin picks in step 1; offered if the backend lists its kind. */
-export type ProviderChoice = "entra" | "google" | "github" | "oidc" | "ldap";
+export type ProviderChoice = "entra" | "google" | "github" | "oidc" | "saml" | "ldap";
 
 type Created =
   | { kind: "oidc"; provider: OidcProvider }
   | { kind: "github"; provider: GitHubProvider }
+  | { kind: "saml"; provider: SamlProvider }
   | { kind: "ldap"; directory: LdapDirectory };
 
 const choices: { id: ProviderChoice; icon: typeof KeyRound; kind: string }[] = [
@@ -52,6 +59,7 @@ const choices: { id: ProviderChoice; icon: typeof KeyRound; kind: string }[] = [
   { id: "google", icon: Globe, kind: "oidc" },
   { id: "github", icon: GitFork, kind: "github" },
   { id: "oidc", icon: KeyRound, kind: "oidc" },
+  { id: "saml", icon: FileKey, kind: "saml" },
   { id: "ldap", icon: FolderTree, kind: "ldap" },
 ];
 
@@ -106,6 +114,7 @@ export function AddProviderSheet({
             {step === 3 && created?.kind === "ldap" && t("pages.signIn.wizard.verifyLdap")}
             {step === 3 && created?.kind === "oidc" && t("pages.signIn.wizard.verifyOidc")}
             {step === 3 && created?.kind === "github" && t("pages.signIn.wizard.verifyGithub")}
+            {step === 3 && created?.kind === "saml" && t("pages.signIn.wizard.verifySaml")}
           </SheetDescription>
         </SheetHeader>
         {step === 1 && <ChooseType kinds={kinds} onChoose={setChoice} />}
@@ -121,7 +130,13 @@ export function AddProviderSheet({
             onCreated={(provider) => setCreated({ kind: "github", provider })}
           />
         )}
-        {step === 2 && choice && choice !== "ldap" && choice !== "github" && (
+        {step === 2 && choice === "saml" && (
+          <SamlForm
+            onBack={() => setChoice(undefined)}
+            onCreated={(provider) => setCreated({ kind: "saml", provider })}
+          />
+        )}
+        {step === 2 && choice && choice !== "ldap" && choice !== "github" && choice !== "saml" && (
           <OidcForm
             choice={choice}
             onBack={() => setChoice(undefined)}
@@ -245,7 +260,7 @@ function SelectField({
   );
 }
 
-const oidcDefaults: Record<Exclude<ProviderChoice, "ldap" | "github">, string> = {
+const oidcDefaults: Record<Exclude<ProviderChoice, "ldap" | "github" | "saml">, string> = {
   entra: "Microsoft",
   google: "Google",
   oidc: "",
@@ -503,6 +518,154 @@ function GitHubForm({
   );
 }
 
+const samlPresets: SamlPreset[] = ["entra", "adfs", "okta", "keycloak", "generic"];
+
+const samlDefaultNames: Record<SamlPreset, string> = {
+  entra: "Microsoft",
+  adfs: "AD FS",
+  okta: "Okta",
+  keycloak: "Keycloak",
+  generic: "",
+};
+
+function SamlForm({
+  onBack,
+  onCreated,
+}: {
+  onBack: () => void;
+  onCreated: (provider: SamlProvider) => void;
+}) {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const [preset, setPreset] = useState<SamlPreset>("entra");
+  const [displayName, setDisplayName] = useState(samlDefaultNames.entra);
+  const [displayNameTouched, setDisplayNameTouched] = useState(false);
+  const [name, setName] = useState(slugify(samlDefaultNames.entra));
+  const [nameTouched, setNameTouched] = useState(false);
+  const [source, setSource] = useState<"url" | "file">("url");
+  const [metadataUrl, setMetadataUrl] = useState("");
+  const [metadataXml, setMetadataXml] = useState<string>();
+  const [fileMissing, setFileMissing] = useState(false);
+
+  const create = useMutation({
+    mutationFn: (body: SamlProviderCreate) => createSamlProvider(body),
+    meta: { errorToast: false },
+    onSuccess: async (provider) => {
+      await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
+      onCreated(provider);
+    },
+  });
+
+  function choosePreset(value: SamlPreset) {
+    setPreset(value);
+    if (!displayNameTouched) {
+      setDisplayName(samlDefaultNames[value]);
+      if (!nameTouched) setName(slugify(samlDefaultNames[value]));
+    }
+  }
+
+  function onSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    // Checked here instead of `required`: the file is read asynchronously.
+    if (source === "file" && !metadataXml) {
+      setFileMissing(true);
+      return;
+    }
+    // Attribute names and NameID format are left out: the backend fills in the preset's.
+    create.mutate({
+      name,
+      display_name: displayName,
+      preset,
+      ...(source === "url" ? { metadata_url: metadataUrl.trim() } : { metadata_xml: metadataXml }),
+      // Saved disabled; enabled in step 3 after ollamail is registered at the IdP.
+      enabled: false,
+      // Backend defaults, spelled out because the generated type lists them as required.
+      idp_certificates: [],
+      trust_email: false,
+      auto_provision: true,
+      link_by_email: false,
+      allowed_domains: [],
+    });
+  }
+
+  return (
+    <FormBody onSubmit={onSubmit} onBack={onBack} pending={create.isPending} error={create.error}>
+      <SelectField
+        label={t("pages.signIn.wizard.fields.preset")}
+        value={preset}
+        onChange={(value) => choosePreset(value as SamlPreset)}
+        options={samlPresets.map((value) => ({
+          value,
+          label: t(`pages.signIn.wizard.presetsSaml.${value}`),
+        }))}
+      />
+      <FormField
+        label={t("pages.signIn.wizard.fields.displayName")}
+        required
+        value={displayName}
+        onChange={(event) => {
+          setDisplayNameTouched(true);
+          setDisplayName(event.target.value);
+          if (!nameTouched) setName(slugify(event.target.value));
+        }}
+      />
+      <FormField
+        label={t("pages.signIn.wizard.fields.name")}
+        description={t("pages.signIn.wizard.fields.samlNameHint")}
+        required
+        pattern="[a-z0-9]([a-z0-9\-]{0,30}[a-z0-9])?"
+        value={name}
+        onChange={(event) => {
+          setNameTouched(true);
+          setName(event.target.value);
+        }}
+      />
+      <SelectField
+        label={t("pages.signIn.wizard.fields.metadataSource")}
+        value={source}
+        onChange={(value) => setSource(value as typeof source)}
+        options={(["url", "file"] as const).map((value) => ({
+          value,
+          label: t(`pages.signIn.wizard.metadataSources.${value}`),
+        }))}
+      />
+      {source === "url" ? (
+        <FormField
+          label={t("pages.signIn.wizard.fields.metadataUrl")}
+          description={t(`pages.signIn.wizard.metadataUrlHints.${preset}`)}
+          type="url"
+          required
+          placeholder={samlMetadataPlaceholders[preset]}
+          value={metadataUrl}
+          onChange={(event) => setMetadataUrl(event.target.value)}
+        />
+      ) : (
+        <FormField
+          label={t("pages.signIn.wizard.fields.metadataFile")}
+          description={t("pages.signIn.wizard.fields.metadataFileHint")}
+          type="file"
+          error={fileMissing ? t("pages.signIn.wizard.fields.metadataFileMissing") : undefined}
+          accept=".xml,application/xml,text/xml,application/samlmetadata+xml"
+          onChange={async (event) => {
+            const file = event.target.files?.[0];
+            setMetadataXml(file ? await file.text() : undefined);
+            setFileMissing(false);
+          }}
+        />
+      )}
+    </FormBody>
+  );
+}
+
+const samlMetadataPlaceholders: Record<SamlPreset, string> = {
+  entra:
+    "https://login.microsoftonline.com/<tenant>/federationmetadata/2007-06/federationmetadata.xml?appid=<app>",
+  adfs: "https://adfs.example.org/FederationMetadata/2007-06/FederationMetadata.xml",
+  okta: "https://example.okta.com/app/<app>/sso/saml/metadata",
+  keycloak: "https://sso.example.org/realms/staff/protocol/saml/descriptor",
+  generic: "https://idp.example.org/saml/metadata",
+};
+
 function LdapForm({
   onBack,
   onCreated,
@@ -636,6 +799,8 @@ function Verify({ created, onDone }: { created: Created; onDone: () => void }) {
         await updateOidcProvider(created.provider.name, { enabled: true });
       } else if (created.kind === "github") {
         await updateGitHubProvider(created.provider.name, { enabled: true });
+      } else if (created.kind === "saml") {
+        await updateSamlProvider(created.provider.name, { enabled: true });
       } else {
         await updateLdapDirectory(created.directory, { enabled: true });
       }
@@ -651,7 +816,8 @@ function Verify({ created, onDone }: { created: Created; onDone: () => void }) {
     <div className="flex min-h-0 flex-1 flex-col">
       <div className={cn("flex flex-col gap-5 overflow-y-auto p-4")}>
         <Notice>{t("pages.signIn.wizard.savedDisabled")}</Notice>
-        {created.kind !== "ldap" && (
+        {created.kind === "saml" && <SamlEndpoints provider={created.provider} />}
+        {(created.kind === "oidc" || created.kind === "github") && (
           <CopyField
             label={t("pages.signIn.provider.redirectUri")}
             value={created.provider.redirect_uri}

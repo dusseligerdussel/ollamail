@@ -1,5 +1,4 @@
 import { Link } from "@tanstack/react-router";
-import { Paperclip } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -8,6 +7,7 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { addressName, formatListDate } from "@/lib/mail-format";
 import { cn } from "@/lib/utils";
 
+import { AttachmentSource, isAttachmentSource } from "./attachment-source";
 import { HighlightedText } from "./highlighted-text";
 
 interface HitListProps {
@@ -71,13 +71,12 @@ export function HitList({
               <div className="truncate">
                 <HighlightedText text={hit.subject || t("mail.noSubject")} terms={terms} />
               </div>
-              {hit.source === "attachment" && (
-                <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground">
-                  <Paperclip aria-hidden className="size-3 shrink-0" />
-                  <span className="truncate">
-                    {hit.attachment_filename || t("mail.unnamedAttachment")}
-                  </span>
-                </div>
+              {isAttachmentSource(hit.source) && (
+                <AttachmentSource
+                  source={hit.source}
+                  filename={hit.attachment_filename}
+                  className="mt-0.5"
+                />
               )}
               {hit.excerpt && (
                 <p className="mt-0.5 line-clamp-2 text-muted-foreground [overflow-wrap:anywhere]">

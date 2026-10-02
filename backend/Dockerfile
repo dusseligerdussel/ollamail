@@ -44,8 +44,11 @@ FROM base AS runtime-base
 
 # ffmpeg encodes speech to Opus/MP3 (app/ai/tts/encode.py). Piper itself comes from uv.lock
 # (piper-tts wheels for amd64 and arm64); voices are downloaded into /data at runtime.
+# Tesseract with German and English data recognises scanned attachments (app/search/,
+# OLLAMAIL_SEARCH_OCR_MODE); Debian packages exist for amd64 and arm64.
 RUN apt-get update \
     && apt-get install -y --no-install-recommends ffmpeg \
+       tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 10001 ollamail \

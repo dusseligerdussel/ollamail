@@ -24,6 +24,45 @@ TanStack Query, i18next (de/en). Tooling: pnpm, Biome, Vitest + Testing Library,
 Für `pnpm e2e` wird ein Chromium benötigt (`pnpm exec playwright install chromium`). Ein bereits
 installierter Browser kann über `PLAYWRIGHT_CHROMIUM_EXECUTABLE_PATH` genutzt werden.
 
+## E2E-Tests (Playwright)
+
+Die Specs in `e2e/` laufen in zwei Arten:
+
+- **Gemockt** (Standard): Die API wird im Browser beantwortet (`e2e/mock-*.ts`), kein Backend nötig.
+- **Gegen den echten Stack** (`E2E_API=1`, zusätzlich `E2E_IMAP=1`): Backend, Worker, PostgreSQL und
+  der Dovecot-Testserver der Backend-Tests, ohne LLM. Abgedeckt sind Setup (Erst-Admin) und Login
+  (`auth.spec.ts`), IMAP-Postfach anlegen und Mails in der Inbox (`mailbox.spec.ts`), Aufgabe abhaken
+  und Volltextsuche (`fullstack.spec.ts`). Gemeinsame Helfer: `e2e/stack.ts`. Ohne die Variablen
+  überspringen sich diese Specs selbst.
+
+Projekte in `playwright.config.ts`: `setup` (`auth.spec.ts`, braucht eine leere Datenbank) läuft
+zuerst, danach parallel `chromium` (alles andere), zum Schluss allein `perf` (Tests mit Tag `@perf`,
+die Main-Thread-Arbeit messen; Budgets siehe „Postfächer und Inbox“, E2E). Es gibt keine Retries: Ein Test, der erst im zweiten Versuch grün wird,
+deckt einen Fehler zu. Gewartet wird auf Zustände (`expect`, `toPass`), nie mit festen Pausen.
+`E2E_PREVIEW=1` testet den Produktions-Build (`pnpm build` vorher) statt des Dev-Servers.
+
+Lokal gegen den echten Stack (wie der CI-Job „E2E“ in `.github/workflows/ci.yml`):
+
+```sh
+docker run -d -p 5432:5432 -e POSTGRES_USER=ollamail -e POSTGRES_PASSWORD=ollamail \
+  -e POSTGRES_DB=ollamail_e2e pgvector/pgvector:pg16
+docker run -d -p 31993:31993 -e USER_PASSWORD=ollamail-test dovecot/dovecot:2.4.5
+
+# in backend/, in zwei Terminals mit denselben Variablen:
+export OLLAMAIL_DATABASE_URL=postgresql+asyncpg://ollamail:ollamail@localhost:5432/ollamail_e2e
+export OLLAMAIL_SECRET_KEY="$(openssl rand -base64 32)" OLLAMAIL_SETUP_TOKEN=e2e-setup-token
+export OLLAMAIL_DATA_DIR=/tmp/ollamail-e2e OLLAMAIL_AUTH_COOKIE_SECURE=false
+export OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS=true OLLAMAIL_LLM_BASE_URL=http://127.0.0.1:9
+uv run alembic upgrade head && uv run uvicorn app.main:app --port 8000
+uv run python -m app.worker
+
+# in frontend/:
+E2E_API=1 E2E_IMAP=1 E2E_SETUP_TOKEN=e2e-setup-token pnpm e2e
+```
+
+Für einen zweiten Lauf die Datenbank leeren (`auth.spec.ts` prüft, dass sie leer ist). Bei Fehlern
+lädt die CI den Playwright-Report (mit Traces) und die Logs von API und Worker als Artifact hoch.
+
 ## Struktur
 
 ```

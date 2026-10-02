@@ -6690,6 +6690,663 @@
         "title": "RoleMappingUpdate",
         "type": "object"
       },
+      "SAMLCertificateRead": {
+        "properties": {
+          "fingerprint_sha256": {
+            "title": "Fingerprint Sha256",
+            "type": "string"
+          },
+          "not_valid_after": {
+            "format": "date-time",
+            "title": "Not Valid After",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint_sha256",
+          "not_valid_after"
+        ],
+        "title": "SAMLCertificateRead",
+        "type": "object"
+      },
+      "SAMLPreset": {
+        "enum": [
+          "generic",
+          "entra",
+          "adfs",
+          "okta",
+          "keycloak"
+        ],
+        "title": "SAMLPreset",
+        "type": "string"
+      },
+      "SAMLProviderCreate": {
+        "description": "A new SAML provider. The IdP comes from ``metadata_xml`` (upload), from\n``metadata_url`` (fetched now and on refresh) or from the three ``idp_*`` fields.\n\nAttribute names and ``name_id_format`` that are left out come from the preset.",
+        "properties": {
+          "allowed_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "auto_provision": {
+            "default": true,
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "display_name_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name Attribute"
+          },
+          "email_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Attribute"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "groups_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Attribute"
+          },
+          "idp_certificates": {
+            "default": [],
+            "items": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Idp Certificates",
+            "type": "array"
+          },
+          "idp_entity_id": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Entity Id"
+          },
+          "idp_sso_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Sso Url"
+          },
+          "link_by_email": {
+            "default": false,
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "metadata_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Url"
+          },
+          "metadata_xml": {
+            "anyOf": [
+              {
+                "maxLength": 2097152,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Xml"
+          },
+          "name": {
+            "maxLength": 32,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+            "title": "Name",
+            "type": "string"
+          },
+          "name_id_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+                  "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+                  "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+                  "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Id Format"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/SAMLPreset",
+            "default": "generic"
+          },
+          "sp_entity_id": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sp Entity Id"
+          },
+          "subject_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Attribute"
+          },
+          "trust_email": {
+            "default": false,
+            "title": "Trust Email",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "display_name"
+        ],
+        "title": "SAMLProviderCreate",
+        "type": "object"
+      },
+      "SAMLProviderRead": {
+        "properties": {
+          "allowed_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "auto_provision": {
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "display_name_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name Attribute"
+          },
+          "effective_sp_entity_id": {
+            "title": "Effective Sp Entity Id",
+            "type": "string"
+          },
+          "email_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Attribute"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "groups_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Attribute"
+          },
+          "idp_certificates": {
+            "items": {
+              "$ref": "#/components/schemas/SAMLCertificateRead"
+            },
+            "title": "Idp Certificates",
+            "type": "array"
+          },
+          "idp_entity_id": {
+            "title": "Idp Entity Id",
+            "type": "string"
+          },
+          "idp_sso_url": {
+            "title": "Idp Sso Url",
+            "type": "string"
+          },
+          "link_by_email": {
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "metadata_refreshed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Refreshed At"
+          },
+          "metadata_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Url"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "name_id_format": {
+            "title": "Name Id Format",
+            "type": "string"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/SAMLPreset"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "redirect_uri": {
+            "title": "Redirect Uri",
+            "type": "string"
+          },
+          "sp_entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sp Entity Id"
+          },
+          "sp_metadata_url": {
+            "title": "Sp Metadata Url",
+            "type": "string"
+          },
+          "subject_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Attribute"
+          },
+          "trust_email": {
+            "title": "Trust Email",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "provider",
+          "display_name",
+          "preset",
+          "metadata_url",
+          "metadata_refreshed_at",
+          "idp_entity_id",
+          "idp_sso_url",
+          "idp_certificates",
+          "sp_entity_id",
+          "effective_sp_entity_id",
+          "redirect_uri",
+          "sp_metadata_url",
+          "name_id_format",
+          "subject_attribute",
+          "email_attribute",
+          "display_name_attribute",
+          "groups_attribute",
+          "trust_email",
+          "enabled",
+          "auto_provision",
+          "link_by_email",
+          "allowed_domains",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SAMLProviderRead",
+        "type": "object"
+      },
+      "SAMLProviderUpdate": {
+        "description": "Fields to change; omitted fields stay. ``null`` clears ``metadata_url``,\n``sp_entity_id`` and the attribute names. A new ``metadata_xml`` or ``metadata_url``\nreplaces the IdP settings.",
+        "properties": {
+          "allowed_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 254,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Domains"
+          },
+          "auto_provision": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Provision"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "display_name_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name Attribute"
+          },
+          "email_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Attribute"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "groups_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Attribute"
+          },
+          "idp_certificates": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 16384,
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Certificates"
+          },
+          "idp_entity_id": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Entity Id"
+          },
+          "idp_sso_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Sso Url"
+          },
+          "link_by_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link By Email"
+          },
+          "metadata_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Url"
+          },
+          "metadata_xml": {
+            "anyOf": [
+              {
+                "maxLength": 2097152,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Xml"
+          },
+          "name_id_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+                  "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+                  "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+                  "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Id Format"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SAMLPreset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sp_entity_id": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sp Entity Id"
+          },
+          "subject_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Attribute"
+          },
+          "trust_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Email"
+          }
+        },
+        "title": "SAMLProviderUpdate",
+        "type": "object"
+      },
       "ScimSettingsRead": {
         "properties": {
           "enabled": {
@@ -9658,6 +10315,281 @@
         ]
       }
     },
+    "/admin/auth/saml/providers": {
+      "get": {
+        "description": "All SAML providers.",
+        "operationId": "admin_list_saml_providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SAMLProviderRead"
+                  },
+                  "title": "Response Admin List Saml Providers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Saml Providers",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Add a SAML provider from IdP metadata (URL or upload) or explicit IdP settings.",
+        "operationId": "admin_create_saml_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SAMLProviderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SAMLProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Name taken"
+          },
+          "422": {
+            "description": "Invalid settings or metadata"
+          }
+        },
+        "summary": "Create Saml Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/saml/providers/{name}": {
+      "delete": {
+        "description": "Remove a SAML provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "operationId": "admin_delete_saml_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Saml Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "admin_get_saml_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SAMLProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Saml Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "Change a SAML provider. Omitted fields stay as they are.",
+        "operationId": "admin_update_saml_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SAMLProviderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SAMLProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
+          },
+          "422": {
+            "description": "Invalid settings or metadata"
+          }
+        },
+        "summary": "Update Saml Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/saml/providers/{name}/refresh-metadata": {
+      "post": {
+        "description": "Load the IdP metadata from ``metadata_url`` again (e.g. after a certificate\nrollover at the IdP).",
+        "operationId": "admin_refresh_saml_metadata",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SAMLProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
+          },
+          "422": {
+            "description": "No metadata URL, or the metadata is unusable"
+          }
+        },
+        "summary": "Refresh Saml Metadata",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/auth/settings": {
       "get": {
         "description": "Sign-in settings and which admins can currently sign in (counts only).",
@@ -11780,6 +12712,138 @@
           }
         },
         "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/saml/acs": {
+      "post": {
+        "description": "Assertion Consumer Service (HTTP-POST binding): the IdP posts the response here.\n\nThe provider comes from the encrypted flow cookie, not from the request; responses\nwithout a matching login started here (IdP-initiated) are rejected.",
+        "operationId": "auth_saml_acs",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "properties": {
+                  "RelayState": {
+                    "type": "string"
+                  },
+                  "SAMLResponse": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "SAMLResponse",
+                  "RelayState"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "303": {
+            "description": "Redirect to return_to (signed in), or to /login?error=<code>"
+          }
+        },
+        "summary": "Saml Acs",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/saml/{name}/login": {
+      "get": {
+        "description": "Start the login with a SAML provider (browser navigation, not fetch).",
+        "operationId": "auth_saml_login",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "return_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Return To"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to the IdP, or to /login?error=<code>"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Saml Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/saml/{name}/metadata": {
+      "get": {
+        "description": "Metadata of ollamail as service provider (entity ID, ACS URL) for the IdP; also\nfor disabled providers, so it can be registered before the provider is switched on.",
+        "operationId": "auth_saml_sp_metadata",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/samlmetadata+xml": {}
+            },
+            "description": "SP metadata"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Saml Sp Metadata",
         "tags": [
           "auth"
         ]
