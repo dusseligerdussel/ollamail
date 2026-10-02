@@ -7,9 +7,10 @@ Only types the admin allows (``OLLAMAIL_TODOS_EXPORT_SINKS``) are offered or syn
 from collections.abc import Callable, Mapping
 from typing import Any
 
-from app.core.config import TodosSettings
+from app.core.config import TodosSettings, get_settings
 from app.todos.export.base import TodoSink
 from app.todos.export.caldav import CalDAVSink
+from app.todos.export.gtasks import GoogleTasksSink
 
 SinkFactory = Callable[[str, Mapping[str, Any], TodosSettings], TodoSink]
 
@@ -24,8 +25,18 @@ def _caldav(config: Mapping[str, Any], settings: TodosSettings) -> TodoSink:
     )
 
 
+def _gtasks(config: Mapping[str, Any], settings: TodosSettings) -> TodoSink:
+    # OAuth client of the Gmail provider (docs/providers/gmail.md §8).
+    return GoogleTasksSink(
+        str(config.get("refresh_token", "")),
+        get_settings().gmail,
+        timeout=settings.export_timeout_seconds,
+    )
+
+
 FACTORIES: dict[str, Callable[[Mapping[str, Any], TodosSettings], TodoSink]] = {
     "caldav": _caldav,
+    "gtasks": _gtasks,
 }
 
 

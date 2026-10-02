@@ -28,6 +28,24 @@ export function listTaskLists(body: ExportConnection) {
   return unwrap(api.POST("/todo-export/lists", { body }));
 }
 
+/** Targets connected with OAuth (redirect to the provider) instead of the credentials form. */
+export const OAUTH_SINKS: ReadonlySet<ExportSink> = new Set<ExportSink>(["gtasks"]);
+
+/** Starts the Google Tasks connect flow; the browser then opens the returned URL. */
+export function startGoogleTasksOAuth(mode: ExportMode) {
+  return unwrap(api.POST("/todo-export/gtasks/oauth/start", { body: { mode } }));
+}
+
+/** Lists of the connected account (stored credentials), to pick another one. */
+export function connectedTaskListsQueryOptions(enabled: boolean) {
+  return queryOptions({
+    queryKey: [...todoExportKey, "lists"] as const,
+    queryFn: ({ signal }) => unwrap(api.GET("/todo-export/lists", { signal })),
+    enabled,
+    staleTime: 60_000,
+  });
+}
+
 function useSettingsMutation<T>(
   mutationFn: (variables: T) => Promise<ExportSettings>,
   errorToast = true,
@@ -54,6 +72,12 @@ export function useSaveTodoExport() {
 export function useUpdateExportMode() {
   return useSettingsMutation((mode: ExportMode) =>
     unwrap(api.PATCH("/todo-export", { body: { mode } })),
+  );
+}
+
+export function useUpdateExportList() {
+  return useSettingsMutation((listId: string) =>
+    unwrap(api.PATCH("/todo-export", { body: { list_id: listId } })),
   );
 }
 

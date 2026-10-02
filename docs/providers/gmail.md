@@ -82,6 +82,7 @@ Beide Scopes sind **restricted**. Folgen:
 - ollamail fordert **keine** weiteren Scopes an (kein `openid`, kein Profil, kein eigener
   `gmail.send`: `gmail.modify` schließt das Senden ein). Die Adresse kommt aus
   `users/me/profile`. Bestehende Verbindungen müssen für das Senden also nicht erneuert werden.
+  Den Scope `tasks` fordert nur der eigene Connect-Flow des Aufgaben-Exports an (§8).
 
 ### 2.3 Domain-wide Delegation (Modus `service_account`)
 
@@ -306,3 +307,101 @@ Mit einem **Test-Konto** (nie mit echten Postfächern Dritter):
 11. Optional Pub/Sub: Topic + Subscription anlegen, `provider_settings` ergänzen,
     `OLLAMAIL_GMAIL_SERVICE_ACCOUNT_FILE` setzen; neue Mails lösen innerhalb weniger Sekunden
     einen Sync aus (`mail_sync_finished` ohne auf das Polling-Intervall zu warten).
+
+## 8. Google Tasks (Aufgaben-Export, #102)
+
+Der Aufgaben-Export (`backend/app/todos/export/`, [`ARCHITECTURE.md` §4.3](../ARCHITECTURE.md#43-todos))
+kann Aufgaben nach **Google Tasks** übertragen (Sink `gtasks`, Code `gtasks.py`,
+`gtasks_connect.py`). Er nutzt denselben OAuth-Client wie der Gmail-Provider und dessen
+Bausteine (PKCE, signiertes `state`-Cookie, Token-Austausch und -Erneuerung aus
+`gmail_auth.py`, Retries und Fehlercodes aus `gmail_api.py`); ein Gmail-Postfach ist dafür
+**nicht** nötig.
+
+### 8.1 Einrichtung (Admin)
+
+1. Im GCP-Projekt des OAuth-Clients zusätzlich die **Google Tasks API** aktivieren.
+2. OAuth-Zustimmungsbildschirm: Scope `https://www.googleapis.com/auth/tasks` hinzufügen.
+   Er ist **sensitive** (nicht restricted): Für „Intern“ (Workspace) und „Testing“ ist keine
+   Verifizierung nötig; ein externer Produktivbetrieb braucht die normale
+   Google-Verifizierung, aber kein Security-Assessment. Für „Testing“ gilt auch hier: Der
+   Refresh-Token läuft nach 7 Tagen ab, dann neu verbinden.
+3. Beim OAuth-Client eine **zweite Redirect-URI** eintragen:
+   ```
+   <Basis-URL von ollamail>/api/todo-export/gtasks/oauth/callback
+   ```
+   Ohne `OLLAMAIL_TODOS_EXPORT_GTASKS_REDIRECT_URI` leitet ollamail sie aus
+   `OLLAMAIL_GMAIL_REDIRECT_URI` ab (gleicher Präfix, `/mail/gmail/oauth/callback` →
+   `/todo-export/gtasks/oauth/callback`).
+4. `OLLAMAIL_TODOS_EXPORT_SINKS` um `gtasks` ergänzen (z. B. `caldav,gtasks`) und
+   `OLLAMAIL_GMAIL_CLIENT_ID`/`_SECRET` setzen.
+
+Domain-wide Delegation wird für Google Tasks bewusst **nicht** genutzt: Jeder Nutzer stimmt
+selbst zu, der Service-Account-Schlüssel bekommt keinen weiteren Scope.
+
+### 8.2 Verbinden (Nutzer)
+
+Unter Einstellungen → Aufgaben-Export „Google Tasks“ wählen, Modus wählen, „Mit Google
+verbinden“:
+
+1. `POST /todo-export/gtasks/oauth/start` (nur wenn `gtasks` freigegeben ist) liefert die
+   Google-URL mit Scope `tasks`, `include_granted_scopes=true`, `access_type=offline`,
+   `prompt=consent` und PKCE. `state`, Verifier, Nutzer und Modus liegen HMAC-signiert im
+   `HttpOnly`-Cookie `ollamail_gtasks_oauth` (10 Minuten, eigener Zweck `todo_export_gtasks`,
+   damit ein Cookie des Gmail-Flows hier nicht gilt).
+2. `GET /todo-export/gtasks/oauth/callback` prüft Cookie, `state` und Nutzer, tauscht den
+   Code, prüft, dass `tasks` **tatsächlich gewährt** wurde, und holt die Aufgabenlisten. Ein
+   neues Ziel exportiert in die erste Liste (Googles Standardliste „Meine Aufgaben“); eine
+   andere Liste wählt der Nutzer danach (`GET /todo-export/lists`,
+   `PATCH /todo-export {"list_id"}`). Erneutes Verbinden desselben Kontos (seine Liste gibt es
+   noch) ersetzt nur den Refresh-Token; ein anderes Konto beginnt neu (Verweise werden
+   verworfen). Weiterleitung auf `/settings/task-export?gtasks=connected` bzw.
+   `?gtasks_error=<code>`.
+
+Gespeichert wird nur der Refresh-Token, verschlüsselt in `todo_export_targets.config`
+(`EncryptedJSON`); Access-Tokens nur im Prozessspeicher. Logs nur mit Nutzer- und Ziel-ID und
+Fehlercode. Der Formular-Weg (`PUT /todo-export`, `POST /todo-export/lists` mit Zugangsdaten)
+lehnt `gtasks` mit `oauth_required` ab.
+
+### 8.3 Abbildung
+
+| ollamail | Google Tasks |
+|---|---|
+| Titel | `title` (max. 1024 Zeichen) |
+| Beschreibung, Link zur Mail | `notes` (max. 8192 Zeichen; Beschreibung wird gekürzt), am Ende die Markierung `[ollamail:<Todo-ID>]` |
+| Fälligkeit | `due` (nur Datum; Google ignoriert die Uhrzeit) |
+| offen / erledigt / verworfen | `needsAction` / `completed` / `completed` (Google kennt kein „abgebrochen“) |
+| Priorität | – (Google Tasks kennt keine Priorität) |
+
+`links` ist in der API nur lesbar; der Link zur Mail steht deshalb in `notes`.
+
+- **Keine Duplikate:** Google vergibt die Task-IDs selbst. `push` sucht die Todo-ID deshalb
+  zuerst über die Markierung in der Liste (eine Abfrage pro Abgleich) und überschreibt einen
+  Treffer; das Anlegen selbst wird nach einer verlorenen Antwort nie automatisch wiederholt.
+- **Ändern** per `PATCH` mit `If-Match: <etag>`; `412` ist ein Konflikt, den der Abgleich
+  wie bei CalDAV auflöst.
+- **Statusabgleich** über `tasks.list` mit `showCompleted`, `showHidden` und `showDeleted`:
+  Aufgaben mit anderem `etag` haben sich geändert, gelöschte oder fehlende sind im Ziel
+  gelöscht. `updatedMin` wird nicht genutzt, weil der Sink zwischen zwei Läufen keinen Zustand
+  hält und eine endgültig entfernte Aufgabe sonst nicht von einer unveränderten zu
+  unterscheiden wäre.
+- Wird eine **verworfene** Aufgabe in Google Tasks später bearbeitet, kommt sie als
+  „erledigt“ zurück (Google kennt nur diese zwei Zustände).
+
+### 8.4 Fehler
+
+`401` → Token einmal erneuern, dann `auth_failed` (UI: neu verbinden); `429`, `403`
+mit Rate-Limit und `5xx` → Backoff (wie Gmail), danach `unavailable`; `404` der Liste →
+`list_not_found`; Tasks API nicht aktiviert → `api_disabled`; kein OAuth-Client →
+`oauth_not_configured`. Connect-Flow zusätzlich: `access_denied`, `insufficient_scope`,
+`invalid_state`, `token_revoked`, `refresh_token_missing`, `no_lists`, `sink_not_available`.
+
+### 8.5 Tests und manuelle Prüfung
+
+`backend/tests/todos/export/test_gtasks.py` (Sink gegen die mit `respx` gemockte Tasks API:
+Listen, Anlegen, Wiederanlegen ohne Duplikat, Konflikt, gelöschte Aufgaben, 401/429, ein
+Abgleich mit dem echten Sync) und `test_gtasks_connect.py` (Connect-Flow mit PostgreSQL).
+Manuell mit einem **Test-Konto**: Einrichtung wie 8.1, verbinden, eine Aufgabe in ollamail
+anlegen (erscheint in „Meine Aufgaben“), in Google Tasks abhaken (nach spätestens
+`OLLAMAIL_TODOS_EXPORT_POLL_MINUTES` erledigt), unter
+<https://myaccount.google.com/permissions> widerrufen → Status „Google hat den Zugriff
+abgelehnt“.

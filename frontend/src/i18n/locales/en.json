@@ -1623,20 +1623,26 @@
     "title": "Task export",
     "back": "Back to settings",
     "manage": "Export tasks",
-    "linkDescription": "Send tasks to Nextcloud or another CalDAV task list.",
+    "linkDescription": "Send tasks to Nextcloud, Google Tasks or another task list.",
     "intro": "Sends your tasks to the task list you already work with. What you complete there is completed here as well.",
     "loading": "Loading settings",
     "disabledTitle": "Export not enabled",
     "disabledDescription": "Task export is switched off on this server. Your administrator can enable it.",
     "privacy": {
       "sent": "The export sends the title, description, due date, priority and status of your tasks, plus a link to the message, to the server you enter here.",
-      "notSent": "The messages themselves are not sent. Use an app password instead of your main password where possible."
+      "notSent": "The messages themselves are not sent. Use an app password instead of your main password where possible.",
+      "sentGoogle": "The export sends the title, description, due date and status of your tasks, plus a link to the message, to Google Tasks.",
+      "notSentGoogle": "The messages themselves are not sent. ollamail only gets access to your tasks, not to other data of your Google account."
     },
     "target": "Target",
     "sinks": {
       "caldav": {
         "title": "CalDAV",
         "description": "Nextcloud, Radicale, Baïkal, iCloud and other CalDAV servers"
+      },
+      "gtasks": {
+        "title": "Google Tasks",
+        "description": "Task lists of your Google account"
       }
     },
     "url": "Server URL",
@@ -1690,7 +1696,26 @@
       "sink_not_available": "This target is not enabled on this server.",
       "unknown_list": "The list no longer exists on the server.",
       "list_not_found": "The list no longer exists on the server.",
+      "reconnect": "Google refused the access. Connect Google Tasks again.",
+      "oauth_required": "This target is connected by signing in with the provider.",
+      "oauth_not_configured": "Signing in with Google is not set up on this server.",
+      "access_denied": "Access was denied or cancelled at Google.",
+      "insufficient_scope": "Access to Google Tasks was not allowed. Tick the box for tasks at Google.",
+      "invalid_state": "The sign-in expired or is invalid. Please try again.",
+      "token_revoked": "Google no longer accepted the sign-in. Please try again.",
+      "refresh_token_missing": "Google did not grant lasting access. Please try again.",
+      "no_lists": "Your Google account has no task list.",
+      "api_disabled": "The Google Tasks API is not enabled in the Google Cloud project.",
       "other": "The server sent an unexpected answer."
-    }
+    },
+    "google": {
+      "hint": "You are taken to Google to allow access to your tasks. ollamail then exports to your default list; you can pick another list afterwards.",
+      "connect": "Connect with Google",
+      "reconnect": "Connect with Google again",
+      "redirecting": "Redirecting to Google …",
+      "connected": "Google Tasks connected",
+      "failed": "Google Tasks was not connected"
+    },
+    "listChanged": "List changed"
   }
 }

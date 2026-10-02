@@ -21,6 +21,23 @@ export function testExportTarget(overrides: Partial<ExportTarget> = {}): ExportT
   };
 }
 
+/** A Google Tasks target (OAuth: no server URL or user name). */
+export function testGoogleTarget(overrides: Partial<ExportTarget> = {}): ExportTarget {
+  return testExportTarget({
+    sink: "gtasks",
+    url: "",
+    username: "",
+    list_id: "gl-default",
+    list_name: "My Tasks",
+    ...overrides,
+  });
+}
+
+export const testGoogleLists: TaskList[] = [
+  { id: "gl-default", name: "My Tasks" },
+  { id: "gl-work", name: "Work" },
+];
+
 export const testTaskLists: TaskList[] = [
   { id: "/calendars/erika/tasks/", name: "Tasks" },
   { id: "/calendars/erika/work/", name: "Work" },
@@ -56,6 +73,10 @@ export function todoExportApi({
         return json(settings());
       case "POST /api/todo-export/lists":
         return listsError ? problem(422, { error_code: listsError }) : json(testTaskLists);
+      case "GET /api/todo-export/lists":
+        return json(current?.sink === "gtasks" ? testGoogleLists : testTaskLists);
+      case "POST /api/todo-export/gtasks/oauth/start":
+        return json({ authorization_url: "https://accounts.example/authorize" });
       case "PUT /api/todo-export": {
         const list = testTaskLists.find((item) => item.id === body?.list_id);
         current = testExportTarget({
@@ -69,9 +90,17 @@ export function todoExportApi({
         });
         return json(settings());
       }
-      case "PATCH /api/todo-export":
-        if (current) current = { ...current, mode: body?.mode as ExportTarget["mode"] };
+      case "PATCH /api/todo-export": {
+        if (!current) return problem(404);
+        const lists = current.sink === "gtasks" ? testGoogleLists : testTaskLists;
+        const list = lists.find((item) => item.id === body?.list_id);
+        current = {
+          ...current,
+          ...(body?.mode !== undefined && { mode: body.mode as ExportTarget["mode"] }),
+          ...(list && { list_id: list.id, list_name: list.name }),
+        };
         return json(settings());
+      }
       case "DELETE /api/todo-export":
         current = null;
         return new Response(null, { status: 204 });

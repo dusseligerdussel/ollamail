@@ -2405,9 +2405,50 @@ export interface paths {
         head?: never;
         /**
          * Update Export Settings
-         * @description Switch between automatic and manual export.
+         * @description Switch between automatic and manual export, or pick another list of the connected
+         *     account (checked against the lists the target system offers).
          */
         patch: operations["todos_update_export_settings"];
+        trace?: never;
+    };
+    "/todo-export/gtasks/oauth/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Gtasks Oauth Callback
+         * @description Redirect target registered at Google; finishes connecting Google Tasks.
+         */
+        get: operations["todos_gtasks_oauth_callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todo-export/gtasks/oauth/start": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Start Gtasks Oauth
+         * @description Start connecting Google Tasks: open the returned URL in the browser.
+         */
+        post: operations["todos_start_gtasks_oauth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/todo-export/lists": {
@@ -2417,7 +2458,12 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /**
+         * List Connected Task Lists
+         * @description The lists of the connected account, with the stored credentials (to pick another
+         *     list, e.g. after connecting with OAuth).
+         */
+        get: operations["todos_list_connected_task_lists"];
         put?: never;
         /**
          * List Task Lists
@@ -3863,9 +3909,9 @@ export interface components {
             password?: string | null;
             /**
              * Sink
-             * @constant
+             * @enum {string}
              */
-            sink: "caldav";
+            sink: "caldav" | "gtasks";
             /** Url */
             url: string;
             /**
@@ -3908,7 +3954,7 @@ export interface components {
         /** ExportSettingsRead */
         ExportSettingsRead: {
             /** Available Sinks */
-            available_sinks?: "caldav"[];
+            available_sinks?: ("caldav" | "gtasks")[];
             target: components["schemas"]["ExportTargetRead"] | null;
         };
         /**
@@ -3939,9 +3985,9 @@ export interface components {
             mode: components["schemas"]["ExportMode"];
             /**
              * Sink
-             * @constant
+             * @enum {string}
              */
-            sink: "caldav";
+            sink: "caldav" | "gtasks";
             /** Url */
             url: string;
             /** Username */
@@ -3960,9 +4006,9 @@ export interface components {
             password?: string | null;
             /**
              * Sink
-             * @constant
+             * @enum {string}
              */
-            sink: "caldav";
+            sink: "caldav" | "gtasks";
             /** Url */
             url: string;
             /**
@@ -3971,9 +4017,14 @@ export interface components {
              */
             username: string;
         };
-        /** ExportTargetUpdate */
+        /**
+         * ExportTargetUpdate
+         * @description Fields left out stay as they are.
+         */
         ExportTargetUpdate: {
-            mode: components["schemas"]["ExportMode"];
+            /** List Id */
+            list_id?: string | null;
+            mode?: components["schemas"]["ExportMode"] | null;
         };
         /** FeedCreated */
         FeedCreated: {
@@ -4189,6 +4240,16 @@ export interface components {
         };
         /** GmailOAuthStartResponse */
         GmailOAuthStartResponse: {
+            /** Authorization Url */
+            authorization_url: string;
+        };
+        /** GoogleTasksOAuthStart */
+        GoogleTasksOAuthStart: {
+            /** @default auto */
+            mode: components["schemas"]["ExportMode"];
+        };
+        /** GoogleTasksOAuthStartResponse */
+        GoogleTasksOAuthStartResponse: {
             /** Authorization Url */
             authorization_url: string;
         };
@@ -13240,6 +13301,49 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Target not allowed, invalid URL, credentials rejected, no list */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not reachable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_gtasks_oauth_callback: {
+        parameters: {
+            query?: {
+                code?: string | null;
+                state?: string | null;
+                error?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Back to the settings with the result in the query */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -13248,6 +13352,99 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    todos_start_gtasks_oauth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GoogleTasksOAuthStart"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GoogleTasksOAuthStartResponse"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Google Tasks is not enabled as export target */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Google OAuth is not configured */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_list_connected_task_lists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskListRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Export not connected */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not allowed, invalid URL, credentials rejected, no list */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not reachable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

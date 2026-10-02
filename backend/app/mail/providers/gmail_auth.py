@@ -36,6 +36,8 @@ TOKEN_URL = "https://oauth2.googleapis.com/token"
 SCOPE_MODIFY = "https://www.googleapis.com/auth/gmail.modify"
 SCOPE_READONLY = "https://www.googleapis.com/auth/gmail.readonly"
 SCOPE_PUBSUB = "https://www.googleapis.com/auth/pubsub"
+# Google Tasks (todo export, app/todos/export/gtasks.py); requested by its own connect flow.
+SCOPE_TASKS = "https://www.googleapis.com/auth/tasks"
 JWT_GRANT = "urn:ietf:params:oauth:grant-type:jwt-bearer"
 # Refresh this many seconds before the access token expires.
 REFRESH_MARGIN = 120.0
@@ -259,15 +261,24 @@ def oauth_configured(settings: GmailSettings) -> bool:
 
 
 def authorization_url(
-    settings: GmailSettings, *, state: str, code_challenge: str, login_hint: str | None = None
+    settings: GmailSettings,
+    *,
+    state: str,
+    code_challenge: str,
+    login_hint: str | None = None,
+    scope: str | None = None,
+    redirect_uri: str | None = None,
 ) -> str:
+    """Google's consent URL; ``scope`` and ``redirect_uri`` default to the Gmail connect
+    flow. Other flows of the same OAuth client (Google Tasks) pass their own and keep the
+    scopes granted before (``include_granted_scopes``)."""
     if not oauth_configured(settings):
         raise ConfigurationError(code="oauth_not_configured")
     params = {
         "client_id": settings.client_id,
-        "redirect_uri": settings.redirect_uri,
+        "redirect_uri": redirect_uri or settings.redirect_uri,
         "response_type": "code",
-        "scope": gmail_scope(settings),
+        "scope": scope or gmail_scope(settings),
         # A refresh token is only issued with offline access; ``consent`` makes Google
         # issue a new one on reconnect, too.
         "access_type": "offline",
@@ -276,6 +287,8 @@ def authorization_url(
         "code_challenge": code_challenge,
         "code_challenge_method": "S256",
     }
+    if scope:
+        params["include_granted_scopes"] = "true"
     if login_hint:
         params["login_hint"] = login_hint
     return f"{AUTH_URL}?{urlencode(params)}"
@@ -289,9 +302,14 @@ class TokenGrant:
 
 
 async def exchange_code(
-    http: httpx.AsyncClient, settings: GmailSettings, code: str, code_verifier: str
+    http: httpx.AsyncClient,
+    settings: GmailSettings,
+    code: str,
+    code_verifier: str,
+    *,
+    redirect_uri: str | None = None,
 ) -> TokenGrant:
-    """Exchange an authorization code for tokens."""
+    """Exchange an authorization code for tokens (``redirect_uri`` as in the consent URL)."""
     if not oauth_configured(settings):
         raise ConfigurationError(code="oauth_not_configured")
     assert settings.client_id and settings.client_secret and settings.redirect_uri
@@ -304,7 +322,7 @@ async def exchange_code(
             "code_verifier": code_verifier,
             "client_id": settings.client_id,
             "client_secret": settings.client_secret.get_secret_value(),
-            "redirect_uri": settings.redirect_uri,
+            "redirect_uri": redirect_uri or settings.redirect_uri,
         },
     )
     refresh_token = payload.get("refresh_token")

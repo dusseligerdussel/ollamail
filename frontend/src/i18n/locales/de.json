@@ -1623,20 +1623,26 @@
     "title": "Aufgaben-Export",
     "back": "Zurück zu den Einstellungen",
     "manage": "Aufgaben exportieren",
-    "linkDescription": "Aufgaben in Nextcloud oder eine andere CalDAV-Aufgabenliste übertragen.",
+    "linkDescription": "Aufgaben in Nextcloud, Google Tasks oder eine andere Aufgabenliste übertragen.",
     "intro": "Überträgt deine Aufgaben in die Aufgabenliste, mit der du ohnehin arbeitest. Was du dort erledigst, wird hier ebenfalls erledigt.",
     "loading": "Einstellungen werden geladen",
     "disabledTitle": "Export nicht freigegeben",
     "disabledDescription": "Auf diesem Server ist der Aufgaben-Export ausgeschaltet. Die Administration kann ihn freigeben.",
     "privacy": {
       "sent": "Beim Export gehen Titel, Beschreibung, Fälligkeit, Priorität und Status deiner Aufgaben sowie ein Link zur Mail an den Server, den du hier angibst.",
-      "notSent": "Die Mails selbst werden nicht übertragen. Verwende nach Möglichkeit ein App-Passwort statt deines Hauptpassworts."
+      "notSent": "Die Mails selbst werden nicht übertragen. Verwende nach Möglichkeit ein App-Passwort statt deines Hauptpassworts.",
+      "sentGoogle": "Beim Export gehen Titel, Beschreibung, Fälligkeit und Status deiner Aufgaben sowie ein Link zur Mail an Google Tasks.",
+      "notSentGoogle": "Die Mails selbst werden nicht übertragen. ollamail erhält nur Zugriff auf deine Aufgaben, nicht auf andere Daten deines Google-Kontos."
     },
     "target": "Ziel",
     "sinks": {
       "caldav": {
         "title": "CalDAV",
         "description": "Nextcloud, Radicale, Baïkal, iCloud und andere CalDAV-Server"
+      },
+      "gtasks": {
+        "title": "Google Tasks",
+        "description": "Aufgabenlisten deines Google-Kontos"
       }
     },
     "url": "Server-URL",
@@ -1690,7 +1696,26 @@
       "sink_not_available": "Dieses Ziel ist auf diesem Server nicht freigegeben.",
       "unknown_list": "Die Liste gibt es auf dem Server nicht mehr.",
       "list_not_found": "Die Liste gibt es auf dem Server nicht mehr.",
+      "reconnect": "Google hat den Zugriff abgelehnt. Verbinde Google Tasks erneut.",
+      "oauth_required": "Dieses Ziel wird über die Anmeldung beim Anbieter verbunden.",
+      "oauth_not_configured": "Die Anmeldung bei Google ist auf diesem Server nicht eingerichtet.",
+      "access_denied": "Der Zugriff wurde bei Google abgelehnt oder abgebrochen.",
+      "insufficient_scope": "Der Zugriff auf Google Tasks wurde nicht erlaubt. Setze bei Google das Häkchen für Aufgaben.",
+      "invalid_state": "Die Anmeldung ist abgelaufen oder ungültig. Versuche es erneut.",
+      "token_revoked": "Google hat die Anmeldung nicht mehr akzeptiert. Versuche es erneut.",
+      "refresh_token_missing": "Google hat keinen dauerhaften Zugriff erteilt. Versuche es erneut.",
+      "no_lists": "In deinem Google-Konto gibt es keine Aufgabenliste.",
+      "api_disabled": "Die Google Tasks API ist im Google-Cloud-Projekt nicht aktiviert.",
       "other": "Der Server hat unerwartet geantwortet."
-    }
+    },
+    "google": {
+      "hint": "Du wirst zu Google weitergeleitet und bestätigst dort den Zugriff auf deine Aufgaben. Danach exportiert ollamail in deine Standardliste; die Liste kannst du anschließend ändern.",
+      "connect": "Mit Google verbinden",
+      "reconnect": "Erneut mit Google verbinden",
+      "redirecting": "Weiterleitung zu Google …",
+      "connected": "Google Tasks verbunden",
+      "failed": "Google Tasks wurde nicht verbunden"
+    },
+    "listChanged": "Liste geändert"
   }
 }
