@@ -6,9 +6,13 @@ processing (``Priority.REPROCESS``): it embeds chunks that have no vector of the
 embedding model yet. After a model switch (``OLLAMAIL_LLM_TASK_EMBEDDINGS_MODEL`` or the
 hardware profile) this rebuilds the vector index batch by batch while the previous
 model's vectors keep answering queries, then switches over and removes the old vectors.
+``search.ocr_attachment`` runs on the ``ocr`` queue (own job slots, lowest priority): it
+recognises scanned attachments that ``index`` reported and stores their chunks without
+vectors, which ``fill_embeddings`` then adds. It never calls the LLM.
 """
 
 import contextlib
+import uuid
 from collections.abc import Iterator
 from contextlib import contextmanager
 
@@ -23,11 +27,13 @@ from app.processing.steps import StepContext, registry
 from app.processing.tasks import Priority, get_database
 from app.search import service
 from app.search.embedder import Embedder, EmbeddingDimensionError, GatewayEmbedder
-from app.worker import DEFAULT_RETRY, app
+from app.worker import DEFAULT_RETRY, app, resource_lock
 
 log = get_logger(__name__)
 
 FILL_LOCK = "search.fill_embeddings"
+# Below every mail processing job; OCR has its own queue, this orders it within.
+OCR_PRIORITY = -20
 
 _embedder: Embedder | None = None
 
@@ -70,6 +76,47 @@ async def index(ctx: StepContext) -> None:
         embedded=result.embedded,
         extraction=dict(result.extraction),
     )
+    for attachment_id in result.ocr_pending:
+        await _defer_ocr(ctx.message_id, attachment_id)
+
+
+def _index_lock(message_id: uuid.UUID | str) -> str:
+    # Lock of the message's ``index`` step job (``app.processing.tasks._step_lock``): the
+    # OCR job starts only after that job has committed, and a re-index waits for OCR.
+    return resource_lock("message_step", f"{message_id}:index")
+
+
+async def _defer_ocr(message_id: uuid.UUID, attachment_id: uuid.UUID) -> None:
+    with contextlib.suppress(AlreadyEnqueued):
+        await ocr_attachment.configure(
+            priority=OCR_PRIORITY,
+            lock=_index_lock(message_id),
+            queueing_lock=resource_lock("attachment_ocr", attachment_id),
+        ).defer_async(message_id=str(message_id), attachment_id=str(attachment_id))
+
+
+@app.task(name="search.ocr_attachment", queue="ocr", retry=DEFAULT_RETRY)
+async def ocr_attachment(message_id: str, attachment_id: str) -> None:
+    """Text recognition of one attachment; replaces its chunks. Failures (timeout, broken
+    scan, Tesseract missing) are logged as status code only and not retried."""
+    settings = get_settings()
+    async with get_database().sessionmaker() as session:
+        result = await service.ocr_attachment(
+            session,
+            uuid.UUID(attachment_id),
+            storage=AttachmentStorage(settings.storage.data_dir),
+            settings=settings.search,
+        )
+        await session.commit()
+    log.info(
+        "search_attachment_ocr",
+        message_id=message_id,
+        attachment_id=attachment_id,
+        status=result.status,
+        chunks=result.chunks,
+    )
+    if result.chunks:
+        await _defer_fill()
 
 
 async def _defer_fill() -> None:

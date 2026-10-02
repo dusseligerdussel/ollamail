@@ -53,7 +53,7 @@ class Source(BaseModel):
     message_id: uuid.UUID
     mailbox_id: uuid.UUID
     attachment_id: uuid.UUID | None
-    # ``body`` or ``attachment``.
+    # ``body``, ``attachment`` or ``attachment_ocr`` (text recognised from a scan).
     source: str
     # Header context of the chunk (sender, date, subject).
     heading: str

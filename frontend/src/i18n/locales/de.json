@@ -1373,6 +1373,8 @@
     "noMailboxesDescription": "Die Suche umfasst alle synchronisierten Nachrichten und Anhänge eines verbundenen Postfachs.",
     "detailHint": "Treffer oder Quelle auswählen, um die Mail an der Fundstelle zu öffnen. <0></0> / <1></1> wechselt zwischen Treffern.",
     "detailHintTouch": "Treffer oder Quelle auswählen, um die Mail an der Fundstelle zu öffnen.",
+    "ocr": "(OCR)",
+    "ocrHint": "Text per Texterkennung (OCR) aus einem Scan gelesen, kann Lesefehler enthalten",
     "shortcuts": {
       "open": "Treffer öffnen"
     },

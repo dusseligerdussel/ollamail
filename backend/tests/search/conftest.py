@@ -6,14 +6,14 @@ All names, addresses and texts are invented (example.* domains, docs/PRIVACY.md)
 import math
 import re
 import uuid
-from collections.abc import Sequence
+from collections.abc import AsyncIterator, Iterator, Sequence
 from dataclasses import dataclass, field
 from datetime import datetime
 from pathlib import Path
 from typing import Any
 
 import pytest
-from sqlalchemy import delete
+from sqlalchemy import delete, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import LLMUnavailableError
@@ -21,9 +21,13 @@ from app.core.config import SearchSettings
 from app.core.ids import uuid7
 from app.mail.models import Attachment, Folder, Mailbox, MailboxType, Message
 from app.mail.storage import AttachmentStorage
+from app.search import tasks
 from app.search.models import SearchIndexState
 from tests.factories import make_user
-from tests.processing.conftest import pipeline  # noqa: F401  (fixture re-export)
+from tests.processing.conftest import (
+    Pipeline,
+    pipeline,  # noqa: F401  (fixture re-export)
+)
 
 DIMENSIONS = SearchSettings().embedding_dimensions
 
@@ -165,3 +169,24 @@ async def mail(db_session: AsyncSession, storage: AttachmentStorage) -> MailData
     # state; start from none (rolled back with the test transaction).
     await db_session.execute(delete(SearchIndexState))
     return MailData(db_session, storage)
+
+
+@pytest.fixture
+def fake_embedder() -> Iterator[FakeEmbedder]:
+    embedder = FakeEmbedder()
+    with tasks.use_embedder(embedder):
+        yield embedder
+
+
+@pytest.fixture
+async def indexed(pipeline: Pipeline) -> AsyncIterator[Pipeline]:  # noqa: F811
+    """The pipeline with a clean index state (jobs commit, so it is reset afterwards)."""
+
+    async def reset() -> None:
+        async with pipeline.database.sessionmaker() as session:
+            await session.execute(text("DELETE FROM search_index_state"))
+            await session.commit()
+
+    await reset()
+    yield pipeline
+    await reset()

@@ -286,7 +286,8 @@ Regeln:
 
 Jede Gruppe unter `worker.groups` wird ein eigenes Deployment `<release>-worker-<name>` mit
 eigenen Queues, Replikaten, Ressourcen und Scheduling. Queues: `sync` (Mail-Sync, IMAP IDLE),
-`llm` (LLM-Aufrufe), `tts` (Sprachsynthese), `default` (alles andere, periodische Jobs). Jede
+`llm` (LLM-Aufrufe), `tts` (Sprachsynthese), `ocr` (Texterkennung gescannter Anhänge,
+eigene Job-Slots `OLLAMAIL_SEARCH_OCR_CONCURRENCY`), `default` (alles andere, periodische Jobs). Jede
 Queue muss von mindestens einer Gruppe abgearbeitet werden, sonst bricht die Installation ab.
 
 Standard ist eine Gruppe `all` mit allen Queues. Beispiel mit getrennten LLM-Workern auf
@@ -297,7 +298,7 @@ worker:
   groups:
     - name: main
       replicaCount: 2
-      queues: [sync, tts, default]
+      queues: [sync, tts, ocr, default]
     - name: llm
       replicaCount: 2
       queues: [llm]
