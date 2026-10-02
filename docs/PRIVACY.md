@@ -98,6 +98,16 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
   Zeitraum. Abrufe ändern keine Flags am Server (`EXAMINE`, `BODY.PEEK`). Sync-Logs und
   `SyncState.last_error` enthalten nur IDs, Zähler und Fehlercodes – keine Ordnernamen,
   Betreffzeilen, Adressen oder Server-Meldungen.
+- **Gmail / Google Workspace** (`backend/app/mail/providers/gmail*.py`, Details in
+  [`providers/gmail.md`](providers/gmail.md)): Gespeichert wird nur der Refresh-Token
+  (verschlüsselt in `mail_mailboxes.credentials`); Access-Tokens liegen nur im Prozessspeicher.
+  Angefordert wird nur der Gmail-Scope (`gmail.modify` bzw. mit `OLLAMAIL_GMAIL_READONLY`
+  `gmail.readonly`), kein Profil- oder OpenID-Scope. Der OAuth-`state` und der PKCE-Verifier
+  liegen in einem signierten, 10 Minuten gültigen `HttpOnly`-Cookie. Fehler enthalten nur Codes,
+  nie Antworttexte von Google; Logs nur Nutzer- und Postfach-IDs. Mails nur in Spam/Papierkorb
+  werden standardmäßig gar nicht abgerufen. Die Service-Account-Schlüsseldatei für Domain-wide
+  Delegation gewährt Zugriff auf alle Postfächer der Domain und ist entsprechend zu schützen
+  (Docker-Secret, Scope in der Google Admin Console so eng wie möglich).
 
 ## Dokumentation für Betreiber
 

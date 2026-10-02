@@ -23,6 +23,7 @@ from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
+from app.mail.providers.gmail_connect import router as gmail_connect_router
 from app.todos.router import router as todos_router
 from app.users.router import router as users_router
 
@@ -78,6 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router)
     app.include_router(users_router)
     app.include_router(todos_router)
+    app.include_router(gmail_connect_router)
     return app
 
 

@@ -54,7 +54,7 @@ backend/app/
   auth/          lokale Accounts, OIDC, LDAP, Rollen, Bootstrap des Erst-Admins
   users/         Nutzer, Gruppen, Rollen-Mapping
   mail/
-    providers/   base.py (Interface), registry.py, fake.py (Tests), imap.py, graph.py (später), gmail.py (später)
+    providers/   base.py (Interface), registry.py, fake.py (Tests), imap.py, gmail.py, graph.py (später)
     sync/        Initialimport, IDLE/Delta-Sync, Ordner-Mapping
     models.py    Mailbox, Folder, Thread, Message, Attachment, SyncState
     mime.py      MIME-Parsing, Zeichensätze, Normalisierung
@@ -97,7 +97,9 @@ class MailProvider(Protocol):  # app/mail/providers/base.py
   Ordner/Labels einer Mail. In der DB verbindet `mail_message_folders` Mails und Ordner (n:m).
 - **Cursor:** `SyncCursor.data` ist provider-spezifisch und JSON-serialisierbar (IMAP: UIDVALIDITY,
   letzte UID, HIGHESTMODSEQ; Graph: `deltaLink`; Gmail: `historyId`) und liegt in `mail_sync_states`
-  – je Ordner oder (Gmail) postfachweit mit `folder_id IS NULL`. `fetch_since` endet immer mit
+  – je Ordner oder, bei `ProviderCapabilities.mailbox_cursor` (Gmail), postfachweit mit
+  `folder_id IS NULL`; dann ruft die Engine `fetch_since(MAILBOX_SCOPE, …)` einmal pro Sync auf.
+  `fetch_since` endet immer mit
   `CursorAdvanced`; der Cursor wird erst gespeichert, wenn die vorherigen Änderungen gespeichert sind.
   Ungültige Cursor (`CursorInvalidError`) erzwingen einen Neuabgleich des Ordners.
 - **Inhalt:** Alle Provider liefern die RFC-5322-Quelle (IMAP `BODY[]`, Graph `/$value`, Gmail
@@ -125,7 +127,7 @@ für Shared Mailboxes folgt mit #34.
 |---|---|---|---|---|
 | IMAP/SMTP | MVP | Passwort/App-Passwort, XOAUTH2 vorbereitet | UIDVALIDITY/UID + `IDLE`, CONDSTORE/QRESYNC falls verfügbar | Funktioniert mit jedem Server |
 | Microsoft 365 | v1 | OAuth2 (Entra ID App, delegiert oder App-only mit Admin-Consent) | Graph Delta Query + Change Notifications | Shared Mailboxes über App-Permissions + `ApplicationAccessPolicy` |
-| Gmail / Google Workspace | v1 | OAuth2, Workspace: Domain-wide Delegation | `history.list` + Pub/Sub Push (optional Polling) | Labels statt Ordner |
+| Gmail / Google Workspace | v1 | OAuth2, Workspace: Domain-wide Delegation | `history.list`, Polling (Standard) oder Pub/Sub-Pull (optional) | Labels statt Ordner; Details: [`providers/gmail.md`](providers/gmail.md) |
 
 Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`;
 Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto.py`).
@@ -164,6 +166,24 @@ Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto
   wenn der Ordner keine Keywords erlaubt (`PERMANENTFLAGS` ohne `\*`), als Kopie in einen Ordner
   mit dem Label-Namen.
 
+#### Gmail-Provider (`backend/app/mail/providers/gmail*.py`)
+
+Design und Einrichtung: [`providers/gmail.md`](providers/gmail.md). Kurzfassung:
+
+- **REST statt IMAP** (`gmail_api.py`: `httpx`, Bearer-Token, Retries für 429/5xx/Rate-Limit-403
+  mit `Retry-After`, Multipart-Batch-Requests für `format=raw`). Kein Google-SDK.
+- **Tokens** (`gmail_auth.py`): OAuth mit Refresh-Token (verschlüsselt in `credentials`) oder
+  Service Account mit Domain-wide Delegation (JWT RS256, Schlüssel per
+  `OLLAMAIL_GMAIL_SERVICE_ACCOUNT_FILE`). Access-Tokens nur im Prozessspeicher.
+- **Connect-Flow** (`gmail_connect.py`): `POST /mail/gmail/oauth/start` und
+  `GET /mail/gmail/oauth/callback` (PKCE, `state` in signiertem `HttpOnly`-Cookie); legt das
+  Postfach des angemeldeten Nutzers an oder erneuert dessen Refresh-Token.
+- **Labels ↔ Ordner:** System-Labels (INBOX, SENT, DRAFT, SPAM, TRASH), Nutzer-Labels und der
+  virtuelle Ordner `ALL_MAIL` („Alle Nachrichten“); `UNREAD`/`STARRED` werden zu Flags.
+- **Sync** mit postfachweitem Cursor (`historyId`): Initialimport über `messages.list`, danach
+  `history.list`; abgelaufene History → `CursorInvalidError` → Resync mit Abgleich.
+- **Push:** Pub/Sub *Pull* (keine öffentliche URL); ohne Konfiguration Polling.
+
 #### Sync (`backend/app/mail/sync/`)
 
 - **`engine.sync_mailbox`** (providerunabhängig): Ordnerliste spiegeln (neue Ordner, auf dem
@@ -173,6 +193,13 @@ Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto
   `store_message`, `MessageUpdated` → Flags, `MessageDeleted` → `delete_messages`. Bei jedem
   `CursorAdvanced` werden Mails, Änderungen und Cursor **in einer Transaktion** committet.
   Ungültiger Cursor → Mails des Ordners löschen und neu importieren.
+- **Postfachweiter Cursor** (`capabilities.mailbox_cursor`, Gmail): ein `fetch_since` pro Sync,
+  Cursor in der Zeile mit `folder_id IS NULL`. Gespeichert werden nur Mails, die in mindestens
+  einem synchronisierten Ordner liegen; verlässt eine Mail den letzten, wird sie gelöscht. Die
+  Referenzen sind stabil, deshalb löscht ein ungültiger Cursor nicht alles: Der Zeitraum wird neu
+  importiert (bekannte Mails werden nur aktualisiert, Hooks feuern nur für neue), danach werden
+  Mails des Zeitraums gelöscht, die der Server nicht mehr geliefert hat. Der Cursor wird dabei
+  erst am Ende gespeichert, ein abgebrochener Resync beginnt neu.
 - **Status:** `SyncState.last_error` (nur Fehlercodes) und `last_synced_at` je Ordner; Fehler, die
   das ganze Postfach betreffen (Anmeldung, Verbindung, Konfiguration), und der letzte vollständige
   Sync stehen in der Zeile mit `folder_id IS NULL`. Der Besitzer erhält Events `mailbox.sync`
