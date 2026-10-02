@@ -193,6 +193,26 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mail/graph/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect Graph Mailbox
+         * @description Start connecting a Microsoft 365 mailbox; the client navigates to the returned URL.
+         */
+        post: operations["mail_connect_graph_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/readyz": {
         parameters: {
             query?: never;
@@ -348,6 +368,18 @@ export interface components {
             local_registration: boolean;
             /** Providers */
             providers: components["schemas"]["AuthProviderInfo"][];
+        };
+        /** GraphConnectRequest */
+        GraphConnectRequest: {
+            /** Return To */
+            return_to?: string | null;
+            /** Shared Mailbox */
+            shared_mailbox?: string | null;
+        };
+        /** GraphConnectResponse */
+        GraphConnectResponse: {
+            /** Authorization Url */
+            authorization_url: string;
         };
         /** HTTPValidationError */
         HTTPValidationError: {
@@ -999,6 +1031,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthStatus"];
+                };
+            };
+        };
+    };
+    mail_connect_graph_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GraphConnectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["GraphConnectResponse"];
+                };
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };
