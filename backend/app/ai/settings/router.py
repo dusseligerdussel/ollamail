@@ -21,6 +21,8 @@ from app.ai.settings import store
 from app.ai.settings.models import AIProviderRecord, AISettingsRecord
 from app.ai.settings.resolver import DbConfigResolver
 from app.ai.settings.schemas import (
+    AIConnectionError,
+    AIConnectionTest,
     AIProviderCreate,
     AIProviderRead,
     AIProviderTest,
@@ -29,8 +31,6 @@ from app.ai.settings.schemas import (
     AISettingsUpdate,
     AIStatusRead,
     CloudUsage,
-    ConnectionErrorCode,
-    ConnectionTestResult,
     ProfileRead,
     TaskSettingRead,
     display_url,
@@ -361,11 +361,11 @@ async def delete_ai_provider(
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
-async def _test(endpoint: EndpointConfig) -> ConnectionTestResult:
+async def _test(endpoint: EndpointConfig) -> AIConnectionTest:
     """List the endpoint's models. Sends no mail content, only the API key."""
     started = time.perf_counter()
     provider = create_provider(endpoint)
-    error: ConnectionErrorCode | None = None
+    error: AIConnectionError | None = None
     status_code: int | None = None
     models: list[str] = []
     try:
@@ -388,7 +388,7 @@ async def _test(endpoint: EndpointConfig) -> ConnectionTestResult:
         error=error,
         duration_ms=duration_ms,
     )
-    return ConnectionTestResult(
+    return AIConnectionTest(
         ok=error is None,
         models=models,
         error=error,
@@ -398,9 +398,9 @@ async def _test(endpoint: EndpointConfig) -> ConnectionTestResult:
 
 
 @router.post("/providers/test")
-async def test_ai_provider_settings(
+async def check_ai_provider_settings(
     body: AIProviderTest, _: AdminSessionDep, db: DbDep, settings: SettingsDep
-) -> ConnectionTestResult:
+) -> AIConnectionTest:
     """Test unsaved settings (e.g. in the form before saving)."""
     api_key = body.api_key.get_secret_value() if body.api_key else None
     if api_key is None and body.name is not None:
@@ -419,9 +419,9 @@ async def test_ai_provider_settings(
 
 
 @router.post("/providers/{name}/test", responses=_NOT_FOUND)
-async def test_ai_provider(
+async def check_ai_provider(
     name: str, _: AdminSessionDep, db: DbDep, settings: SettingsDep
-) -> ConnectionTestResult:
+) -> AIConnectionTest:
     """Connect to a configured provider and list its models."""
     config = await _config(db, settings.llm)
     endpoint = config.endpoints.get(name)

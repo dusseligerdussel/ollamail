@@ -26,7 +26,7 @@ ApiKey = Annotated[SecretStr, Field(min_length=1, max_length=4096)]
 Timeout = Annotated[float, Field(gt=0, le=3600)]
 
 ProviderSource = Literal["database", "environment"]
-ConnectionErrorCode = Literal["unreachable", "unauthorized", "rejected", "failed"]
+AIConnectionError = Literal["unreachable", "unauthorized", "rejected", "failed"]
 
 
 def check_base_url(value: str) -> str:
@@ -111,11 +111,11 @@ class AIProviderRead(BaseModel):
     used_by: list[LLMTask]
 
 
-class ConnectionTestResult(BaseModel):
+class AIConnectionTest(BaseModel):
     ok: bool
     # Models the endpoint serves (empty if the test failed).
     models: list[str] = Field(default_factory=list)
-    error: ConnectionErrorCode | None = None
+    error: AIConnectionError | None = None
     status_code: int | None = None
     duration_ms: int
 

@@ -1,6 +1,542 @@
 {
   "components": {
     "schemas": {
+      "AIConnectionTest": {
+        "properties": {
+          "duration_ms": {
+            "title": "Duration Ms",
+            "type": "integer"
+          },
+          "error": {
+            "anyOf": [
+              {
+                "enum": [
+                  "unreachable",
+                  "unauthorized",
+                  "rejected",
+                  "failed"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "models": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Models",
+            "type": "array"
+          },
+          "ok": {
+            "title": "Ok",
+            "type": "boolean"
+          },
+          "status_code": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Status Code"
+          }
+        },
+        "required": [
+          "ok",
+          "duration_ms"
+        ],
+        "title": "AIConnectionTest",
+        "type": "object"
+      },
+      "AIProviderCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "base_url": {
+            "maxLength": 2048,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "is_cloud": {
+            "default": false,
+            "title": "Is Cloud",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "ollama",
+              "openai_compatible"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "maxLength": 32,
+            "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+            "title": "Name",
+            "type": "string"
+          },
+          "structured_output": {
+            "default": "native",
+            "enum": [
+              "native",
+              "prompt"
+            ],
+            "title": "Structured Output",
+            "type": "string"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 3600.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "kind",
+          "base_url",
+          "name",
+          "display_name"
+        ],
+        "title": "AIProviderCreate",
+        "type": "object"
+      },
+      "AIProviderRead": {
+        "properties": {
+          "api_key_set": {
+            "title": "Api Key Set",
+            "type": "boolean"
+          },
+          "base_url": {
+            "title": "Base Url",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "is_cloud": {
+            "title": "Is Cloud",
+            "type": "boolean"
+          },
+          "kind": {
+            "enum": [
+              "ollama",
+              "openai_compatible"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "source": {
+            "enum": [
+              "database",
+              "environment"
+            ],
+            "title": "Source",
+            "type": "string"
+          },
+          "structured_output": {
+            "enum": [
+              "native",
+              "prompt"
+            ],
+            "title": "Structured Output",
+            "type": "string"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout"
+          },
+          "used_by": {
+            "items": {
+              "$ref": "#/components/schemas/LLMTask"
+            },
+            "title": "Used By",
+            "type": "array"
+          }
+        },
+        "required": [
+          "name",
+          "display_name",
+          "kind",
+          "base_url",
+          "api_key_set",
+          "is_cloud",
+          "structured_output",
+          "timeout",
+          "source",
+          "used_by"
+        ],
+        "title": "AIProviderRead",
+        "type": "object"
+      },
+      "AIProviderTest": {
+        "additionalProperties": false,
+        "description": "Unsaved settings to test. Without ``api_key``, the stored key of ``name`` is used\n(so an edit form can be tested without typing the key again).",
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "base_url": {
+            "maxLength": 2048,
+            "title": "Base Url",
+            "type": "string"
+          },
+          "kind": {
+            "enum": [
+              "ollama",
+              "openai_compatible"
+            ],
+            "title": "Kind",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 32,
+                "pattern": "^[a-z0-9][a-z0-9_-]{0,31}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 3600.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout"
+          }
+        },
+        "required": [
+          "kind",
+          "base_url"
+        ],
+        "title": "AIProviderTest",
+        "type": "object"
+      },
+      "AIProviderUpdate": {
+        "additionalProperties": false,
+        "description": "Omitted fields stay unchanged; ``api_key: null`` removes the key.",
+        "properties": {
+          "api_key": {
+            "anyOf": [
+              {
+                "format": "password",
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string",
+                "writeOnly": true
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Api Key"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "is_cloud": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Is Cloud"
+          },
+          "kind": {
+            "anyOf": [
+              {
+                "enum": [
+                  "ollama",
+                  "openai_compatible"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Kind"
+          },
+          "structured_output": {
+            "anyOf": [
+              {
+                "enum": [
+                  "native",
+                  "prompt"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Structured Output"
+          },
+          "timeout": {
+            "anyOf": [
+              {
+                "exclusiveMinimum": 0.0,
+                "maximum": 3600.0,
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timeout"
+          }
+        },
+        "title": "AIProviderUpdate",
+        "type": "object"
+      },
+      "AISettingsRead": {
+        "properties": {
+          "cloud_enabled": {
+            "title": "Cloud Enabled",
+            "type": "boolean"
+          },
+          "cloud_enabled_default": {
+            "title": "Cloud Enabled Default",
+            "type": "boolean"
+          },
+          "concurrency": {
+            "title": "Concurrency",
+            "type": "integer"
+          },
+          "concurrency_default": {
+            "title": "Concurrency Default",
+            "type": "integer"
+          },
+          "concurrency_max": {
+            "title": "Concurrency Max",
+            "type": "integer"
+          },
+          "context_tokens": {
+            "title": "Context Tokens",
+            "type": "integer"
+          },
+          "profile": {
+            "enum": [
+              "cpu",
+              "gpu-consumer",
+              "gpu-server"
+            ],
+            "title": "Profile",
+            "type": "string"
+          },
+          "profile_default": {
+            "enum": [
+              "cpu",
+              "gpu-consumer",
+              "gpu-server"
+            ],
+            "title": "Profile Default",
+            "type": "string"
+          },
+          "profiles": {
+            "items": {
+              "$ref": "#/components/schemas/ProfileRead"
+            },
+            "title": "Profiles",
+            "type": "array"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/TaskSettingRead"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cloud_enabled",
+          "cloud_enabled_default",
+          "profile",
+          "profile_default",
+          "profiles",
+          "context_tokens",
+          "concurrency",
+          "concurrency_default",
+          "concurrency_max",
+          "tasks"
+        ],
+        "title": "AISettingsRead",
+        "type": "object"
+      },
+      "AISettingsUpdate": {
+        "additionalProperties": false,
+        "description": "Omitted fields stay unchanged; ``null`` resets a field to the environment.",
+        "properties": {
+          "cloud_enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cloud Enabled"
+          },
+          "concurrency": {
+            "anyOf": [
+              {
+                "minimum": 1.0,
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Concurrency"
+          },
+          "profile": {
+            "anyOf": [
+              {
+                "enum": [
+                  "cpu",
+                  "gpu-consumer",
+                  "gpu-server"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Profile"
+          },
+          "tasks": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "$ref": "#/components/schemas/TaskAssignmentUpdate"
+                },
+                "propertyNames": {
+                  "$ref": "#/components/schemas/LLMTask"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tasks"
+          }
+        },
+        "title": "AISettingsUpdate",
+        "type": "object"
+      },
+      "AIStatusRead": {
+        "description": "For every user: which tasks send mail content to which cloud provider.",
+        "properties": {
+          "cloud": {
+            "items": {
+              "$ref": "#/components/schemas/CloudUsage"
+            },
+            "title": "Cloud",
+            "type": "array"
+          }
+        },
+        "required": [
+          "cloud"
+        ],
+        "title": "AIStatusRead",
+        "type": "object"
+      },
       "ActorKind": {
         "enum": [
           "user",
@@ -466,6 +1002,32 @@
         "title": "CategoryUpdate",
         "type": "object"
       },
+      "CloudUsage": {
+        "properties": {
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "tasks": {
+            "items": {
+              "$ref": "#/components/schemas/LLMTask"
+            },
+            "title": "Tasks",
+            "type": "array"
+          }
+        },
+        "required": [
+          "provider",
+          "display_name",
+          "tasks"
+        ],
+        "title": "CloudUsage",
+        "type": "object"
+      },
       "ConnectionTestResult": {
         "properties": {
           "error": {
@@ -851,6 +1413,18 @@
         ],
         "title": "InboxMessage",
         "type": "object"
+      },
+      "LLMTask": {
+        "description": "Features that use an LLM; each can be assigned its own endpoint and model.",
+        "enum": [
+          "triage",
+          "todos",
+          "digest",
+          "rag_chat",
+          "embeddings"
+        ],
+        "title": "LLMTask",
+        "type": "string"
       },
       "LdapConnectionTest": {
         "properties": {
@@ -2347,6 +2921,39 @@
         "title": "OrganizationCategoryUpdate",
         "type": "object"
       },
+      "ProfileRead": {
+        "properties": {
+          "chat_model": {
+            "title": "Chat Model",
+            "type": "string"
+          },
+          "context_tokens": {
+            "title": "Context Tokens",
+            "type": "integer"
+          },
+          "embedding_model": {
+            "title": "Embedding Model",
+            "type": "string"
+          },
+          "name": {
+            "enum": [
+              "cpu",
+              "gpu-consumer",
+              "gpu-server"
+            ],
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "chat_model",
+          "embedding_model",
+          "context_tokens"
+        ],
+        "title": "ProfileRead",
+        "type": "object"
+      },
       "ProfileUpdate": {
         "description": "Fields a user may change on their own account.",
         "properties": {
@@ -2846,6 +3453,99 @@
         ],
         "title": "TargetType",
         "type": "string"
+      },
+      "TaskAssignmentUpdate": {
+        "additionalProperties": false,
+        "description": "``provider`` and ``model`` both ``null``: back to the environment's default.",
+        "properties": {
+          "model": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          }
+        },
+        "title": "TaskAssignmentUpdate",
+        "type": "object"
+      },
+      "TaskSettingRead": {
+        "properties": {
+          "blocked": {
+            "title": "Blocked",
+            "type": "boolean"
+          },
+          "default_model": {
+            "title": "Default Model",
+            "type": "string"
+          },
+          "default_provider": {
+            "title": "Default Provider",
+            "type": "string"
+          },
+          "effective_model": {
+            "title": "Effective Model",
+            "type": "string"
+          },
+          "effective_provider": {
+            "title": "Effective Provider",
+            "type": "string"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "provider": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider"
+          },
+          "task": {
+            "$ref": "#/components/schemas/LLMTask"
+          }
+        },
+        "required": [
+          "task",
+          "provider",
+          "model",
+          "effective_provider",
+          "effective_model",
+          "default_provider",
+          "default_model",
+          "blocked"
+        ],
+        "title": "TaskSettingRead",
+        "type": "object"
       },
       "TlsMode": {
         "enum": [
@@ -3453,6 +4153,358 @@
   },
   "openapi": "3.1.0",
   "paths": {
+    "/admin/ai/providers": {
+      "get": {
+        "description": "Providers from the environment (read-only), then those added here, by name.",
+        "operationId": "ai_list_ai_providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/AIProviderRead"
+                  },
+                  "title": "Response Ai List Ai Providers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Ai Providers",
+        "tags": [
+          "ai"
+        ]
+      },
+      "post": {
+        "description": "Add a provider. Test it with ``…/test`` before assigning it to tasks.",
+        "operationId": "ai_create_ai_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIProviderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Name taken"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Create Ai Provider",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/admin/ai/providers/test": {
+      "post": {
+        "description": "Test unsaved settings (e.g. in the form before saving).",
+        "operationId": "ai_check_ai_provider_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIProviderTest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIConnectionTest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check Ai Provider Settings",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/admin/ai/providers/{name}": {
+      "delete": {
+        "description": "Remove a provider and its API key. Reassign its tasks first.",
+        "operationId": "ai_delete_ai_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such provider"
+          },
+          "409": {
+            "description": "Provider from the environment or assigned to a task"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Ai Provider",
+        "tags": [
+          "ai"
+        ]
+      },
+      "patch": {
+        "description": "Change a provider. Omitted fields stay; ``api_key: null`` removes the key.",
+        "operationId": "ai_update_ai_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AIProviderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such provider"
+          },
+          "409": {
+            "description": "Provider from the environment"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Ai Provider",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/admin/ai/providers/{name}/test": {
+      "post": {
+        "description": "Connect to a configured provider and list its models.",
+        "operationId": "ai_check_ai_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIConnectionTest"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Check Ai Provider",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
+    "/admin/ai/settings": {
+      "get": {
+        "description": "Effective AI settings with the environment's defaults.",
+        "operationId": "ai_get_ai_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AISettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "Get Ai Settings",
+        "tags": [
+          "ai"
+        ]
+      },
+      "patch": {
+        "description": "Change settings; ``null`` resets a field to the environment's value.",
+        "operationId": "ai_update_ai_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AISettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AISettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Update Ai Settings",
+        "tags": [
+          "ai"
+        ]
+      }
+    },
     "/admin/auth/oidc/presets": {
       "get": {
         "description": "Presets with defaults for the provider form (see docs/auth/oidc.md).",
@@ -3709,6 +4761,28 @@
         "summary": "Update Oidc Provider",
         "tags": [
           "admin"
+        ]
+      }
+    },
+    "/ai/status": {
+      "get": {
+        "description": "Cloud providers that currently receive mail content, per task (docs/PRIVACY.md).",
+        "operationId": "ai_get_ai_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AIStatusRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Get Ai Status",
+        "tags": [
+          "ai"
         ]
       }
     },
