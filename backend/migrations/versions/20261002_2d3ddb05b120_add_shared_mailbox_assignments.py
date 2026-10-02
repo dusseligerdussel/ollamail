@@ -1,7 +1,7 @@
 """add shared mailbox assignments
 
 Revision ID: 2d3ddb05b120
-Revises: d8dd6f4b5840
+Revises: 5924aab840f1
 Create Date: 2026-10-02 06:55:04.689929+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "2d3ddb05b120"
-down_revision: str | Sequence[str] | None = "d8dd6f4b5840"
+down_revision: str | Sequence[str] | None = "5924aab840f1"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
