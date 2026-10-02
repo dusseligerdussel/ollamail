@@ -16,6 +16,7 @@ from app.auth.models import Invitation
 from app.core.config import get_settings
 from app.digest.models import Digest, DigestLength, DigestStatus, DigestTrigger, DigestUserSettings
 from app.digest.storage import DigestStorage
+from app.drafts.models import DraftSettings, ReplyDraft
 from app.mail.models import Attachment, Mailbox, MailboxAssignment, MailboxType, Message
 from app.mail.storage import AttachmentStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
@@ -198,6 +199,15 @@ async def seed_user_data(
             ),
             TriageCategoryPreference(user_id=user_id, category_id=category.id, hidden=False),
             DigestUserSettings(user_id=user_id, enabled=True),
+            ReplyDraft(
+                user_id=user_id,
+                mailbox_id=mailbox_id,
+                message_id=message.id,
+                thread_id=message.thread_id,
+                subject=f"Re: {marker}",
+                body=f"Draft {marker}",
+            ),
+            DraftSettings(user_id=user_id, signature=f"Signature {marker}"),
             Invitation(
                 user_id=user_id, token_hash=os.urandom(32), expires_at=NOW + timedelta(days=1)
             ),
