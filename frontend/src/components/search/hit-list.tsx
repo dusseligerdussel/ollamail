@@ -52,7 +52,7 @@ export function HitList({
               aria-current={selected ? "true" : undefined}
               data-active={index === activeIndex || undefined}
               className={cn(
-                "block px-4 py-2.5 text-ui outline-none hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50 focus-visible:ring-inset md:px-5",
+                "block px-4 py-2.5 text-ui outline-none hover:bg-accent/50 focus-visible:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80 focus-visible:ring-inset md:px-5",
                 "data-[active]:bg-accent/60",
                 selected && "bg-accent",
               )}

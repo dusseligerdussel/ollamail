@@ -90,6 +90,6 @@ test("a synced mail is found by the full-text search", async ({ page }) => {
   await expect(hits.getByText(subject)).toBeVisible();
 
   await hits.getByText(subject).click();
-  await expect(page.getByRole("heading", { level: 1, name: subject })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: subject })).toBeVisible();
   await expect(page.getByRole("article").getByText(term)).toBeVisible();
 });

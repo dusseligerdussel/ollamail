@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
+import { expectNoA11yViolations } from "./a11y";
 import { mockApi } from "./mock-api";
 import { FEED_URL, mockDigest } from "./mock-digest";
 import { mockMail } from "./mock-mail";
@@ -9,13 +9,6 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
   await mockMail(page);
 });
-
-async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  expect(results.violations.map((violation) => violation.id)).toEqual([]);
-}
 
 test("shows the current digest with player and transcript links", async ({ page }) => {
   await mockDigest(page);

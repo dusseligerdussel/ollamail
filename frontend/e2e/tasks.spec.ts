@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
+import { expectNoA11yViolations } from "./a11y";
 import { mockApi } from "./mock-api";
 import { mockMail, NOW } from "./mock-mail";
 import { mockTodos, offerMessage, todoId } from "./mock-todos";
@@ -16,18 +16,6 @@ test.beforeEach(async ({ page }) => {
     (route) => route.fulfill({ json: [] }),
   );
 });
-
-async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .exclude("iframe")
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  const summary = results.violations.map(
-    (violation) =>
-      `${violation.impact}: ${violation.id} – ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
-  );
-  expect(summary).toEqual([]);
-}
 
 async function overflow(page: Page) {
   return page.evaluate(
@@ -68,7 +56,7 @@ test("check off a task, change its date and jump to its mail", async ({ page }) 
   // Jump to the source mail.
   await page.getByRole("link", { name: `Open message of “${offer}”` }).click();
   await expect(page).toHaveURL(new RegExp(`/inbox\\?message=${offerMessage}`));
-  await expect(page.getByRole("heading", { level: 1, name: "Entwurf Angebot" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Entwurf Angebot" })).toBeVisible();
   // The mail lists its task.
   const tasks = page.getByRole("region", { name: "Tasks from this message" });
   await expect(tasks.getByRole("button", { name: offer, exact: true })).toBeVisible();

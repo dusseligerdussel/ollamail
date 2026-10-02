@@ -74,7 +74,7 @@ function Chip({ label, value, onClear, children }: ChipProps) {
           <button
             type="button"
             className={cn(
-              "flex h-full max-w-56 items-center gap-1 rounded-full pr-2 pl-3 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+              "flex h-full max-w-56 items-center gap-1 rounded-full pr-2 pl-3 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/80",
               !value && "text-muted-foreground hover:text-foreground",
             )}
           >
@@ -91,7 +91,7 @@ function Chip({ label, value, onClear, children }: ChipProps) {
           type="button"
           onClick={onClear}
           aria-label={t("search.filters.clear", { filter: label })}
-          className="mr-1 flex size-5 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="mr-1 flex size-5 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/80"
         >
           <X aria-hidden className="size-3" />
         </button>
@@ -167,7 +167,7 @@ function SenderChip({
           setEditing(true);
         }}
         className={cn(
-          "flex h-full max-w-56 items-center rounded-full px-3 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/50",
+          "flex h-full max-w-56 items-center rounded-full px-3 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/80",
           !value && "text-muted-foreground hover:text-foreground",
           value && "pr-2",
         )}
@@ -179,7 +179,7 @@ function SenderChip({
           type="button"
           onClick={() => onChange(undefined)}
           aria-label={t("search.filters.clear", { filter: label })}
-          className="mr-1 flex size-5 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+          className="mr-1 flex size-5 items-center justify-center rounded-full text-muted-foreground outline-none hover:bg-accent hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/80"
         >
           <X aria-hidden className="size-3" />
         </button>

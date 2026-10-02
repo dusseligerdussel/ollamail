@@ -151,7 +151,7 @@ export function AnswerView({ turn, onOpenSource, onCancel }: AnswerViewProps) {
                 type="button"
                 onClick={() => onOpenSource(source)}
                 aria-label={t("search.answer.openSource", { number: source.number })}
-                className="mx-0.5 inline-flex h-4 min-w-4 -translate-y-px items-center justify-center rounded-sm border px-1 align-middle text-[11px] leading-none font-medium text-muted-foreground tabular-nums outline-none hover:border-brand hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/50"
+                className="mx-0.5 inline-flex h-4 min-w-4 -translate-y-px items-center justify-center rounded-sm border px-1 align-middle text-[11px] leading-none font-medium text-muted-foreground tabular-nums outline-none hover:border-brand hover:text-foreground focus-visible:ring-[3px] focus-visible:ring-ring/80"
               >
                 {source.number}
               </button>
@@ -208,7 +208,7 @@ function SourceItem({
       <button
         type="button"
         onClick={() => onOpen(source)}
-        className="-mx-2 flex w-[calc(100%+1rem)] items-start gap-2.5 rounded-md px-2 py-1.5 text-left text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        className="-mx-2 flex w-[calc(100%+1rem)] items-start gap-2.5 rounded-md px-2 py-1.5 text-left text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
       >
         <span className="mt-px flex h-4 min-w-4 shrink-0 items-center justify-center rounded-sm border px-1 text-[11px] leading-none font-medium text-muted-foreground tabular-nums">
           {source.number}
