@@ -144,6 +144,32 @@ async def _discover(
         await sink.aclose()
 
 
+async def _target_lists(
+    db: AsyncSession,
+    sink_builder: service.SinkBuilder,
+    target: TodoExportTarget,
+    settings: Settings,
+) -> list[TaskList]:
+    """Lists of the connected account; keeps tokens the sink rotated meanwhile."""
+    config = dict(target.config)
+    try:
+        sink = sink_builder(target.sink, config, settings.todos)
+    except SinkError as exc:
+        raise _sink_problem(exc) from None
+    try:
+        lists = await sink.list_task_lists()
+    except SinkError as exc:
+        raise _sink_problem(exc) from None
+    finally:
+        await sink.aclose()
+    updated = sink.updated_config()
+    if updated is not None:
+        # Committed right away: also kept when the request fails afterwards.
+        target.config = {**config, **updated}
+        await db.commit()
+    return lists
+
+
 async def _counts(db: AsyncSession, target: TodoExportTarget) -> ExportCounts:
     state = Todo.external_refs[target.sink]["state"].astext
     rows = await db.execute(
@@ -218,6 +244,20 @@ async def list_task_lists(
     return [TaskListRead(id=item.id, name=item.name) for item in lists]
 
 
+@router.get("/lists", responses={**NO_TARGET, **CONNECTION_ERRORS})
+async def list_connected_task_lists(
+    current: CurrentSessionDep,
+    db: DbDep,
+    settings: SettingsDep,
+    sink_builder: SinkBuilderDep,
+) -> list[TaskListRead]:
+    """The lists of the connected account, with the stored credentials (to pick another
+    list, e.g. after connecting with OAuth)."""
+    target = await _target(db, current.user_id)
+    lists = await _target_lists(db, sink_builder, target, settings)
+    return [TaskListRead(id=item.id, name=item.name) for item in lists]
+
+
 @router.put("", responses=CONNECTION_ERRORS)
 async def save_export_settings(
     body: ExportTargetSave,
@@ -272,18 +312,33 @@ async def _target(db: AsyncSession, user_id: uuid.UUID) -> TodoExportTarget:
     return target
 
 
-@router.patch("", responses=NO_TARGET)
+@router.patch("", responses={**NO_TARGET, **CONNECTION_ERRORS})
 async def update_export_settings(
     body: ExportTargetUpdate,
     current: CurrentSessionDep,
     db: DbDep,
     settings: SettingsDep,
+    sink_builder: SinkBuilderDep,
     enqueue: EnqueuerDep,
 ) -> ExportSettingsRead:
-    """Switch between automatic and manual export."""
+    """Switch between automatic and manual export, or pick another list of the connected
+    account (checked against the lists the target system offers)."""
     target = await _target(db, current.user_id)
-    if body.mode != target.mode:
+    changed = False
+    if body.list_id is not None and body.list_id != target.list_id:
+        lists = await _target_lists(db, sink_builder, target, settings)
+        chosen = next((item for item in lists if item.id == body.list_id), None)
+        if chosen is None:
+            raise ProblemError(422, detail="Unknown list.", error_code="unknown_list")
+        target.list_id = chosen.id
+        target.list_name = chosen.name
+        target.last_error = None
+        target.next_poll_at = None
+        changed = True
+    if body.mode is not None and body.mode != target.mode:
         target.mode = body.mode
+        changed = True
+    if changed:
         await _audit(db, current.user_id, target, "updated")
         await db.commit()
         await enqueue(target.id)

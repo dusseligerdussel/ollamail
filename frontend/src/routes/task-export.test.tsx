@@ -1,10 +1,16 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { toast } from "sonner";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { backend, json, mockFetch, testUser } from "@/test/fetch";
 import { renderApp } from "@/test/render-app";
-import { testExportTarget, todoExportApi, withExportApi } from "@/test/todo-export";
+import {
+  testExportTarget,
+  testGoogleTarget,
+  todoExportApi,
+  withExportApi,
+} from "@/test/todo-export";
 import { testTodo } from "@/test/todos";
 
 function setup(options: Parameters<typeof todoExportApi>[0] = {}) {
@@ -149,6 +155,99 @@ describe("task export settings", () => {
 
     await screen.findByRole("region", { name: "Connection" });
     expect(api.requests[0]?.body).toMatchObject({ password: null });
+  });
+});
+
+describe("Google Tasks export", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("connects through Google's sign-in, without a credentials form", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    const api = setup({ sinks: ["caldav", "gtasks"] });
+    const user = userEvent.setup();
+    await renderApp("/settings/task-export");
+
+    await user.click(await screen.findByRole("radio", { name: /google tasks/i }));
+    expect(screen.queryByLabelText(/server url/i)).not.toBeInTheDocument();
+    expect(screen.queryByLabelText(/^password/i)).not.toBeInTheDocument();
+    // What goes to Google is stated before anything is sent.
+    expect(screen.getByText(/to Google Tasks\.$/)).toBeVisible();
+    await user.click(screen.getByRole("radio", { name: /manual/i }));
+    await user.click(screen.getByRole("button", { name: "Connect with Google" }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalledWith("https://accounts.example/authorize"));
+    expect(api.requests).toEqual([
+      { method: "POST", path: "/api/todo-export/gtasks/oauth/start", body: { mode: "manual" } },
+    ]);
+  });
+
+  it("reports the result of the sign-in and cleans the URL", async () => {
+    setup({ sinks: ["gtasks"], target: testGoogleTarget() });
+    const success = vi.spyOn(toast, "success");
+    const { router } = await renderApp("/settings/task-export?gtasks=connected");
+
+    await waitFor(() =>
+      expect(success).toHaveBeenCalledWith("Google Tasks connected", {
+        id: "task-export-oauth",
+      }),
+    );
+    await waitFor(() => expect(router.state.location.search).toEqual({}));
+  });
+
+  it("explains a failed sign-in", async () => {
+    setup({ sinks: ["caldav", "gtasks"] });
+    const error = vi.spyOn(toast, "error");
+    await renderApp("/settings/task-export?gtasks_error=insufficient_scope");
+
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith("Google Tasks was not connected", {
+        id: "task-export-oauth",
+        description: "Access to Google Tasks was not allowed. Tick the box for tasks at Google.",
+      }),
+    );
+  });
+
+  it("shows the connection and switches to another list", async () => {
+    const api = setup({
+      sinks: ["gtasks"],
+      target: testGoogleTarget({ last_error: "auth_failed" }),
+    });
+    await renderApp("/settings/task-export");
+
+    const connection = await screen.findByRole("region", { name: "Connection" });
+    expect(within(connection).getByText("Google Tasks")).toBeVisible();
+    expect(within(connection).queryByText("Server URL")).not.toBeInTheDocument();
+    expect(
+      within(connection).getByText("Google refused the access. Connect Google Tasks again."),
+    ).toBeVisible();
+    const list = within(connection).getByRole("combobox", { name: "List" });
+    await waitFor(() => expect(list).toBeEnabled());
+    fireEvent.change(list, { target: { value: "gl-work" } });
+
+    await waitFor(() => expect(list).toHaveValue("gl-work"));
+    expect(api.requests).toEqual([
+      { method: "PATCH", path: "/api/todo-export", body: { list_id: "gl-work" } },
+    ]);
+  });
+
+  it("reconnects from the connection", async () => {
+    const assign = vi.fn();
+    vi.stubGlobal("location", { ...window.location, assign });
+    const api = setup({ sinks: ["gtasks"], target: testGoogleTarget({ mode: "manual" }) });
+    const user = userEvent.setup();
+    await renderApp("/settings/task-export");
+
+    await user.click(await screen.findByRole("button", { name: "Change" }));
+    // A reconnect keeps the mode: no choice offered here.
+    expect(screen.queryByRole("radio", { name: /automatic/i })).not.toBeInTheDocument();
+    await user.click(screen.getByRole("button", { name: "Connect with Google again" }));
+
+    await waitFor(() => expect(assign).toHaveBeenCalled());
+    expect(api.requests[0]?.body).toEqual({ mode: "manual" });
   });
 });
 

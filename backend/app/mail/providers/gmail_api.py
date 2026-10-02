@@ -94,7 +94,8 @@ def raise_for_status(status: int, data: Any) -> None:
         raise AuthenticationError(code="access_denied")
     if status == 404:
         raise NotFoundError()
-    if status == 409:
+    if status in (409, 412):
+        # 412: an ``If-Match`` precondition failed (Google Tasks).
         raise ConflictError()
     if status == 429:
         raise ConnectionFailedError(code="rate_limited")
@@ -204,6 +205,7 @@ class GoogleApiClient:
         *,
         params: Any = None,
         json: Any = None,
+        headers: dict[str, str] | None = None,
         request_timeout: float | None = None,
         retry: bool = True,
     ) -> dict[str, Any]:
@@ -213,6 +215,7 @@ class GoogleApiClient:
             url,
             params=params,
             json_body=json,
+            headers=headers,
             request_timeout=request_timeout,
             retry=retry,
         )

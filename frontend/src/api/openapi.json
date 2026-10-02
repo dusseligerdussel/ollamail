@@ -2836,7 +2836,8 @@
           "sink": {
             "enum": [
               "caldav",
-              "mstodo"
+              "mstodo",
+              "gtasks"
             ],
             "title": "Sink",
             "type": "string"
@@ -2902,7 +2903,8 @@
             "items": {
               "enum": [
                 "caldav",
-                "mstodo"
+                "mstodo",
+                "gtasks"
               ],
               "type": "string"
             },
@@ -2991,7 +2993,8 @@
           "sink": {
             "enum": [
               "caldav",
-              "mstodo"
+              "mstodo",
+              "gtasks"
             ],
             "title": "Sink",
             "type": "string"
@@ -3050,7 +3053,8 @@
           "sink": {
             "enum": [
               "caldav",
-              "mstodo"
+              "mstodo",
+              "gtasks"
             ],
             "title": "Sink",
             "type": "string"
@@ -3077,14 +3081,32 @@
         "type": "object"
       },
       "ExportTargetUpdate": {
+        "description": "Fields left out stay as they are.",
         "properties": {
+          "list_id": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "List Id"
+          },
           "mode": {
-            "$ref": "#/components/schemas/ExportMode"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportMode"
+              },
+              {
+                "type": "null"
+              }
+            ]
           }
         },
-        "required": [
-          "mode"
-        ],
         "title": "ExportTargetUpdate",
         "type": "object"
       },
@@ -3657,6 +3679,29 @@
           "authorization_url"
         ],
         "title": "GmailOAuthStartResponse",
+        "type": "object"
+      },
+      "GoogleTasksOAuthStart": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/ExportMode",
+            "default": "auto"
+          }
+        },
+        "title": "GoogleTasksOAuthStart",
+        "type": "object"
+      },
+      "GoogleTasksOAuthStartResponse": {
+        "properties": {
+          "authorization_url": {
+            "title": "Authorization Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "title": "GoogleTasksOAuthStartResponse",
         "type": "object"
       },
       "GraphConnectRequest": {
@@ -17260,7 +17305,7 @@
         ]
       },
       "patch": {
-        "description": "Switch between automatic and manual export.",
+        "description": "Switch between automatic and manual export, or pick another list of the connected\naccount (checked against the lists the target system offers).",
         "operationId": "todos_update_export_settings",
         "requestBody": {
           "content": {
@@ -17290,14 +17335,10 @@
             "description": "Export not connected"
           },
           "422": {
-            "content": {
-              "application/json": {
-                "schema": {
-                  "$ref": "#/components/schemas/HTTPValidationError"
-                }
-              }
-            },
-            "description": "Validation Error"
+            "description": "Target not allowed, invalid URL, credentials rejected, no list"
+          },
+          "502": {
+            "description": "Target not reachable"
           }
         },
         "summary": "Update Export Settings",
@@ -17345,7 +17386,165 @@
         ]
       }
     },
+    "/todo-export/gtasks/oauth/callback": {
+      "get": {
+        "description": "Redirect target registered at Google; finishes connecting Google Tasks.",
+        "operationId": "todos_gtasks_oauth_callback",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "code",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Code"
+            }
+          },
+          {
+            "in": "query",
+            "name": "state",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "State"
+            }
+          },
+          {
+            "in": "query",
+            "name": "error",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 256,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Error"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Back to the settings with the result in the query"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Gtasks Oauth Callback",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/gtasks/oauth/start": {
+      "post": {
+        "description": "Start connecting Google Tasks: open the returned URL in the browser.",
+        "operationId": "todos_start_gtasks_oauth",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GoogleTasksOAuthStart"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GoogleTasksOAuthStartResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Google Tasks is not enabled as export target"
+          },
+          "503": {
+            "description": "Google OAuth is not configured"
+          }
+        },
+        "summary": "Start Gtasks Oauth",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
     "/todo-export/lists": {
+      "get": {
+        "description": "The lists of the connected account, with the stored credentials (to pick another\nlist, e.g. after connecting with OAuth).",
+        "operationId": "todos_list_connected_task_lists",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskListRead"
+                  },
+                  "title": "Response Todos List Connected Task Lists",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Export not connected"
+          },
+          "422": {
+            "description": "Target not allowed, invalid URL, credentials rejected, no list"
+          },
+          "502": {
+            "description": "Target not reachable"
+          }
+        },
+        "summary": "List Connected Task Lists",
+        "tags": [
+          "todos"
+        ]
+      },
       "post": {
         "description": "Connect to the target with the given credentials and list the lists that can hold\ntodos (CalDAV: calendars with tasks). Nothing is stored.",
         "operationId": "todos_list_task_lists",

@@ -555,10 +555,13 @@ class TodosSettings(BaseSettings):
     # Extracted todos below this model confidence (0-1) are discarded.
     min_confidence: float = Field(default=0.5, ge=0, le=1)
     # Export targets users may connect (app/todos/export/), comma-separated: ``caldav``,
-    # ``mstodo`` (Microsoft To Do, needs the Entra app of ``OLLAMAIL_MAIL_GRAPH_*``).
+    # ``mstodo`` (Microsoft To Do, needs the Entra app of ``OLLAMAIL_MAIL_GRAPH_*``),
+    # ``gtasks`` (Google Tasks, needs the OAuth client of ``OLLAMAIL_GMAIL_*``).
     # Empty (default): no export. The export sends todo titles and descriptions to a server
     # the user names, so the admin opts in (docs/PRIVACY.md).
-    export_sinks: Annotated[list[Literal["caldav", "mstodo"]], NoDecode] = Field(default=[])
+    export_sinks: Annotated[list[Literal["caldav", "mstodo", "gtasks"]], NoDecode] = Field(
+        default=[]
+    )
     # Allow http:// CalDAV servers. Credentials then travel in clear text; only for test
     # setups or networks that are encrypted otherwise.
     export_allow_http: bool = False
@@ -566,6 +569,10 @@ class TodosSettings(BaseSettings):
     export_poll_minutes: int = Field(default=15, ge=1, le=24 * 60)
     # Seconds per request to an export target.
     export_timeout_seconds: float = Field(default=20.0, gt=0, le=300)
+    # Callback URL of the Google Tasks connect flow, registered at Google next to the Gmail
+    # one, e.g. http://localhost:8080/api/todo-export/gtasks/oauth/callback. Empty: derived
+    # from ``OLLAMAIL_GMAIL_REDIRECT_URI`` (same origin).
+    export_gtasks_redirect_uri: str | None = None
 
     @field_validator("skip_categories", "export_sinks", mode="before")
     @classmethod

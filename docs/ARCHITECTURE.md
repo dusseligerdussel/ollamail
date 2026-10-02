@@ -688,8 +688,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   erwarteten Todos, Fristen, Updates und Erledigt-Vorschlägen) und gibt je Modell Precision, Recall
   und Trefferquote der Fristen aus. Neue Fälle im selben Format ergänzen.
 - **Export** (`backend/app/todos/export/`, #40): Aufgaben landen in der Aufgabenliste, mit der
-  der Nutzer ohnehin arbeitet. Umgesetzt sind CalDAV (VTODO) und Microsoft To Do (Graph,
-  #101); Google Tasks folgt als eigener Sink (#102).
+  der Nutzer ohnehin arbeitet. Umgesetzt sind CalDAV (VTODO), Microsoft To Do (Graph, #101)
+  und Google Tasks (#102).
   - **Admin-Opt-in:** `OLLAMAIL_TODOS_EXPORT_SINKS` (Standard leer = aus) nennt die Ziele, die
     Nutzer verbinden dürfen. Ziele, die der Admin später entfernt, werden nicht mehr abgeglichen.
   - **Interface** `TodoSink` (`base.py`): `list_task_lists`, `push` (idempotent je `uid`),
@@ -712,6 +712,15 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
     in der Konfiguration; Aufgaben mit `linkedResources` (Todo-ID, Link zur Mail), Änderungen mit
     `If-Match`, Statusabgleich per Delta Query. Ziele mit OAuth (`registry.OAUTH_SINKS`) lehnt
     `PUT /todo-export` ab (`oauth_required`).
+  - **Google Tasks** (`gtasks.py`, `gtasks_connect.py`, Details in
+    [`providers/gmail.md` §8](providers/gmail.md#8-google-tasks-aufgaben-export-102)): Tasks API
+    v1 über `GoogleApiClient` und OAuth-Client des Gmail-Providers (Scope `tasks`, eigener
+    Connect-Flow `POST /todo-export/gtasks/oauth/start`, `GET …/callback`, Refresh-Token
+    verschlüsselt in `config`). Ein neues Ziel exportiert in die Standardliste, eine andere
+    wählt der Nutzer danach (`GET /todo-export/lists`, `PATCH /todo-export {"list_id"}`; beides
+    für alle Ziele, rotierte Tokens werden dabei gespeichert). Keine Priorität, „verworfen“
+    wird „erledigt“; Duplikate verhindert eine Markierung `[ollamail:<id>]` in `notes`, nach
+    der `push` zuerst sucht.
   - **Einstellungen** je Nutzer (`todo_export_targets`, höchstens eine Zeile): Ziel,
     Zugangsdaten (`EncryptedJSON`), Liste, Modus `auto` (alle offenen Aufgaben, neue sofort)
     oder `manual` (nur einzeln exportierte). API `GET|PUT|PATCH|DELETE /todo-export`,

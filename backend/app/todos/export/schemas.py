@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field, StringConstraints
 from app.todos.export.models import ExportMode
 
 # Target types; new sinks are added here and in ``registry.FACTORIES``.
-SinkKind = Literal["caldav", "mstodo"]
+SinkKind = Literal["caldav", "mstodo", "gtasks"]
 ServerUrl = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)]
 Username = Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]
 Password = Annotated[str, StringConstraints(max_length=1024)]
@@ -61,7 +61,11 @@ class ExportTargetSave(ExportConnection):
 
 
 class ExportTargetUpdate(BaseModel):
-    mode: ExportMode
+    """Fields left out stay as they are."""
+
+    mode: ExportMode | None = None
+    # Another list of the connected account.
+    list_id: ListId | None = None
 
 
 class ExportCounts(BaseModel):
