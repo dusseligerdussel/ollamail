@@ -160,7 +160,8 @@ Key wechseln:
 Der `frontend`-Container spricht nur HTTP. Für den Betrieb im Netz einen TLS-terminierenden
 Reverse Proxy (z. B. Caddy, Traefik, nginx) davorsetzen und `OLLAMAIL_HTTP_BIND=127.0.0.1` setzen.
 Konfigurationsbeispiele: [`docs/OPERATIONS.md`](../docs/OPERATIONS.md#4-reverse-proxy-und-tls).
-`X-Forwarded-*`-Header werden nur von privaten Netzen akzeptiert.
+`X-Forwarded-*`-Header werden nur von privaten Netzen akzeptiert; der äußere Proxy muss
+`X-Forwarded-For` auf die echte Client-IP setzen statt anzuhängen (Rate-Limits).
 
 ## Sicherheits-Header
 

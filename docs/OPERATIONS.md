@@ -419,9 +419,19 @@ Anforderungen an den Proxy:
 
 - **Gesamten Pfad** (`/`) an `http://127.0.0.1:8080` weiterleiten. UI und API (`/api`) laufen über
   denselben Origin; die Content-Security-Policy erlaubt keine fremden Origins.
-- `Host`, `X-Forwarded-For` und `X-Forwarded-Proto` setzen. Der interne Caddy übernimmt
-  `X-Forwarded-*` nur von privaten Netzen (RFC 1918, Loopback); ein Proxy auf demselben Host oder
-  im selben LAN erfüllt das.
+- `Host`, `X-Forwarded-For` und `X-Forwarded-Proto` setzen. `X-Forwarded-For` muss die **echte
+  Client-IP setzen**, nicht an einen vom Client mitgeschickten Wert anhängen – sonst kann ein
+  Angreifer mit wechselnden Fantasiewerten die Rate-Limits (Login, Registrierung, SCIM) umgehen.
+  Die Beispiele unten tun das.
+- Der interne Caddy übernimmt `X-Forwarded-*` nur von privaten Netzen (RFC 1918, Loopback); ein
+  Proxy auf demselben Host oder im selben LAN erfüllt das. Als Client-IP gilt der rechteste
+  Eintrag in `X-Forwarded-For`, der nicht aus einem privaten Netz stammt (`trusted_proxies_strict`);
+  an die API gibt Caddy genau diesen einen Wert weiter. Die API wertet `X-Forwarded-*` nur von
+  `OLLAMAIL_FORWARDED_ALLOW_IPS` aus (Standard: Loopback und private Netze, also der Caddy im
+  Compose-Netz).
+- Wer ohne vorgeschalteten Proxy direkt aus einem privaten Netz (LAN, VPN) zugreift, gilt für Caddy
+  selbst als vertrauenswürdiger Proxy und kann seine IP per `X-Forwarded-For` frei wählen. Das
+  betrifft nur Clients im internen Netz; aus dem Internet ist der Header wirkungslos.
 - **Server-Sent Events** (Live-Updates, gestreamte Antworten von „Frag deine Inbox“):
   Antwort-Pufferung abschalten und lange Verbindungen erlauben. Der interne Caddy nutzt dafür
   bereits `flush_interval -1` und 1 h Timeout – der äußere Proxy muss mindestens genauso großzügig
@@ -442,7 +452,8 @@ mail.example.org {
 }
 ```
 
-Caddy setzt `X-Forwarded-*` automatisch.
+Caddy setzt `X-Forwarded-*` automatisch: Ohne `trusted_proxies` verwirft es einen vom Client
+mitgeschickten `X-Forwarded-For` und setzt die echte Client-IP.
 
 ### 4.2 nginx
 
@@ -459,7 +470,9 @@ server {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Echte Client-IP setzen, nicht anhängen ($proxy_add_x_forwarded_for übernähme
+        # einen vom Client gefälschten Wert)
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection "";
         # Server-Sent Events: nicht puffern, lange Verbindungen zulassen
@@ -503,6 +516,11 @@ http:
           # Server-Sent Events sofort durchreichen
           flushInterval: -1
 ```
+
+Traefik verwirft `X-Forwarded-*` von Clients, die nicht in `forwardedHeaders.trustedIPs` des
+Entrypoints stehen, und setzt die echte Client-IP. Deshalb am Entrypoint **kein**
+`forwardedHeaders.insecure: true` setzen und `trustedIPs` nur mit den Adressen eines weiteren,
+vorgeschalteten Proxys (z. B. Load Balancer) füllen.
 
 Läuft Traefik selbst als Container, ist `127.0.0.1` dort der Traefik-Container. Dann die
 IP-Adresse des Docker-Hosts eintragen und `OLLAMAIL_HTTP_BIND` auf diese Adresse setzen – oder
