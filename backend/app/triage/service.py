@@ -7,15 +7,19 @@ import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime
+from typing import Literal
 
-from sqlalchemy import func, or_, select
+from sqlalchemy import ColumnElement, case, func, literal, or_, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import CloudLLMDisabledError, LLMGateway, LLMOutputError, LLMTask
 from app.core.config import TriageSettings
+from app.core.events import Event, publish
 from app.core.ids import uuid7
+from app.mail.api import access
 from app.mail.models import Folder, FolderRole, Mailbox, Message, message_folders
+from app.mail.providers.base import Flag
 from app.processing.steps import StepError
 from app.triage.categories import EffectiveCategory, effective_categories, slugify
 from app.triage.classify import classify, mail_view
@@ -30,6 +34,9 @@ from app.triage.models import (
 from app.triage.prompts import TRIAGE_PROMPT
 from app.triage.rules import SenderRule, prefilter
 from app.users.models import User
+
+# Published when a message got (or changed) its category; carries IDs only.
+TRIAGED_EVENT = "message.triaged"
 
 
 @dataclass(frozen=True, slots=True)
@@ -151,6 +158,18 @@ async def triage_message(
         raise StepError("triage_no_categories", permanent=True)
     decision = await _decide(session, message, mailbox, categories, llm, settings)
     return await save_result(session, message_id, decision)
+
+
+async def publish_triaged(
+    session: AsyncSession, message_id: uuid.UUID, mailbox_id: uuid.UUID
+) -> None:
+    """Tell the mailbox owner's UI that the category of a message is (newly) known."""
+    owner = await session.scalar(select(Mailbox.owner_user_id).where(Mailbox.id == mailbox_id))
+    # TODO(#34): shared mailboxes notify their assigned users.
+    if owner is None:
+        return
+    event = Event(type=TRIAGED_EVENT, ids={"message_id": message_id, "mailbox_id": mailbox_id})
+    await publish(session, owner, event)
 
 
 async def category_key(session: AsyncSession, message_id: uuid.UUID) -> str | None:
@@ -287,3 +306,108 @@ async def inbox(
             for message, mailbox, result in rows
         ]
     return groups, totals
+
+
+async def results_of(
+    session: AsyncSession, user_id: uuid.UUID, message_ids: Sequence[uuid.UUID]
+) -> list[TriageResult]:
+    """Triage results of those ``message_ids`` that are in mailboxes of ``user_id``."""
+    if not message_ids:
+        return []
+    rows = await session.scalars(
+        select(TriageResult)
+        .join(Message, Message.id == TriageResult.message_id)
+        .join(Mailbox, Mailbox.id == Message.mailbox_id)
+        .where(TriageResult.message_id.in_(message_ids), Mailbox.owner_user_id == user_id)
+    )
+    return list(rows)
+
+
+@dataclass(frozen=True, slots=True)
+class InboxPage:
+    # Messages with their visible category (``None``: untriaged, hidden or deleted).
+    rows: list[tuple[Message, uuid.UUID | None, int | None]]
+    total: int
+    # Messages per visible category in the user's order, then ``None``; the category
+    # filter is not applied to these counts.
+    counts: dict[uuid.UUID | None, int]
+
+
+async def inbox_page(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    visible: Sequence[uuid.UUID],
+    *,
+    mailbox_id: uuid.UUID | None,
+    unread: bool | None,
+    category: uuid.UUID | Literal["none"] | None,
+    offset: int,
+    limit: int,
+) -> InboxPage:
+    """Inbox messages of the user's mailboxes ordered by category (user's order, the
+    uncategorised last), then priority, then newest first. ``category`` filters to one
+    visible category, or ``"none"`` to the uncategorised ones."""
+    visible = list(visible)
+    in_inbox = (
+        select(message_folders.c.message_id)
+        .join(Folder, Folder.id == message_folders.c.folder_id)
+        .where(message_folders.c.message_id == Message.id, Folder.role == FolderRole.INBOX)
+        .exists()
+    )
+    conditions: list[ColumnElement[bool]] = [access.visible_to(user_id), in_inbox]
+    if mailbox_id is not None:
+        conditions.append(Message.mailbox_id == mailbox_id)
+    if unread is True:
+        conditions.append(~Message.flags.contains([Flag.SEEN.value]))
+    elif unread is False:
+        conditions.append(Message.flags.contains([Flag.SEEN.value]))
+    # The visible category of a message, NULL for the uncategorised group.
+    bucket = case((TriageResult.category_id.in_(visible), TriageResult.category_id))
+    base = (
+        select(Message, bucket.label("bucket"), TriageResult.priority)
+        .join(Mailbox, Mailbox.id == Message.mailbox_id)
+        .outerjoin(TriageResult, TriageResult.message_id == Message.id)
+        .where(*conditions)
+    )
+
+    counted = base.subquery()
+    count_rows = await session.execute(
+        select(counted.c.bucket, func.count()).group_by(counted.c.bucket)
+    )
+    by_bucket = {row[0]: int(row[1]) for row in count_rows}
+    counts = {category_id: by_bucket.get(category_id, 0) for category_id in [*visible, None]}
+
+    statement = base
+    if category is None:
+        total = sum(counts.values())
+    elif category == "none":
+        statement = statement.where(bucket.is_(None))
+        total = counts[None]
+    else:
+        statement = statement.where(TriageResult.category_id == category)
+        total = counts.get(category, 0)
+    position = (
+        case(
+            {category_id: index for index, category_id in enumerate(visible)},
+            value=TriageResult.category_id,
+            else_=len(visible),
+        )
+        if visible
+        else literal(0)
+    )
+    received = func.coalesce(Message.received_at, Message.sent_at, Message.created_at)
+    rows = await session.execute(
+        statement.order_by(
+            position,
+            TriageResult.priority.asc().nulls_last(),
+            received.desc(),
+            Message.id.desc(),
+        )
+        .offset(offset)
+        .limit(limit)
+    )
+    return InboxPage(
+        rows=[(message, category_id, priority) for message, category_id, priority in rows],
+        total=total,
+        counts=counts,
+    )

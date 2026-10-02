@@ -1,3 +1,6 @@
+import { TriageLabel } from "@/components/triage/triage-label";
+import { TriageReason } from "@/components/triage/triage-reason";
+
 /**
  * Extension points of the mail views. They render nothing yet; the features fill them:
  *
@@ -13,8 +16,8 @@ interface SlotProps {
   messageId: string;
 }
 
-export function TriageLabelSlot(_: SlotProps & { compact?: boolean }) {
-  return null;
+export function TriageLabelSlot({ messageId, compact }: SlotProps & { compact?: boolean }) {
+  return compact ? <TriageLabel messageId={messageId} /> : <TriageReason messageId={messageId} />;
 }
 
 export function MessageTasksSlot(_: SlotProps) {

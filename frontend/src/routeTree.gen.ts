@@ -21,11 +21,13 @@ import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as AdminAiRouteImport } from './routes/admin_.ai'
 import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
+import { Route as AdminCategoriesRouteImport } from './routes/admin_.categories'
 import { Route as AdminRetentionRouteImport } from './routes/admin_.retention'
 import { Route as AdminRoleMappingRouteImport } from './routes/admin_.role-mapping'
 import { Route as AdminSignInRouteImport } from './routes/admin_.sign-in'
 import { Route as AdminUsersRouteImport } from './routes/admin_.users'
 import { Route as DigestSettingsRouteImport } from './routes/digest_.settings'
+import { Route as SettingsCategoriesRouteImport } from './routes/settings_.categories'
 import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
 import { Route as SettingsMailboxesNewRouteImport } from './routes/settings_.mailboxes_.new'
 
@@ -89,6 +91,11 @@ const AdminAuditRoute = AdminAuditRouteImport.update({
   path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const AdminCategoriesRoute = AdminCategoriesRouteImport.update({
+  id: '/admin_/categories',
+  path: '/admin/categories',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const AdminRetentionRoute = AdminRetentionRouteImport.update({
   id: '/admin_/retention',
   path: '/admin/retention',
@@ -112,6 +119,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
 const DigestSettingsRoute = DigestSettingsRouteImport.update({
   id: '/digest_/settings',
   path: '/digest/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsCategoriesRoute = SettingsCategoriesRouteImport.update({
+  id: '/settings_/categories',
+  path: '/settings/categories',
   getParentRoute: () => rootRouteImport,
 } as any)
 const SettingsMailboxesRoute = SettingsMailboxesRouteImport.update({
@@ -138,11 +150,13 @@ export interface FileRoutesByFullPath {
   '/tasks': typeof TasksRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/categories': typeof AdminCategoriesRoute
   '/admin/retention': typeof AdminRetentionRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
   '/digest/settings': typeof DigestSettingsRoute
+  '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
@@ -159,11 +173,13 @@ export interface FileRoutesByTo {
   '/tasks': typeof TasksRoute
   '/admin/ai': typeof AdminAiRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/admin/categories': typeof AdminCategoriesRoute
   '/admin/retention': typeof AdminRetentionRoute
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
   '/digest/settings': typeof DigestSettingsRoute
+  '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
@@ -181,11 +197,13 @@ export interface FileRoutesById {
   '/tasks': typeof TasksRoute
   '/admin_/ai': typeof AdminAiRoute
   '/admin_/audit': typeof AdminAuditRoute
+  '/admin_/categories': typeof AdminCategoriesRoute
   '/admin_/retention': typeof AdminRetentionRoute
   '/admin_/role-mapping': typeof AdminRoleMappingRoute
   '/admin_/sign-in': typeof AdminSignInRoute
   '/admin_/users': typeof AdminUsersRoute
   '/digest_/settings': typeof DigestSettingsRoute
+  '/settings_/categories': typeof SettingsCategoriesRoute
   '/settings_/mailboxes': typeof SettingsMailboxesRoute
   '/settings_/mailboxes_/new': typeof SettingsMailboxesNewRoute
 }
@@ -204,11 +222,13 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/categories'
     | '/admin/retention'
     | '/admin/role-mapping'
     | '/admin/sign-in'
     | '/admin/users'
     | '/digest/settings'
+    | '/settings/categories'
     | '/settings/mailboxes'
     | '/settings/mailboxes/new'
   fileRoutesByTo: FileRoutesByTo
@@ -225,11 +245,13 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin/ai'
     | '/admin/audit'
+    | '/admin/categories'
     | '/admin/retention'
     | '/admin/role-mapping'
     | '/admin/sign-in'
     | '/admin/users'
     | '/digest/settings'
+    | '/settings/categories'
     | '/settings/mailboxes'
     | '/settings/mailboxes/new'
   id:
@@ -246,11 +268,13 @@ export interface FileRouteTypes {
     | '/tasks'
     | '/admin_/ai'
     | '/admin_/audit'
+    | '/admin_/categories'
     | '/admin_/retention'
     | '/admin_/role-mapping'
     | '/admin_/sign-in'
     | '/admin_/users'
     | '/digest_/settings'
+    | '/settings_/categories'
     | '/settings_/mailboxes'
     | '/settings_/mailboxes_/new'
   fileRoutesById: FileRoutesById
@@ -268,11 +292,13 @@ export interface RootRouteChildren {
   TasksRoute: typeof TasksRoute
   AdminAiRoute: typeof AdminAiRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  AdminCategoriesRoute: typeof AdminCategoriesRoute
   AdminRetentionRoute: typeof AdminRetentionRoute
   AdminRoleMappingRoute: typeof AdminRoleMappingRoute
   AdminSignInRoute: typeof AdminSignInRoute
   AdminUsersRoute: typeof AdminUsersRoute
   DigestSettingsRoute: typeof DigestSettingsRoute
+  SettingsCategoriesRoute: typeof SettingsCategoriesRoute
   SettingsMailboxesRoute: typeof SettingsMailboxesRoute
   SettingsMailboxesNewRoute: typeof SettingsMailboxesNewRoute
 }
@@ -363,6 +389,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/admin_/categories': {
+      id: '/admin_/categories'
+      path: '/admin/categories'
+      fullPath: '/admin/categories'
+      preLoaderRoute: typeof AdminCategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/admin_/retention': {
       id: '/admin_/retention'
       path: '/admin/retention'
@@ -398,6 +431,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof DigestSettingsRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings_/categories': {
+      id: '/settings_/categories'
+      path: '/settings/categories'
+      fullPath: '/settings/categories'
+      preLoaderRoute: typeof SettingsCategoriesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings_/mailboxes': {
       id: '/settings_/mailboxes'
       path: '/settings/mailboxes'
@@ -428,11 +468,13 @@ const rootRouteChildren: RootRouteChildren = {
   TasksRoute: TasksRoute,
   AdminAiRoute: AdminAiRoute,
   AdminAuditRoute: AdminAuditRoute,
+  AdminCategoriesRoute: AdminCategoriesRoute,
   AdminRetentionRoute: AdminRetentionRoute,
   AdminRoleMappingRoute: AdminRoleMappingRoute,
   AdminSignInRoute: AdminSignInRoute,
   AdminUsersRoute: AdminUsersRoute,
   DigestSettingsRoute: DigestSettingsRoute,
+  SettingsCategoriesRoute: SettingsCategoriesRoute,
   SettingsMailboxesRoute: SettingsMailboxesRoute,
   SettingsMailboxesNewRoute: SettingsMailboxesNewRoute,
 }
