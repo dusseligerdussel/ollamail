@@ -580,6 +580,12 @@ Mailserver mit selbstsigniertem Zertifikat: das CA-Zertifikat dem Container übe
 `SSL_CERT_FILE` bekannt machen; `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS=true` (keine Prüfung,
 auch unverschlüsselt) nur in Testumgebungen.
 
+**Mail-Sync (Microsoft 365):** Keine dauerhafte Verbindung; der Worker pollt per Delta Query
+(`poll_interval_seconds`, Standard 5 Minuten). Change Notifications sind optional und brauchen
+eine öffentlich erreichbare URL (`OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL`). Einrichtung der
+Entra-App, Berechtigungen und Einschränkung von App-only-Zugriff:
+[`docs/providers/microsoft365.md`](providers/microsoft365.md).
+
 **Mail-Sync (Gmail / Google Workspace):** Einrichtung (OAuth-Client, Scopes, Google-Verifizierung,
 Domain-wide Delegation, optional Pub/Sub) und manuelle Testanleitung in
 [`providers/gmail.md`](providers/gmail.md). Es ist keine öffentliche URL nötig: Der
@@ -636,12 +642,14 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                                                                    ▲
                        worker (geplant #7) ────────────────────────┘
                          │
-                         ├──▶ Mailserver: IMAP (#14) / Gmail API (#38) / Microsoft Graph (geplant #37)
+                         ├──▶ Mailserver: IMAP (#14) / Gmail API (#38) / Microsoft Graph (#37)
                          ├──▶ LLM: Ollama im Compose-Netz oder eigener Server (geplant #17)
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
 
 api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30; GitHub OAuth2 geplant #31)
+api ──▶ login.microsoftonline.com / Graph: nur beim Verbinden eines Microsoft-365-Postfachs (#37)
+Microsoft ──▶ api: Change Notifications nur mit OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL (#37)
 ```
 
 - **Standardmäßig verlassen keine Daten die Instanz.** Externe Verbindungen entstehen nur zu den

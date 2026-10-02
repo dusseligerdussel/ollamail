@@ -10,7 +10,8 @@ absorbed by the data types:
   provider: IMAP ``UIDVALIDITY``/last UID/``HIGHESTMODSEQ``, a Graph ``deltaLink``, a Gmail
   ``historyId``. ``fetch_since`` yields changes and finally ``CursorAdvanced``; callers
   persist the cursor only after the preceding changes are stored, so syncing is resumable
-  and idempotent.
+  and idempotent. Providers that cannot tell new from changed messages yield
+  ``MessageChanged``; the caller then loads the source only for unknown messages.
 * **Mailbox-wide change logs.** Providers with ``capabilities.mailbox_cursor`` (Gmail
   ``historyId``) track changes for the whole mailbox: the sync calls ``fetch_since`` once
   with ``MAILBOX_SCOPE`` instead of once per folder. Their ``remote_ref``s must be stable
@@ -24,7 +25,7 @@ absorbed by the data types:
 """
 
 import enum
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
@@ -61,6 +62,10 @@ class ProviderCapabilities:
     mailbox_cursor: bool = False
 
 
+# Stores new credentials of the mailbox (e.g. refreshed OAuth tokens), encrypted.
+SaveCredentials = Callable[[dict[str, Any]], Awaitable[None]]
+
+
 @dataclass(frozen=True, slots=True)
 class MailboxConfig:
     """Everything a provider needs to connect. ``credentials`` are already decrypted and
@@ -71,6 +76,9 @@ class MailboxConfig:
     address: str
     settings: dict[str, Any] = field(default_factory=dict)
     credentials: dict[str, Any] = field(default_factory=dict, repr=False)
+    # Set by the sync engine and the watcher. Providers whose credentials change (rotated
+    # refresh tokens) call it right away; it commits independently of the sync.
+    save_credentials: SaveCredentials | None = field(default=None, repr=False, compare=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,11 +137,25 @@ class MessageUpdated:
 
 
 @dataclass(frozen=True, slots=True)
+class MessageChanged:
+    """A message was added to the folder or changed; the provider cannot tell which
+    (Graph delta query). If the message is known, the caller applies ``flags`` and
+    ``folder_ids`` like ``MessageUpdated``; otherwise it calls ``load`` and stores the
+    result like ``MessageFetched``, so the source is only downloaded for new messages.
+    ``load`` may raise ``MessageNotFoundError`` (deleted in the meantime)."""
+
+    remote_ref: str
+    load: Callable[[], Awaitable[RawMessage]] = field(repr=False, compare=False)
+    flags: frozenset[str] | None = None
+    folder_ids: tuple[str, ...] | None = None
+
+
+@dataclass(frozen=True, slots=True)
 class CursorAdvanced:
     cursor: SyncCursor
 
 
-SyncEvent = MessageFetched | MessageDeleted | MessageUpdated | CursorAdvanced
+SyncEvent = MessageFetched | MessageDeleted | MessageUpdated | MessageChanged | CursorAdvanced
 
 
 @dataclass(frozen=True, slots=True)
