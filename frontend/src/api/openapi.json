@@ -957,6 +957,7 @@
           "data.exported",
           "data.deleted",
           "data.retention_changed",
+          "todo_export.changed",
           "crypto.keys_rotated",
           "audit.exported"
         ],
@@ -2780,6 +2781,108 @@
         "title": "DraftUpdate",
         "type": "object"
       },
+      "ExportConnection": {
+        "description": "How to reach the target. ``password`` ``null``: keep the stored one (same server\nand user name).",
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "sink": {
+            "const": "caldav",
+            "title": "Sink",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "username": {
+            "default": "",
+            "maxLength": 255,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sink",
+          "url"
+        ],
+        "title": "ExportConnection",
+        "type": "object"
+      },
+      "ExportCounts": {
+        "description": "Todos of this target by export state.",
+        "properties": {
+          "error": {
+            "default": 0,
+            "title": "Error",
+            "type": "integer"
+          },
+          "pending": {
+            "default": 0,
+            "title": "Pending",
+            "type": "integer"
+          },
+          "removed": {
+            "default": 0,
+            "title": "Removed",
+            "type": "integer"
+          },
+          "synced": {
+            "default": 0,
+            "title": "Synced",
+            "type": "integer"
+          }
+        },
+        "title": "ExportCounts",
+        "type": "object"
+      },
+      "ExportMode": {
+        "enum": [
+          "auto",
+          "manual"
+        ],
+        "title": "ExportMode",
+        "type": "string"
+      },
+      "ExportSettingsRead": {
+        "properties": {
+          "available_sinks": {
+            "items": {
+              "const": "caldav",
+              "type": "string"
+            },
+            "title": "Available Sinks",
+            "type": "array"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportTargetRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "title": "ExportSettingsRead",
+        "type": "object"
+      },
       "ExportStatus": {
         "enum": [
           "pending",
@@ -2789,6 +2892,152 @@
         ],
         "title": "ExportStatus",
         "type": "string"
+      },
+      "ExportTargetRead": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ExportCounts"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "has_password": {
+            "title": "Has Password",
+            "type": "boolean"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync At"
+          },
+          "list_id": {
+            "title": "List Id",
+            "type": "string"
+          },
+          "list_name": {
+            "title": "List Name",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExportMode"
+          },
+          "sink": {
+            "const": "caldav",
+            "title": "Sink",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sink",
+          "url",
+          "username",
+          "has_password",
+          "list_id",
+          "list_name",
+          "mode",
+          "active",
+          "last_sync_at",
+          "last_error",
+          "counts",
+          "created_at"
+        ],
+        "title": "ExportTargetRead",
+        "type": "object"
+      },
+      "ExportTargetSave": {
+        "description": "Connect (or reconnect) the export: target, list and mode.",
+        "properties": {
+          "list_id": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "List Id",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExportMode",
+            "default": "auto"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "sink": {
+            "const": "caldav",
+            "title": "Sink",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "username": {
+            "default": "",
+            "maxLength": 255,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sink",
+          "url",
+          "list_id"
+        ],
+        "title": "ExportTargetSave",
+        "type": "object"
+      },
+      "ExportTargetUpdate": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/ExportMode"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "ExportTargetUpdate",
+        "type": "object"
       },
       "FeedCreated": {
         "properties": {
@@ -7380,6 +7629,24 @@
         "title": "TaskAssignmentUpdate",
         "type": "object"
       },
+      "TaskListRead": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "TaskListRead",
+        "type": "object"
+      },
       "TaskSettingRead": {
         "properties": {
           "blocked": {
@@ -7547,6 +7814,56 @@
         "title": "TodoCreate",
         "type": "object"
       },
+      "TodoExportState": {
+        "description": "Export of a todo to the user's task system (#40).",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "sink": {
+            "title": "Sink",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "synced",
+              "error",
+              "removed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          }
+        },
+        "required": [
+          "sink",
+          "state",
+          "synced_at",
+          "error"
+        ],
+        "title": "TodoExportState",
+        "type": "object"
+      },
       "TodoPriority": {
         "enum": [
           "high",
@@ -7624,6 +7941,16 @@
               }
             ],
             "title": "Due Date"
+          },
+          "export_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TodoExportState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "external_refs": {
             "additionalProperties": true,
@@ -7714,6 +8041,7 @@
           "message_id",
           "thread_id",
           "external_refs",
+          "export_state",
           "shared",
           "assignee_id",
           "created_at",
@@ -14873,6 +15201,249 @@
         ]
       }
     },
+    "/todo-export": {
+      "delete": {
+        "description": "Stop exporting and delete the stored credentials. Tasks already exported stay in\nthe target system.",
+        "operationId": "todos_disconnect_export",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Export not connected"
+          }
+        },
+        "summary": "Disconnect Export",
+        "tags": [
+          "todos"
+        ]
+      },
+      "get": {
+        "description": "Own export settings and the target types the admin allows.",
+        "operationId": "todos_get_export_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Export Settings",
+        "tags": [
+          "todos"
+        ]
+      },
+      "patch": {
+        "description": "Switch between automatic and manual export.",
+        "operationId": "todos_update_export_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportTargetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Export not connected"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Export Settings",
+        "tags": [
+          "todos"
+        ]
+      },
+      "put": {
+        "description": "Connect the export (or change server, account, list or mode). The connection is\nchecked and the list must be one of those the server offers. Open todos are exported\nright away in mode ``auto``.",
+        "operationId": "todos_save_export_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportTargetSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Target not allowed, invalid URL, credentials rejected, no list"
+          },
+          "502": {
+            "description": "Target not reachable"
+          }
+        },
+        "summary": "Save Export Settings",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/lists": {
+      "post": {
+        "description": "Connect to the target with the given credentials and list the lists that can hold\ntodos (CalDAV: calendars with tasks). Nothing is stored.",
+        "operationId": "todos_list_task_lists",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskListRead"
+                  },
+                  "title": "Response Todos List Task Lists",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Target not allowed, invalid URL, credentials rejected, no list"
+          },
+          "502": {
+            "description": "Target not reachable"
+          }
+        },
+        "summary": "List Task Lists",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/sync": {
+      "post": {
+        "description": "Sync now, including the status check of exported todos.",
+        "operationId": "todos_sync_now",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Export not connected"
+          }
+        },
+        "summary": "Sync Now",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/todos/{todo_id}": {
+      "post": {
+        "description": "Export one todo (manual mode), or export it again after it was deleted in the\ntarget system.",
+        "operationId": "todos_export_todo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "todo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Todo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such todo or export not connected"
+          },
+          "422": {
+            "description": "Todo of somebody else (team todo assigned to another person)"
+          }
+        },
+        "summary": "Export Todo",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
     "/todos": {
       "get": {
         "description": "Own todos, earliest due date first (todos without due date last).",
@@ -15080,6 +15651,7 @@
     },
     "/todos/{todo_id}": {
       "delete": {
+        "description": "Delete a todo; an exported copy is deleted in the target system with the next sync.",
         "operationId": "todos_delete_todo",
         "parameters": [
           {

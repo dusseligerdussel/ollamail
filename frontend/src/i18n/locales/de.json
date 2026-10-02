@@ -212,6 +212,9 @@
           "deleted": "Daten gelöscht",
           "retention_changed": "Aufbewahrung geändert"
         },
+        "todo_export": {
+          "changed": "Aufgaben-Export geändert"
+        },
         "crypto": {
           "keys_rotated": "Schlüssel rotiert"
         },
@@ -970,6 +973,14 @@
       "new": "Neue Aufgabe",
       "toggleDone": "Aufgabe erledigen oder wieder öffnen",
       "date": "Fälligkeitsdatum ändern"
+    },
+    "export": {
+      "synced": "Exportiert",
+      "pending": "Wird exportiert",
+      "error": "Export fehlgeschlagen",
+      "removed": "In der Zielliste gelöscht",
+      "export": "Nach „{{list}}“ exportieren",
+      "exportTask": "„{{title}}“ nach „{{list}}“ exportieren"
     }
   },
   "mail": {
@@ -1366,6 +1377,80 @@
       "deleteAll": "Verlauf löschen",
       "confirmAll": "Alle Fragen und Antworten löschen?",
       "keep": "Behalten"
+    }
+  },
+  "taskExport": {
+    "title": "Aufgaben-Export",
+    "back": "Zurück zu den Einstellungen",
+    "manage": "Aufgaben exportieren",
+    "linkDescription": "Aufgaben in Nextcloud oder eine andere CalDAV-Aufgabenliste übertragen.",
+    "intro": "Überträgt deine Aufgaben in die Aufgabenliste, mit der du ohnehin arbeitest. Was du dort erledigst, wird hier ebenfalls erledigt.",
+    "loading": "Einstellungen werden geladen",
+    "disabledTitle": "Export nicht freigegeben",
+    "disabledDescription": "Auf diesem Server ist der Aufgaben-Export ausgeschaltet. Die Administration kann ihn freigeben.",
+    "privacy": {
+      "sent": "Beim Export gehen Titel, Beschreibung, Fälligkeit, Priorität und Status deiner Aufgaben sowie ein Link zur Mail an den Server, den du hier angibst.",
+      "notSent": "Die Mails selbst werden nicht übertragen. Verwende nach Möglichkeit ein App-Passwort statt deines Hauptpassworts."
+    },
+    "target": "Ziel",
+    "sinks": {
+      "caldav": {
+        "title": "CalDAV",
+        "description": "Nextcloud, Radicale, Baïkal, iCloud und andere CalDAV-Server"
+      }
+    },
+    "url": "Server-URL",
+    "urlHint": "Adresse des Servers, eines Kontos oder direkt einer Liste.",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "passwordHint": "Wird verschlüsselt gespeichert und nie wieder angezeigt.",
+    "passwordKept": "Leer lassen, um das gespeicherte Passwort zu behalten.",
+    "connect": "Verbinden",
+    "connecting": "Verbinde …",
+    "noLists": "Auf diesem Konto gibt es keine Liste für Aufgaben. Lege zuerst eine an.",
+    "list": "Liste",
+    "mode": {
+      "label": "Export",
+      "auto": "Automatisch",
+      "autoDescription": "Alle offenen Aufgaben, neue sofort.",
+      "manual": "Manuell",
+      "manualDescription": "Nur Aufgaben, die du in der Aufgabenliste einzeln exportierst."
+    },
+    "enable": "Export einschalten",
+    "enabled": "Aufgaben-Export eingeschaltet",
+    "save": "Speichern",
+    "saved": "Aufgaben-Export gespeichert",
+    "cancel": "Abbrechen",
+    "connection": "Verbindung",
+    "status": "Status",
+    "tasks": "Aufgaben",
+    "counts_one": "{{count}} exportiert",
+    "counts_other": "{{count}} exportiert",
+    "pendingCount_one": "{{count}} wartet",
+    "pendingCount_other": "{{count}} warten",
+    "errorCount_one": "{{count}} Fehler",
+    "errorCount_other": "{{count}} Fehler",
+    "lastSync": "Zuletzt abgeglichen {{time}}",
+    "neverSynced": "Noch nicht abgeglichen",
+    "inactive": "Von der Administration ausgeschaltet",
+    "syncNow": "Jetzt abgleichen",
+    "syncQueued": "Abgleich gestartet",
+    "change": "Ändern",
+    "disconnect": "Trennen",
+    "disconnectTitle": "Aufgaben-Export trennen?",
+    "disconnectDescription": "Die gespeicherten Zugangsdaten werden gelöscht. Bereits exportierte Aufgaben bleiben in der Liste und werden nicht mehr abgeglichen.",
+    "disconnected": "Aufgaben-Export getrennt",
+    "errors": {
+      "auth_failed": "Der Server hat Benutzername oder Passwort abgelehnt.",
+      "unavailable": "Der Server ist nicht erreichbar.",
+      "timeout": "Der Server hat nicht rechtzeitig geantwortet.",
+      "not_found": "Unter dieser Adresse wurde kein Kalender gefunden.",
+      "invalid_url": "Die Server-URL ist ungültig.",
+      "insecure_url": "Die Server-URL muss mit https:// beginnen.",
+      "sink_not_available": "Dieses Ziel ist auf diesem Server nicht freigegeben.",
+      "unknown_list": "Die Liste gibt es auf dem Server nicht mehr.",
+      "list_not_found": "Die Liste gibt es auf dem Server nicht mehr.",
+      "other": "Der Server hat unerwartet geantwortet."
     }
   }
 }
