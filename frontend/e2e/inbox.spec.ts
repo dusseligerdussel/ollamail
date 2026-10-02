@@ -214,6 +214,39 @@ test("add an IMAP mailbox with autodiscovery and connection test", async ({ page
   await expect(page).toHaveURL(/\/settings\/mailboxes$/);
 });
 
+test("a late autodiscovery answer keeps the server the user enters", async ({ page }) => {
+  await mockMail(page);
+  // Holds back the autodiscovery answer; the mail mock answers once it is released.
+  let release = () => {};
+  const released = new Promise<void>((resolve) => (release = resolve));
+  await page.route("**/api/mailboxes/autodiscover", async (route) => {
+    await released;
+    await route.fallback();
+  });
+  await page.goto("/settings/mailboxes/new");
+
+  const discovered = page.waitForRequest("**/api/mailboxes/autodiscover");
+  await page.getByLabel("Email address").fill("erika@firma.example");
+  await page.getByLabel("Password", { exact: true }).fill("secret");
+  await discovered;
+  const host = page.getByLabel("IMAP server");
+  await host.focus();
+  release();
+  await expect(page.getByText(/The server was guessed from the domain/)).toBeVisible();
+  await expect(host).toHaveValue("");
+  await expect(page.getByText("Settings guessed from the domain.")).toHaveCount(0);
+  await host.pressSequentially("localhost");
+  await page.getByLabel("Port").fill("1143");
+  await expect(host).toHaveValue("localhost");
+
+  const tested = page.waitForRequest("**/api/mailboxes/test");
+  await page.getByRole("button", { name: "Test connection" }).click();
+  expect((await tested).postDataJSON()).toMatchObject({
+    provider_settings: { host: "localhost", port: 1143, security: "tls" },
+  });
+  await expect(page.getByText("Connection works, 4 folders found.")).toBeVisible();
+});
+
 for (const colorScheme of ["light", "dark"] as const) {
   for (const viewport of [
     { width: 1440, height: 900 },

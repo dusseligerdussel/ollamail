@@ -1,6 +1,6 @@
 import { useMutation } from "@tanstack/react-query";
 import { CircleCheck } from "lucide-react";
-import { type FormEvent, useState } from "react";
+import { type FormEvent, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { isApiError } from "@/api/errors";
@@ -83,9 +83,22 @@ export function ImapForm<T extends { display_name: string }>({
   const { t } = useTranslation();
   const errorText = useMailErrorText();
   const [values, setValues] = useState(emptyValues);
-  // Server fields the user edited are not overwritten by suggestions.
-  const [serverEdited, setServerEdited] = useState(false);
+  // Suggestions leave the server fields alone once the user edited one of them or while the user
+  // is in one (filling it under the cursor mangles what they type). Refs, not state: an answer
+  // that arrives late must see the current values (#109).
+  const serverEdited = useRef(false);
+  const serverFocused = useRef(false);
+  const serverFocus = {
+    onFocus: () => {
+      serverFocused.current = true;
+    },
+    onBlur: () => {
+      serverFocused.current = false;
+    },
+  };
   const [suggestion, setSuggestion] = useState<AutodiscoverSuggestion>();
+  // Source of the suggestion that filled the server fields.
+  const [applied, setApplied] = useState<AutodiscoverSuggestion["source"]>();
   const [native, setNative] = useState<MailboxType>();
   const [tested, setTested] = useState<ConnectionTestResult>();
   const [submitError, setSubmitError] = useState<string>();
@@ -95,7 +108,10 @@ export function ImapForm<T extends { display_name: string }>({
     setValues((current) => ({ ...current, [field]: value }));
     setTested(undefined);
     setSubmitError(undefined);
-    if (field === "host" || field === "port" || field === "security") setServerEdited(true);
+    if (field === "host" || field === "port" || field === "security") {
+      serverEdited.current = true;
+      setApplied(undefined);
+    }
   };
 
   const discover = useMutation({
@@ -107,7 +123,7 @@ export function ImapForm<T extends { display_name: string }>({
         suggestions.find((item) => item.type !== "imap" && oauthTypes.includes(item.type))?.type,
       );
       setSuggestion(imap);
-      if (imap && !serverEdited) {
+      if (imap && !serverEdited.current && !serverFocused.current) {
         const settings = imap.provider_settings as {
           host?: string;
           port?: number;
@@ -119,6 +135,7 @@ export function ImapForm<T extends { display_name: string }>({
           port: settings.port ? String(settings.port) : current.port,
           security: settings.security === "starttls" ? "starttls" : "tls",
         }));
+        setApplied(imap.source);
       }
     },
   });
@@ -236,9 +253,9 @@ export function ImapForm<T extends { display_name: string }>({
         <legend className="px-1 text-xs font-medium text-muted-foreground">
           {t("mailboxes.form.server")}
         </legend>
-        {suggestion && (
+        {applied && (
           <p className="text-xs text-muted-foreground">
-            {suggestion.source === "known"
+            {applied === "known"
               ? t("mailboxes.form.suggestedKnown")
               : t("mailboxes.form.suggestedGuess")}
           </p>
@@ -252,6 +269,7 @@ export function ImapForm<T extends { display_name: string }>({
             value={values.host}
             error={error("host")}
             onChange={(event) => set("host", event.target.value)}
+            {...serverFocus}
           />
           <FormField
             label={t("mailboxes.form.port")}
@@ -260,6 +278,7 @@ export function ImapForm<T extends { display_name: string }>({
             value={values.port}
             error={error("port")}
             onChange={(event) => set("port", event.target.value.replace(/\D/g, ""))}
+            {...serverFocus}
           />
         </div>
         <div className="grid gap-4 sm:grid-cols-2">
@@ -271,6 +290,7 @@ export function ImapForm<T extends { display_name: string }>({
               id="imap-security"
               className="w-full"
               value={values.security}
+              {...serverFocus}
               onChange={(event) =>
                 set("security", event.target.value === "starttls" ? "starttls" : "tls")
               }
