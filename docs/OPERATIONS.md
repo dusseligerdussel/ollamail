@@ -568,6 +568,16 @@ KI-Verarbeitung und TTS. Vorgesehen sind mehrere Worker-Instanzen und nach Jobty
 dahin startet `worker` nur mit `--profile worker` und bricht mangels Code ab. Konkrete Befehle
 folgen mit #7.
 
+**Mail-Sync (IMAP):** Jeder Worker, der die Queue `sync` abarbeitet, hält zusätzlich eine
+Datenbankverbindung für die Verteilung der Postfächer (Advisory-Locks) und pro überwachtem
+Postfach eine dauerhafte IMAP-Verbindung (`IDLE`); während eines Syncs kommt eine zweite hinzu.
+Mailserver begrenzen gleichzeitige Verbindungen pro Nutzer (Dovecot: `mail_max_userip_connections`,
+Standard 10) – zwei pro Postfach reichen. Laufen mehrere Worker mit `sync`, übernimmt jeder einen
+Teil der Postfächer; fällt einer aus, übernehmen die anderen innerhalb einer Minute.
+Mailserver mit selbstsigniertem Zertifikat: das CA-Zertifikat dem Container über
+`SSL_CERT_FILE` bekannt machen; `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS=true` (keine Prüfung,
+auch unverschlüsselt) nur in Testumgebungen.
+
 Was heute schon gilt: Jeder API- bzw. Worker-Prozess öffnet bis zu
 `OLLAMAIL_DATABASE_POOL_SIZE + OLLAMAIL_DATABASE_MAX_OVERFLOW` Datenbankverbindungen (Standard
 5 + 10). Beim Hochskalieren darauf achten, dass die Summe unter `max_connections` von PostgreSQL
@@ -611,7 +621,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                                                                    ▲
                        worker (geplant #7) ────────────────────────┘
                          │
-                         ├──▶ Mailserver: IMAP / Microsoft Graph / Gmail API  (geplant #14, #37, #38)
+                         ├──▶ Mailserver: IMAP (#14) / Microsoft Graph / Gmail API (geplant #37, #38)
                          ├──▶ LLM: Ollama im Compose-Netz oder eigener Server (geplant #17)
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)

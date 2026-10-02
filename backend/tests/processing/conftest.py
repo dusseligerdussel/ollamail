@@ -26,6 +26,11 @@ from tests.factories import make_user
 FAST_RETRY = RetryStrategy(max_attempts=2)
 QUEUES = ["default", "llm", "sync"]
 
+# Feature modules register their steps on import. Import them now: the worker imports
+# them lazily, which would register them in a test's isolated registry instead.
+for _module in TASK_MODULES:
+    importlib.import_module(_module)
+
 
 @dataclass
 class Recorder:

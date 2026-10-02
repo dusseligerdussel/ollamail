@@ -8,6 +8,7 @@ from app.core.db import Base
 from app.mail import models as mail_models
 from app.processing import models as processing_models
 from app.search import models as search_models
+from app.todos import models as todo_models
 from app.users import models as user_models
 
 __all__ = [
@@ -16,5 +17,6 @@ __all__ = [
     "mail_models",
     "processing_models",
     "search_models",
+    "todo_models",
     "user_models",
 ]

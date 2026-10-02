@@ -1,7 +1,7 @@
 """add search index
 
 Revision ID: e41229c08479
-Revises: 0287a3035915
+Revises: 173b28ed6d7e
 Create Date: 2026-10-01 21:07:34.338487+00:00
 
 The vector column gets ``OLLAMAIL_SEARCH_EMBEDDING_DIMENSIONS`` dimensions (default 1024).
@@ -34,7 +34,7 @@ TSV_EXPRESSION = (
 )
 
 revision: str = "e41229c08479"
-down_revision: str | Sequence[str] | None = "0287a3035915"
+down_revision: str | Sequence[str] | None = "173b28ed6d7e"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
