@@ -8,8 +8,9 @@ Queues
     ``sync`` (mail provider I/O), ``llm`` (LLM calls), ``tts`` (speech synthesis) and
     ``default`` (everything else, periodic housekeeping). ``OLLAMAIL_WORKER_QUEUES``
     selects the queues of one worker process, so e.g. a second container can run only
-    ``llm``. The ``llm`` queue runs with its own parallelism (``OLLAMAIL_LLM_CONCURRENCY``)
-    so CPU-only hosts are not overloaded; all other queues share
+    ``llm``. The ``llm`` queue runs with its own parallelism (``OLLAMAIL_LLM_MAX_CONCURRENCY``
+    job slots, of which the LLM gateway lets the admin-set ``concurrency`` call the model at
+    once) so CPU-only hosts are not overloaded; all other queues share
     ``OLLAMAIL_WORKER_CONCURRENCY``.
 
 Task conventions
@@ -58,6 +59,7 @@ QUEUES: tuple[QueueName, ...] = get_args(QueueName)
 TASK_MODULES: list[str] = [
     "app.ai.tts.tasks",
     "app.auth.tasks",
+    "app.digest.tasks",
     "app.mail.sync.tasks",
     "app.processing.tasks",
     "app.triage.tasks",
@@ -131,7 +133,9 @@ def worker_groups(settings: Settings) -> list[WorkerGroup]:
     if shared:
         groups.append(WorkerGroup("main", shared, settings.worker.concurrency))
     if "llm" in queues:
-        groups.append(WorkerGroup("llm", ("llm",), settings.llm.concurrency))
+        # Slots up to the maximum; the gateway enforces the admin setting (app/ai/settings).
+        slots = max(settings.llm.concurrency, settings.llm.max_concurrency)
+        groups.append(WorkerGroup("llm", ("llm",), slots))
     return groups
 
 

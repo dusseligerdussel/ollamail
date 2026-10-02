@@ -8,7 +8,8 @@ Features never talk to a provider directly.
 import dataclasses
 import math
 import time
-from collections.abc import AsyncIterator, Callable, Sequence
+from collections.abc import AsyncIterator, Awaitable, Callable, Sequence
+from contextlib import AbstractAsyncContextManager, nullcontext
 
 from fastapi import Request
 from pydantic import BaseModel
@@ -22,10 +23,11 @@ from app.ai.llm.errors import (
     LLMNotReadyError,
     StructuredOutputUnsupportedError,
 )
+from app.ai.llm.limiter import DynamicLimiter
 from app.ai.llm.metrics import LLMCallMetrics, LoggingMetricsSink, MetricsSink, Operation
 from app.ai.llm.ollama import OllamaProvider, normalize_model_name
 from app.ai.llm.openai_compat import OpenAICompatibleProvider
-from app.ai.llm.structured import complete_structured
+from app.ai.llm.structured import StructuredResult, complete_structured
 from app.ai.llm.types import ChatMessage, GenerationOptions, LLMResult, LLMTask, Usage
 from app.core.logging import get_logger
 
@@ -56,8 +58,12 @@ class LLMGateway:
         *,
         provider_factory: ProviderFactory = create_provider,
         metrics: MetricsSink | None = None,
+        concurrency: Callable[[], Awaitable[int]] | None = None,
     ) -> None:
+        """``concurrency`` limits parallel requests of this gateway (worker: the admin
+        setting, re-read on every request); ``None`` means no limit."""
         self._resolver = resolver
+        self._limiter = DynamicLimiter(concurrency) if concurrency is not None else None
         self._provider_factory = provider_factory
         self._metrics = metrics or LoggingMetricsSink()
         self._providers: dict[str, tuple[EndpointConfig, LLMProvider]] = {}
@@ -75,6 +81,9 @@ class LLMGateway:
         provider = self._provider_factory(endpoint)
         self._providers[endpoint.name] = (endpoint, provider)
         return provider
+
+    def _slot(self) -> AbstractAsyncContextManager[None]:
+        return self._limiter.slot() if self._limiter is not None else nullcontext()
 
     async def _select(self, task: LLMTask) -> tuple[ModelAssignment, LLMProvider]:
         assignment = await self._resolver.resolve(task)
@@ -141,7 +150,8 @@ class LLMGateway:
         fitted, opts = self._prepare(assignment, messages, options)
         started = time.perf_counter()
         try:
-            result = await provider.complete(fitted, model=assignment.model, options=opts)
+            async with self._slot():
+                result = await provider.complete(fitted, model=assignment.model, options=opts)
         except Exception as exc:
             self._record(assignment, "complete", prompt_version, started, error=exc)
             raise
@@ -167,35 +177,9 @@ class LLMGateway:
         native = assignment.endpoint.structured_output == "native" and key not in self._prompt_only
         started = time.perf_counter()
         try:
-            try:
-                result = await complete_structured(
-                    provider,
-                    fitted,
-                    schema,
-                    model=assignment.model,
-                    mode="native" if native else "prompt",
-                    retries=retries,
-                    options=opts,
-                    language=language,
-                )
-            except StructuredOutputUnsupportedError:
-                if not native:
-                    raise
-                self._prompt_only.add(key)
-                log.warning(
-                    "llm_structured_output_fallback",
-                    endpoint=assignment.endpoint.name,
-                    model=assignment.model,
-                )
-                result = await complete_structured(
-                    provider,
-                    fitted,
-                    schema,
-                    model=assignment.model,
-                    mode="prompt",
-                    retries=retries,
-                    options=opts,
-                    language=language,
+            async with self._slot():
+                result = await self._structured(
+                    provider, assignment, fitted, schema, opts, native, retries, language
                 )
         except Exception as exc:
             attempts = getattr(exc, "attempts", 1)
@@ -213,6 +197,49 @@ class LLMGateway:
         )
         return result.value
 
+    async def _structured[T: BaseModel](
+        self,
+        provider: LLMProvider,
+        assignment: ModelAssignment,
+        fitted: list[ChatMessage],
+        schema: type[T],
+        opts: GenerationOptions,
+        native: bool,
+        retries: int,
+        language: str | None,
+    ) -> StructuredResult[T]:
+        key = (assignment.endpoint.name, assignment.model)
+        try:
+            return await complete_structured(
+                provider,
+                fitted,
+                schema,
+                model=assignment.model,
+                mode="native" if native else "prompt",
+                retries=retries,
+                options=opts,
+                language=language,
+            )
+        except StructuredOutputUnsupportedError:
+            if not native:
+                raise
+            self._prompt_only.add(key)
+            log.warning(
+                "llm_structured_output_fallback",
+                endpoint=assignment.endpoint.name,
+                model=assignment.model,
+            )
+            return await complete_structured(
+                provider,
+                fitted,
+                schema,
+                model=assignment.model,
+                mode="prompt",
+                retries=retries,
+                options=opts,
+                language=language,
+            )
+
     async def stream(
         self,
         task: LLMTask,
@@ -227,9 +254,10 @@ class LLMGateway:
         streamed_chars = 0
         error: BaseException | None = None
         try:
-            async for chunk in provider.stream(fitted, model=assignment.model, options=opts):
-                streamed_chars += len(chunk)
-                yield chunk
+            async with self._slot():
+                async for chunk in provider.stream(fitted, model=assignment.model, options=opts):
+                    streamed_chars += len(chunk)
+                    yield chunk
         except BaseException as exc:
             error = exc
             raise
@@ -256,7 +284,8 @@ class LLMGateway:
             assignment = dataclasses.replace(assignment, model=model)
         started = time.perf_counter()
         try:
-            vectors = await provider.embed(texts, model=assignment.model)
+            async with self._slot():
+                vectors = await provider.embed(texts, model=assignment.model)
         except Exception as exc:
             self._record(assignment, "embed", None, started, error=exc)
             raise

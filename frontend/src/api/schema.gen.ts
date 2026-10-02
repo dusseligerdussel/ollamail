@@ -4,6 +4,118 @@
  */
 
 export interface paths {
+    "/admin/ai/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Ai Providers
+         * @description Providers from the environment (read-only), then those added here, by name.
+         */
+        get: operations["ai_list_ai_providers"];
+        put?: never;
+        /**
+         * Create Ai Provider
+         * @description Add a provider. Test it with ``…/test`` before assigning it to tasks.
+         */
+        post: operations["ai_create_ai_provider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/ai/providers/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Ai Provider Settings
+         * @description Test unsaved settings (e.g. in the form before saving).
+         */
+        post: operations["ai_check_ai_provider_settings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/ai/providers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Ai Provider
+         * @description Remove a provider and its API key. Reassign its tasks first.
+         */
+        delete: operations["ai_delete_ai_provider"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Ai Provider
+         * @description Change a provider. Omitted fields stay; ``api_key: null`` removes the key.
+         */
+        patch: operations["ai_update_ai_provider"];
+        trace?: never;
+    };
+    "/admin/ai/providers/{name}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Check Ai Provider
+         * @description Connect to a configured provider and list its models.
+         */
+        post: operations["ai_check_ai_provider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/ai/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ai Settings
+         * @description Effective AI settings with the environment's defaults.
+         */
+        get: operations["ai_get_ai_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Ai Settings
+         * @description Change settings; ``null`` resets a field to the environment's value.
+         */
+        patch: operations["ai_update_ai_settings"];
+        trace?: never;
+    };
     "/admin/auth/github/providers": {
         parameters: {
             query?: never;
@@ -122,6 +234,26 @@ export interface paths {
          * @description Change an OIDC provider. Omitted fields stay as they are.
          */
         patch: operations["admin_update_oidc_provider"];
+        trace?: never;
+    };
+    "/ai/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Ai Status
+         * @description Cloud providers that currently receive mail content, per task (docs/PRIVACY.md).
+         */
+        get: operations["ai_get_ai_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/audit/events": {
@@ -539,6 +671,126 @@ export interface paths {
          * @description Sign out one of the own sessions.
          */
         delete: operations["auth_revoke_session"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/digests": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Digests
+         * @description Own digests, newest first.
+         */
+        get: operations["digests_list_digests"];
+        put?: never;
+        /**
+         * Create Digest
+         * @description Generate a digest of the mails since the last one, now.
+         */
+        post: operations["digests_create_digest"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/digests/feed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Feed
+         * @description Whether the private podcast feed is enabled (the URL is only shown on creation).
+         */
+        get: operations["digests_get_feed"];
+        put?: never;
+        /**
+         * Create Feed
+         * @description Create a new secret feed URL. An existing feed URL stops working immediately.
+         */
+        post: operations["digests_create_feed"];
+        /**
+         * Revoke Feed
+         * @description Disable the feed; its URL and all audio URLs in it return 404 from now on.
+         */
+        delete: operations["digests_revoke_feed"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/digests/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Digest Settings
+         * @description Own digest settings with defaults filled in.
+         */
+        get: operations["digests_get_digest_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Digest Settings
+         * @description Change own digest settings. A changed schedule starts with the next slot.
+         */
+        patch: operations["digests_update_digest_settings"];
+        trace?: never;
+    };
+    "/digests/{digest_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Digest
+         * @description A digest with its script and the mails it refers to.
+         */
+        get: operations["digests_get_digest"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Digest
+         * @description Delete a digest and its audio files.
+         */
+        delete: operations["digests_delete_digest"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/digests/{digest_id}/audio.{fmt}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Audio
+         * @description The audio of a digest for the web player; supports Range requests.
+         */
+        get: operations["digests_get_audio"];
+        put?: never;
+        post?: never;
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1370,6 +1622,173 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** AIConnectionTest */
+        AIConnectionTest: {
+            /** Duration Ms */
+            duration_ms: number;
+            /** Error */
+            error?: ("unreachable" | "unauthorized" | "rejected" | "failed") | null;
+            /** Models */
+            models?: string[];
+            /** Ok */
+            ok: boolean;
+            /** Status Code */
+            status_code?: number | null;
+        };
+        /** AIProviderCreate */
+        AIProviderCreate: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url: string;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Is Cloud
+             * @default false
+             */
+            is_cloud: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ollama" | "openai_compatible";
+            /** Name */
+            name: string;
+            /**
+             * Structured Output
+             * @default native
+             * @enum {string}
+             */
+            structured_output: "native" | "prompt";
+            /** Timeout */
+            timeout?: number | null;
+        };
+        /** AIProviderRead */
+        AIProviderRead: {
+            /** Api Key Set */
+            api_key_set: boolean;
+            /** Base Url */
+            base_url: string;
+            /** Display Name */
+            display_name: string;
+            /** Is Cloud */
+            is_cloud: boolean;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ollama" | "openai_compatible";
+            /** Name */
+            name: string;
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "database" | "environment";
+            /**
+             * Structured Output
+             * @enum {string}
+             */
+            structured_output: "native" | "prompt";
+            /** Timeout */
+            timeout: number | null;
+            /** Used By */
+            used_by: components["schemas"]["LLMTask"][];
+        };
+        /**
+         * AIProviderTest
+         * @description Unsaved settings to test. Without ``api_key``, the stored key of ``name`` is used
+         *     (so an edit form can be tested without typing the key again).
+         */
+        AIProviderTest: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url: string;
+            /**
+             * Kind
+             * @enum {string}
+             */
+            kind: "ollama" | "openai_compatible";
+            /** Name */
+            name?: string | null;
+            /** Timeout */
+            timeout?: number | null;
+        };
+        /**
+         * AIProviderUpdate
+         * @description Omitted fields stay unchanged; ``api_key: null`` removes the key.
+         */
+        AIProviderUpdate: {
+            /** Api Key */
+            api_key?: string | null;
+            /** Base Url */
+            base_url?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Is Cloud */
+            is_cloud?: boolean | null;
+            /** Kind */
+            kind?: ("ollama" | "openai_compatible") | null;
+            /** Structured Output */
+            structured_output?: ("native" | "prompt") | null;
+            /** Timeout */
+            timeout?: number | null;
+        };
+        /** AISettingsRead */
+        AISettingsRead: {
+            /** Cloud Enabled */
+            cloud_enabled: boolean;
+            /** Cloud Enabled Default */
+            cloud_enabled_default: boolean;
+            /** Concurrency */
+            concurrency: number;
+            /** Concurrency Default */
+            concurrency_default: number;
+            /** Concurrency Max */
+            concurrency_max: number;
+            /** Context Tokens */
+            context_tokens: number;
+            /**
+             * Profile
+             * @enum {string}
+             */
+            profile: "cpu" | "gpu-consumer" | "gpu-server";
+            /**
+             * Profile Default
+             * @enum {string}
+             */
+            profile_default: "cpu" | "gpu-consumer" | "gpu-server";
+            /** Profiles */
+            profiles: components["schemas"]["ProfileRead"][];
+            /** Tasks */
+            tasks: components["schemas"]["TaskSettingRead"][];
+        };
+        /**
+         * AISettingsUpdate
+         * @description Omitted fields stay unchanged; ``null`` resets a field to the environment.
+         */
+        AISettingsUpdate: {
+            /** Cloud Enabled */
+            cloud_enabled?: boolean | null;
+            /** Concurrency */
+            concurrency?: number | null;
+            /** Profile */
+            profile?: ("cpu" | "gpu-consumer" | "gpu-server") | null;
+            /** Tasks */
+            tasks?: {
+                [key: string]: components["schemas"]["TaskAssignmentUpdate"];
+            } | null;
+        };
+        /**
+         * AIStatusRead
+         * @description For every user: which tasks send mail content to which cloud provider.
+         */
+        AIStatusRead: {
+            /** Cloud */
+            cloud: components["schemas"]["CloudUsage"][];
+        };
         /**
          * ActorKind
          * @enum {string}
@@ -1598,6 +2017,15 @@ export interface components {
             /** Source */
             source: string;
         };
+        /** CloudUsage */
+        CloudUsage: {
+            /** Display Name */
+            display_name: string;
+            /** Provider */
+            provider: string;
+            /** Tasks */
+            tasks: components["schemas"]["LLMTask"][];
+        };
         /** ConnectionTestResult */
         ConnectionTestResult: {
             /** Error */
@@ -1670,10 +2098,212 @@ export interface components {
             updated_at: string;
         };
         /**
+         * DigestLength
+         * @enum {string}
+         */
+        DigestLength: "short" | "normal";
+        /** DigestRead */
+        DigestRead: {
+            /** Audio Formats */
+            audio_formats: ("mp3" | "opus")[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration Seconds */
+            duration_seconds: number | null;
+            /** Error Code */
+            error_code: string | null;
+            /** Generated At */
+            generated_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Language */
+            language: string;
+            length: components["schemas"]["DigestLength"];
+            /** Message Count */
+            message_count: number;
+            /** Model */
+            model: string | null;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /** References */
+            references: components["schemas"]["DigestReference"][];
+            /** Scheduled For */
+            scheduled_for: string | null;
+            /** Script */
+            script: string | null;
+            status: components["schemas"]["DigestStatus"];
+            /** Title */
+            title: string;
+            /** Todo Count */
+            todo_count: number;
+            trigger: components["schemas"]["DigestTrigger"];
+            /** Voice */
+            voice: string | null;
+        };
+        /**
+         * DigestReference
+         * @description ``[ref]`` in the script refers to this mail.
+         */
+        DigestReference: {
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /** Ref */
+            ref: number;
+        };
+        /** DigestSettingsRead */
+        DigestSettingsRead: {
+            /**
+             * Delivery Time
+             * Format: time
+             */
+            delivery_time: string;
+            /**
+             * Effective Language
+             * @enum {string}
+             */
+            effective_language: "de" | "en";
+            /** Effective Timezone */
+            effective_timezone: string;
+            /** Enabled */
+            enabled: boolean;
+            feed: components["schemas"]["FeedStatus"];
+            /** Language */
+            language: ("de" | "en") | null;
+            length: components["schemas"]["DigestLength"];
+            /** Mailbox Ids */
+            mailbox_ids: string[] | null;
+            /** Next Run At */
+            next_run_at: string | null;
+            /** Timezone */
+            timezone: string | null;
+            /** Voice */
+            voice: string | null;
+            /** Weekdays */
+            weekdays: number[];
+        };
+        /**
+         * DigestSettingsUpdate
+         * @description Fields to change; omitted fields stay. ``null`` resets timezone, language, voice and
+         *     mailboxes to their defaults.
+         */
+        DigestSettingsUpdate: {
+            /** Delivery Time */
+            delivery_time?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Language */
+            language?: ("de" | "en") | null;
+            length?: components["schemas"]["DigestLength"] | null;
+            /** Mailbox Ids */
+            mailbox_ids?: string[] | null;
+            /** Timezone */
+            timezone?: string | null;
+            /** Voice */
+            voice?: string | null;
+            /** Weekdays */
+            weekdays?: number[] | null;
+        };
+        /**
+         * DigestStatus
+         * @enum {string}
+         */
+        DigestStatus: "pending" | "summarizing" | "synthesizing" | "ready" | "failed";
+        /** DigestSummary */
+        DigestSummary: {
+            /** Audio Formats */
+            audio_formats: ("mp3" | "opus")[];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Duration Seconds */
+            duration_seconds: number | null;
+            /** Error Code */
+            error_code: string | null;
+            /** Generated At */
+            generated_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Language */
+            language: string;
+            length: components["schemas"]["DigestLength"];
+            /** Message Count */
+            message_count: number;
+            /**
+             * Period End
+             * Format: date-time
+             */
+            period_end: string;
+            /**
+             * Period Start
+             * Format: date-time
+             */
+            period_start: string;
+            /** Scheduled For */
+            scheduled_for: string | null;
+            status: components["schemas"]["DigestStatus"];
+            /** Title */
+            title: string;
+            /** Todo Count */
+            todo_count: number;
+            trigger: components["schemas"]["DigestTrigger"];
+        };
+        /**
+         * DigestTrigger
+         * @enum {string}
+         */
+        DigestTrigger: "scheduled" | "manual";
+        /**
          * DirectoryType
          * @enum {string}
          */
         DirectoryType: "active_directory" | "openldap";
+        /** FeedCreated */
+        FeedCreated: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Feed Url */
+            feed_url: string;
+        };
+        /**
+         * FeedStatus
+         * @description Whether the podcast feed is enabled. The token itself is only shown on creation.
+         */
+        FeedStatus: {
+            /** Active */
+            active: boolean;
+            /** Created At */
+            created_at: string | null;
+        };
         /**
          * FolderKind
          * @enum {string}
@@ -1936,6 +2566,12 @@ export interface components {
             /** Subject */
             subject: string;
         };
+        /**
+         * LLMTask
+         * @description Features that use an LLM; each can be assigned its own endpoint and model.
+         * @enum {string}
+         */
+        LLMTask: "triage" | "todos" | "digest" | "rag_chat" | "embeddings";
         /** LdapConnectionTest */
         LdapConnectionTest: {
             /** Ok */
@@ -2613,6 +3249,20 @@ export interface components {
             /** Position */
             position?: number | null;
         };
+        /** ProfileRead */
+        ProfileRead: {
+            /** Chat Model */
+            chat_model: string;
+            /** Context Tokens */
+            context_tokens: number;
+            /** Embedding Model */
+            embedding_model: string;
+            /**
+             * Name
+             * @enum {string}
+             */
+            name: "cpu" | "gpu-consumer" | "gpu-server";
+        };
         /**
          * ProfileUpdate
          * @description Fields a user may change on their own account.
@@ -2847,6 +3497,34 @@ export interface components {
          * @enum {string}
          */
         TargetType: "user" | "session" | "mailbox" | "idp" | "settings";
+        /**
+         * TaskAssignmentUpdate
+         * @description ``provider`` and ``model`` both ``null``: back to the environment's default.
+         */
+        TaskAssignmentUpdate: {
+            /** Model */
+            model?: string | null;
+            /** Provider */
+            provider?: string | null;
+        };
+        /** TaskSettingRead */
+        TaskSettingRead: {
+            /** Blocked */
+            blocked: boolean;
+            /** Default Model */
+            default_model: string;
+            /** Default Provider */
+            default_provider: string;
+            /** Effective Model */
+            effective_model: string;
+            /** Effective Provider */
+            effective_provider: string;
+            /** Model */
+            model: string | null;
+            /** Provider */
+            provider: string | null;
+            task: components["schemas"]["LLMTask"];
+        };
         /**
          * ThreadRead
          * @description A conversation, oldest message first. A message without thread is its own thread.
@@ -3086,6 +3764,390 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ai_list_ai_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIProviderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ai_create_ai_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIProviderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Name taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ai_check_ai_provider_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIProviderTest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIConnectionTest"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_delete_ai_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Provider from the environment or assigned to a task */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_update_ai_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AIProviderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Provider from the environment */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_check_ai_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIConnectionTest"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    ai_get_ai_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ai_update_ai_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AISettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AISettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     admin_list_github_providers: {
         parameters: {
             query?: never;
@@ -3615,6 +4677,26 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    ai_get_ai_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AIStatusRead"];
+                };
             };
         };
     };
@@ -4621,6 +5703,365 @@ export interface operations {
                 content?: never;
             };
             /** @description No such session */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    digests_list_digests: {
+        parameters: {
+            query?: {
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestSummary"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    digests_create_digest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description A digest is already being generated */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_get_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedStatus"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_create_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FeedCreated"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_revoke_feed: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_get_digest_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_update_digest_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DigestSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid value or mailbox */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_get_digest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                digest_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such digest */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    digests_delete_digest: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                digest_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such digest */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    digests_get_audio: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                digest_id: string;
+                fmt: "mp3" | "opus";
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Audio file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "audio/mpeg": unknown;
+                    "audio/ogg": unknown;
+                };
+            };
+            /** @description Partial content (Range request) */
+            206: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such digest */
             404: {
                 headers: {
                     [name: string]: unknown;

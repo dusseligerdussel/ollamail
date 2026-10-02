@@ -123,8 +123,11 @@ class LLMSettings(BaseSettings):
 
     # Global admin switch: cloud LLM endpoints are opt-in (local first).
     cloud_enabled: bool = False
-    # Parallel jobs on the ``llm`` queue per worker process. Keep low on CPU-only hosts.
+    # Parallel LLM requests per worker process. Keep low on CPU-only hosts. Default for
+    # the admin setting (AI page), which can change it at runtime up to ``max_concurrency``.
     concurrency: int = Field(default=1, ge=1)
+    # Job slots of the ``llm`` queue per worker process: upper bound for ``concurrency``.
+    max_concurrency: int = Field(default=4, ge=1)
 
     provider: LLMProviderKind = "ollama"
     base_url: str = "http://ollama:11434"
@@ -491,6 +494,43 @@ class TodosSettings(BaseSettings):
         return value
 
 
+class DigestSettings(BaseSettings):
+    """``OLLAMAIL_DIGEST_*`` (daily digest and podcast feed, app/digest/)"""
+
+    model_config = _config("DIGEST_")
+
+    # Scheduler on/off; manual digests stay available.
+    enabled: bool = True
+    # Days a digest (script and audio files) is kept before it is deleted automatically.
+    retention_days: int = Field(default=30, ge=1, le=3650)
+    # Period of a user's first digest (there is no previous one to continue from).
+    first_lookback_hours: int = Field(default=24, ge=1, le=24 * 31)
+    # Upper bound of a digest's period, e.g. after a long pause.
+    max_lookback_days: int = Field(default=7, ge=1, le=31)
+    # Mails summarised per digest (most important first); the rest is only counted.
+    max_messages: int = Field(default=60, ge=1, le=1000)
+    # Mails per map call; small models stay reliable with few items per answer.
+    map_batch_size: int = Field(default=6, ge=1, le=50)
+    # Characters of a mail body given to the model in the map step.
+    map_body_chars: int = Field(default=1500, ge=200, le=20000)
+    # Triage categories (keys) mentioned only as one collective sentence, and skipped ones.
+    bulk_categories: Annotated[list[str], NoDecode] = Field(default=["newsletter", "notification"])
+    skip_categories: Annotated[list[str], NoDecode] = Field(default=["spam"])
+    # Speak the script (TTS); without audio digests are text only and not in the feed.
+    audio_enabled: bool = True
+    # Audio formats per digest: MP3 for podcast apps, Opus (smaller) for the web player.
+    audio_formats: Annotated[list[Literal["mp3", "opus"]], NoDecode] = Field(
+        default=["mp3", "opus"], min_length=1
+    )
+
+    @field_validator("bulk_categories", "skip_categories", "audio_formats", mode="before")
+    @classmethod
+    def _split(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip().lower() for part in value.split(",") if part.strip()]
+        return value
+
+
 class WorkerSettings(BaseSettings):
     """``OLLAMAIL_WORKER_*``"""
 
@@ -540,6 +580,7 @@ class Settings(BaseModel):
     rag: RagSettings = Field(default_factory=RagSettings)
 
     todos: TodosSettings = Field(default_factory=TodosSettings)
+    digest: DigestSettings = Field(default_factory=DigestSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
     triage: TriageSettings = Field(default_factory=TriageSettings)

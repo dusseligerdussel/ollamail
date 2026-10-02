@@ -76,6 +76,19 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
   nicht zufällig) startet die API nicht. Keys und Klartexte erscheinen nie in Logs oder
   Fehlermeldungen; geloggt wird nur eine nicht umkehrbare Key-ID.
 
+### Cloud-LLMs im Detail
+
+- Standard: aus. Der Admin erlaubt Cloud-LLMs im Admin-Bereich „KI“ ausdrücklich; vor dem
+  Einschalten bestätigt er einen Hinweis zur Datenübermittlung. Jede Änderung steht im Audit-Log.
+- Ein Provider gilt als Cloud-Provider, wenn er als „Cloud“ markiert ist. Solange Cloud-LLMs nicht
+  erlaubt sind, lehnt das Gateway jede Anfrage an ihn ab, bevor eine Verbindung entsteht.
+  Ist die Datenbank nicht lesbar, bleibt die Cloud gesperrt (fail closed).
+- Der Verbindungstest im Admin-Bereich ruft nur die Modellliste ab; es gehen keine Mail-Inhalte hinaus.
+- Für alle Nutzer zeigt die UI dauerhaft und dezent an, welcher Cloud-Provider für welche Aufgaben
+  (Triage, Aufgaben, Zusammenfassung, Fragen, Suchindex) Mail-Inhalte erhält (`GET /api/ai/status`).
+- API-Keys werden verschlüsselt gespeichert (`EncryptedStr`) und nie an das Frontend zurückgegeben
+  (nur „gesetzt/nicht gesetzt“).
+
 ### Audit-Log im Detail
 
 Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
@@ -109,7 +122,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `user.role_changed` | Rollen-Sync über LDAP-Gruppen (`admin_groups`) | aktiv; Nutzerverwaltung mit #33 |
 | `user.deleted` | Nutzerverwaltung | geplant (#33) |
 | `idp.config_changed` | LDAP-Verzeichnis angelegt, geändert, gelöscht (`details.change`) | aktiv; OIDC mit #30 |
-| `ai.settings_changed` | KI-Einstellungen inkl. Cloud-Freigabe (`details.cloud_enabled`) | geplant |
+| `ai.settings_changed` | KI-Einstellungen im Admin-Bereich: Provider anlegen/ändern/löschen (`details.change`, `provider`, `is_cloud`), Modell-Zuordnung, Profil, Parallelität, Cloud-Freigabe (`details.cloud_enabled`) | aktiv |
 | `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
 | `mailbox.shared` | Shared Mailboxes | geplant (#34) |
 | `mailbox.deleted` | `app.mail.service.delete_mailbox`; über die Postfach-API mit dem Nutzer als Akteur | aktiv |
@@ -144,6 +157,18 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   (das Todo gehört dem Nutzer und bleibt, bis er es löscht). Die Extraktion protokolliert nur
   Anzahlen, nie Titel oder Beschreibungen. Die API liefert ausschließlich eigene Todos; ein
   fremdes Todo verhält sich wie ein nicht vorhandenes (404).
+  Umsetzung Daily Digest (`backend/app/digest/`, #28): `digests` und `digest_user_settings`
+  hängen per `ON DELETE CASCADE` am Nutzer. Ein Digest verweist auf Postfächer und Mails nur über
+  IDs; der stündliche Job `digest.cleanup` löscht Digests, deren Postfach entfernt wurde, Digests
+  nach Ablauf der Aufbewahrungsfrist (`OLLAMAIL_DIGEST_RETENTION_DAYS`, Standard 30 Tage) und
+  Audiodateien ohne Digest (z. B. nach dem Löschen eines Nutzers), jeweils inkl. Dateien unter
+  `<OLLAMAIL_DATA_DIR>/digests/<user_id>/` (Dateinamen nur aus IDs). Logs enthalten nur IDs,
+  Anzahlen und Statuscodes, nie Skript, Betreffzeilen oder Absender. Der Podcast-Feed ist ohne
+  Anmeldung erreichbar; Schutz ist allein das Token in der URL (256 Bit, nur als SHA-256-Hash
+  gespeichert, widerrufbar, wird im Request-Log nicht protokolliert, da nur das Routen-Template
+  geloggt wird). Wer die Feed-URL kennt, kann Skripte und Audio der Digests abrufen; die UI muss
+  darauf hinweisen. Der Feed bittet Verzeichnisse per `itunes:block` und `X-Robots-Tag: noindex`,
+  ihn nicht aufzunehmen.
   Umsetzung „Frag deine Inbox“ (`backend/app/rag/`, #25): Gespräche (`rag_conversations`)
   hängen per `ON DELETE CASCADE` am Nutzer, Fragen und Antworten (`rag_messages`) am Gespräch.
   Zitierte Ausschnitte (`rag_citations`) hängen zusätzlich per `ON DELETE CASCADE` an Mail,

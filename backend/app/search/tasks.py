@@ -14,7 +14,8 @@ from contextlib import contextmanager
 
 from procrastinate.exceptions import AlreadyEnqueued
 
-from app.ai.llm import EnvConfigResolver, LLMError, LLMGateway
+from app.ai.llm import LLMError
+from app.ai.settings.runtime import worker_gateway
 from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.mail.storage import AttachmentStorage
@@ -36,8 +37,7 @@ def get_embedder() -> Embedder:
     global _embedder
     if _embedder is None:
         settings = get_settings()
-        gateway = LLMGateway(EnvConfigResolver(settings.llm))
-        _embedder = GatewayEmbedder(gateway, settings.search)
+        _embedder = GatewayEmbedder(worker_gateway(), settings.search)
     return _embedder
 
 

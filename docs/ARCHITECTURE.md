@@ -338,13 +338,15 @@ ai/llm/
   base.py           LLMProvider-Protocol (complete, stream, embed, list_models)
   ollama.py         native Ollama-API (/api/chat, /api/embed, /api/tags, /api/pull)
   openai_compat.py  Chat-Completions-API (base_url inkl. /v1)
-  config.py         LLMConfigResolver (Protocol) + EnvConfigResolver
+  config.py         LLMConfigResolver (Protocol), ResolvedConfig (Env + Admin-Overrides), EnvConfigResolver
+  limiter.py        zur Laufzeit änderbare Parallelität (Worker)
   profiles.py       Hardware-Profile cpu / gpu-consumer / gpu-server
   structured.py     Pydantic → JSON-Schema, Validierung, Retry, Prompt-Fallback
   context.py        Token-Schätzung, Kürzen langer Mails
   metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call`)
   gateway.py        LLMGateway – einziger Einstiegspunkt für Features
 ai/prompts/         versionierte, sprachabhängige Prompt-Templates (`name@version`)
+ai/settings/        KI-Einstellungen in der DB (#18): Modelle, Store, DbConfigResolver, Admin-API
 ```
 
 Features nutzen ausschließlich das `LLMGateway` (`app.state.llm`, FastAPI-Dependency `get_llm`):
@@ -358,12 +360,15 @@ triage = await llm.complete_structured(
 
 Das Gateway erledigt pro Aufruf:
 
-1. **Auflösung** Task → Endpunkt + Modell über einen `LLMConfigResolver`. In diesem Stand liest
-   `EnvConfigResolver` Umgebungsvariablen und Code-Defaults. Die Admin-Einstellungen in der DB (#18)
-   ersetzen nur den Resolver; Gateway und Features bleiben unverändert.
-   Reihenfolge: `OLLAMAIL_LLM_TASK_<TASK>_MODEL` → `OLLAMAIL_LLM_DEFAULT_{CHAT,EMBEDDING}_MODEL` → Profil.
-2. **Cloud-Sperre:** Endpunkte mit `is_cloud` werden nur genutzt, wenn `OLLAMAIL_LLM_CLOUD_ENABLED`
-   aktiv ist. Sonst `CloudLLMDisabledError`, bevor ein HTTP-Client entsteht.
+1. **Auflösung** Task → Endpunkt + Modell über einen `LLMConfigResolver`. API und Worker nutzen
+   `DbConfigResolver` (Admin-Einstellungen, siehe unten); `EnvConfigResolver` liest nur
+   Umgebungsvariablen (Evaluation, Tests). Gateway und Features kennen den Unterschied nicht.
+   Reihenfolge Modell: Admin-Zuordnung des Tasks → `OLLAMAIL_LLM_TASK_<TASK>_MODEL` →
+   `OLLAMAIL_LLM_DEFAULT_{CHAT,EMBEDDING}_MODEL` → Profil (Admin-Wahl, sonst `OLLAMAIL_LLM_PROFILE`).
+   Endpunkt: Admin-Zuordnung → `OLLAMAIL_LLM_TASK_<TASK>_ENDPOINT` → `default`.
+2. **Cloud-Sperre:** Endpunkte mit `is_cloud` werden nur genutzt, wenn Cloud-LLMs erlaubt sind
+   (Admin-Schalter, Standard `OLLAMAIL_LLM_CLOUD_ENABLED=false`). Sonst `CloudLLMDisabledError`,
+   bevor ein HTTP-Client entsteht.
 3. **Kontextlänge:** Die Prompts werden auf das Kontextfenster des Profils gekürzt
    (konservative Schätzung ≈ 3 Zeichen/Token, Platz für die Antwort wird reserviert). Gekürzt wird die
    längste Nicht-System-Nachricht vom Ende her, weil neue Inhalte in Mails oben stehen.
@@ -382,6 +387,30 @@ Readiness: Mit `OLLAMAIL_LLM_READINESS_CHECK=true` prüft `/readyz` (Check `llm`
 Modelle auf ihren Endpunkten verfügbar sind. Der Check ist standardmäßig aus, weil die API auch ohne
 LLM nutzbar bleibt (Postfächer, Todos, Einstellungen). Mit `OLLAMAIL_LLM_PULL_MISSING_MODELS=true`
 lädt die API fehlende Modelle beim Start im Hintergrund aus Ollama.
+
+#### KI-Einstellungen im Admin-Bereich (`backend/app/ai/settings/`)
+
+- **Speicher:** `ai_providers` (weitere Endpunkte; API-Key als `EncryptedStr`) und die einzeilige
+  Tabelle `ai_settings` (Cloud-Schalter, Profil, Parallelität, Zuordnung `{task: {provider, model}}`).
+  `NULL` bzw. ein fehlender Task heißt: Wert aus der Umgebung. Endpunkte aus der Umgebung
+  (`default`, `OLLAMAIL_LLM_ENDPOINTS`) erscheinen schreibgeschützt und gewinnen bei Namensgleichheit.
+- **Ohne Neustart:** Jeder Prozess cacht einen Snapshot (`DbConfigResolver`). Jede Änderung sendet
+  im selben Commit `NOTIFY ollamail_ai_settings`; jeder API- und Worker-Prozess hört per `LISTEN`
+  und verwirft seinen Snapshot. Fallback ohne Benachrichtigung: Snapshot höchstens 30 s alt. Der
+  nächste Job nutzt damit das neue Modell. Ist die DB nicht lesbar, bleibt der letzte Snapshot;
+  ohne Snapshot gelten die Umgebungswerte **mit gesperrter Cloud** (fail closed).
+- **Worker:** Alle Jobs eines Prozesses teilen ein Gateway (`app.ai.settings.runtime.worker_gateway`).
+  Die Parallelität (Admin, 1 bis `OLLAMAIL_LLM_MAX_CONCURRENCY`) begrenzt gleichzeitige
+  LLM-Anfragen im Gateway (`limiter.py`); die Job-Slots der `llm`-Queue sind die Obergrenze.
+- **Admin-API** (`/api/admin/ai`, nur Admins): `GET/PATCH /settings`, `GET/POST /providers`,
+  `PATCH/DELETE /providers/{name}`, `POST /providers/{name}/test` und `POST /providers/test`
+  (ungespeicherte Werte; ohne Key wird der gespeicherte genutzt). Der Verbindungstest ruft nur die
+  Modellliste ab, es gehen keine Mail-Inhalte hinaus. API-Keys sind write-only (`api_key_set`).
+  Ein Provider, dem Tasks zugeordnet sind, lässt sich nicht löschen (409).
+- **Nutzer:** `GET /api/ai/status` listet Cloud-Provider, die gerade Mail-Inhalte erhalten, je Task.
+  Die UI zeigt das dauerhaft und dezent über dem Inhalt an (`docs/PRIVACY.md`).
+- **Audit:** jede Änderung als `ai.settings_changed` (`change`, `provider`, `is_cloud`,
+  `cloud_enabled`, `profile`, `concurrency`, `tasks`; nie API-Keys).
 
 **Profil-Defaults** (`profiles.py`). Die Modellnamen sind **Beispiele** und lassen sich per Env
 überschreiben:
@@ -429,8 +458,10 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   `backend/migrations/sql/`); Autogenerate ignoriert die `procrastinate_*`-Tabellen.
   Ein Procrastinate-Update mit Schemaänderung braucht eine neue Migration – ein Test schlägt sonst an.
 - **Queues** `sync`, `llm`, `tts`, `default`. `OLLAMAIL_WORKER_QUEUES` wählt die Queues eines
-  Worker-Prozesses; `llm` hat eine eigene Parallelität (`OLLAMAIL_LLM_CONCURRENCY`), alle anderen
-  teilen sich `OLLAMAIL_WORKER_CONCURRENCY`.
+  Worker-Prozesses; `llm` hat eigene Job-Slots (`OLLAMAIL_LLM_MAX_CONCURRENCY`), von denen das
+  LLM-Gateway höchstens die im Admin-Bereich eingestellte Parallelität (Standard
+  `OLLAMAIL_LLM_CONCURRENCY`) gleichzeitig an das Modell lässt; alle anderen Queues teilen sich
+  `OLLAMAIL_WORKER_CONCURRENCY`.
 - **Task-Konventionen:** idempotent; Argumente nur IDs; Retry mit exponentiellem Backoff
   (`DEFAULT_RETRY`); Lock-Keys pro Ressource (`resource_lock("mailbox", id)` als `lock`/`queueing_lock`);
   Periodic Tasks per `@app.periodic(cron=...)`. Task-Module werden in `TASK_MODULES` eingetragen.
@@ -612,6 +643,66 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - Zusammenfassung der Mails seit dem letzten Digest: wichtige Mails, offene Todos, Termine/Fristen.
 - Text → Piper → Audiodatei. Text-Version wird mitgespeichert (Transkript, barrierefrei).
 - Auslieferung: Web-Player in der App + **privater Podcast-RSS-Feed** (Token-URL, widerrufbar).
+
+**Umsetzung (`backend/app/digest/`, #28):**
+
+- **Einstellungen pro Nutzer** (`digest_user_settings`, API `GET/PATCH /api/digests/settings`):
+  aktiv, Uhrzeit, Zeitzone (leer = Profil), Wochentage (0 = Montag), Sprache (`de`/`en`, leer =
+  Profil), Stimme (leer = Standardstimme der Sprache), Länge (`short`/`normal`), Postfächer (leer =
+  alle lesbaren). Ohne Zeile gelten die Standards, der Digest ist aus.
+- **Zeitplan** (`app.digest.schedule`, reine Funktionen): Der periodische Job `digest.schedule`
+  (jede Minute, Queue `default`) berechnet je Nutzer den letzten fälligen Termin in dessen
+  Zeitzone und legt dafür genau einen Digest an (`last_scheduled_for` plus Unique-Constraint
+  `(user_id, scheduled_for)`). Sommerzeit nach PEP 495: Eine Uhrzeit, die es beim Umstellen nicht
+  gibt (02:30 Ende März), läuft eine Stunde später nach Wanduhr; eine doppelte Uhrzeit (Ende
+  Oktober) läuft einmal, beim ersten Auftreten. Eine geänderte Planung startet mit dem nächsten
+  Termin, ein heute schon vergangener feuert nicht nachträglich.
+- **Zeitraum:** Mails mit Eingang in `[period_start, period_end)`. `period_end` ist der Termin
+  (bzw. „jetzt“ bei manuellen Digests), `period_start` das Ende des letzten nicht
+  fehlgeschlagenen Digests (erster Digest: `OLLAMAIL_DIGEST_FIRST_LOOKBACK_HOURS`, höchstens
+  `OLLAMAIL_DIGEST_MAX_LOOKBACK_DAYS`). Mails eines fehlgeschlagenen Digests kommen in den nächsten.
+- **Inhalt** (`app.digest.content`): Mails aus den gewählten, lesbaren Postfächern, ohne
+  Gesendet/Entwürfe/Papierkorb/Spam-Ordner. Reihenfolge nach Triage: Handlungsbedarf, Wichtig,
+  Warten auf, eigene/ungetriagte, Info; innerhalb nach Priorität und Eingang. Höchstens
+  `OLLAMAIL_DIGEST_MAX_MESSAGES` Mails werden zusammengefasst, der Rest gezählt. Newsletter und
+  Benachrichtigungen (`OLLAMAIL_DIGEST_BULK_CATEGORIES`) werden nur in einem Sammelsatz mit
+  Anzahl und Absendern erwähnt, Spam (`OLLAMAIL_DIGEST_SKIP_CATEGORIES`) gar nicht. Todos: neue
+  offene Todos des Zeitraums sowie überfällige, heute und morgen fällige (Datum in der Zeitzone
+  des Nutzers).
+- **Zusammenfassung (Map-Reduce, `app.digest.summarize`)**, Aufgabe `digest` des Gateways:
+  1. *Map:* Mails in kleinen Gruppen (`OLLAMAIL_DIGEST_MAP_BATCH_SIZE`, begrenzt durch das
+     Kontextfenster des zugewiesenen Modells) → je Mail ein Satz plus Termin/Frist
+     (strukturierte Ausgabe). Ungültige Antworten: Gruppe wird halbiert und erneut gefragt;
+     scheitert eine einzelne Mail, steht stattdessen „Absender schreibt: Betreff“ da.
+  2. *Condense:* Passen die Notizen nicht in ein Kontextfenster, werden Gruppen zu weniger
+     Notizen zusammengefasst (Referenzen bleiben erhalten), bei Bedarf mehrfach.
+  3. *Reduce:* aus den Notizen der gesprochene Hauptteil mit `[n]`-Referenzen. Erfundene
+     Referenzen, Überschriften, Listen und `<think>`-Blöcke werden entfernt; eine unbrauchbare
+     Antwort wird durch die Notizen ersetzt.
+  Zahlen, Datum, Todos und Sammelsätze schreibt der Code selbst (`app.digest.texts`), nicht das
+  Modell. Ohne Mails kommt der Digest ohne Modellaufruf aus.
+- **Ergebnis `Digest`** (`digests`): Titel, Skript (Markdown, `[n]` verweist auf
+  `references` = Mail- und Postfach-IDs), Anzahl Mails/Todos, Modell, Prompt-Versionen,
+  Audiodateien je Format, Dauer, Status `pending` → `summarizing` → `synthesizing` → `ready`
+  (oder `failed` mit `error_code`). Statuswechsel als Event `digest.changed`.
+- **Jobs:** `digest.generate` (Queue `llm`) schreibt das Skript, `digest.synthesize` (Queue `tts`)
+  spricht es über `TTSService` (#27) nach `<data_dir>/digests/<user_id>/<digest_id>.mp3|.opus`.
+  Beide sind idempotent und per Lock je Digest serialisiert; das Skript wird ohne Titel und
+  ohne Referenzen gesprochen. Abgeschaltete Cloud-LLMs und fehlende Stimmen sind dauerhafte Fehler
+  (kein Retry).
+- **API** (angemeldet, nur eigene Digests, fremde = 404): `GET /api/digests`,
+  `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft), `GET/DELETE
+  /api/digests/{id}`, `GET /api/digests/{id}/audio.{mp3|opus}` (Range-Requests, Web-Player).
+- **Podcast-Feed:** `POST /api/digests/feed` erzeugt ein zufälliges Token (256 Bit) und liefert
+  einmalig die URL `/api/feeds/{token}.xml`; gespeichert wird nur der SHA-256-Hash. Erneutes
+  `POST` ersetzt, `DELETE /api/digests/feed` widerruft das Token; alte URLs liefern danach 404.
+  Der Feed (RSS 2.0 mit iTunes-Namespace, `itunes:block`) enthält fertige Digests mit Audio;
+  die Audio-URLs `/api/feeds/{token}/{digest_id}.mp3` sind ebenfalls nur mit Token abrufbar und
+  unterstützen `HEAD` und Range-Requests. Feed-Routen sind nicht Teil des OpenAPI-Schemas.
+- **Aufbewahrung:** Der stündliche Job `digest.cleanup` löscht Digests älter als
+  `OLLAMAIL_DIGEST_RETENTION_DAYS` (Standard 30) samt Dateien, Digests eines inzwischen
+  gelöschten Postfachs, Dateien ohne Digest (z. B. gelöschter Nutzer) und markiert seit Stunden
+  hängende Digests als fehlgeschlagen.
 
 ### 4.5 RAG („Frag deine Inbox“)
 

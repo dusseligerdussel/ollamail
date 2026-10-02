@@ -1,18 +1,21 @@
 """Which endpoint and model serve a task.
 
-:class:`LLMConfigResolver` is the seam for admin settings in the database (#18): this
-module provides :class:`EnvConfigResolver`, which reads ``OLLAMAIL_LLM_*`` and the
-hardware profile; a DB-backed resolver can replace it without touching the gateway or
-any feature.
+:class:`LLMConfigResolver` is the seam for admin settings: :class:`ResolvedConfig`
+combines the environment (``OLLAMAIL_LLM_*``, hardware profile) with
+:class:`AIOverrides` from the database. :class:`EnvConfigResolver` uses the environment
+only; ``app.ai.settings.resolver.DbConfigResolver`` adds the admin settings (#18). The
+gateway and the features do not know which one they use.
 """
 
-from dataclasses import dataclass
+from collections.abc import Mapping
+from dataclasses import dataclass, field
 from typing import Protocol
 
 from app.ai.llm.profiles import PROFILES
 from app.ai.llm.types import LLMTask
 from app.core.config import (
     LLMEndpointSettings,
+    LLMProfileName,
     LLMProviderKind,
     LLMSettings,
     StructuredOutputMode,
@@ -44,6 +47,25 @@ class ModelAssignment:
     context_tokens: int
 
 
+@dataclass(frozen=True, slots=True)
+class TaskOverride:
+    """Admin choice for one task; ``None`` falls back to the environment."""
+
+    endpoint: str | None = None
+    model: str | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class AIOverrides:
+    """Settings stored by the admin; every ``None`` falls back to the environment."""
+
+    endpoints: Mapping[str, EndpointConfig] = field(default_factory=dict)
+    cloud_enabled: bool | None = None
+    profile: LLMProfileName | None = None
+    concurrency: int | None = None
+    tasks: Mapping[LLMTask, TaskOverride] = field(default_factory=dict)
+
+
 class LLMConfigResolver(Protocol):
     async def resolve(self, task: LLMTask) -> ModelAssignment: ...
 
@@ -54,34 +76,10 @@ class LLMConfigResolver(Protocol):
     async def structured_output_retries(self) -> int: ...
 
 
-class EnvConfigResolver:
-    """Resolution from environment variables and code defaults."""
+def env_endpoints(settings: LLMSettings) -> dict[str, EndpointConfig]:
+    """Endpoints from the environment: ``default`` plus ``OLLAMAIL_LLM_ENDPOINTS``."""
 
-    def __init__(self, settings: LLMSettings) -> None:
-        self._settings = settings
-        profile = PROFILES[settings.profile]
-        self._chat_model = settings.default_chat_model or profile.chat_model
-        self._embedding_model = settings.default_embedding_model or profile.embedding_model
-        self._context_tokens = settings.context_tokens or profile.context_tokens
-        self._endpoints = {DEFAULT_ENDPOINT: self._default_endpoint(settings)} | {
-            name: self._endpoint(name, value, settings.timeout)
-            for name, value in settings.endpoints.items()
-        }
-
-    @staticmethod
-    def _default_endpoint(s: LLMSettings) -> EndpointConfig:
-        return EndpointConfig(
-            name=DEFAULT_ENDPOINT,
-            provider=s.provider,
-            base_url=s.base_url,
-            api_key=s.api_key.get_secret_value() if s.api_key else None,
-            is_cloud=s.is_cloud,
-            structured_output=s.structured_output,
-            timeout=s.timeout,
-        )
-
-    @staticmethod
-    def _endpoint(name: str, e: LLMEndpointSettings, default_timeout: float) -> EndpointConfig:
+    def endpoint(name: str, e: LLMEndpointSettings | LLMSettings) -> EndpointConfig:
         return EndpointConfig(
             name=name,
             provider=e.provider,
@@ -89,22 +87,67 @@ class EnvConfigResolver:
             api_key=e.api_key.get_secret_value() if e.api_key else None,
             is_cloud=e.is_cloud,
             structured_output=e.structured_output,
-            timeout=e.timeout or default_timeout,
+            timeout=e.timeout or settings.timeout,
         )
 
-    async def resolve(self, task: LLMTask) -> ModelAssignment:
-        model: str | None = getattr(self._settings, f"task_{task.value}_model")
-        endpoint: str | None = getattr(self._settings, f"task_{task.value}_endpoint")
-        default_model = self._embedding_model if task is LLMTask.EMBEDDINGS else self._chat_model
+    return {DEFAULT_ENDPOINT: endpoint(DEFAULT_ENDPOINT, settings)} | {
+        name: endpoint(name, value) for name, value in settings.endpoints.items()
+    }
+
+
+class ResolvedConfig:
+    """Effective configuration: admin overrides beat the environment, which beats the
+    hardware profile. Environment endpoints win over stored ones of the same name."""
+
+    def __init__(self, settings: LLMSettings, overrides: AIOverrides | None = None) -> None:
+        overrides = overrides or AIOverrides()
+        self.settings = settings
+        self.overrides = overrides
+        self.env_endpoints = env_endpoints(settings)
+        self.endpoints = dict(overrides.endpoints) | self.env_endpoints
+        self.profile: LLMProfileName = overrides.profile or settings.profile
+        profile = PROFILES[self.profile]
+        self.chat_model = settings.default_chat_model or profile.chat_model
+        self.embedding_model = settings.default_embedding_model or profile.embedding_model
+        self.context_tokens = settings.context_tokens or profile.context_tokens
+        self.cloud_enabled = (
+            settings.cloud_enabled if overrides.cloud_enabled is None else overrides.cloud_enabled
+        )
+        self.concurrency = overrides.concurrency or settings.concurrency
+
+    def env_task(self, task: LLMTask) -> TaskOverride:
+        """Model and endpoint the environment assigns to ``task``, if any."""
+        return TaskOverride(
+            endpoint=getattr(self.settings, f"task_{task.value}_endpoint"),
+            model=getattr(self.settings, f"task_{task.value}_model"),
+        )
+
+    def default_model(self, task: LLMTask) -> str:
+        return self.embedding_model if task is LLMTask.EMBEDDINGS else self.chat_model
+
+    def assignment(self, task: LLMTask) -> ModelAssignment:
+        stored = self.overrides.tasks.get(task, TaskOverride())
+        env = self.env_task(task)
+        endpoint = stored.endpoint if stored.endpoint in self.endpoints else None
         return ModelAssignment(
             task=task,
-            endpoint=self._endpoints[endpoint or DEFAULT_ENDPOINT],
-            model=model or default_model,
-            context_tokens=self._context_tokens,
+            endpoint=self.endpoints[endpoint or env.endpoint or DEFAULT_ENDPOINT],
+            model=stored.model or env.model or self.default_model(task),
+            context_tokens=self.context_tokens,
         )
 
+
+class EnvConfigResolver:
+    """Resolution from environment variables and code defaults."""
+
+    def __init__(self, settings: LLMSettings) -> None:
+        self._config = ResolvedConfig(settings)
+
+    async def resolve(self, task: LLMTask) -> ModelAssignment:
+        return self._config.assignment(task)
+
     async def cloud_allowed(self) -> bool:
-        return self._settings.cloud_enabled
+        return self._config.cloud_enabled
 
     async def structured_output_retries(self) -> int:
-        return self._settings.structured_output_retries
+        return self._config.settings.structured_output_retries

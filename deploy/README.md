@@ -105,8 +105,9 @@ Ohne Profil nutzt ollamail einen externen Server: `OLLAMAIL_LLM_BASE_URL` anpass
 ## Worker skalieren
 
 Der `worker` startet immer mit. Welche Queues er abarbeitet und wie parallel, steuern
-`OLLAMAIL_WORKER_QUEUES`, `OLLAMAIL_WORKER_CONCURRENCY` und `OLLAMAIL_LLM_CONCURRENCY`
-(siehe `.env.example`). Mehr Instanzen: `docker compose -f deploy/compose.yaml up -d --scale worker=2`.
+`OLLAMAIL_WORKER_QUEUES`, `OLLAMAIL_WORKER_CONCURRENCY`, `OLLAMAIL_LLM_MAX_CONCURRENCY` und
+`OLLAMAIL_LLM_CONCURRENCY` (siehe `.env.example`; letztere lässt sich im Admin-Bereich unter „KI“
+zur Laufzeit ändern). Mehr Instanzen: `docker compose -f deploy/compose.yaml up -d --scale worker=2`.
 Beim Stoppen bekommen laufende Jobs `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` Sekunden (Standard 30),
 Compose wartet 45 s, bevor es den Container hart beendet.
 
