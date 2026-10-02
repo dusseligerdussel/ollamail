@@ -444,7 +444,8 @@
       "open": "Nachricht öffnen",
       "close": "Nachricht schließen",
       "toggleUnread": "Als gelesen oder ungelesen markieren"
-    }
+    },
+    "foundInAttachment": "Fundstelle im Anhang"
   },
   "mailboxes": {
     "title": "Postfächer",
@@ -592,6 +593,70 @@
       "not_configured": "Dieser Anbieter ist auf diesem Server nicht eingerichtet.",
       "token_exchange_failed": "Die Anmeldung konnte nicht abgeschlossen werden. Bitte versuche es erneut.",
       "offline_access_missing": "Dauerhafter Zugriff wurde nicht erlaubt. Bitte versuche es erneut und erlaube ihn."
+    }
+  },
+  "search": {
+    "inputLabel": "Suchbegriff oder Frage",
+    "placeholder": "Mails durchsuchen oder eine Frage stellen",
+    "followUpPlaceholder": "Nachfrage stellen oder neu suchen",
+    "keyHint": "<0></0> Suchen · <1></1> Als Frage stellen. Fragen (z. B. mit „?“) werden mit Quellen beantwortet.",
+    "new": "Neue Suche",
+    "hits": "Treffer",
+    "askInstead": "Als Frage beantworten",
+    "noHitsTitle": "Keine Treffer",
+    "noHitsDescription": "Andere Stichwörter versuchen oder Filter entfernen.",
+    "idleTitle": "Mails durchsuchen",
+    "idleDescription": "Stichwörter liefern Treffer, Fragen liefern eine Antwort mit Quellen aus deinen Mails.",
+    "noMailboxesTitle": "Noch nichts zu durchsuchen",
+    "noMailboxesDescription": "Die Suche umfasst alle synchronisierten Nachrichten und Anhänge eines verbundenen Postfachs.",
+    "detailHint": "Treffer oder Quelle auswählen, um die Mail an der Fundstelle zu öffnen. <0></0> / <1></1> wechselt zwischen Treffern.",
+    "detailHintTouch": "Treffer oder Quelle auswählen, um die Mail an der Fundstelle zu öffnen.",
+    "shortcuts": {
+      "open": "Treffer öffnen"
+    },
+    "filters": {
+      "label": "Filter",
+      "period": "Zeitraum",
+      "anyTime": "Beliebig",
+      "periods": {
+        "7d": "Letzte 7 Tage",
+        "30d": "Letzte 30 Tage",
+        "1y": "Letzte 12 Monate"
+      },
+      "sender": "Absender",
+      "senderPlaceholder": "Name oder Adresse",
+      "mailbox": "Postfach",
+      "category": "Kategorie",
+      "anyCategory": "Alle Kategorien",
+      "clear": "Filter „{{filter}}“ entfernen",
+      "reset": "Filter zurücksetzen"
+    },
+    "answer": {
+      "title": "Antworten",
+      "searching": "Suche passende Mails …",
+      "cancel": "Abbrechen",
+      "cancelled": "Abgebrochen. Die Antwort wurde nicht gespeichert.",
+      "sources": "Quellen",
+      "openSource": "Quelle {{number}} öffnen",
+      "noEvidenceTitle": "Keine ausreichenden Belege",
+      "noEvidenceDescription": "In deinen Mails wurde nichts gefunden, das diese Frage belegt beantwortet.",
+      "errors": {
+        "llm_unavailable": "Das Sprachmodell ist gerade nicht erreichbar. Bitte später erneut versuchen.",
+        "llm_cloud_disabled": "Das eingestellte Sprachmodell läuft in der Cloud, Cloud-Modelle sind aber abgeschaltet.",
+        "llm_error": "Das Sprachmodell konnte keine Antwort erzeugen.",
+        "internal": "Die Antwort konnte nicht erstellt werden.",
+        "interrupted": "Die Verbindung wurde unterbrochen. Die Antwort ist unvollständig."
+      }
+    },
+    "history": {
+      "title": "Verlauf",
+      "emptyTitle": "Noch keine Fragen",
+      "emptyDescription": "Gestellte Fragen erscheinen hier und lassen sich wieder öffnen oder löschen.",
+      "delete": "„{{title}}“ löschen",
+      "deleteShort": "Löschen",
+      "deleteAll": "Verlauf löschen",
+      "confirmAll": "Alle Fragen und Antworten löschen?",
+      "keep": "Behalten"
     }
   }
 }

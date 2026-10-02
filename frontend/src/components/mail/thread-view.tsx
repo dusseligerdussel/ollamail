@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, ImageOff, Mail, MailOpen, Paperclip } from "lucide-react";
-import { useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -17,6 +17,7 @@ import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { findPassage } from "@/lib/find-passage";
 import {
   addressFull,
   addressName,
@@ -26,6 +27,13 @@ import {
 } from "@/lib/mail-format";
 import { cn } from "@/lib/utils";
 
+/** Where to open a message: a passage of its text or one of its attachments (search). */
+export interface MessageFocus {
+  messageId: string;
+  passage?: string;
+  attachmentId?: string | null;
+}
+
 interface ThreadViewProps {
   thread: Thread;
   /** The message opened from the list; its read state is toggled in the header. */
@@ -34,9 +42,18 @@ interface ThreadViewProps {
   onToggleUnread: () => void;
   /** Back to the list (stacked mobile layout only). */
   onBack?: () => void;
+  /** Mark and scroll to this place of the opened message. */
+  focus?: MessageFocus;
 }
 
-export function ThreadView({ thread, messageId, unread, onToggleUnread, onBack }: ThreadViewProps) {
+export function ThreadView({
+  thread,
+  messageId,
+  unread,
+  onToggleUnread,
+  onBack,
+  focus,
+}: ThreadViewProps) {
   const { t } = useTranslation();
   const last = thread.messages.at(-1)?.id;
   // The opened and the newest message start expanded, older ones show a one-line summary.
@@ -70,7 +87,11 @@ export function ThreadView({ thread, messageId, unread, onToggleUnread, onBack }
           <TriageLabelSlot messageId={messageId} />
           {thread.messages.map((message) =>
             expanded.has(message.id) ? (
-              <ThreadMessage key={message.id} message={message} />
+              <ThreadMessage
+                key={message.id}
+                message={message}
+                focus={focus?.messageId === message.id ? focus : undefined}
+              />
             ) : (
               <CollapsedMessage
                 key={message.id}
@@ -106,7 +127,7 @@ function CollapsedMessage({ message, onExpand }: { message: MessageDetail; onExp
   );
 }
 
-function ThreadMessage({ message }: { message: MessageDetail }) {
+function ThreadMessage({ message, focus }: { message: MessageDetail; focus?: MessageFocus }) {
   const { t, i18n } = useTranslation();
   const { timezone } = useCurrentUser();
   const recipients = [...message.to, ...message.cc];
@@ -139,14 +160,39 @@ function ThreadMessage({ message }: { message: MessageDetail }) {
         </time>
       </header>
       <div className="px-4 pb-4">
-        <MessageContent message={message} />
-        {files.length > 0 && <AttachmentList messageId={message.id} attachments={files} />}
+        <MessageContent message={message} passage={focus?.passage} />
+        {files.length > 0 && (
+          <AttachmentList
+            messageId={message.id}
+            attachments={files}
+            focusId={focus?.attachmentId ?? undefined}
+          />
+        )}
       </div>
     </article>
   );
 }
 
-function MessageContent({ message }: { message: MessageDetail }) {
+/** Plain-text body; `passage` is marked and scrolled into view. */
+function PlainText({ text, passage }: { text: string; passage?: string }) {
+  const mark = useRef<HTMLElement>(null);
+  const found = useMemo(() => (passage ? findPassage(text, passage) : undefined), [text, passage]);
+  useEffect(() => {
+    if (found) mark.current?.scrollIntoView?.({ block: "center" });
+  }, [found]);
+  if (!found) return text;
+  return (
+    <>
+      {text.slice(0, found[0])}
+      <mark ref={mark} className="rounded-sm bg-brand/15 text-foreground">
+        {text.slice(found[0], found[1])}
+      </mark>
+      {text.slice(found[1])}
+    </>
+  );
+}
+
+function MessageContent({ message, passage }: { message: MessageDetail; passage?: string }) {
   const { t } = useTranslation();
   const [loadImages, setLoadImages] = useState(false);
   const withImages = useQuery({
@@ -157,7 +203,11 @@ function MessageContent({ message }: { message: MessageDetail }) {
   if (message.body.html === null) {
     return (
       <div className="text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
-        {message.text || <span className="text-muted-foreground">{t("mail.emptyBody")}</span>}
+        {message.text ? (
+          <PlainText text={message.text} passage={passage} />
+        ) : (
+          <span className="text-muted-foreground">{t("mail.emptyBody")}</span>
+        )}
       </div>
     );
   }
@@ -187,6 +237,7 @@ function MessageContent({ message }: { message: MessageDetail }) {
         html={html}
         externalImages={Boolean(withImages.data)}
         title={message.subject || t("mail.noSubject")}
+        passage={passage}
       />
     </div>
   );
@@ -195,20 +246,32 @@ function MessageContent({ message }: { message: MessageDetail }) {
 function AttachmentList({
   messageId,
   attachments,
+  focusId,
 }: {
   messageId: string;
   attachments: Attachment[];
+  /** The attachment a search hit or a cited source came from. */
+  focusId?: string;
 }) {
   const { t, i18n } = useTranslation();
+  const focused = useRef<HTMLAnchorElement>(null);
+  useEffect(() => {
+    if (focusId) focused.current?.scrollIntoView?.({ block: "center" });
+  }, [focusId]);
   return (
     <section aria-label={t("mail.attachments")} className="mt-3">
       <ul className="flex flex-wrap gap-2">
         {attachments.map((attachment) => (
           <li key={attachment.id}>
             <a
+              ref={attachment.id === focusId ? focused : undefined}
               href={attachmentUrl(messageId, attachment.id)}
               download={attachment.filename ?? true}
-              className="flex max-w-64 items-center gap-2 rounded-md border px-2.5 py-1.5 text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+              aria-describedby={attachment.id === focusId ? `found-${attachment.id}` : undefined}
+              className={cn(
+                "flex max-w-64 items-center gap-2 rounded-md border px-2.5 py-1.5 text-ui outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50",
+                attachment.id === focusId && "border-brand/50 bg-brand/10",
+              )}
             >
               <Paperclip aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               <span className="min-w-0 truncate">
@@ -217,6 +280,11 @@ function AttachmentList({
               <span className="shrink-0 text-xs text-muted-foreground">
                 {formatSize(attachment.size, i18n.language)}
               </span>
+              {attachment.id === focusId && (
+                <span id={`found-${attachment.id}`} className="sr-only">
+                  {t("mail.foundInAttachment")}
+                </span>
+              )}
             </a>
           </li>
         ))}

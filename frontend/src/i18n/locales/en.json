@@ -444,7 +444,8 @@
       "open": "Open message",
       "close": "Close message",
       "toggleUnread": "Mark as read or unread"
-    }
+    },
+    "foundInAttachment": "Match found in this attachment"
   },
   "mailboxes": {
     "title": "Mailboxes",
@@ -592,6 +593,70 @@
       "not_configured": "This provider is not configured on this server.",
       "token_exchange_failed": "The sign-in could not be completed. Please try again.",
       "offline_access_missing": "Permanent access was not granted. Please try again and allow it."
+    }
+  },
+  "search": {
+    "inputLabel": "Search terms or question",
+    "placeholder": "Search mail or ask a question",
+    "followUpPlaceholder": "Ask a follow-up or search again",
+    "keyHint": "<0></0> Search · <1></1> Ask as a question. Questions (e.g. ending with “?”) are answered with sources.",
+    "new": "New search",
+    "hits": "Results",
+    "askInstead": "Answer as a question",
+    "noHitsTitle": "No results",
+    "noHitsDescription": "Try other keywords or remove filters.",
+    "idleTitle": "Search your mail",
+    "idleDescription": "Keywords find messages, questions get an answer with sources from your mail.",
+    "noMailboxesTitle": "Nothing to search yet",
+    "noMailboxesDescription": "Search covers all synced messages and attachments of a connected mailbox.",
+    "detailHint": "Select a result or source to open the message at the matching passage. <0></0> / <1></1> moves between results.",
+    "detailHintTouch": "Select a result or source to open the message at the matching passage.",
+    "shortcuts": {
+      "open": "Open result"
+    },
+    "filters": {
+      "label": "Filters",
+      "period": "Date",
+      "anyTime": "Any time",
+      "periods": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "1y": "Last 12 months"
+      },
+      "sender": "Sender",
+      "senderPlaceholder": "Name or address",
+      "mailbox": "Mailbox",
+      "category": "Category",
+      "anyCategory": "All categories",
+      "clear": "Remove filter “{{filter}}”",
+      "reset": "Reset filters"
+    },
+    "answer": {
+      "title": "Answers",
+      "searching": "Looking for matching messages …",
+      "cancel": "Cancel",
+      "cancelled": "Cancelled. The answer was not saved.",
+      "sources": "Sources",
+      "openSource": "Open source {{number}}",
+      "noEvidenceTitle": "Not enough evidence",
+      "noEvidenceDescription": "Nothing in your mail answers this question with evidence.",
+      "errors": {
+        "llm_unavailable": "The language model is not reachable right now. Please try again later.",
+        "llm_cloud_disabled": "The configured language model runs in the cloud, but cloud models are turned off.",
+        "llm_error": "The language model could not produce an answer.",
+        "internal": "The answer could not be created.",
+        "interrupted": "The connection was interrupted. The answer is incomplete."
+      }
+    },
+    "history": {
+      "title": "History",
+      "emptyTitle": "No questions yet",
+      "emptyDescription": "Questions you ask appear here and can be reopened or deleted.",
+      "delete": "Delete “{{title}}”",
+      "deleteShort": "Delete",
+      "deleteAll": "Clear history",
+      "confirmAll": "Delete all questions and answers?",
+      "keep": "Keep"
     }
   }
 }
