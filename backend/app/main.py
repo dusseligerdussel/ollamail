@@ -39,6 +39,7 @@ from app.mail.providers.gmail_connect import router as gmail_connect_router
 from app.mail.providers.graph_router import NOTIFICATIONS_PATH
 from app.mail.providers.graph_router import router as graph_router
 from app.rag.router import router as rag_router
+from app.search.router import router as search_router
 from app.todos.router import router as todos_router
 from app.triage.router import router as triage_router
 from app.users.router import router as users_router
@@ -118,6 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(digests_router)
     app.include_router(digest_feed_router)
     app.include_router(rag_router)
+    app.include_router(search_router)
     oidc.install(app, settings)
     github.install(app)
     return app
