@@ -28,18 +28,52 @@ async function overflow(page: Page) {
   );
 }
 
-test("10,000 messages scroll smoothly", async ({ page }) => {
-  await mockMail(page, { messages: 10_000 });
+/**
+ * Main-thread budgets of the scroll test (#111), per scroll step of one viewport. They measure
+ * work (JavaScript, long tasks) instead of the frame rate, which on machines without a GPU
+ * mostly depends on software rasterisation. The dev server runs React's development build,
+ * which does about three times the work of the production build (`E2E_PREVIEW=1`).
+ * Measured on 4 vCPUs without GPU: production ~7 ms script per step and no long tasks (before
+ * #111: ~25 ms), dev server ~20 ms and 250–900 ms blocking time over the whole run.
+ */
+const scrollBudget = {
+  production: { scriptPerStepMs: 15, totalBlockingTimeMs: 300 },
+  development: { scriptPerStepMs: 45, totalBlockingTimeMs: 2000 },
+};
+
+// @perf: measures main-thread work, so it runs alone after all other tests (playwright.config.ts).
+test("10,000 messages scroll smoothly", { tag: "@perf" }, async ({ page }) => {
+  // Scrolling through 400 viewports takes ~20 s.
+  test.setTimeout(60_000);
+  await mockMail(page, { messages: 10_000, triage: true });
   await page.goto("/inbox");
   const list = page.getByRole("list", { name: "Messages" });
   await expect(list.getByRole("listitem").first()).toBeVisible();
   await expect(page.getByRole("heading", { level: 1, name: "Inbox" })).toBeVisible();
   await expect(page.getByText("10,000", { exact: true })).toBeVisible();
+  await expect(list.getByTestId("triage-label").first()).toBeVisible();
+  const dev = await page.evaluate(() => !!document.querySelector('script[src="/@vite/client"]'));
+  const budget = dev ? scrollBudget.development : scrollBudget.production;
 
-  // Scroll through the whole list in steps and record frame times meanwhile.
-  const result = await page.evaluate(async () => {
+  // Script time of the renderer's main thread, from Chromium's performance metrics.
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send("Performance.enable");
+  const scriptSeconds = async () =>
+    (await cdp.send("Performance.getMetrics")).metrics.find(
+      (metric) => metric.name === "ScriptDuration",
+    )?.value ?? 0;
+  const scriptBefore = await scriptSeconds();
+
+  // Scroll through the whole list in steps; record long tasks and frame times meanwhile.
+  const steps = 400;
+  const result = await page.evaluate(async (steps) => {
     const scroller = document.querySelector<HTMLElement>("[data-testid=message-list]");
     if (!scroller) throw new Error("no list");
+    const longTasks: number[] = [];
+    const observer = new PerformanceObserver((entries) => {
+      for (const entry of entries.getEntries()) longTasks.push(entry.duration);
+    });
+    observer.observe({ type: "longtask" });
     const frames: number[] = [];
     let last = performance.now();
     let running = true;
@@ -50,7 +84,7 @@ test("10,000 messages scroll smoothly", async ({ page }) => {
     };
     requestAnimationFrame(tick);
     const maxRows = { value: 0 };
-    for (let step = 0; step < 400; step += 1) {
+    for (let step = 0; step < steps; step += 1) {
       scroller.scrollTop += scroller.clientHeight;
       await new Promise((resolve) => requestAnimationFrame(resolve));
       maxRows.value = Math.max(maxRows.value, scroller.querySelectorAll("li").length);
@@ -60,19 +94,36 @@ test("10,000 messages scroll smoothly", async ({ page }) => {
       }
     }
     running = false;
+    // Long tasks are reported asynchronously.
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    observer.disconnect();
     const sorted = [...frames].sort((a, b) => a - b);
     return {
       rows: maxRows.value,
-      p95: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
       scrollHeight: scroller.scrollHeight,
+      longTasks: longTasks.length,
+      longestTask: Math.max(0, ...longTasks),
+      // Total blocking time: the part of each long task beyond 50 ms.
+      totalBlockingTime: longTasks.reduce((sum, duration) => sum + Math.max(0, duration - 50), 0),
+      frameP95: sorted[Math.floor(sorted.length * 0.95)] ?? 0,
     };
+  }, steps);
+  const scriptPerStep = (((await scriptSeconds()) - scriptBefore) * 1000) / steps;
+  test.info().annotations.push({
+    type: "scroll",
+    description: JSON.stringify({
+      build: dev ? "development" : "production",
+      scriptPerStep,
+      ...result,
+    }),
   });
+
   // Only the visible rows (plus overscan) are in the DOM.
   expect(result.rows).toBeLessThan(80);
   // The list is as tall as all 10,000 rows.
   expect(result.scrollHeight).toBeGreaterThanOrEqual(10_000 * 36);
-  // Typically ~16 ms; generous for slow CI machines.
-  expect(result.p95).toBeLessThan(100);
+  expect(scriptPerStep).toBeLessThan(budget.scriptPerStepMs);
+  expect(result.totalBlockingTime).toBeLessThan(budget.totalBlockingTimeMs);
 
   // The end of the list loads and shows the oldest message.
   await page.evaluate(() => {

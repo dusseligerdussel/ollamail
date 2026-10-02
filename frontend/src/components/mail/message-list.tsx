@@ -1,7 +1,17 @@
 import { Link } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
+import type { TFunction } from "i18next";
 import { Paperclip } from "lucide-react";
-import { type ReactNode, useEffect, useMemo, useRef } from "react";
+import {
+  createContext,
+  memo,
+  type ReactNode,
+  useCallback,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+} from "react";
 import { useTranslation } from "react-i18next";
 
 import type { MessageSummary } from "@/api/mail";
@@ -73,24 +83,34 @@ export function MessageList({
       rows.push({ type: "placeholder", index });
     return { rows, rowOf };
   }, [items, count, groupHeader]);
-  const virtualizer = useVirtualizer({
-    count: rows.length,
-    getScrollElement: () => scrollRef.current,
-    estimateSize: (index) =>
+  // Stable callbacks: a new `getItemKey` makes the virtualizer recompute the positions of all
+  // rows, which would happen on every scroll step otherwise (#111).
+  const estimateSize = useCallback(
+    (index: number) =>
       rows[index]?.type === "header"
         ? GROUP_HEADER_HEIGHT
         : oneLine
           ? ROW_HEIGHT
           : ROW_HEIGHT_TWO_LINES,
-    overscan: OVERSCAN,
-    // Used until the scroll container is measured.
-    initialRect: { width: 800, height: 720 },
-    getItemKey: (index) => {
+    [rows, oneLine],
+  );
+  const getItemKey = useCallback(
+    (index: number) => {
       const row = rows[index];
       if (row?.type === "header") return row.key;
       if (row?.type === "message") return items[row.index]?.id ?? index;
       return `placeholder-${row?.index ?? index}`;
     },
+    [rows, items],
+  );
+  const virtualizer = useVirtualizer({
+    count: rows.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize,
+    overscan: OVERSCAN,
+    // Used until the scroll container is measured.
+    initialRect: { width: 800, height: 720 },
+    getItemKey,
   });
 
   // Row height depends on the layout; re-measure when it changes.
@@ -113,75 +133,104 @@ export function MessageList({
     if (activeRow >= 0) virtualizer.scrollToIndex(activeRow, { align: "auto" });
   }, [activeRow, virtualizer]);
 
+  // What all rows share, so each row neither subscribes to i18n and the user itself nor
+  // re-renders while scrolling (rows are memoised and only get stable props).
+  const { i18n } = useTranslation();
+  const { timezone } = useCurrentUser();
+  const rowContext = useMemo<RowContext>(
+    () => ({
+      t,
+      formatDate: (value) => formatListDate(value, i18n.language, timezone),
+    }),
+    [t, i18n.language, timezone],
+  );
+
   return (
-    <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" data-testid="message-list">
-      <ul
-        aria-label={t("mail.listLabel")}
-        className="relative w-full"
-        style={{ height: virtualizer.getTotalSize() }}
-      >
-        {virtualItems.map((virtualRow) => {
-          const row = rows[virtualRow.index];
-          const style = { height: virtualRow.size, transform: `translateY(${virtualRow.start}px)` };
-          if (row?.type === "header") {
+    <RowContext value={rowContext}>
+      <div ref={scrollRef} className="min-h-0 flex-1 overflow-y-auto" data-testid="message-list">
+        <ul
+          aria-label={t("mail.listLabel")}
+          className="relative w-full"
+          style={{ height: virtualizer.getTotalSize() }}
+        >
+          {virtualItems.map((virtualRow) => {
+            const row = rows[virtualRow.index];
+            const style = {
+              height: virtualRow.size,
+              transform: `translateY(${virtualRow.start}px)`,
+            };
+            if (row?.type === "header") {
+              return (
+                <li key={virtualRow.key} className="absolute top-0 left-0 w-full" style={style}>
+                  {row.content}
+                </li>
+              );
+            }
+            const index = row?.index ?? virtualRow.index;
+            const message = row?.type === "message" ? items[index] : undefined;
             return (
-              <li key={virtualRow.key} className="absolute top-0 left-0 w-full" style={style}>
-                {row.content}
+              <li
+                key={virtualRow.key}
+                aria-setsize={count}
+                aria-posinset={index + 1}
+                className="absolute top-0 left-0 w-full"
+                style={style}
+              >
+                {message ? (
+                  <MessageRow
+                    message={message}
+                    oneLine={oneLine}
+                    selected={message.id === selectedId}
+                    active={index === activeIndex}
+                    linkSearch={linkSearch}
+                  />
+                ) : (
+                  <PlaceholderRow />
+                )}
               </li>
             );
-          }
-          const index = row?.index ?? virtualRow.index;
-          const message = row?.type === "message" ? items[index] : undefined;
-          return (
-            <li
-              key={virtualRow.key}
-              aria-setsize={count}
-              aria-posinset={index + 1}
-              className="absolute top-0 left-0 w-full"
-              style={style}
-            >
-              {message ? (
-                <MessageRow
-                  message={message}
-                  oneLine={oneLine}
-                  selected={message.id === selectedId}
-                  active={index === activeIndex}
-                  search={linkSearch(message)}
-                />
-              ) : (
-                <PlaceholderRow />
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
+          })}
+        </ul>
+      </div>
+    </RowContext>
   );
 }
 
-function MessageRow({
+interface RowContext {
+  t: TFunction;
+  formatDate: (value: string) => string;
+}
+
+const RowContext = createContext<RowContext | null>(null);
+
+function useRowContext() {
+  const context = useContext(RowContext);
+  if (!context) throw new Error("rows need a MessageList");
+  return context;
+}
+
+const MessageRow = memo(function MessageRow({
   message,
   oneLine,
   selected,
   active,
-  search,
+  linkSearch,
 }: {
   message: MessageSummary;
   oneLine: boolean;
   selected: boolean;
   active: boolean;
-  search: Record<string, unknown>;
+  linkSearch: (message: MessageSummary) => Record<string, unknown>;
 }) {
-  const { t, i18n } = useTranslation();
-  const { timezone } = useCurrentUser();
+  const { t, formatDate } = useRowContext();
   const sender = addressName(message.sender) || t("mail.unknownSender");
   const subject = message.subject || t("mail.noSubject");
-  const date = formatListDate(message.date, i18n.language, timezone);
+  const date = formatDate(message.date);
 
   return (
     <Link
       to="/inbox"
-      search={search}
+      search={linkSearch(message)}
       aria-current={selected ? "true" : undefined}
       data-active={active || undefined}
       data-unread={message.unread || undefined}
@@ -246,10 +295,10 @@ function MessageRow({
       )}
     </Link>
   );
-}
+});
 
 function UnreadDot({ unread }: { unread: boolean }) {
-  const { t } = useTranslation();
+  const { t } = useRowContext();
   return (
     <span className="flex w-2 shrink-0 justify-center">
       {unread && (

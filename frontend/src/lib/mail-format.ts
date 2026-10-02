@@ -1,12 +1,26 @@
 import type { Address } from "@/api/mail";
 
+// Creating an `Intl.DateTimeFormat` is far more expensive than formatting with it, and list rows
+// format a date each (#111): formatters are created once per locale, time zone and style.
+const formatters = new Map<string, Intl.DateTimeFormat>();
+
+function formatter(locale: string, timeZone: string, options: Intl.DateTimeFormatOptions) {
+  const key = `${locale}|${timeZone}|${JSON.stringify(options)}`;
+  let cached = formatters.get(key);
+  if (!cached) {
+    cached = new Intl.DateTimeFormat(locale, { timeZone, ...options });
+    formatters.set(key, cached);
+  }
+  return cached;
+}
+
 function sameDay(a: Date, b: Date, timeZone: string) {
-  const day = new Intl.DateTimeFormat("en-CA", { timeZone, dateStyle: "short" });
+  const day = formatter("en-CA", timeZone, { dateStyle: "short" });
   return day.format(a) === day.format(b);
 }
 
 function sameYear(a: Date, b: Date, timeZone: string) {
-  const year = new Intl.DateTimeFormat("en-CA", { timeZone, year: "numeric" });
+  const year = formatter("en-CA", timeZone, { year: "numeric" });
   return year.format(a) === year.format(b);
 }
 
@@ -14,22 +28,18 @@ function sameYear(a: Date, b: Date, timeZone: string) {
 export function formatListDate(value: string, locale: string, timeZone: string, now = new Date()) {
   const date = new Date(value);
   if (sameDay(date, now, timeZone)) {
-    return new Intl.DateTimeFormat(locale, { timeZone, timeStyle: "short" }).format(date);
+    return formatter(locale, timeZone, { timeStyle: "short" }).format(date);
   }
   if (sameYear(date, now, timeZone)) {
-    return new Intl.DateTimeFormat(locale, { timeZone, day: "numeric", month: "short" }).format(
-      date,
-    );
+    return formatter(locale, timeZone, { day: "numeric", month: "short" }).format(date);
   }
-  return new Intl.DateTimeFormat(locale, { timeZone, dateStyle: "medium" }).format(date);
+  return formatter(locale, timeZone, { dateStyle: "medium" }).format(date);
 }
 
 export function formatDateTime(value: string, locale: string, timeZone: string) {
-  return new Intl.DateTimeFormat(locale, {
-    timeZone,
-    dateStyle: "medium",
-    timeStyle: "short",
-  }).format(new Date(value));
+  return formatter(locale, timeZone, { dateStyle: "medium", timeStyle: "short" }).format(
+    new Date(value),
+  );
 }
 
 const sizeUnits = ["byte", "kilobyte", "megabyte", "gigabyte"] as const;

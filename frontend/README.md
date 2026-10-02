@@ -167,8 +167,18 @@ API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
   Mail-HTML ist für hellen Hintergrund geschrieben und bleibt deshalb hell (im dunklen Theme als
   „Papier“).
 - **Slots** für Triage-Label (#21) und „Aufgaben aus dieser Mail“ (#23): `src/components/mail/slots.tsx`.
+- **Scroll-Performance** (#111, CPU-only ist ein Kernziel): Zeilen (`MessageRow`) sind memoisiert und
+  bekommen nur stabile Props; Übersetzung, Zeitzone und Datumsformat kommen einmal über einen Kontext
+  der Liste, nicht per Hook in jeder Zeile. `getItemKey`/`estimateSize` des Virtualizers sind stabil
+  (eine neue Funktion lässt ihn die Positionen aller Zeilen neu berechnen). `Intl.DateTimeFormat`
+  wird je Sprache, Zeitzone und Stil nur einmal erzeugt (`src/lib/mail-format.ts`). Triage-Labels
+  teilen Kategorien und Übersetzung über `HideTriageLabels`, je Zeile bleibt nur die Triage-Query.
 - **E2E:** `e2e/inbox.spec.ts` (gemockt, `e2e/mock-mail.ts`: 10.000 Mails scrollen, Tastatur,
-  blockierte Bilder, Mobil, axe). `e2e/mailbox.spec.ts` gegen echte API, Worker und den
+  blockierte Bilder, Mobil, axe). Der Scroll-Test (`@perf`, mit Triage-Labels) misst
+  Main-Thread-Arbeit statt Frame-Zeiten, die ohne GPU von der Software-Rasterisierung abhängen:
+  Script-Zeit je Scroll-Schritt (Chromium-Metrik `ScriptDuration`) und Total Blocking Time der
+  Long Tasks. Budgets in `scrollBudget`, getrennt für Produktions-Build und Dev-Server (React-Dev-Build,
+  etwa dreifache Arbeit); die Messwerte stehen als Annotation `scroll` im Testergebnis. `e2e/mailbox.spec.ts` gegen echte API, Worker und den
   IMAP-Testserver der Backend-Tests:
 
   ```sh
