@@ -1,7 +1,7 @@
 """add ldap directories
 
 Revision ID: f3eccc01c6d5
-Revises: 0287a3035915
+Revises: 329b919d6ecb, e41229c08479
 Create Date: 2026-10-01 21:03:19.702734+00:00
 """
 
@@ -12,7 +12,8 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "f3eccc01c6d5"
-down_revision: str | Sequence[str] | None = "0287a3035915"
+# Also merges the two heads on main (audit events and search index, both after todos).
+down_revision: str | Sequence[str] | None = ("329b919d6ecb", "e41229c08479")
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

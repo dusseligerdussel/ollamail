@@ -4,6 +4,66 @@
  */
 
 export interface paths {
+    "/audit/events": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Events
+         * @description Audit events, newest first.
+         */
+        get: operations["audit_get_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/events/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Export Events
+         * @description All matching audit events as CSV. The export itself is recorded.
+         */
+        get: operations["audit_export_events"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/audit/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Verify
+         * @description Recompute the hash chain to detect changed or removed entries.
+         */
+        get: operations["audit_verify"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/ldap/directories": {
         parameters: {
             query?: never;
@@ -363,6 +423,52 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/todos": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Todos
+         * @description Own todos, earliest due date first (todos without due date last).
+         */
+        get: operations["todos_list_todos"];
+        put?: never;
+        /**
+         * Create Todo
+         * @description Create a todo by hand, optionally linked to one of the user's mails.
+         */
+        post: operations["todos_create_todo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todos/{todo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Todo */
+        get: operations["todos_get_todo"];
+        put?: never;
+        post?: never;
+        /** Delete Todo */
+        delete: operations["todos_delete_todo"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Todo
+         * @description Edit a todo or change its status (open, done, dismissed).
+         */
+        patch: operations["todos_update_todo"];
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -391,6 +497,57 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * ActorKind
+         * @enum {string}
+         */
+        ActorKind: "user" | "system" | "anonymous";
+        /**
+         * AuditAction
+         * @enum {string}
+         */
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "crypto.keys_rotated" | "audit.exported";
+        /** AuditChainStatus */
+        AuditChainStatus: {
+            /** Checked */
+            checked: number;
+            /** First Invalid Id */
+            first_invalid_id: number | null;
+            /** Valid */
+            valid: boolean;
+        };
+        /** AuditEventPage */
+        AuditEventPage: {
+            /** Items */
+            items: components["schemas"]["AuditEventRead"][];
+            /** Next Before */
+            next_before: number | null;
+        };
+        /** AuditEventRead */
+        AuditEventRead: {
+            action: components["schemas"]["AuditAction"];
+            /** Actor Id */
+            actor_id: string | null;
+            actor_kind: components["schemas"]["ActorKind"];
+            /** Actor Name */
+            actor_name: string | null;
+            /** Details */
+            details: {
+                [key: string]: string | number | boolean | null;
+            };
+            /** Id */
+            id: number;
+            /**
+             * Occurred At
+             * Format: date-time
+             */
+            occurred_at: string;
+            /** Target Id */
+            target_id: string | null;
+            /** Target Name */
+            target_name: string | null;
+            target_type: components["schemas"]["TargetType"] | null;
+        };
         /** AuthProviderInfo */
         AuthProviderInfo: {
             /** Display Name */
@@ -711,10 +868,103 @@ export interface components {
             initialized: boolean;
         };
         /**
+         * TargetType
+         * @enum {string}
+         */
+        TargetType: "user" | "session" | "mailbox" | "idp" | "settings";
+        /**
          * TlsMode
          * @enum {string}
          */
         TlsMode: "ldaps" | "starttls" | "none";
+        /**
+         * TodoCreate
+         * @description A todo created by the user, optionally linked to one of their mails.
+         */
+        TodoCreate: {
+            /** Description */
+            description?: string | null;
+            /** Due Date */
+            due_date?: string | null;
+            /** Message Id */
+            message_id?: string | null;
+            /** @default normal */
+            priority: components["schemas"]["TodoPriority"];
+            /** Title */
+            title: string;
+        };
+        /**
+         * TodoPriority
+         * @enum {string}
+         */
+        TodoPriority: "high" | "normal" | "low";
+        /** TodoRead */
+        TodoRead: {
+            /** Completed At */
+            completed_at: string | null;
+            /** Confidence */
+            confidence: number | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Description */
+            description: string | null;
+            /** Done Suggested */
+            done_suggested: boolean;
+            /** Due Date */
+            due_date: string | null;
+            /** External Refs */
+            external_refs: {
+                [key: string]: unknown;
+            };
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Edited */
+            is_edited: boolean;
+            /** Is Manual */
+            is_manual: boolean;
+            /** Mailbox Id */
+            mailbox_id: string | null;
+            /** Message Id */
+            message_id: string | null;
+            priority: components["schemas"]["TodoPriority"];
+            status: components["schemas"]["TodoStatus"];
+            /** Thread Id */
+            thread_id: string | null;
+            /** Title */
+            title: string;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TodoStatus
+         * @enum {string}
+         */
+        TodoStatus: "open" | "done" | "dismissed";
+        /**
+         * TodoUpdate
+         * @description Fields to change; omitted fields stay. ``null`` clears description and due date.
+         */
+        TodoUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Done Suggested */
+            done_suggested?: boolean | null;
+            /** Due Date */
+            due_date?: string | null;
+            priority?: components["schemas"]["TodoPriority"] | null;
+            status?: components["schemas"]["TodoStatus"] | null;
+            /** Title */
+            title?: string | null;
+        };
         /**
          * UserCreate
          * @description A new local account (admin).
@@ -793,6 +1043,147 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    audit_get_events: {
+        parameters: {
+            query?: {
+                limit?: number;
+                /** @description Cursor: `next_before` */
+                before?: number | null;
+                action?: components["schemas"]["AuditAction"] | null;
+                actor_id?: string | null;
+                target_type?: components["schemas"]["TargetType"] | null;
+                target_id?: string | null;
+                /** @description Inclusive lower bound */
+                since?: string | null;
+                /** @description Exclusive upper bound */
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditEventPage"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_export_events: {
+        parameters: {
+            query?: {
+                action?: components["schemas"]["AuditAction"] | null;
+                actor_id?: string | null;
+                target_type?: components["schemas"]["TargetType"] | null;
+                target_id?: string | null;
+                /** @description Inclusive lower bound */
+                since?: string | null;
+                /** @description Exclusive upper bound */
+                until?: string | null;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description CSV, newest first */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "text/csv": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    audit_verify: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuditChainStatus"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_list_directories: {
         parameters: {
             query?: never;
@@ -1680,6 +2071,236 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["SetupStatus"];
+                };
+            };
+        };
+    };
+    todos_list_todos: {
+        parameters: {
+            query?: {
+                /** @description Repeat for several. */
+                status?: components["schemas"]["TodoStatus"][] | null;
+                mailbox_id?: string | null;
+                /** @description Due on or before this day. */
+                due_before?: string | null;
+                /** @description Due on or after this day. */
+                due_after?: string | null;
+                limit?: number;
+                offset?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    todos_create_todo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Linked message not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    todos_get_todo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                todo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such todo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    todos_delete_todo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                todo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such todo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    todos_update_todo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                todo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TodoUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such todo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

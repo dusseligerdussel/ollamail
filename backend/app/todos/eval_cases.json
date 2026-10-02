@@ -1,0 +1,429 @@
+[
+  {
+    "id": "de-report-next-friday",
+    "language": "de",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Erika Mustermann",
+      "address": "erika@example.org"
+    },
+    "sender": {
+      "name": "Max Beispiel",
+      "address": "max@example.com"
+    },
+    "to": [
+      {
+        "name": "Erika Mustermann",
+        "address": "erika@example.org"
+      }
+    ],
+    "subject": "Quartalsbericht",
+    "body": "Hallo Erika,\n\nkannst du mir bitte bis nächsten Freitag den Quartalsbericht für das Team Nord schicken?\n\nDanke und viele Grüße\nMax",
+    "expected": {
+      "todos": [
+        {
+          "keywords": [
+            "quartalsbericht",
+            "bericht"
+          ],
+          "due_date": "2026-10-09",
+          "due_phrase": "bis nächsten Freitag"
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-contract-end-of-month",
+    "language": "en",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Alex Example",
+      "address": "alex@example.org"
+    },
+    "sender": {
+      "name": "Sam Sample",
+      "address": "sam@example.com"
+    },
+    "to": [
+      {
+        "name": "Alex Example",
+        "address": "alex@example.org"
+      }
+    ],
+    "subject": "Contract draft",
+    "body": "Hi Alex,\n\ncould you review the attached contract draft by the end of the month and send me your comments?\n\nThanks,\nSam",
+    "expected": {
+      "todos": [
+        {
+          "keywords": [
+            "contract"
+          ],
+          "due_date": "2026-10-31",
+          "due_phrase": "by the end of the month"
+        }
+      ]
+    }
+  },
+  {
+    "id": "de-newsletter",
+    "language": "de",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Erika Mustermann",
+      "address": "erika@example.org"
+    },
+    "sender": {
+      "name": "Beispiel-Shop",
+      "address": "news@shop.example.com"
+    },
+    "to": [
+      {
+        "name": "Erika Mustermann",
+        "address": "erika@example.org"
+      }
+    ],
+    "subject": "Unsere Herbstangebote",
+    "body": "Entdecken Sie jetzt unsere Herbstangebote: 20 % Rabatt auf alle Jacken bis Sonntag. Jetzt bestellen!\n\nAbmelden: https://shop.example.com/abmelden",
+    "expected": {}
+  },
+  {
+    "id": "en-sender-does-it",
+    "language": "en",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Alex Example",
+      "address": "alex@example.org"
+    },
+    "sender": {
+      "name": "Sam Sample",
+      "address": "sam@example.com"
+    },
+    "to": [
+      {
+        "name": "Alex Example",
+        "address": "alex@example.org"
+      }
+    ],
+    "subject": "Slides",
+    "body": "Hi Alex,\n\nI'll send you the slides for the workshop tomorrow and book the room myself.\n\nBest,\nSam",
+    "expected": {}
+  },
+  {
+    "id": "de-confirm-date",
+    "language": "de",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Erika Mustermann",
+      "address": "erika@example.org"
+    },
+    "sender": {
+      "name": "Max Beispiel",
+      "address": "max@example.com"
+    },
+    "to": [
+      {
+        "name": "Erika Mustermann",
+        "address": "erika@example.org"
+      }
+    ],
+    "subject": "Termin Kundenworkshop",
+    "body": "Hallo Erika,\n\nbitte bestätige mir kurz den Termin für den Kundenworkshop am 15.10.\n\nGruß\nMax",
+    "expected": {
+      "todos": [
+        {
+          "keywords": [
+            "termin",
+            "workshop",
+            "bestätig"
+          ],
+          "due_date": "2026-10-15",
+          "due_phrase": "am 15.10."
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-nda-two-weeks",
+    "language": "en",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Alex Example",
+      "address": "alex@example.org"
+    },
+    "sender": {
+      "name": "Sam Sample",
+      "address": "sam@example.com"
+    },
+    "to": [
+      {
+        "name": "Alex Example",
+        "address": "alex@example.org"
+      }
+    ],
+    "subject": "NDA",
+    "body": "Hello Alex,\n\nplease sign the NDA and return it to me in two weeks at the latest.\n\nRegards,\nSam",
+    "expected": {
+      "todos": [
+        {
+          "keywords": [
+            "nda"
+          ],
+          "due_date": "2026-10-21",
+          "due_phrase": "in two weeks"
+        }
+      ]
+    }
+  },
+  {
+    "id": "de-followup-new-deadline",
+    "language": "de",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Erika Mustermann",
+      "address": "erika@example.org"
+    },
+    "sender": {
+      "name": "Max Beispiel",
+      "address": "max@example.com"
+    },
+    "to": [
+      {
+        "name": "Erika Mustermann",
+        "address": "erika@example.org"
+      }
+    ],
+    "subject": "Re: Quartalsbericht",
+    "body": "Hallo Erika,\n\nkleine Änderung: Der Quartalsbericht reicht auch noch bis Montag, 19.10.\n\nGruß\nMax",
+    "open_todos": [
+      {
+        "title": "Quartalsbericht an Max schicken",
+        "due_date": "2026-10-09"
+      }
+    ],
+    "expected": {
+      "updates": [
+        {
+          "todo": 1,
+          "due_date": "2026-10-19",
+          "due_phrase": "bis Montag, 19.10."
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-thread-done",
+    "language": "en",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Alex Example",
+      "address": "alex@example.org"
+    },
+    "sender": {
+      "name": "Sam Sample",
+      "address": "sam@example.com"
+    },
+    "to": [
+      {
+        "name": "Alex Example",
+        "address": "alex@example.org"
+      }
+    ],
+    "subject": "Re: Invoice",
+    "body": "Hi Alex,\n\nthanks, I received the invoice. Everything is fine, nothing else needed.\n\nSam",
+    "open_todos": [
+      {
+        "title": "Send invoice to Sam"
+      }
+    ],
+    "expected": {
+      "done": [
+        1
+      ]
+    }
+  },
+  {
+    "id": "en-outgoing-done",
+    "language": "en",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Alex Example",
+      "address": "alex@example.org"
+    },
+    "sender": {
+      "name": "Alex Example",
+      "address": "alex@example.org"
+    },
+    "to": [
+      {
+        "name": "Sam Sample",
+        "address": "sam@example.com"
+      }
+    ],
+    "subject": "Re: Report",
+    "body": "Hi Sam,\n\nhere is the report you asked for. Let me know if you need anything else.\n\nAlex",
+    "open_todos": [
+      {
+        "title": "Send the report to Sam",
+        "due_date": "2026-10-09"
+      }
+    ],
+    "expected": {
+      "done": [
+        1
+      ]
+    }
+  },
+  {
+    "id": "de-info-only",
+    "language": "de",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Erika Mustermann",
+      "address": "erika@example.org"
+    },
+    "sender": {
+      "name": "Max Beispiel",
+      "address": "max@example.com"
+    },
+    "to": [
+      {
+        "name": "Erika Mustermann",
+        "address": "erika@example.org"
+      }
+    ],
+    "subject": "Büro geschlossen",
+    "body": "Hallo zusammen,\n\nzur Info: Das Büro ist am Freitag wegen Wartungsarbeiten geschlossen.\n\nViele Grüße\nMax",
+    "expected": {}
+  },
+  {
+    "id": "en-two-tasks",
+    "language": "en",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Alex Example",
+      "address": "alex@example.org"
+    },
+    "sender": {
+      "name": "Sam Sample",
+      "address": "sam@example.com"
+    },
+    "to": [
+      {
+        "name": "Alex Example",
+        "address": "alex@example.org"
+      }
+    ],
+    "subject": "Planning meeting",
+    "body": "Hi Alex,\n\nplease book a meeting room for Thursday, and send the agenda to the team by tomorrow.\n\nThanks!\nSam",
+    "expected": {
+      "todos": [
+        {
+          "keywords": [
+            "room"
+          ],
+          "due_date": "2026-10-08",
+          "due_phrase": "for Thursday"
+        },
+        {
+          "keywords": [
+            "agenda"
+          ],
+          "due_date": "2026-10-08",
+          "due_phrase": "by tomorrow"
+        }
+      ]
+    }
+  },
+  {
+    "id": "de-reply-tomorrow",
+    "language": "de",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Erika Mustermann",
+      "address": "erika@example.org"
+    },
+    "sender": {
+      "name": "Max Beispiel",
+      "address": "max@example.com"
+    },
+    "to": [
+      {
+        "name": "Erika Mustermann",
+        "address": "erika@example.org"
+      }
+    ],
+    "subject": "Workshop",
+    "body": "Hallo Erika,\n\nkannst du mir bis morgen Bescheid geben, ob du am Workshop teilnimmst?\n\nDanke\nMax",
+    "expected": {
+      "todos": [
+        {
+          "keywords": [
+            "workshop",
+            "bescheid",
+            "teilnahme",
+            "teilnimm"
+          ],
+          "due_date": "2026-10-08",
+          "due_phrase": "bis morgen"
+        }
+      ]
+    }
+  },
+  {
+    "id": "en-no-deadline",
+    "language": "en",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Alex Example",
+      "address": "alex@example.org"
+    },
+    "sender": {
+      "name": "Sam Sample",
+      "address": "sam@example.com"
+    },
+    "to": [
+      {
+        "name": "Alex Example",
+        "address": "alex@example.org"
+      }
+    ],
+    "subject": "Feedback",
+    "body": "Hi Alex,\n\nwhen you find the time, could you give me feedback on the new onboarding guide?\n\nSam",
+    "expected": {
+      "todos": [
+        {
+          "keywords": [
+            "feedback",
+            "onboarding"
+          ]
+        }
+      ]
+    }
+  },
+  {
+    "id": "de-cc-for-others",
+    "language": "de",
+    "sent_at": "2026-10-07T09:00:00+02:00",
+    "user": {
+      "name": "Erika Mustermann",
+      "address": "erika@example.org"
+    },
+    "sender": {
+      "name": "Max Beispiel",
+      "address": "max@example.com"
+    },
+    "to": [
+      {
+        "name": "Jonas Platzhalter",
+        "address": "jonas@example.com"
+      },
+      {
+        "name": "Erika Mustermann",
+        "address": "erika@example.org"
+      }
+    ],
+    "subject": "Umzug Server",
+    "body": "Hallo Jonas,\n\nbitte kümmere dich bis Freitag um den Umzug des Testservers.\n\nErika in Kopie nur zur Info.\n\nGruß\nMax",
+    "expected": {}
+  }
+]

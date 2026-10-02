@@ -7,6 +7,7 @@ from httpx import AsyncClient
 from sqlalchemy import select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit.models import audit_events
 from app.auth.models import Identity
 from app.auth.providers.ldap.client import LdapDirectoryClient, LdapUnavailableError
 from app.auth.sessions import SESSION_COOKIE
@@ -385,3 +386,33 @@ async def test_connection_test_reports_wrong_service_password(
     assert test["ok"] is False
     assert test["servers"][0]["error"] == "service_bind_failed"
     assert lookup == {**lookup, "found": False, "error": "service_bind_failed"}
+
+
+@pytest.mark.ldap
+async def test_login_and_configuration_are_audited(
+    corp: AsyncClient, db_session: AsyncSession, slapd: Slapd
+) -> None:
+    update = _body(slapd, admin_groups=[group_dn("admins")])
+    del update["name"], update["bind_password"]
+    await corp.put(f"{DIRECTORIES}/corp", json=update)
+    await _ldap_login(corp, "erika", "wrong password")
+    user_id = (await _ldap_login(corp, "erika")).json()["id"]
+
+    rows = (
+        await db_session.execute(
+            select(audit_events.c.action, audit_events.c.details).order_by(audit_events.c.id)
+        )
+    ).all()
+    events = [(row.action, row.details) for row in rows]
+
+    assert ("idp.config_changed", {"kind": "ldap", "change": "created"}) in events
+    assert ("idp.config_changed", {"kind": "ldap", "change": "updated"}) in events
+    assert (
+        "auth.login_failed",
+        {"provider": "ldap:corp", "reason": "invalid_credentials"},
+    ) in events
+    assert ("user.created", {"role": "admin", "provider": "ldap:corp"}) in events
+    assert ("auth.login_succeeded", {"provider": "ldap:corp"}) in events
+    # Neither the login name nor the address ends up in the audit log.
+    assert "erika" not in str(events)
+    assert user_id

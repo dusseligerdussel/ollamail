@@ -64,6 +64,10 @@ antwortet die API mit `503` statt `401`.
   fremde Konten übernehmen.
 - **Logs** enthalten weder Login-Namen noch DNs oder Gruppen, nur Provider, Nutzer-ID und
   Fehlercodes.
+- **Audit-Log** (`docs/PRIVACY.md`): `auth.login_succeeded`/`auth.login_failed` mit `provider`
+  und `reason` (`invalid_credentials`, `locked`, `user_inactive`, `directory_unavailable`),
+  `user.created` beim JIT-Provisioning, `user.role_changed` beim Rollen-Sync über
+  `admin_groups` und `idp.config_changed` beim Anlegen, Ändern oder Löschen eines Verzeichnisses.
 - Wird ein Konto im AD deaktiviert, bleiben bestehende ollamail-Sessions bis zum Idle-Timeout
   bzw. Ablauf gültig. Sofort sperren: Nutzer in ollamail deaktivieren oder seine Sessions
   widerrufen.

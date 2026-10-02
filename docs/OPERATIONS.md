@@ -101,11 +101,12 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Heute wird nur `database` geprüft; Prüfungen für Queue und LLM kommen mit #7 und #17. |
 
-Die UI ist unter `http://<host>:8080` erreichbar. Der Setup-Assistent der UI ist **geplant (#12)**,
-LDAP/Active Directory ist per API konfigurierbar ([`auth/ldap.md`](auth/ldap.md)), OIDC und GitHub
-sowie die Admin-UI dafür sind **geplant (#30, #31, #33)**.
+Die UI ist unter `http://<host>:8080` erreichbar. LDAP/Active Directory ist per API konfigurierbar
+([`auth/ldap.md`](auth/ldap.md)); OIDC, GitHub und die Admin-UI für Identity-Provider sind
+**geplant (#30, #31, #33)**.
 
-**Erst-Admin:** Solange kein Nutzer existiert, legt `POST /api/setup` den ersten Admin an. Dafür
+**Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
+der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
 ist ein Setup-Token nötig – `OLLAMAIL_SETUP_TOKEN` oder, falls leer, ein aus `OLLAMAIL_SECRET_KEY`
 abgeleiteter Wert. Die API schreibt ihn beim Start ins Log (Event `setup_pending`, Feld
 `setup_code`), solange die Instanz nicht eingerichtet ist:
@@ -237,6 +238,52 @@ Qualität `medium`; die Standardstimmen haben dieselbe Modellgröße):
 2.000 Zeichen Text ergeben rund 160 s Audio und brauchen inklusive Normalisierung und
 Kodierung nach Opus und MP3 etwa 9–10 s, also rund 6 % der Echtzeit. Die Synthese läuft pro
 Worker-Prozess nacheinander und nutzt dabei alle Kerne.
+
+### 3.7 Suchindex und Embedding-Modell
+
+Jede neue Mail durchläuft den Verarbeitungsschritt `index` (Queue `llm`): Mailtext (ohne Zitate
+und Signatur) und Text aus Anhängen (PDF, DOCX, TXT, HTML; kein OCR) werden in Abschnitte
+(„Chunks“) zerlegt, in PostgreSQL volltextindiziert und mit dem Embedding-Modell
+(Standard `bge-m3`, Aufgabe `embeddings`) in Vektoren umgerechnet. Die Suche kombiniert beide
+Indizes. Ist das LLM beim Indizieren nicht erreichbar, ist die Mail trotzdem sofort per Volltext
+auffindbar; der Job `search.fill_embeddings` (alle 5 Minuten, hinter neuen Mails) ergänzt die
+Vektoren später.
+
+Anhänge werden in einem eigenen Prozess ohne Umgebungsvariablen und mit Grenzen für Größe,
+Laufzeit und Speicher gelesen (`OLLAMAIL_SEARCH_ATTACHMENT_MAX_BYTES`,
+`OLLAMAIL_SEARCH_EXTRACTION_TIMEOUT`, `OLLAMAIL_SEARCH_EXTRACTION_MAX_MEMORY_MB`).
+
+**Stand prüfen:**
+
+```sh
+docker compose -f deploy/compose.yaml run --rm api python -m app.cli search status
+```
+
+zeigt Anzahl der Chunks, Vektoren je Modell, das aktive und das konfigurierte Modell sowie die
+Vektor-Dimension.
+
+**Modellwechsel mit gleicher Dimension** (z. B. ein anderes Modell mit 1024 Dimensionen):
+`OLLAMAIL_LLM_TASK_EMBEDDINGS_MODEL` (oder `OLLAMAIL_LLM_DEFAULT_EMBEDDING_MODEL`) setzen und
+Worker neu starten. Der Job `search.fill_embeddings` berechnet die Vektoren aller Chunks im
+Hintergrund neu (`OLLAMAIL_SEARCH_REEMBED_BATCH_SIZE` je Durchlauf, neueste Mails zuerst).
+Bis er fertig ist, beantworten die Vektoren des **alten** Modells die Suchanfragen; das alte
+Modell muss dafür auf dem Endpunkt installiert bleiben. Danach schaltet der Job um und löscht die
+alten Vektoren. Während des Wechsels werden neue Mails mit beiden Modellen eingebettet.
+
+**Modellwechsel mit anderer Dimension** (z. B. von 1024 auf 768): Die Vektorspalte hat eine feste
+Länge, alte und neue Vektoren können nicht nebeneinander liegen.
+
+1. Neues Modell und `OLLAMAIL_SEARCH_EMBEDDING_DIMENSIONS=<n>` in `deploy/.env` setzen (höchstens
+   2000, Grenze des HNSW-Index).
+2. Worker stoppen: `docker compose -f deploy/compose.yaml stop worker`.
+3. Spalte umstellen: `docker compose -f deploy/compose.yaml run --rm api python -m app.cli search resize`.
+   Das löscht alle Vektoren, ändert die Spalte auf `vector(<n>)` und legt den HNSW-Index neu an
+   (in einer Transaktion).
+4. Worker starten. `search.fill_embeddings` baut die Vektoren im Hintergrund neu auf. Bis dahin
+   findet die Suche Mails nur per Volltext bzw. mit den schon neu berechneten Vektoren.
+
+Eine Neu-Indizierung inklusive Chunking (z. B. nach geänderter Chunk-Größe) startet
+`python -m app.cli processing reprocess --step index`.
 
 ## 4. Reverse Proxy und TLS
 
@@ -523,6 +570,16 @@ KI-Verarbeitung und TTS. Vorgesehen sind mehrere Worker-Instanzen und nach Jobty
 dahin startet `worker` nur mit `--profile worker` und bricht mangels Code ab. Konkrete Befehle
 folgen mit #7.
 
+**Mail-Sync (IMAP):** Jeder Worker, der die Queue `sync` abarbeitet, hält zusätzlich eine
+Datenbankverbindung für die Verteilung der Postfächer (Advisory-Locks) und pro überwachtem
+Postfach eine dauerhafte IMAP-Verbindung (`IDLE`); während eines Syncs kommt eine zweite hinzu.
+Mailserver begrenzen gleichzeitige Verbindungen pro Nutzer (Dovecot: `mail_max_userip_connections`,
+Standard 10) – zwei pro Postfach reichen. Laufen mehrere Worker mit `sync`, übernimmt jeder einen
+Teil der Postfächer; fällt einer aus, übernehmen die anderen innerhalb einer Minute.
+Mailserver mit selbstsigniertem Zertifikat: das CA-Zertifikat dem Container über
+`SSL_CERT_FILE` bekannt machen; `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS=true` (keine Prüfung,
+auch unverschlüsselt) nur in Testumgebungen.
+
 Was heute schon gilt: Jeder API- bzw. Worker-Prozess öffnet bis zu
 `OLLAMAIL_DATABASE_POOL_SIZE + OLLAMAIL_DATABASE_MAX_OVERFLOW` Datenbankverbindungen (Standard
 5 + 10). Beim Hochskalieren darauf achten, dass die Summe unter `max_connections` von PostgreSQL
@@ -546,10 +603,10 @@ verarbeitet.
 | E-Mails (Header, Inhalte, Metadaten) | PostgreSQL | geplant (#13, #14) |
 | Anhänge | Daten-Volume (`ollamail-data`) | geplant (#13) |
 | KI-Ergebnisse: Triage, Aufgaben | PostgreSQL | geplant (#20, #22) |
-| Embeddings und Volltextindex | PostgreSQL (pgvector) | geplant (#24) |
+| Suchindex: Text-Abschnitte von Mails und Anhängen, Volltextindex, Embeddings | PostgreSQL: `search_chunks`, `search_embeddings` (pgvector); hängen per `ON DELETE CASCADE` an Mail, Anhang und Postfach | vorhanden (#24) |
 | Chat-Verläufe („Frag deine Inbox“) | PostgreSQL | geplant (#25) |
 | Daily Digest: Text und Audio | PostgreSQL bzw. Daten-Volume | geplant (#28) |
-| Audit-Log | PostgreSQL | geplant (#35) |
+| Audit-Log (Ereignistyp, Zeitpunkt, Nutzer- bzw. Objekt-ID, Codes und Zähler; keine Inhalte, Betreffzeilen oder Adressen) | PostgreSQL: `audit_events`, append-only; Aufbewahrung `OLLAMAIL_AUDIT_RETENTION_DAYS` (Durchsetzung #36) | aktiv |
 | Job-Queue | PostgreSQL | geplant (#7) |
 | Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
@@ -566,7 +623,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                                                                    ▲
                        worker (geplant #7) ────────────────────────┘
                          │
-                         ├──▶ Mailserver: IMAP / Microsoft Graph / Gmail API  (geplant #14, #37, #38)
+                         ├──▶ Mailserver: IMAP (#14) / Microsoft Graph / Gmail API (geplant #37, #38)
                          ├──▶ LLM: Ollama im Compose-Netz oder eigener Server (geplant #17)
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)

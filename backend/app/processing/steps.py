@@ -75,6 +75,10 @@ class ProcessingStep:
     handler: StepHandler = field(compare=False)
     # Steps that must be done (at their current version) before this one runs.
     depends_on: tuple[str, ...] = ()
+    # Optional predecessors: if registered, this step waits until they are done *or*
+    # failed; if not registered (e.g. the feature is not installed), they are ignored.
+    # For steps that use another step's result when it exists (todos after triage).
+    after: tuple[str, ...] = ()
     retry: RetryStrategy = field(default_factory=lambda: DEFAULT_RETRY, compare=False)
 
 
@@ -101,6 +105,7 @@ class StepRegistry:
         version: int,
         queue: QueueName,
         depends_on: tuple[str, ...] = (),
+        after: tuple[str, ...] = (),
         retry: RetryStrategy = DEFAULT_RETRY,
     ) -> Callable[[StepHandler], StepHandler]:
         """Decorator registering ``handler`` as step ``name``."""
@@ -113,6 +118,7 @@ class StepRegistry:
                     queue=queue,
                     handler=handler,
                     depends_on=tuple(depends_on),
+                    after=tuple(after),
                     retry=retry,
                 )
             )
@@ -126,7 +132,8 @@ class StepRegistry:
     def ordered(self) -> list[ProcessingStep]:
         """All steps, dependencies first (otherwise in registration order).
 
-        Raises ``ValueError`` for unknown dependencies and cycles.
+        Registered ``after`` steps count as dependencies here. Raises ``ValueError`` for
+        unknown dependencies (``depends_on`` only) and cycles.
         """
         result: list[ProcessingStep] = []
         state: dict[str, str] = {}
@@ -141,6 +148,9 @@ class StepRegistry:
                 if dependency not in self._steps:
                     raise ValueError(f"step {step.name!r} depends on unknown {dependency!r}")
                 visit(self._steps[dependency])
+            for predecessor in step.after:
+                if predecessor in self._steps:
+                    visit(self._steps[predecessor])
             state[step.name] = "done"
             result.append(step)
 

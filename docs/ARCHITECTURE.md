@@ -69,9 +69,10 @@ backend/app/
   triage/        Kategorien, Klassifikation, Feedback/Few-Shot
   todos/         Extraktion, CRUD, (später) CalDAV-Export
   digest/        Tageszusammenfassung, TTS, Podcast-Feed
-  rag/           Hybrid-Retrieval, Chat, Zitate
+  search/        Suchindex: Chunking, Anhangstexte, Embeddings, Hybrid-Suche (RRF)
+  rag/           Chat, Zitate (nutzt search/)
   admin/         Instanz-Einstellungen, Auth-Provider, Audit-Log, Statistiken
-  audit/         Audit-Events
+  audit/         Audit-Log: record(), append-only Tabelle mit Hash-Kette, Admin-API (Liste, CSV)
   worker.py      Procrastinate-App und Task-Registrierung
 ```
 
@@ -123,12 +124,73 @@ für Shared Mailboxes folgt mit #34.
 
 | Provider | Phase | Auth | Sync | Hinweise |
 |---|---|---|---|---|
-| IMAP/SMTP | MVP | Passwort/App-Passwort, später XOAUTH2 | UIDVALIDITY/UID + `IDLE`, optional CONDSTORE | Funktioniert mit jedem Server |
+| IMAP/SMTP | MVP | Passwort/App-Passwort, XOAUTH2 vorbereitet | UIDVALIDITY/UID + `IDLE`, CONDSTORE/QRESYNC falls verfügbar | Funktioniert mit jedem Server |
 | Microsoft 365 | v1 | OAuth2 (Entra ID App, delegiert oder App-only mit Admin-Consent) | Graph Delta Query + Change Notifications | Shared Mailboxes über App-Permissions + `ApplicationAccessPolicy` |
 | Gmail / Google Workspace | v1 | OAuth2, Workspace: Domain-wide Delegation | `history.list` + Pub/Sub Push (optional Polling) | Labels statt Ordner |
 
 Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`;
 Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto.py`).
+
+#### IMAP-Provider (`backend/app/mail/providers/imap*.py`)
+
+- **Client:** eigener schlanker asyncio-Client (`imap_client.py`, Parser in `imap_protocol.py`)
+  statt `aioimaplib`: Diese Bibliothek kann kein STARTTLS, loggt Rohdaten (Mail-Inhalte) auf
+  DEBUG und überlässt das Parsen dem Aufrufer. Fehler und Logs enthalten nie Server-Texte, nur
+  Befehl, Status und Response-Code.
+- **Einstellungen** (`provider_settings`, Modell `ImapSettings`): `host`, `port`,
+  `security` (`tls` Standard, `starttls`, `none`), `verify_certificate`, `auth`
+  (`password` oder `xoauth2`), `username` (Standard: Adresse). Zugangsdaten in `credentials`:
+  `password` bzw. `access_token`; für XOAUTH2 kann ein `token_provider` (Token-Refresh, #37/#38)
+  übergeben werden. Unverschlüsselte Verbindungen und ungeprüfte Zertifikate lehnt der Provider
+  ab, solange der Admin `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS` nicht setzt.
+- **Ordner:** `LIST` (mit `RETURN (SPECIAL-USE)`, falls verfügbar). Rollen aus Special-Use-Attributen,
+  sonst aus gängigen Namen (DE/EN, nur oberste Ebene). `remote_id` ist der Ordnername wie vom
+  Server (modified UTF-7), `name` dekodiert.
+- **Referenzen:** `remote_ref = "<UIDVALIDITY>:<UID>:<Ordner>"`.
+- **Cursor** pro Ordner: `uidvalidity`, `high` (höchste gesehene UID), `modseq`
+  (HIGHESTMODSEQ), `known` (gespeicherte UIDs als kompaktes Sequence-Set) und `import`
+  (offener Initialimport: `since`, `below`).
+- **Ablauf von `fetch_since`:** (1) Änderungen bekannter Mails – mit QRESYNC ein
+  `UID FETCH … (CHANGEDSINCE m VANISHED)`, mit CONDSTORE `CHANGEDSINCE` plus UID-Suche für
+  Löschungen, sonst die Flags des bekannten Bereichs; (2) neue Mails (UID > `high`);
+  (3) Initialimport: `SINCE` = Zeitraum (Standard 90 Tage), **neueste zuerst**, in Batches
+  (`OLLAMAIL_MAIL_SYNC_BATCH_SIZE`), Abruf zusätzlich nach Größe gestückelt (max. 16 MB je
+  Roundtrip). Nach jedem Batch kommt `CursorAdvanced`, daher setzt ein abgebrochener Import
+  beim letzten Batch fort. Abrufe nutzen `EXAMINE` und `BODY.PEEK[]`, ändern also keine Flags.
+- **Push:** `watch()` hält `IDLE` auf einer eigenen Verbindung und erneuert es alle 10 Minuten
+  (erkennt auch Verbindungen, die ein NAT-Gateway still getrennt hat).
+- **Aktionen:** `set_flags` (`UID STORE FLAGS.SILENT`), `move` (`UID MOVE`, sonst `UID COPY` +
+  `UID EXPUNGE`; neue Referenz aus `COPYUID`), `apply_label`/`remove_label` als Keyword
+  (Label → gültiges IMAP-Atom: Leerzeichen → `_`, Nicht-ASCII wie Ordnernamen kodiert) oder,
+  wenn der Ordner keine Keywords erlaubt (`PERMANENTFLAGS` ohne `\*`), als Kopie in einen Ordner
+  mit dem Label-Namen.
+
+#### Sync (`backend/app/mail/sync/`)
+
+- **`engine.sync_mailbox`** (providerunabhängig): Ordnerliste spiegeln (neue Ordner, auf dem
+  Server gelöschte Ordner samt Mails löschen; Ordner mit ausgeschlossener Rolle aus
+  `SyncSettings.excluded_roles` – Standard Papierkorb und Spam – werden angelegt, aber nicht
+  synchronisiert), dann je Ordner (INBOX zuerst) `fetch_since` anwenden: `MessageFetched` →
+  `store_message`, `MessageUpdated` → Flags, `MessageDeleted` → `delete_messages`. Bei jedem
+  `CursorAdvanced` werden Mails, Änderungen und Cursor **in einer Transaktion** committet.
+  Ungültiger Cursor → Mails des Ordners löschen und neu importieren.
+- **Status:** `SyncState.last_error` (nur Fehlercodes) und `last_synced_at` je Ordner; Fehler, die
+  das ganze Postfach betreffen (Anmeldung, Verbindung, Konfiguration), und der letzte vollständige
+  Sync stehen in der Zeile mit `folder_id IS NULL`. Der Besitzer erhält Events `mailbox.sync`
+  (`progress`, `done`, `failed`).
+- **Job** `mail.sync_mailbox` (Queue `sync`, `lock` und `queueing_lock` pro Postfach); anstoßen mit
+  `app.mail.sync.tasks.request_sync(mailbox_id)`. Verbindungsfehler lösen Retries aus,
+  Anmelde- und Konfigurationsfehler nicht.
+- **Watcher** (`watcher.py`): läuft im Worker-Prozess neben den Job-Workern (kein Job, damit er
+  keinen Worker-Slot dauerhaft belegt). Pro Postfach eine `IDLE`-Verbindung; jedes Push-Event
+  stößt einen Sync an, zusätzlich alle `poll_interval_seconds` (andere Ordner, Server ohne
+  `IDLE`). Reconnect mit Backoff. Mehrere Worker teilen sich die Postfächer über
+  PostgreSQL-Advisory-Locks; stirbt ein Worker, übernimmt ein anderer. Abschaltbar mit
+  `OLLAMAIL_MAIL_WATCH_ENABLED=false` (dann gibt es keine automatischen Syncs).
+- **Hook für neue Mails** (`app/mail/hooks.py`): Nach dem Commit ruft der Sync für jede *neue*
+  Mail `message_stored(mailbox_id, message_id, backfill=...)` auf. Handler registrieren sich mit
+  `@on_message_stored` (siehe 4.1, die Verarbeitungspipeline tut das); ein fehlschlagender
+  Handler wird geloggt und stoppt den Sync nicht.
 
 ### 3.2 LLM-Provider
 
@@ -284,6 +346,12 @@ sync job ─▶ Message gespeichert ─▶ enqueue(process_message)
 
 Jeder Schritt ist ein idempotenter Job. Fehler werden protokolliert und erneut versucht (Backoff).
 
+**Schnittstelle zum Sync** (`app/mail/hooks.py`): Der Sync ruft nach dem Commit für jede *neue*
+Mail `message_stored(mailbox_id, message_id, backfill=...)` auf (nicht bei Flag-Änderungen oder
+erneutem Abruf); `backfill` ist wahr für Mails aus dem Initialimport. `app.processing.tasks`
+registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
+`Priority.BACKFILL` bzw. `Priority.NEW` auf. Weitere Features können sich ebenso einhängen.
+
 **Umsetzung (`backend/app/processing/`, #19):**
 
 - **Einstieg:** `await enqueue_processing(message_id, priority=Priority.NEW)` aus
@@ -293,6 +361,10 @@ Jeder Schritt ist ein idempotenter Job. Fehler werden protokolliert und erneut v
   `@registry.step("triage", version=1, queue="llm", depends_on=("normalize",))`. Ein Handler
   bekommt `StepContext(session, message_id, mailbox_id)`, schreibt über die Session und committet
   nicht – Ergebnis und Status werden gemeinsam committet. Handler müssen idempotent sein.
+- **Optionale Vorgänger:** `after=("triage",)` ordnet einen Schritt hinter einen anderen, ohne ihn
+  vorauszusetzen. Ist der Vorgänger registriert, wartet der Schritt, bis er `done` **oder** `failed`
+  ist; ist er nicht registriert, wird er ignoriert. So laufen Todos nach der Triage, wenn es sie
+  gibt, und ohne Triage-Ergebnis sonst trotzdem. `depends_on` bleibt die harte Abhängigkeit.
 - **Ablauf:** `processing.plan_message` (Queue `default`) legt je Schritt eine Zeile in
   `message_processing` an (`pending`) und reiht die Schritte ohne offene Abhängigkeiten als
   `processing.run_step` in der Queue des Schritts ein. Ist ein Schritt `done`, werden seine
@@ -328,6 +400,51 @@ Jeder Schritt ist ein idempotenter Job. Fehler werden protokolliert und erneut v
 
 - Extraktion: Titel, Beschreibung, Fälligkeit (falls genannt), Priorität, Link zur Quell-Mail/zum Thread.
 - Status: offen / erledigt / verworfen. Duplikaterkennung innerhalb eines Threads.
+
+**Umsetzung (`backend/app/todos/`, #22):**
+
+- **Schritt** `todos` (`steps.py`, Queue `llm`, `after=("triage",)`): läuft nicht für Mails, deren
+  Triage-Kategorie in `OLLAMAIL_TODOS_SKIP_CATEGORIES` steht (Standard `newsletter,notification,spam`).
+  Ohne Triage-Ergebnis (Triage nicht installiert, fehlgeschlagen) läuft er immer. Die Kategorie liest
+  `extraction.message_category`; die Triage (#20) installiert ihren Lookup mit
+  `extraction.set_category_lookup(...)`. Geteilte Postfächer werden bis #34 übersprungen.
+  `OLLAMAIL_TODOS_EXTRACTION_ENABLED=false` schaltet den Schritt ab.
+- **Prompt** `todos_extract@1` (`app/ai/prompts/todos.py`, DE/EN) über `LLMGateway.complete_structured`
+  mit `LLMTask.TODOS`. Das Modell bekommt Absender, Empfänger, Betreff, Text ohne Zitate, das
+  Sendedatum (Wochentag + Datum in der Zeitzone des Nutzers), ob der Nutzer die Mail selbst
+  geschrieben hat, und die offenen Todos des Threads (nummeriert).
+- **Antwort** (`TodoExtraction`): je Aufgabe Titel, Beschreibung, `due_phrase` (Frist wörtlich aus
+  der Mail), `due_date` (Schätzung des Modells), Priorität `high|normal|low`, Konfidenz und optional
+  `updates` (Nummer eines offenen Todos); dazu `done` (Nummern erledigter Todos). Zu lange Texte werden
+  gekürzt, Konfidenz und Priorität normalisiert, statt die Antwort zu verwerfen.
+- **Nachbearbeitung** (`plan_extraction`, ohne DB):
+  - Aufgaben unter `OLLAMAIL_TODOS_MIN_CONFIDENCE` werden verworfen.
+  - Mails, die der Nutzer selbst geschrieben hat (Absender = Postfachadresse), erzeugen keine neuen
+    Todos, können aber „erledigt“ vorschlagen.
+  - **Fälligkeit** (`dates.py`): Die Frist wird deterministisch aus `due_phrase` berechnet,
+    Bezugstag ist das Sendedatum in der Zeitzone des Nutzers. Die Schätzung des Modells gilt nur,
+    wenn die Phrase unbekannt ist, und nur, wenn sie nicht vor dem Bezugstag und höchstens zwei
+    Jahre danach liegt. Bei Mehrdeutigkeit gilt das frühere Datum: „nächsten Freitag“ ist der
+    nächste Freitag nach dem Bezugstag, „Freitag nächster Woche“ der Freitag der Folgewoche.
+  - **Duplikate:** Verweist eine Aufgabe auf ein offenes Todo des Threads (`updates`) oder hat sie
+    denselben Titel, wird das Todo aktualisiert statt neu angelegt. Vom Nutzer bearbeitete Todos
+    (`is_edited`) behalten Titel, Beschreibung und Fälligkeit.
+  - **„Erledigt“** wird nur vorgeschlagen (`done_suggested`); der Status bleibt `open`.
+- **Idempotenz:** Ein erneuter Lauf für dieselbe Mail löscht zuerst die Todos, die ein früherer Lauf
+  aus ihr erzeugt hat, sofern der Nutzer sie nicht angefasst hat (offen, nicht bearbeitet, kein
+  Vorschlag).
+- **Modell** `Todo` (`models.py`, Tabelle `todos`): Nutzer, Quelle (Postfach, Mail, Thread),
+  Status `open|done|dismissed`, `is_manual`, `is_edited`, Konfidenz, `done_suggested`,
+  `completed_at` und `external_refs` (JSON, für den Export in #40).
+- **API** (`/todos`, nur eigene Todos): `GET /todos` (Filter `status` mehrfach, `mailbox_id`,
+  `due_before`, `due_after`; früheste Fälligkeit zuerst, ohne Fälligkeit zuletzt; `limit`/`offset`),
+  `POST /todos` (manuell, optional mit `message_id` einer eigenen Mail), `GET|PATCH|DELETE /todos/{id}`.
+  `PATCH` bearbeitet Felder und den Status (`done` setzt `completed_at`, jede Statusänderung löscht
+  den Vorschlag); `done_suggested: false` verwirft nur den Vorschlag.
+- **Evaluierung:** `python -m app.todos.evaluation [--model NAME ...]` läuft mit dem echten Prompt
+  gegen den konfigurierten Endpunkt über `app/todos/eval_cases.json` (synthetische DE/EN-Mails mit
+  erwarteten Todos, Fristen, Updates und Erledigt-Vorschlägen) und gibt je Modell Precision, Recall
+  und Trefferquote der Fristen aus. Neue Fälle im selben Format ergänzen.
 - **Ziel (dokumentiert, später):** Export/Sync via CalDAV (VTODO), Microsoft To Do (Graph), Google Tasks.
 
 ### 4.4 Daily Digest (Audio)
@@ -345,6 +462,44 @@ Jeder Schritt ist ein idempotenter Job. Fehler werden protokolliert und erneut v
 - Filter (Zeitraum, Absender, Ordner, Kategorie) werden aus der Frage extrahiert bzw. im UI gesetzt.
 - Antworten werden gestreamt (SSE) und enthalten **immer Zitate** mit Links auf die Quell-Mails.
 - Strikte Zugriffskontrolle: Retrieval nur über Postfächer, auf die der Nutzer Zugriff hat (Filter in SQL, nicht im Prompt).
+
+**Umsetzung des Index (`backend/app/search/`, #24):**
+
+- **Schritt `index`** (`@registry.step("index", version=1, queue="llm")` in `app.search.tasks`):
+  Chunks aus `body_main` (ohne Zitate/Signatur; leer → `body_text`) und aus Anhangstexten,
+  je Mail höchstens `OLLAMAIL_SEARCH_MAX_CHUNKS_PER_MESSAGE`. Jeder Chunk hat Kopfdaten als
+  Kontext (`From`, `Date`, `Subject`, ggf. `Attachment`), die mit eingebettet und (Gewicht B)
+  volltextindiziert werden. Grenzen folgen Absätzen, Zeilen, Sätzen, Wörtern; benachbarte Chunks
+  überlappen (`OLLAMAIL_SEARCH_CHUNK_SIZE`/`_OVERLAP`). Jede Mail hat mindestens einen Chunk,
+  damit Absender und Betreff immer auffindbar sind. Der Schritt ersetzt die Chunks einer Mail
+  (idempotent).
+- **Anhänge** (`app.search.extract`): PDF (`pypdf`), DOCX (Standardbibliothek: ZIP + XML, DTDs
+  abgelehnt), TXT, HTML. Je Datei ein Kindprozess (`python -m app.search._extract_child`) mit
+  leerer Umgebung (keine Secrets), `RLIMIT_AS`/`RLIMIT_CPU`, ohne Dateischreibrechte, nach
+  `OLLAMAIL_SEARCH_EXTRACTION_TIMEOUT` beendet. Ergebnisse als Statuscodes (`ok`, `too_large`,
+  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`). Kein OCR.
+- **Tabellen:** `search_chunks` (Text, `ts_config` `german`/`english`/`simple` aus der erkannten
+  Sprache, generierte `tsvector`-Spalte mit GIN-Index), `search_embeddings` (`chunk_id`, `model`,
+  `embedding vector(n)` mit HNSW-Index, Kosinus), `search_index_state` (aktives Modell). `n` kommt
+  aus `OLLAMAIL_SEARCH_EMBEDDING_DIMENSIONS`; zur Laufzeit gilt die Länge der Datenbankspalte.
+- **Embeddings** über `LLMGateway.embed` (Aufgabe `embeddings`) in Batches
+  (`OLLAMAIL_SEARCH_EMBED_BATCH_SIZE`, optional Pause), auf der Queue `llm` mit deren
+  Parallelität. Schlägt das Einbetten fehl, werden die Chunks ohne Vektor gespeichert; der Job
+  `search.fill_embeddings` ergänzt sie.
+- **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte vom aktiven Modell ab,
+  rechnet `search.fill_embeddings` alle Chunks batchweise neu; Anfragen nutzen bis zum Abschluss
+  das alte Modell (`LLMGateway.embed(model=...)`), dann wird umgeschaltet und aufgeräumt.
+  Dimensionswechsel: `python -m app.cli search resize` (`docs/OPERATIONS.md` 3.7).
+- **Suche:** `search(session, user_id, query, filters, embedder=..., settings=...)` in
+  `app.search.service` liefert Chunks (für #25) oder mit `per_message=True` die beste Stelle je
+  Mail (klassische Suche). Volltext: `websearch_to_tsquery` in allen drei Konfigurationen,
+  ODER-verknüpft, Rang `ts_rank_cd`. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
+  `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
+  (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
+  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang).
+- **Zugriff:** Jede Abfrage enthält `mailbox_id IN (readable_mailbox_ids(user_id))` aus
+  `app.search.access`, der einzigen Stelle dieser Regel. Heute: eigene Postfächer; Shared
+  Mailboxes werden dort mit #34 ergänzt.
 
 ## 5. Auth & Mandantenmodell
 
@@ -447,6 +602,11 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
   `<Tag>_<Funktionsname>`.
 - Fehler: Problem Details → übersetzte Meldung (Toast bei Mutationen, inline bei Queries), 401 →
   Login-Seite. CSRF per Double-Submit (Cookie `ollamail_csrf`, Header `X-CSRF-Token`).
+- Anmeldung und Route-Guards: Der Root-Route-Guard lädt `GET /api/setup/status` und
+  `GET /api/auth/me`. Nicht eingerichtet → `/setup` (Erst-Admin), ohne Session →
+  `/login?redirect=…`; jede Route ist geschützt, außer sie ist ausdrücklich öffentlich (`/login`,
+  `/setup`). Admin-Seiten zeigen Nicht-Admins eine 403-Seite; durchgesetzt wird es in der API.
+  Externe Provider kommen dynamisch aus `GET /api/auth/providers`. Details: `frontend/README.md`.
 - Echtzeit über SSE (`GET /api/events`): JSON-Events `{"type": "<ressource>.<aktion>", …IDs}`, die
   das Frontend (`useEvents()`) in Query-Invalidierungen übersetzt. Details: `frontend/README.md`.
 - i18n (DE/EN), Dark/Light/System, PWA, Tastaturbedienung und Command Palette (⌘K).

@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth.models import Identity
 from app.auth.providers import VerifiedIdentity
 from app.core.errors import ProblemError
@@ -67,6 +68,13 @@ async def provision_user(
         linked.last_used_at = now
         if role is not None and user.role != role:
             log.info("user_role_synced", user_id=user.id, role=role, provider=identity.provider)
+            await audit.record(
+                db,
+                audit.SYSTEM,
+                audit.AuditAction.USER_ROLE_CHANGED,
+                audit.Target.of(audit.TargetType.USER, user.id),
+                {"from_role": str(user.role), "to_role": str(role), "provider": identity.provider},
+            )
             user.role = role
         return user
 
@@ -99,5 +107,12 @@ async def provision_user(
         await db.rollback()
         raise account_exists() from None
     await db.refresh(user)
+    await audit.record(
+        db,
+        audit.SYSTEM,
+        audit.AuditAction.USER_CREATED,
+        audit.Target.of(audit.TargetType.USER, user.id),
+        {"role": str(user.role), "provider": identity.provider},
+    )
     log.info("user_provisioned", user_id=user.id, role=user.role, provider=identity.provider)
     return user

@@ -8,7 +8,10 @@ import { createQueryClient } from "@/query-client";
 import { createAppRouter } from "@/router";
 
 /** Renders the full app (providers, shell, routes) at the given path. */
-export async function renderApp(path = "/inbox", { extra }: { extra?: ReactNode } = {}) {
+export async function renderApp(
+  path = "/inbox",
+  { extra, timeout }: { extra?: ReactNode; timeout?: number } = {},
+) {
   const queryClient = createQueryClient();
   const router = createAppRouter(queryClient, createMemoryHistory({ initialEntries: [path] }));
   const result = render(
@@ -19,6 +22,6 @@ export async function renderApp(path = "/inbox", { extra }: { extra?: ReactNode 
       </AppProviders>
     </QueryClientProvider>,
   );
-  await screen.findByRole("heading", { level: 1 });
+  await screen.findByRole("heading", { level: 1 }, { timeout });
   return { ...result, router };
 }

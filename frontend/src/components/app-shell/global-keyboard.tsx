@@ -1,5 +1,5 @@
 import { useNavigate } from "@tanstack/react-router";
-import { Keyboard, Languages } from "lucide-react";
+import { Keyboard, Languages, LogOut } from "lucide-react";
 import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -7,7 +7,7 @@ import { useCommandPalette, useCommands } from "@/components/command-palette/com
 import { themeIcons } from "@/components/preference-controls";
 import { useShortcut } from "@/components/shortcuts/shortcut-provider";
 import { useTheme } from "@/components/theme-provider";
-import { useCurrentUser } from "@/hooks/use-current-user";
+import { useChangeLanguage, useCurrentUser, useLogout } from "@/hooks/use-current-user";
 import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
 import { supportedLanguages } from "@/i18n";
 import type { Command } from "@/lib/commands";
@@ -36,6 +36,8 @@ export function GlobalKeyboard() {
   const { t, i18n } = useTranslation();
   const navigate = useNavigate();
   const { isAdmin } = useCurrentUser();
+  const changeLanguage = useChangeLanguage();
+  const { mutate: signOut } = useLogout();
   const { theme, setTheme } = useTheme();
   const palette = useCommandPalette();
   const overlay = useShortcutsOverlay();
@@ -84,8 +86,15 @@ export function GlobalKeyboard() {
         icon: Languages,
         keywords: [t("language.label")],
         active: language === option,
-        run: () => void i18n.changeLanguage(option),
+        run: () => changeLanguage(option),
       })),
+      {
+        id: "account.logout",
+        label: t("auth.logout"),
+        group: "actions" as const,
+        icon: LogOut,
+        run: () => signOut(),
+      },
       // The shortcut overview is of no use without a keyboard.
       ...(hasKeyboard
         ? [
@@ -100,7 +109,18 @@ export function GlobalKeyboard() {
           ]
         : []),
     ],
-    [items, t, i18n, language, navigate, theme, setTheme, overlay.setOpen, hasKeyboard],
+    [
+      items,
+      t,
+      language,
+      navigate,
+      theme,
+      setTheme,
+      changeLanguage,
+      signOut,
+      overlay.setOpen,
+      hasKeyboard,
+    ],
   );
   useCommands(commands);
 

@@ -74,8 +74,18 @@ jobs:
           --health-interval 5s
           --health-timeout 5s
           --health-retries 10
+      # IMAP test server for the mail sync integration tests (tests/mail/imap_server.py).
+      dovecot:
+        image: dovecot/dovecot:2.4.5
+        env:
+          USER_PASSWORD: ollamail-test
+        ports:
+          - 31143:31143
+          - 31993:31993
     env:
       OLLAMAIL_DATABASE_URL: postgresql+asyncpg://ollamail:ollamail@localhost:5432/ollamail_test
+      OLLAMAIL_TEST_IMAP_PASSWORD: ollamail-test
+      OLLAMAIL_TEST_REQUIRE_IMAP: "1"
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:

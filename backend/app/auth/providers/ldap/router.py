@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth import service
 from app.auth.dependencies import AdminSessionDep, SettingsDep
 from app.auth.providers.ldap import service as ldap_service
@@ -64,6 +65,26 @@ async def _directory(db: AsyncSession, name: str) -> LdapDirectory:
     return directory
 
 
+async def _login_failed(db: AsyncSession, provider: str, reason: str) -> None:
+    await audit.record(
+        db,
+        audit.ANONYMOUS,
+        audit.AuditAction.LOGIN_FAILED,
+        details={"provider": provider, "reason": reason},
+    )
+    await db.commit()
+
+
+async def _config_changed(db: AsyncSession, admin_id: Any, directory_id: Any, change: str) -> None:
+    await audit.record(
+        db,
+        audit.Actor.user(admin_id),
+        audit.AuditAction.IDP_CONFIG_CHANGED,
+        audit.Target.of(audit.TargetType.IDP, directory_id),
+        details={"kind": "ldap", "change": change},
+    )
+
+
 def _unavailable() -> ProblemError:
     return ProblemError(
         503,
@@ -102,25 +123,36 @@ async def ldap_login(
         await service.throttle_account(db, settings, account)
     except ProblemError:
         log.warning("login_rejected", reason="locked", provider=directory.provider)
+        await _login_failed(db, directory.provider, "locked")
         raise
     try:
         provider = ldap_service.provider_for(directory, settings.auth)
     except ProblemError:
         log.error("ldap_login_unavailable", provider=directory.provider, error="plaintext")
+        await _login_failed(db, directory.provider, "directory_unavailable")
         raise _unavailable() from None
     try:
         identity = await provider.authenticate(body.username, body.password)
     except LdapError as exc:
         log.error("ldap_login_unavailable", provider=directory.provider, error=exc.code)
+        await _login_failed(db, directory.provider, "directory_unavailable")
         raise _unavailable() from None
     if identity is None:
         log.info("login_failed", reason="invalid_credentials", provider=directory.provider)
+        await _login_failed(db, directory.provider, "invalid_credentials")
         raise ProblemError(401, detail="Invalid user name or password.")
     user = await provision_user(db, identity, role=provider.role(identity))
     if user is None:
         log.info("login_failed", reason="user_inactive", provider=directory.provider)
+        await _login_failed(db, directory.provider, "user_inactive")
         raise ProblemError(401, detail="Invalid user name or password.")
     await service.reset_account_throttle(db, settings, account)
+    await audit.record(
+        db,
+        audit.Actor.user(user.id),
+        audit.AuditAction.LOGIN_SUCCEEDED,
+        details={"provider": identity.provider},
+    )
     await service.start_session(db, settings, request, response, user, provider=identity.provider)
     log.info("login_succeeded", user_id=user.id, provider=identity.provider)
     return UserRead.model_validate(user)
@@ -153,6 +185,8 @@ async def create_directory(
     )
     db.add(directory)
     try:
+        await db.flush()
+        await _config_changed(db, admin.user_id, directory.id, "created")
         await db.commit()
     except IntegrityError:
         await db.rollback()
@@ -189,6 +223,7 @@ async def update_directory(
     directory.settings = body.settings.model_dump(mode="json")
     if body.bind_password is not None:
         directory.bind_password = body.bind_password
+    await _config_changed(db, admin.user_id, directory.id, "updated")
     await db.commit()
     await db.refresh(directory)
     log.info("ldap_directory_updated", directory_id=directory.id, by_user_id=admin.user_id)
@@ -201,6 +236,7 @@ async def delete_directory(name: str, admin: AdminSessionDep, db: DbDep) -> Resp
     directory = await _directory(db, name)
     directory_id = directory.id
     await ldap_service.delete_directory(db, directory)
+    await _config_changed(db, admin.user_id, directory_id, "deleted")
     await db.commit()
     log.info("ldap_directory_deleted", directory_id=directory_id, by_user_id=admin.user_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

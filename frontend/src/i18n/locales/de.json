@@ -107,9 +107,87 @@
       "serverChecking": "Verbindung wird geprüft"
     },
     "admin": {
-      "emptyTitle": "Noch keine Verwaltungsfunktionen",
-      "emptyDescription": "Benutzer, Anmeldeverfahren, Mail-Provider und Sprachmodelle werden hier verwaltet, sobald diese Bereiche verfügbar sind.",
-      "emptyAction": "Eigene Einstellungen öffnen"
+      "security": "Sicherheit",
+      "auditDescription": "Anmeldungen, Rollenänderungen, Schlüsselrotation und weitere Sicherheitsereignisse.",
+      "more": "Benutzer, Anmeldeverfahren, Mail-Provider und Sprachmodelle werden hier verwaltet, sobald diese Bereiche verfügbar sind."
+    },
+    "audit": {
+      "title": "Audit-Log",
+      "back": "Zurück zur Verwaltung",
+      "export": "CSV exportieren",
+      "filters": "Filter",
+      "action": "Ereignis",
+      "allActions": "Alle Ereignisse",
+      "from": "Von",
+      "to": "Bis",
+      "reset": "Filter zurücksetzen",
+      "loadMore": "Ältere Einträge laden",
+      "loadingMore": "Wird geladen…",
+      "emptyTitle": "Keine Einträge",
+      "emptyDescription": "Sicherheitsereignisse wie Anmeldungen und Rollenänderungen werden hier protokolliert.",
+      "emptyFilteredDescription": "Keine Einträge passen zu den Filtern.",
+      "columns": {
+        "time": "Zeit",
+        "event": "Ereignis",
+        "actor": "Von",
+        "target": "Betrifft",
+        "details": "Details"
+      },
+      "actor": {
+        "system": "System",
+        "anonymous": "Nicht angemeldet",
+        "deleted": "Gelöschter Benutzer"
+      },
+      "targets": {
+        "user": "Benutzer",
+        "session": "Sitzung",
+        "mailbox": "Postfach",
+        "idp": "Anmeldeverfahren",
+        "settings": "Einstellungen"
+      },
+      "groups": {
+        "auth": "Anmeldung",
+        "users": "Benutzer",
+        "settings": "Einstellungen",
+        "mailboxes": "Postfächer",
+        "data": "Daten",
+        "operations": "Betrieb"
+      },
+      "actions": {
+        "auth": {
+          "setup_completed": "Instanz eingerichtet",
+          "login_succeeded": "Angemeldet",
+          "login_failed": "Anmeldung fehlgeschlagen",
+          "logout": "Abgemeldet",
+          "session_revoked": "Sitzungen beendet"
+        },
+        "user": {
+          "created": "Benutzer angelegt",
+          "role_changed": "Rolle geändert",
+          "deleted": "Benutzer gelöscht"
+        },
+        "idp": {
+          "config_changed": "Anmeldeverfahren geändert"
+        },
+        "ai": {
+          "settings_changed": "Sprachmodell-Einstellungen geändert"
+        },
+        "mailbox": {
+          "created": "Postfach hinzugefügt",
+          "shared": "Postfach freigegeben",
+          "deleted": "Postfach entfernt"
+        },
+        "data": {
+          "exported": "Daten exportiert",
+          "deleted": "Daten gelöscht"
+        },
+        "crypto": {
+          "keys_rotated": "Schlüssel rotiert"
+        },
+        "audit": {
+          "exported": "Audit-Log exportiert"
+        }
+      }
     }
   },
   "notFound": {
@@ -131,5 +209,75 @@
     "unavailable": "Der Dienst ist vorübergehend nicht verfügbar.",
     "unknown": "Etwas ist schiefgelaufen.",
     "requestId": "Anfrage-ID: {{id}}"
+  },
+  "auth": {
+    "logout": "Abmelden",
+    "fields": {
+      "email": "E-Mail-Adresse",
+      "password": "Passwort",
+      "displayName": "Name",
+      "setupToken": "Einrichtungscode"
+    },
+    "passwordTooShort_one": "Das Passwort muss mindestens {{count}} Zeichen lang sein.",
+    "passwordTooShort_other": "Das Passwort muss mindestens {{count}} Zeichen lang sein.",
+    "login": {
+      "title": "Bei ollamail anmelden",
+      "description": "Melde dich mit deinem ollamail-Konto an.",
+      "submit": "Anmelden",
+      "submitting": "Anmelden…",
+      "invalidCredentials": "E-Mail-Adresse oder Passwort ist falsch.",
+      "throttled": "Zu viele Anmeldeversuche. Bitte warte einige Minuten und versuche es erneut.",
+      "or": "oder",
+      "providers": "Weitere Anmeldemethoden",
+      "withProvider": "Weiter mit {{provider}}",
+      "noMethods": "Es ist keine Anmeldemethode eingerichtet. Wende dich an deine Administration."
+    },
+    "setup": {
+      "step": "Schritt {{step}} von {{of}}",
+      "title": "ollamail einrichten",
+      "description": "Lege das erste Konto an. Es erhält Administratorrechte und kann weitere Nutzer und Anmeldemethoden hinzufügen.",
+      "passwordHint": "Mindestens 12 Zeichen, sofern der Server keine andere Länge vorgibt.",
+      "tokenHint": "Steht beim Start im Server-Log (setup_code) oder wird über OLLAMAIL_SETUP_TOKEN gesetzt.",
+      "invalidToken": "Der Einrichtungscode ist falsch.",
+      "alreadyInitialized": "Diese Instanz ist bereits eingerichtet. Melde dich stattdessen an.",
+      "submit": "Administrator anlegen",
+      "submitting": "Wird angelegt…",
+      "doneTitle": "Administrator angelegt",
+      "doneDescription": "Du bist als {{email}} angemeldet.",
+      "providersTitle": "Identity-Provider (optional)",
+      "providersDescription": "Binde Microsoft Entra ID, Google, GitHub oder LDAP an, damit sich andere mit ihrem bestehenden Konto anmelden können. Das geht auch später im Admin-Bereich.",
+      "providersAction": "Identity-Provider einrichten",
+      "continue": "Weiter zum Posteingang"
+    }
+  },
+  "account": {
+    "menu": "Konto",
+    "settings": "Einstellungen",
+    "title": "Konto",
+    "roles": {
+      "admin": "Administrator",
+      "user": "Nutzer"
+    },
+    "timeZone": "Zeitzone",
+    "timeZoneDescription": "Für Datumsangaben, Digests und Erinnerungen.",
+    "sessions": {
+      "title": "Aktive Sitzungen",
+      "unknownDevice": "Unbekanntes Gerät",
+      "device": "{{browser}} unter {{os}}",
+      "current": "Dieses Gerät",
+      "lastActive": "Zuletzt aktiv: {{date}}",
+      "revoke": "Abmelden",
+      "revokeLabel": "{{device}} abmelden",
+      "revokeOthers": "Alle anderen Sitzungen abmelden"
+    }
+  },
+  "forbidden": {
+    "title": "Kein Zugriff",
+    "description": "Diese Seite ist nur für Administratoren zugänglich.",
+    "action": "Zum Posteingang"
+  },
+  "rootError": {
+    "title": "ollamail konnte nicht geladen werden",
+    "retry": "Erneut versuchen"
   }
 }

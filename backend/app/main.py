@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 
 from app.ai.llm import EnvConfigResolver, LLMGateway
+from app.audit.router import router as audit_router
 from app.auth.csrf import CSRFMiddleware
 from app.auth.providers import AuthProviderRegistry
 from app.auth.providers.ldap.router import login_router as ldap_login_router
@@ -25,6 +26,7 @@ from app.core.health import router as health_router
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
+from app.todos.router import router as todos_router
 from app.users.router import router as users_router
 
 
@@ -80,6 +82,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ldap_login_router)
     app.include_router(ldap_router)
     app.include_router(users_router)
+    app.include_router(todos_router)
+    app.include_router(audit_router)
     return app
 
 
