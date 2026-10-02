@@ -11,10 +11,12 @@ from app.auth.providers.ldap import models as ldap_models
 from app.auth.providers.oidc import models as oidc_models
 from app.core.db import Base
 from app.digest import models as digest_models
+from app.drafts import models as drafts_models
 from app.mail import models as mail_models
 from app.privacy import models as privacy_models
 from app.processing import models as processing_models
 from app.rag import models as rag_models
+from app.scim import models as scim_models
 from app.search import models as search_models
 from app.todos import models as todo_models
 from app.triage import models as triage_models
@@ -26,6 +28,7 @@ __all__ = [
     "audit_models",
     "auth_models",
     "digest_models",
+    "drafts_models",
     "github_models",
     "ldap_models",
     "mail_models",
@@ -33,6 +36,7 @@ __all__ = [
     "privacy_models",
     "processing_models",
     "rag_models",
+    "scim_models",
     "search_models",
     "todo_models",
     "triage_models",

@@ -170,7 +170,11 @@ async def connect_graph_mailbox(
         redirect_uri=flow.redirect_uri,
         state=flow.state,
         verifier=flow.verifier,
-        scopes=delegated_scopes(settings.graph, shared=flow.shared_mailbox is not None),
+        scopes=delegated_scopes(
+            settings.graph,
+            shared=flow.shared_mailbox is not None,
+            send=settings.graph.send_enabled,
+        ),
     )
     response.set_cookie(
         FLOW_COOKIE,
@@ -312,7 +316,9 @@ async def graph_callback(
                 code=code,
                 redirect_uri=flow.redirect_uri,
                 verifier=flow.verifier,
-                scopes=delegated_scopes(settings.graph, shared=shared),
+                scopes=delegated_scopes(
+                    settings.graph, shared=shared, send=settings.graph.send_enabled
+                ),
             )
         if not tokens.refresh_token:
             return fail("offline_access_missing")

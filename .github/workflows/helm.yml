@@ -1,0 +1,244 @@
+name: Helm
+
+# Helm chart (deploy/helm/ollamail): lint, render, schema validation and an install test
+# in a kind cluster with images built from the same commit. Separate from ci.yml so it only
+# runs when the chart, the images or this workflow change.
+on:
+  pull_request:
+    paths:
+      - "deploy/helm/**"
+      - "backend/Dockerfile"
+      - "backend/migrations/**"
+      - "frontend/Dockerfile"
+      - "frontend/caddy/**"
+      - ".github/workflows/helm.yml"
+  push:
+    branches: [main]
+    paths:
+      - "deploy/helm/**"
+      - "backend/Dockerfile"
+      - "backend/migrations/**"
+      - "frontend/Dockerfile"
+      - "frontend/caddy/**"
+      - ".github/workflows/helm.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+permissions:
+  contents: read
+
+env:
+  CHART: deploy/helm/ollamail
+  HELM_VERSION: v3.22.0
+  KIND_VERSION: v0.33.0
+  KIND_SHA256: aee6151561422756b764a4ae28e7f44cda5af5a9eead3cc9985112b1de8d8e0d
+  KUBECONFORM_VERSION: v0.8.0
+  KUBECONFORM_SHA256: 9bc2bffbf71f261128533edaf912153948b7ff238f9a531ae6d34466ec287883
+  CNPG_VERSION: "1.30.1"
+  CNPG_SHA256: 37237f145d8138256ea25ae830f87759255665ff08f8d552fdd8224a5ec032fb
+
+jobs:
+  lint:
+    name: Lint and validate
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install helm and kubeconform
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin" && cd "$RUNNER_TEMP"
+          curl -fsSLO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          echo "$(curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum")" | sha256sum -c
+          tar xzf "helm-${HELM_VERSION}-linux-amd64.tar.gz" -C bin --strip-components=1 linux-amd64/helm
+          curl -fsSLO "https://github.com/yannh/kubeconform/releases/download/${KUBECONFORM_VERSION}/kubeconform-linux-amd64.tar.gz"
+          echo "${KUBECONFORM_SHA256}  kubeconform-linux-amd64.tar.gz" | sha256sum -c
+          tar xzf kubeconform-linux-amd64.tar.gz -C bin kubeconform
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: helm lint
+        run: |
+          helm lint --strict "$CHART" --set secrets.existingSecret=ollamail-secrets
+          for values in deploy/helm/ci/values-*.yaml; do
+            helm lint --strict "$CHART" -f "$values"
+          done
+
+      # Default values, the kind values and a configuration with every option enabled,
+      # validated against the oldest supported and a current Kubernetes version.
+      - name: helm template + kubeconform
+        run: |
+          mkdir -p rendered
+          helm template ollamail "$CHART" --set secrets.existingSecret=ollamail-secrets > rendered/default.yaml
+          helm template ollamail "$CHART" -f deploy/helm/ci/values-kind.yaml > rendered/kind.yaml
+          helm template ollamail "$CHART" -f deploy/helm/ci/values-full.yaml > rendered/full.yaml
+          for version in 1.27.0 1.34.0; do
+            kubeconform -strict -summary -kubernetes-version "$version" rendered/*.yaml
+          done
+
+      - name: Invalid values are rejected
+        run: |
+          expect_failure() {
+            if helm template ollamail "$CHART" "$@" > /dev/null 2> error.txt; then
+              echo "::error::helm template succeeded with: $*"
+              exit 1
+            fi
+            echo "rejected ($*): $(cat error.txt)"
+          }
+          expect_failure
+          expect_failure --set secrets.existingSecret=s --set config.OLLAMAIL_SECRET_KEY=x
+          expect_failure --set secrets.existingSecret=s --set config.OLLAMAIL_MAIL_GRAPH_CLIENT_SECRET=x
+          expect_failure --set secrets.existingSecret=s --set 'worker.groups[0].name=all' --set 'worker.groups[0].queues={sync,llm}'
+          expect_failure --set secrets.existingSecret=s --set database.external.host=db
+          expect_failure --set secrets.existingSecret=s --set worker.shutdownTimeout=60
+
+  kind:
+    name: Install test (kind, ${{ matrix.database }})
+    needs: lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    strategy:
+      fail-fast: false
+      matrix:
+        database: [postgres, cloudnativepg]
+    env:
+      NAMESPACE: ollamail
+      RELEASE: ollamail
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Install helm and kind
+        run: |
+          mkdir -p "$RUNNER_TEMP/bin" && cd "$RUNNER_TEMP"
+          curl -fsSLO "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz"
+          echo "$(curl -fsSL "https://get.helm.sh/helm-${HELM_VERSION}-linux-amd64.tar.gz.sha256sum")" | sha256sum -c
+          tar xzf "helm-${HELM_VERSION}-linux-amd64.tar.gz" -C bin --strip-components=1 linux-amd64/helm
+          curl -fsSLo bin/kind "https://github.com/kubernetes-sigs/kind/releases/download/${KIND_VERSION}/kind-linux-amd64"
+          echo "${KIND_SHA256}  bin/kind" | sha256sum -c
+          chmod +x bin/kind
+          echo "$RUNNER_TEMP/bin" >> "$GITHUB_PATH"
+
+      - name: Create kind cluster
+        run: |
+          kind create cluster --name ollamail --wait 120s
+          kubectl version
+          # The chart's pods must satisfy the "restricted" Pod Security Standard.
+          kubectl create namespace "$NAMESPACE"
+          kubectl label namespace "$NAMESPACE" pod-security.kubernetes.io/enforce=restricted
+
+      # Images of this commit; the layer cache of the release workflow (main) is reused.
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      - name: Build api image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          load: true
+          provenance: false
+          sbom: false
+          tags: ollamail-api:ci
+          cache-from: type=gha,scope=api
+      - name: Build frontend image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          load: true
+          provenance: false
+          sbom: false
+          tags: ollamail-frontend:ci
+          cache-from: type=gha,scope=frontend
+      - name: Load images into kind
+        run: kind load docker-image --name ollamail ollamail-api:ci ollamail-frontend:ci
+
+      - name: Database (pgvector)
+        if: matrix.database == 'postgres'
+        run: |
+          # Own namespace: the postgres image runs as root.
+          kubectl create namespace ollamail-db
+          kubectl -n ollamail-db apply -f deploy/helm/ci/postgres.yaml
+          kubectl -n ollamail-db rollout status deploy/postgres --timeout=180s
+          echo "DATABASE_ARGS=" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=postgresql+asyncpg://ollamail:ollamail-ci@postgres.ollamail-db:5432/ollamail" >> "$GITHUB_ENV"
+
+      - name: Database (CloudNativePG)
+        if: matrix.database == 'cloudnativepg'
+        run: |
+          curl -fsSLo cnpg.yaml "https://github.com/cloudnative-pg/cloudnative-pg/releases/download/v${CNPG_VERSION}/cnpg-${CNPG_VERSION}.yaml"
+          echo "${CNPG_SHA256}  cnpg.yaml" | sha256sum -c
+          kubectl apply --server-side -f cnpg.yaml
+          kubectl -n cnpg-system rollout status deploy/cnpg-controller-manager --timeout=180s
+          # The operator's admission webhook may need a moment after the rollout.
+          for attempt in $(seq 1 30); do
+            sed 's/size: 20Gi/size: 1Gi/' deploy/helm/examples/cnpg-cluster.yaml \
+              | kubectl -n "$NAMESPACE" apply -f - && break
+            test "$attempt" -lt 30
+            sleep 5
+          done
+          kubectl -n "$NAMESPACE" wait cluster/ollamail-db --for=condition=Ready --timeout=300s
+          echo "DATABASE_ARGS=--set database.cloudnativepg.cluster=ollamail-db" >> "$GITHUB_ENV"
+          echo "DATABASE_URL=" >> "$GITHUB_ENV"
+
+      - name: Application secret
+        run: |
+          args=(--from-literal=OLLAMAIL_SECRET_KEY="$(openssl rand -base64 32)")
+          if [ -n "$DATABASE_URL" ]; then
+            args+=(--from-literal=OLLAMAIL_DATABASE_URL="$DATABASE_URL")
+          fi
+          kubectl -n "$NAMESPACE" create secret generic ollamail-secrets "${args[@]}"
+
+      - name: helm install
+        run: |
+          # shellcheck disable=SC2086
+          helm install "$RELEASE" "$CHART" -n "$NAMESPACE" -f deploy/helm/ci/values-kind.yaml \
+            $DATABASE_ARGS --wait --timeout 10m
+
+      - name: Smoke test
+        run: |
+          kubectl -n "$NAMESPACE" get pods -o wide
+          helm test "$RELEASE" -n "$NAMESPACE" --logs --timeout 5m
+          # Same path through the frontend from outside the cluster.
+          kubectl -n "$NAMESPACE" port-forward "svc/$RELEASE-frontend" 8080:8080 > /dev/null &
+          for _ in $(seq 1 30); do
+            curl -fsS http://127.0.0.1:8080/api/readyz > readyz.json 2> /dev/null && break
+            sleep 2
+          done
+          cat readyz.json; echo
+          jq -e '.status == "ok" and .checks.database == "ok"' readyz.json
+          curl -fsS http://127.0.0.1:8080/ | grep -q '<div id="root">'
+          # Migrations are at head, the workers are up and have not restarted.
+          kubectl -n "$NAMESPACE" exec "deploy/$RELEASE-api" -- alembic current | tee alembic.txt
+          grep -q '(head)' alembic.txt
+          for group in main llm; do
+            kubectl -n "$NAMESPACE" rollout status "deploy/$RELEASE-worker-$group" --timeout=120s
+            kubectl -n "$NAMESPACE" logs "deploy/$RELEASE-worker-$group" | grep -q worker_started
+          done
+          sleep 20
+          restarts=$(kubectl -n "$NAMESPACE" get pods -l app.kubernetes.io/instance="$RELEASE" \
+            -o jsonpath='{range .items[*]}{range .status.containerStatuses[*]}{.restartCount}{"\n"}{end}{end}' \
+            | awk '{s+=$1} END {print s+0}')
+          echo "container restarts: $restarts"
+          test "$restarts" -eq 0
+
+      # Runs the pre-upgrade migration hook and rolls the workloads.
+      - name: helm upgrade
+        run: |
+          # shellcheck disable=SC2086
+          helm upgrade "$RELEASE" "$CHART" -n "$NAMESPACE" -f deploy/helm/ci/values-kind.yaml \
+            $DATABASE_ARGS --set api.replicaCount=2 --wait --timeout 10m
+          helm test "$RELEASE" -n "$NAMESPACE" --logs --timeout 5m
+
+      - name: Diagnostics
+        if: failure()
+        run: |
+          kubectl -n "$NAMESPACE" get all,pvc,networkpolicy,events -o wide || true
+          kubectl -n "$NAMESPACE" describe pods || true
+          for pod in $(kubectl -n "$NAMESPACE" get pods -o name); do
+            echo "::group::logs $pod"
+            kubectl -n "$NAMESPACE" logs "$pod" --all-containers --tail=200 || true
+            echo "::endgroup::"
+          done

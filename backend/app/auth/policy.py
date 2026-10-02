@@ -81,10 +81,18 @@ def mapped_role(
     provider: str,
     groups: Iterable[str],
     provider_role: UserRole | None = None,
+    directory_groups: Iterable[tuple[str, Iterable[str]]] = (),
 ) -> UserRole:
-    """Role for an identity of ``provider`` with ``groups`` (mapping on)."""
-    folded = frozenset(g.casefold() for g in groups)
-    matched = [rule.role for rule in rules if rule.matches(provider, folded)]
+    """Role for an identity of ``provider`` with ``groups`` (mapping on).
+
+    ``directory_groups`` are further ``(provider, groups)`` pairs of the same user that a
+    directory maintains outside of logins (SCIM, #95); their rules count as well.
+    """
+    rules = list(rules)
+    matched: list[UserRole] = []
+    for source, source_groups in [(provider, groups), *directory_groups]:
+        folded = frozenset(g.casefold() for g in source_groups)
+        matched.extend(rule.role for rule in rules if rule.matches(source, folded))
     # A role the provider derives itself (LDAP admin_groups) counts like a matching rule;
     # "user" from a provider is only its default and does not override the default role.
     if provider_role is not None and provider_role is not UserRole.USER:
@@ -93,11 +101,17 @@ def mapped_role(
 
 
 async def resolve_role(
-    db: AsyncSession, provider: str, groups: Iterable[str], provider_role: UserRole | None
+    db: AsyncSession,
+    provider: str,
+    groups: Iterable[str],
+    provider_role: UserRole | None,
+    directory_groups: Iterable[tuple[str, Iterable[str]]] = (),
 ) -> UserRole | None:
     """The role to apply at this login; ``None`` leaves the user's role unchanged."""
     policy = await get_policy(db)
     if not policy.role_mapping_enabled:
         return provider_role
     rules = [Rule(r.group, r.provider, r.role) for r in await list_rules(db)]
-    return mapped_role(rules, policy.default_role, provider, groups, provider_role)
+    return mapped_role(
+        rules, policy.default_role, provider, groups, provider_role, directory_groups
+    )

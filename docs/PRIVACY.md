@@ -26,12 +26,12 @@ Feature, sondern eine Randbedingung für jede Änderung.
 |---|---|
 | Secrets | IMAP-Passwörter, OAuth-Tokens, IdP-Client-Secrets, LDAP-Bind-Passwörter: AES-256-GCM, Envelope-Encryption mit Master-Key aus `OLLAMAIL_SECRET_KEY` (Key-Rotation unterstützt) |
 | At rest | Empfehlung: verschlüsseltes Volume/Dateisystem. Optional: Verschlüsselung von Mail-Bodies/Anhängen auf Anwendungsebene (Feature-Flag) |
-| Microsoft 365 | OAuth-Tokens verschlüsselt (`mail_mailboxes.credentials`), Client-Secret nur in der Umgebung. App-only-Zugriff nur mit Einschränkung auf freigegebene Postfächer (RBAC for Applications / `ApplicationAccessPolicy`, siehe `docs/providers/microsoft365.md`). Change Notifications optional, ohne Inhalte (nur IDs, `clientState` per HMAC geprüft) |
-| In transit | TLS für IMAP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting, IMAP: `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS`), HTTPS hinter Reverse Proxy |
+| Microsoft 365 | OAuth-Tokens verschlüsselt (`mail_mailboxes.credentials`), Client-Secret nur in der Umgebung. Zum Senden wird beim Verbinden `Mail.Send` angefordert (abschaltbar mit `OLLAMAIL_MAIL_GRAPH_SEND_ENABLED=false`). App-only-Zugriff nur mit Einschränkung auf freigegebene Postfächer (RBAC for Applications / `ApplicationAccessPolicy`, siehe `docs/providers/microsoft365.md`). Change Notifications optional, ohne Inhalte (nur IDs, `clientState` per HMAC geprüft) |
+| In transit | TLS für IMAP/SMTP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting, IMAP und SMTP: `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS`), HTTPS hinter Reverse Proxy |
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
 | Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
 | Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
-| Audit-Log | Append-only und hash-verkettet: Login (Erfolg/Fehlschlag), Logout, Setup, Session-Widerruf, Nutzer angelegt, Rollenänderung, IdP- und KI-Einstellungen, Postfach angelegt/entfernt/freigegeben, Export, Löschung, Key-Rotation. Nur IDs und Codes, keine Inhalte (siehe unten) |
+| Audit-Log | Append-only und hash-verkettet: Login (Erfolg/Fehlschlag), Logout, Setup, Session-Widerruf, Nutzer angelegt/geändert (SCIM), Rollenänderung, SCIM-Gruppen und -Mitgliedschaften, IdP- und KI-Einstellungen, Postfach angelegt/entfernt/freigegeben, Mail gesendet, Export, Löschung, Key-Rotation. Nur IDs und Codes, keine Inhalte (siehe unten) |
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. Die eingebaute Telemetrie von ONNX Runtime (von Piper genutzt) ist per `ORT_DISABLE_TELEMETRY=1` abgeschaltet, im Code und im Image (Test: `tests/ai/tts/test_piper.py`) |
@@ -39,10 +39,11 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename, die Verzeichnis-ID (`objectGUID`/`entryUUID`) und die Gruppen-DNs des letzten Logins (`auth_identities.groups`, für Rollen-Mapping und Gruppenzuweisungen von Shared Mailboxes; mit dem Nutzer gelöscht). Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
 | Mails anzeigen | HTML serverseitig sanitisiert (`nh3`), im Browser zusätzlich in einem sandboxed `iframe` ohne Skripte mit eigener CSP. Externe Bilder (Tracking-Pixel) sind blockiert, bis der Nutzer sie für eine Mail lädt; dann ohne Referrer. Anhänge nur als Download (`application/octet-stream`, `nosniff`, CSP `sandbox`), inline nur Rasterbilder für `cid:`. Gelesen/ungelesen geht nur nach ausdrücklicher Aktion des Nutzers (Öffnen, `u`) an den Mailserver |
 | Anhänge lesen | Textextraktion (PDF, DOCX, TXT, HTML) und OCR gescannter PDFs und Bilder (Tesseract, lokal, abschaltbar per `OLLAMAIL_SEARCH_OCR_MODE`) in einem eigenen Prozess ohne Umgebungsvariablen (keine Secrets), mit Grenzen für Dateigröße, Laufzeit, Speicher und ohne Schreibrechte; Tesseract läuft als Kind dieses Prozesses mit denselben Grenzen, Bild und Text nur über Pipes, bei Timeout wird die Prozessgruppe beendet. Erkannter Text landet nur im Suchindex (gelöscht mit Mail/Anhang); Fehler nur als Statuscode (Test `tests/search/test_ocr.py`) |
-| Zugriff auf Postfächer | Eine einzige Regel für alle Features: `accessible_mailbox_ids(user)` in `app/mail/access.py` (eigene Postfächer und zugewiesene Shared Mailboxes), immer als SQL-Filter, ohne Cache. Ein Entzug wirkt mit der nächsten Anfrage in Inbox, Thread, Anhängen, Triage, Todos, Suche, RAG (auch gespeicherte Antworten und Zitate) und Digest (auch gespeicherte Digests und Podcast-Feed); getestet je Feature in `tests/shared/test_access.py`. Nutzer eines Shared Mailbox haben nur Leserecht |
+| Zugriff auf Postfächer | Eine einzige Regel für alle Features: `accessible_mailbox_ids(user)` in `app/mail/access.py` (eigene Postfächer und zugewiesene Shared Mailboxes), immer als SQL-Filter, ohne Cache. Ein Entzug wirkt mit der nächsten Anfrage in Inbox, Thread, Anhängen, Triage, Todos, Suche, RAG (auch gespeicherte Antworten und Zitate), Digest (auch gespeicherte Digests und Podcast-Feed) und Antwortentwürfen; getestet je Feature in `tests/shared/test_access.py` (Entwürfe: `tests/drafts/test_api.py`). Nutzer eines Shared Mailbox haben nur Leserecht |
 | Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/mail/access.py`), getestet in `tests/search/test_service.py`, `tests/rag/` und `tests/shared/` (Nutzer A erfährt nichts aus Mails von Nutzer B, auch nicht mit dessen Postfach als Filter). Mailinhalte stehen im Prompt nur als markierte Daten, die Antwort führt nichts aus; Zitate können nur auf tatsächlich abgerufene Chunks zeigen. Fragen, Antworten und Prompts nie in Logs (nur IDs, Anzahlen, Zeiten wie `ttft_ms`) |
 | Single Sign-on (OIDC) | Gespeichert werden nur `sub` (Identität), Gruppen-Claims (für das Rollen-Mapping) und beim ersten Login E-Mail-Adresse und Name; IdP-Tokens nie. Client-Secrets verschlüsselt. `state`/`nonce`/PKCE-Verifier nur im verschlüsselten Einmal-Cookie. Logs nur mit Provider und statischem Fehlercode, nie Claims oder Tokens |
 | Login mit GitHub | Gespeichert werden nur die numerische GitHub-Nutzer-ID, die Teams (für das Rollen-Mapping; bei Org-Beschränkung nur Teams der erlaubten Organisationen) und beim ersten Login die verifizierte primäre E-Mail-Adresse und der Name. Das Access-Token wird nur im Callback benutzt, nie gespeichert. Client-Secrets verschlüsselt. Logs nur mit Provider und statischem Fehlercode ([`auth/github.md`](auth/github.md)) |
+| Antwortentwürfe und Versand | Entwürfe erzeugt das Modell der Aufgabe `reply_draft` (lokal, solange der Admin keinen Cloud-Provider zuweist; dann erscheint die Aufgabe in der Cloud-Anzeige). Kontext nur aus Mails, die der Nutzer lesen darf (SQL-Filter); Stilbeispiele nur aus den eigenen gesendeten Mails eigener Postfächer, pro Nutzer abschaltbar. Mailinhalte stehen nur als markierte Daten im Prompt. **Nichts wird automatisch gesendet**: Senden ist ein eigener Request des Autors, nur aus eigenen Postfächern (Shared Mailboxes: nur lesen). Empfänger kommen aus den Kopfzeilen, nie vom Modell; Kopfzeilen werden gegen Header-Injection geprüft. Jeder Versand steht im Audit-Log (`mail.sent`, nur IDs und Anzahl Empfänger). Entwürfe, Prompts, Anweisungen und Antworten nie in Logs (nur IDs, Anzahlen, Zeiten, Fehlercodes); SMTP-Serverantworten werden weder geloggt noch weitergegeben |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
 
 ### Logging im Detail
@@ -150,6 +151,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
 | `mailbox.shared`, `mailbox.unshared` | Admin weist ein Shared Mailbox einem Nutzer oder einer Gruppe zu bzw. entzieht es (`/api/admin/shared-mailboxes/{id}/assignments`; je Eintrag `principal`, Nutzer-ID bzw. Gruppenname – nur wenn kurz und ohne `@`, sonst die Zuweisungs-ID – und `provider`); Anlegen eines Shared Mailbox als `mailbox.created` mit `shared: true` | aktiv |
 | `mailbox.deleted` | `app.mail.service.delete_mailbox`; über die Postfach-API mit dem Nutzer als Akteur | aktiv |
+| `mail.sent` | Antwort gesendet (`POST /api/drafts/{id}/send`): Ziel ist das Postfach; `details` nur `draft_id`, `message_id` (beantwortete Mail), `reply_all`, `recipient_count`, `refused` (abgelehnte Empfänger) und `sent_copy` (Kopie in „Gesendet“ abgelegt) | aktiv |
 | `data.exported` | Datenexport: angefordert und heruntergeladen (`details.stage`: `requested`, `downloaded`; `export_id`) | aktiv |
 | `data.deleted` | Aufbewahrungsjob `privacy.retention`, nur wenn er etwas gelöscht hat: Anzahlen (`mails`, `attachments`, `search_chunks`, `threads`, `audit_events`) und neuer Startpunkt der Hash-Kette | aktiv |
 | `data.retention_changed` | Admin → Aufbewahrung: geänderte Fristen in Tagen (`mail_days`, …) | aktiv |
@@ -164,7 +166,8 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   eigene Postfächer (ohne Zugangsdaten), eigene Kategorien, Kategorie-Einstellungen,
   Absenderregeln, Korrekturen und die Triage-Ergebnisse der eigenen Mails, Aufgaben,
   Digest-Einstellungen (ohne Feed-Token) und Digests mit Audiodateien, Fragen-Verläufe mit
-  Zitaten (`app/privacy/export.py`, `manifest.json` listet den Inhalt). Mails selbst sind nicht
+  Zitaten, Antwortentwürfe mit Signatur und Einstellungen (`app/privacy/export.py`,
+  `manifest.json` listet den Inhalt). Mails selbst sind nicht
   enthalten; sie liegen beim Mail-Anbieter. Jede Abfrage filtert auf den Nutzer bzw. auf
   Postfächer, deren Eigentümer er ist; `tests/privacy/test_export.py` prüft, dass keine IDs,
   Texte oder Dateien anderer Nutzer im ZIP stehen. Der Download (`GET
@@ -221,6 +224,14 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   Gesprächen. Nutzer löschen einzelne oder alle Gespräche selbst (`DELETE /rag/conversations`);
   der tägliche Job `rag.purge_conversations` löscht Gespräche, in denen seit
   `OLLAMAIL_RAG_HISTORY_RETENTION_DAYS` (Standard 90) keine Frage gestellt wurde.
+  Umsetzung Antwortentwürfe (`backend/app/drafts/`, #92): `reply_drafts` hängt per
+  `ON DELETE CASCADE` an Nutzer und Postfach; beantwortete Mail und Thread werden beim Löschen
+  auf `NULL` gesetzt (der Entwurf bleibt sichtbar, kann aber nicht mehr gesendet werden).
+  `reply_draft_settings` (Signatur, Stilbeispiele) hängt am Nutzer. Der tägliche Job
+  `drafts.purge` löscht Entwürfe – gesendete, verworfene und offene –, die seit
+  `OLLAMAIL_DRAFTS_RETENTION_DAYS` (Standard 30) nicht geändert wurden; Nutzer löschen einzelne
+  Entwürfe selbst (`DELETE /drafts/{id}`). Gesendete Mails selbst liegen beim Mail-Anbieter
+  (Ordner „Gesendet“) und kommen per Sync wie jede andere Mail in `mail_messages`.
   Umsetzung API (`DELETE /mailboxes/{id}`, `backend/app/mail/api/`): ruft `delete_mailbox` auf und
   bestätigt die Löschung mit der Anzahl gelöschter Mails und Anhänge. Neue Tabellen anderer
   Module (Triage, Suchindex, …) müssen per `ON DELETE CASCADE` an Postfach oder Mail hängen;
@@ -251,6 +262,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   | Anhänge (nur Dateien, die Mail bleibt) | `OLLAMAIL_PRIVACY_ATTACHMENT_RETENTION_DAYS` = 0 | `privacy.retention` | wie Mails |
   | Suchindex (Abschnitte und Embeddings) | `OLLAMAIL_PRIVACY_SEARCH_INDEX_RETENTION_DAYS` = 0 | `privacy.retention` | wie Mails |
   | Fragen-Verläufe | `OLLAMAIL_RAG_HISTORY_RETENTION_DAYS` = 90 | `rag.purge_conversations`, täglich | letzte Frage |
+  | Antwortentwürfe (Umgebung, kein Admin-Feld) | `OLLAMAIL_DRAFTS_RETENTION_DAYS` = 30 | `drafts.purge`, täglich | letzte Änderung |
   | Digests inkl. Audio (mindestens 1 Tag) | `OLLAMAIL_DIGEST_RETENTION_DAYS` = 30 | `digest.cleanup`, stündlich | Erstellung |
   | Audit-Log | `OLLAMAIL_AUDIT_RETENTION_DAYS` = 365 | `privacy.retention` | Ereigniszeitpunkt |
   | Datenexporte | `OLLAMAIL_PRIVACY_EXPORT_EXPIRY_HOURS` = 24 (Stunden) | `privacy.cleanup_exports`, stündlich | Fertigstellung |
@@ -273,7 +285,8 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   [`providers/gmail.md`](providers/gmail.md)): Gespeichert wird nur der Refresh-Token
   (verschlüsselt in `mail_mailboxes.credentials`); Access-Tokens liegen nur im Prozessspeicher.
   Angefordert wird nur der Gmail-Scope (`gmail.modify` bzw. mit `OLLAMAIL_GMAIL_READONLY`
-  `gmail.readonly`), kein Profil- oder OpenID-Scope. Der OAuth-`state` und der PKCE-Verifier
+  `gmail.readonly`), kein Profil- oder OpenID-Scope. `gmail.modify` erlaubt auch das Senden
+  von Antworten (#92); gesendet wird nur auf Anforderung des Nutzers. Der OAuth-`state` und der PKCE-Verifier
   liegen in einem signierten, 10 Minuten gültigen `HttpOnly`-Cookie. Fehler enthalten nur Codes,
   nie Antworttexte von Google; Logs nur Nutzer- und Postfach-IDs. Mails nur in Spam/Papierkorb
   werden standardmäßig gar nicht abgerufen. Die Service-Account-Schlüsseldatei für Domain-wide
@@ -290,6 +303,9 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 | `users` | E-Mail-Adresse, Anzeigename, Rolle, Sprache, Zeitzone, letzter Login | Konto löschen |
 | `auth_identities` | Anbieter, Kennung beim Anbieter (`sub`, GitHub-ID, LDAP-GUID), Gruppen, Argon2id-Hash | U |
 | `auth_sessions` | SHA-256 des Session-Tokens, gekürzte Browser-Kennung, Zeiten | U; abgelaufene stündlich (`auth.cleanup`) |
+| `scim_users`, `scim_group_members` | `userName` und `externalId` beim IdP, Gruppenmitgliedschaften | U |
+| `scim_groups` | Gruppenname und `externalId` (nicht personenbezogen) | per SCIM; Admin |
+| `scim_tokens`, `scim_config` | SHA-256 und Präfix der SCIM-Tokens, Schalter (nicht personenbezogen) | Admin (widerrufen) |
 | `auth_rate_limits` | HMAC von IP bzw. E-Mail-Adresse, Zähler | stündlich (`auth.cleanup`) |
 | `mail_mailboxes` | Postfachadresse, Anzeigename, Servereinstellungen, Zugangsdaten (verschlüsselt) | U; Postfach entfernen |
 | `mail_folders`, `mail_sync_states` | Ordnernamen, Sync-Cursor, Fehlercodes | P |
@@ -308,6 +324,8 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 | `digests` + `<data>/digests/<user_id>/<digest_id>.{mp3,opus}` | Skript, Titel, Verweise auf Mails, Audio | U; Aufbewahrung Digests; Postfach entfernt (`digest.cleanup`) |
 | `rag_conversations`, `rag_messages` | Fragen und Antworten | U; Nutzer; Aufbewahrung Fragen-Verläufe |
 | `rag_citations` | zitierte Ausschnitte aus Mails | G, M, A, P |
+| `reply_drafts` | Antwortentwürfe: Empfänger, Betreff, Text, Anweisung, Status, Versandzeitpunkt; Verweis auf Mail und Thread | U, P (Mail-/Thread-Verweis wird bei M geleert); Aufbewahrung Entwürfe; Nutzer |
+| `reply_draft_settings` | Signatur, Stilbeispiele an/aus | U |
 | `privacy_exports` + `<data>/exports/<user_id>/<export_id>.zip` | Status, Größe, Ablaufzeit; ZIP mit allen Daten des Nutzers | U; Ablauf (`privacy.cleanup_exports`); Nutzer |
 | `privacy_retention_settings` | Fristen, Zähler des letzten Laufs (nicht personenbezogen) | – |
 | `audit_events` | Ereignis, Zeitpunkt, Nutzer- bzw. Objekt-ID (pseudonym, ohne Fremdschlüssel), Codes, Zähler | Aufbewahrung Audit-Log (dokumentierte Ausnahme) |

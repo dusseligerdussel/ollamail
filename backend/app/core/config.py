@@ -153,6 +153,8 @@ class LLMSettings(BaseSettings):
     task_digest_endpoint: str | None = None
     task_rag_chat_model: str | None = None
     task_rag_chat_endpoint: str | None = None
+    task_reply_draft_model: str | None = None
+    task_reply_draft_endpoint: str | None = None
     task_embeddings_model: str | None = None
     task_embeddings_endpoint: str | None = None
 
@@ -205,6 +207,9 @@ class GraphSettings(BaseSettings):
     tenant_id: str = "organizations"
     # Redirect URI registered in Entra ID; unset: <scheme>://<host>/api/mail/graph/callback.
     redirect_uri: str | None = None
+    # Request ``Mail.Send`` when a mailbox is connected, so replies can be sent (app/drafts).
+    # Off: mailboxes connect with read/write access only and sending is refused.
+    send_enabled: bool = True
     # Public URL of /api/mail/graph/notifications for change notifications (webhooks).
     # Unset (default): polling only, no inbound connections from Microsoft.
     notification_url: str | None = None
@@ -486,6 +491,27 @@ class RagSettings(BaseSettings):
     history_retention_days: int = Field(default=90, ge=0)
 
 
+class DraftsSettings(BaseSettings):
+    """``OLLAMAIL_DRAFTS_*`` (reply drafts and sending, app/drafts/)"""
+
+    model_config = _config("DRAFTS_")
+
+    # Mails of the thread (up to and including the one answered) given to the model.
+    thread_messages: int = Field(default=6, ge=1, le=30)
+    # Characters per mail in the prompt (the beginning is kept, quotes are already removed).
+    message_chars: int = Field(default=3000, ge=200, le=50000)
+    # Upper bound for a generated draft, in tokens.
+    max_tokens: int = Field(default=800, ge=64, le=8192)
+    # Own sent mails passed as style examples if the user has not switched them off;
+    # 0 disables style examples for everybody.
+    style_examples: int = Field(default=3, ge=0, le=10)
+    # Characters per style example.
+    style_example_chars: int = Field(default=800, ge=100, le=5000)
+    # Days a draft (sent, discarded or unsent) is kept after its last change; 0 keeps
+    # drafts until the user deletes them. Enforced by the daily job ``drafts.purge``.
+    retention_days: int = Field(default=30, ge=0, le=3650)
+
+
 class TodosSettings(BaseSettings):
     """``OLLAMAIL_TODOS_*`` (todo extraction, app/todos/)"""
 
@@ -599,6 +625,19 @@ class PrivacySettings(BaseSettings):
     self_delete_enabled: bool = True
 
 
+class ScimSettings(BaseSettings):
+    """``OLLAMAIL_SCIM_*`` (SCIM 2.0 provisioning, app/scim/)"""
+
+    model_config = _config("SCIM_")
+
+    # Requests per SCIM token and minute; more get 429 with Retry-After.
+    rate_limit_per_minute: int = Field(default=600, ge=1)
+    # Requests with a missing or wrong token per client IP within 15 minutes.
+    failed_auth_per_ip: int = Field(default=20, ge=1)
+    # Largest page of a list request (``count``); also the default page size.
+    max_results: int = Field(default=200, ge=1, le=1000)
+
+
 class Settings(BaseModel):
     """All settings, grouped by concern."""
 
@@ -614,6 +653,7 @@ class Settings(BaseModel):
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
     search: SearchSettings = Field(default_factory=SearchSettings)
     rag: RagSettings = Field(default_factory=RagSettings)
+    drafts: DraftsSettings = Field(default_factory=DraftsSettings)
 
     todos: TodosSettings = Field(default_factory=TodosSettings)
     digest: DigestSettings = Field(default_factory=DigestSettings)
@@ -622,6 +662,7 @@ class Settings(BaseModel):
     triage: TriageSettings = Field(default_factory=TriageSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)
     privacy: PrivacySettings = Field(default_factory=PrivacySettings)
+    scim: ScimSettings = Field(default_factory=ScimSettings)
 
 
 @lru_cache

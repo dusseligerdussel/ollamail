@@ -157,9 +157,12 @@ class GoogleApiClient:
         content: bytes | None = None,
         headers: dict[str, str] | None = None,
         request_timeout: float | None = None,
+        retry: bool = True,
     ) -> httpx.Response:
         """Send with token handling and retries; returns the final response (which may
-        still be an error that is not worth retrying)."""
+        still be an error that is not worth retrying). ``retry=False`` (sending mail) only
+        repeats after a token refresh, so a request that may have taken effect is not
+        sent twice."""
         refreshed = force = False
         response: httpx.Response | None = None
         for attempt in range(self._max_attempts):
@@ -179,7 +182,7 @@ class GoogleApiClient:
                 )
             except httpx.HTTPError:
                 response = None
-                if attempt + 1 >= self._max_attempts:
+                if not retry or attempt + 1 >= self._max_attempts:
                     raise ConnectionFailedError() from None
                 await self._sleep(_delay(attempt, None))
                 continue
@@ -187,7 +190,7 @@ class GoogleApiClient:
                 refreshed = force = True
                 continue
             retryable = _retryable(response.status_code, error_reason(_json(response)))
-            if retryable and attempt + 1 < self._max_attempts:
+            if retry and retryable and attempt + 1 < self._max_attempts:
                 await self._sleep(_delay(attempt, _retry_after(response)))
                 continue
             return response
@@ -202,10 +205,16 @@ class GoogleApiClient:
         params: Any = None,
         json: Any = None,
         request_timeout: float | None = None,
+        retry: bool = True,
     ) -> dict[str, Any]:
         url = path if path.startswith("https://") else f"{self._base_url}{path}"
         response = await self._send(
-            method, url, params=params, json_body=json, request_timeout=request_timeout
+            method,
+            url,
+            params=params,
+            json_body=json,
+            request_timeout=request_timeout,
+            retry=retry,
         )
         data = _json(response)
         raise_for_status(response.status_code, data)
