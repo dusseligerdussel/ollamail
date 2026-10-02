@@ -67,7 +67,7 @@ backend/app/
     embeddings/  Chunking, Embedding-Jobs
     prompts/     versionierte Prompt-Templates
   triage/        Kategorien, Klassifikation, Feedback/Few-Shot
-  todos/         Extraktion, CRUD, (später) CalDAV-Export
+  todos/         Extraktion, CRUD; export/: Export nach CalDAV (TodoSink-Interface)
   digest/        Tageszusammenfassung, TTS, Podcast-Feed
   search/        Suchindex: Chunking, Anhangstexte, Embeddings, Hybrid-Suche (RRF)
   rag/           Chat, Zitate (nutzt search/)
@@ -665,7 +665,53 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   gegen den konfigurierten Endpunkt über `app/todos/eval_cases.json` (synthetische DE/EN-Mails mit
   erwarteten Todos, Fristen, Updates und Erledigt-Vorschlägen) und gibt je Modell Precision, Recall
   und Trefferquote der Fristen aus. Neue Fälle im selben Format ergänzen.
-- **Ziel (dokumentiert, später):** Export/Sync via CalDAV (VTODO), Microsoft To Do (Graph), Google Tasks.
+- **Export** (`backend/app/todos/export/`, #40): Aufgaben landen in der Aufgabenliste, mit der
+  der Nutzer ohnehin arbeitet. Umgesetzt ist CalDAV (VTODO); Microsoft To Do (Graph) und
+  Google Tasks folgen als eigene Sinks (#101, #102).
+  - **Admin-Opt-in:** `OLLAMAIL_TODOS_EXPORT_SINKS` (Standard leer = aus) nennt die Ziele, die
+    Nutzer verbinden dürfen. Ziele, die der Admin später entfernt, werden nicht mehr abgeglichen.
+  - **Interface** `TodoSink` (`base.py`): `list_task_lists`, `push` (idempotent je `uid`),
+    `update`/`complete` (mit ETag, sonst `SinkConflictError`), `delete`, `changes` (Status der
+    bekannten Aufgaben, die sich im Ziel geändert haben oder dort gelöscht wurden). Fehler sind
+    `SinkError`-Codes ohne Servertexte. `registry.FACTORIES` ordnet Zieltypen Implementierungen
+    zu; ein neuer Dienst ist eine Klasse plus ein Eintrag.
+  - **CalDAV** (`caldav.py`, `ical.py`, `httpx` ohne CalDAV-Bibliothek): Discovery über
+    `current-user-principal` und `calendar-home-set` (auch `/.well-known/caldav`), angeboten
+    werden nur Kalender mit VTODO. Eine Aufgabe ist `<Liste>/<todo-id>.ics`; Anlegen mit
+    `If-None-Match: *`, Ändern mit `If-Match`. Der Statusabgleich holt per `PROPFIND` die ETags
+    der Liste und per `calendar-multiget` nur die geänderten Aufgaben. Die Beschreibung enthält
+    den Link zur Mail (`<OLLAMAIL_AUTH_PUBLIC_URL bzw. Origin beim Verbinden>/inbox?message=<id>`,
+    auch als `URL`). Anfragen gehen nur an den eingetragenen Server; `https` ist Pflicht
+    (`OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP` nur für Tests), keine DTDs in Antworten.
+  - **Einstellungen** je Nutzer (`todo_export_targets`, höchstens eine Zeile): Ziel,
+    Zugangsdaten (`EncryptedJSON`), Liste, Modus `auto` (alle offenen Aufgaben, neue sofort)
+    oder `manual` (nur einzeln exportierte). API `GET|PUT|PATCH|DELETE /todo-export`,
+    `POST /todo-export/lists` (Verbindung prüfen, Listen holen), `POST /todo-export/sync`,
+    `POST /todo-export/todos/{id}` (einzeln exportieren). Verbinden, Ändern und Trennen stehen
+    im Audit-Log (`todo_export.changed`). Ein anderer Server bzw. ein anderes Konto beginnt neu.
+  - **Verweise** in `Todo.external_refs["caldav"]`: Ziel, Liste, Remote-ID, ETag, Zustand
+    (`pending`, `synced`, `error`, `removed`) und `synced_at`. Die API liefert daraus
+    `export_state`. `synced_at` ist nach jedem Schreiben gleich `todos.updated_at`; jede spätere
+    Änderung (API, Extraktion) macht sie ungleich. So findet der Abgleich geänderte Aufgaben
+    ohne eigenes Änderungsprotokoll.
+  - **Abgleich** (`service.sync_target`, Job `todos.export_sync`, Queue `sync`, Argument nur die
+    Ziel-ID, Lock je Ziel): neue, angeforderte und geänderte Aufgaben werden gesendet; alle
+    `OLLAMAIL_TODOS_EXPORT_POLL_MINUTES` (Standard 15) kommt der Status aus dem Ziel zurück
+    (erledigt ↔ `COMPLETED`, verworfen ↔ `CANCELLED`). **Konflikte:** Für den Status gewinnt die
+    spätere Änderung (`LAST-MODIFIED` gegen `updated_at`); Titel, Beschreibung, Fälligkeit und
+    Priorität kommen immer aus ollamail. Jede Aufgabe wird in einer eigenen kurzen Transaktion mit
+    Bedingung auf `updated_at` geschrieben, eine gleichzeitige Änderung des Nutzers geht nie
+    verloren. Im Ziel gelöschte Aufgaben werden nicht erneut exportiert, außer der Nutzer
+    fordert es an. In ollamail gelöschte Aufgaben werden im Ziel gelöscht (vorgemerkt in
+    `pending_deletions`). Fehler des Ziels (`auth_failed`, `unavailable`, `list_not_found`)
+    stehen am Ziel und werden erst mit der nächsten Statusprüfung wiederholt.
+  - **Auslöser:** `POST|PATCH|DELETE /todos` stoßen den Abgleich nach dem Commit an; der Job
+    `todos.export_schedule` (jede Minute) findet außerdem neue Aufgaben aus der Extraktion und
+    fällige Statusprüfungen. Das Ereignis `todo.exported` aktualisiert die UI.
+  - **UI:** Einstellungen → Aufgaben-Export (Ziel wählen, verbinden, Liste und Modus wählen;
+    vorher steht, welche Daten übertragen werden), in der Aufgabenliste ein Symbol je Aufgabe
+    (exportiert, wartet, fehlgeschlagen, im Ziel gelöscht) und im Modus „Manuell“ die Aktion
+    „Exportieren“.
 
 ### 4.4 Daily Digest (Audio)
 
