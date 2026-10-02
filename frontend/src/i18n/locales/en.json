@@ -1032,6 +1032,8 @@
     "label": "Category: {{category}}",
     "labelHighPriority": "Category: {{category}}, high priority",
     "highPriority": "High priority",
+    "categoriesError": "Categories could not be loaded.",
+    "retry": "Try again",
     "reason": {
       "llm": "Categorized as <0>{{category}}</0>. {{reason}}",
       "llmNoReason": "Categorized as <0>{{category}}</0>.",

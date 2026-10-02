@@ -4,7 +4,7 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
 import type { MessageSummary, Thread } from "@/api/mail";
 import type { Triage, TriagedMessage } from "@/api/triage";
-import { backend, json, mockFetch } from "@/test/fetch";
+import { backend, json, mockFetch, problem } from "@/test/fetch";
 import { messageId, testMailbox, testMessage, testThread } from "@/test/mail";
 import { renderApp } from "@/test/render-app";
 import { categoryId, testTriage, testTriagedMessage, triageApi } from "@/test/triage";
@@ -14,12 +14,15 @@ function mockApi({
   threads = {} as Record<string, Thread>,
   results = [] as Triage[],
   inbox = [] as TriagedMessage[],
+  override = (_route: string): Response | undefined => undefined,
 } = {}) {
   const triage = triageApi({ results, inbox });
   const base = backend();
   mockFetch(async (request) => {
     const url = new URL(request.url);
     const route = `${request.method} ${url.pathname}`;
+    const response = override(route);
+    if (response) return response;
     if (route === "GET /api/mailboxes") return json([testMailbox()]);
     if (route === "GET /api/messages") {
       return json({ items: messages, total: messages.length, next_cursor: null });
@@ -195,4 +198,38 @@ describe("triage in the inbox", () => {
     await waitFor(() => expect(screen.queryByText("Sender 1")).not.toBeInTheDocument());
     expect(triage.inboxQueries.at(-1)?.get("category")).toBe("none");
   });
+
+  it("loads failing categories a limited number of times and offers a retry (#86)", async () => {
+    const id = messageId(1);
+    let failing = true;
+    let requests = 0;
+    mockApi({
+      messages: [testMessage(1)],
+      threads: { [id]: testThread(1) },
+      results: [testTriage(id)],
+      override: (route) => {
+        if (route !== "GET /api/triage/categories") return undefined;
+        requests += 1;
+        return failing ? problem(500) : undefined;
+      },
+    });
+    await renderApp(`/inbox?message=${id}`);
+
+    // First request and two retries with backoff, then no more requests.
+    await waitFor(() => expect(requests).toBe(3), { timeout: 8000 });
+    await new Promise((resolve) => setTimeout(resolve, 1000));
+    expect(requests).toBe(3);
+    expect(screen.getByText("Categories could not be loaded.")).toHaveAttribute("role", "alert");
+    // The message itself stays readable.
+    expect(screen.getAllByText("Subject 1")[0]).toBeInTheDocument();
+
+    failing = false;
+    await userEvent.click(screen.getByRole("button", { name: "Try again" }));
+    await waitFor(() =>
+      expect(screen.getByTestId("triage-reason")).toHaveTextContent(
+        "Categorized as Action required. The sender asks for a decision.",
+      ),
+    );
+    expect(requests).toBe(4);
+  }, 15_000);
 });
