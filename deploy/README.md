@@ -149,3 +149,13 @@ Konfigurationsbeispiele: [`docs/OPERATIONS.md`](../docs/OPERATIONS.md#4-reverse-
 Caddy setzt u. a. eine strikte Content-Security-Policy (`default-src 'self'`, keine externen
 Quellen), `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` und
 `Permissions-Policy`. Für SSE ist Buffering deaktiviert (`flush_interval -1`), Timeouts betragen 1 h.
+
+## Smoke-Test in der CI
+
+Der Job „Compose smoke test“ (`.github/workflows/ci.yml`) baut beide Images, erzeugt `deploy/.env`
+aus `.env.example` mit frisch generierten Secrets und startet den Stack wie oben (ohne Ollama). Er
+prüft `/api/readyz`, `/api/healthz`, die Auslieferung der UI, die Migrationen und den Worker
+(Heartbeat, keine Neustarts) sowie, dass `api` ohne `OLLAMAIL_SECRET_KEY` nicht startet. Er läuft auf
+`main`, bei Änderungen an `deploy/`, den Dockerfiles oder der Caddy-Konfiguration und auf PRs mit dem
+Label `ci:compose`. Bei Fehlern werden die Container-Logs (ohne Umgebungsvariablen, Secrets geschwärzt)
+als Artifact hochgeladen.
