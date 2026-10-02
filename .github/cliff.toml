@@ -1,6 +1,9 @@
 # git-cliff configuration for the release notes (.github/workflows/release.yml).
 # Notes are generated from Conventional Commits; PR merge commits and other
-# non-conventional commits are skipped.
+# non-conventional commits are skipped. Every conventional type needs a parser below,
+# otherwise its group sorts by name instead of the numbered order.
+# Preview the notes of the next release locally:
+#   uvx git-cliff --config .github/cliff.toml --unreleased --tag v0.1.0 --strip header
 
 [changelog]
 header = ""
@@ -34,5 +37,6 @@ commit_parsers = [
   { message = "^test", group = "<!-- 5 -->Tests" },
   { message = "^(ci|build)", group = "<!-- 6 -->CI / Build" },
   { message = "^chore", group = "<!-- 7 -->Chores" },
-  { message = "^revert", group = "<!-- 8 -->Reverts" },
+  { message = "^style", group = "<!-- 8 -->Style" },
+  { message = "^revert", group = "<!-- 9 -->Reverts" },
 ]
