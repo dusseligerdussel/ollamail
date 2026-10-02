@@ -199,6 +199,9 @@
           "deleted": "Data deleted",
           "retention_changed": "Retention changed"
         },
+        "todo_export": {
+          "changed": "Task export changed"
+        },
         "crypto": {
           "keys_rotated": "Keys rotated"
         },
@@ -911,6 +914,14 @@
       "new": "New task",
       "toggleDone": "Mark task as done or open",
       "date": "Change due date"
+    },
+    "export": {
+      "synced": "Exported",
+      "pending": "Being exported",
+      "error": "Export failed",
+      "removed": "Deleted in the target list",
+      "export": "Export to “{{list}}”",
+      "exportTask": "Export “{{title}}” to “{{list}}”"
     }
   },
   "mail": {
@@ -1307,6 +1318,80 @@
       "deleteAll": "Clear history",
       "confirmAll": "Delete all questions and answers?",
       "keep": "Keep"
+    }
+  },
+  "taskExport": {
+    "title": "Task export",
+    "back": "Back to settings",
+    "manage": "Export tasks",
+    "linkDescription": "Send tasks to Nextcloud or another CalDAV task list.",
+    "intro": "Sends your tasks to the task list you already work with. What you complete there is completed here as well.",
+    "loading": "Loading settings",
+    "disabledTitle": "Export not enabled",
+    "disabledDescription": "Task export is switched off on this server. Your administrator can enable it.",
+    "privacy": {
+      "sent": "The export sends the title, description, due date, priority and status of your tasks, plus a link to the message, to the server you enter here.",
+      "notSent": "The messages themselves are not sent. Use an app password instead of your main password where possible."
+    },
+    "target": "Target",
+    "sinks": {
+      "caldav": {
+        "title": "CalDAV",
+        "description": "Nextcloud, Radicale, Baïkal, iCloud and other CalDAV servers"
+      }
+    },
+    "url": "Server URL",
+    "urlHint": "Address of the server, an account or a list.",
+    "username": "User name",
+    "password": "Password",
+    "passwordHint": "Stored encrypted and never shown again.",
+    "passwordKept": "Leave empty to keep the stored password.",
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "noLists": "This account has no list for tasks. Create one first.",
+    "list": "List",
+    "mode": {
+      "label": "Export",
+      "auto": "Automatic",
+      "autoDescription": "All open tasks, new ones right away.",
+      "manual": "Manual",
+      "manualDescription": "Only tasks you export one by one in the task list."
+    },
+    "enable": "Turn on export",
+    "enabled": "Task export turned on",
+    "save": "Save",
+    "saved": "Task export saved",
+    "cancel": "Cancel",
+    "connection": "Connection",
+    "status": "Status",
+    "tasks": "Tasks",
+    "counts_one": "{{count}} exported",
+    "counts_other": "{{count}} exported",
+    "pendingCount_one": "{{count}} waiting",
+    "pendingCount_other": "{{count}} waiting",
+    "errorCount_one": "{{count}} failed",
+    "errorCount_other": "{{count}} failed",
+    "lastSync": "Last synced {{time}}",
+    "neverSynced": "Not synced yet",
+    "inactive": "Switched off by the administrator",
+    "syncNow": "Sync now",
+    "syncQueued": "Sync started",
+    "change": "Change",
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect task export?",
+    "disconnectDescription": "The stored credentials are deleted. Tasks already exported stay in the list and are no longer synced.",
+    "disconnected": "Task export disconnected",
+    "errors": {
+      "auth_failed": "The server rejected the user name or password.",
+      "unavailable": "The server cannot be reached.",
+      "timeout": "The server did not answer in time.",
+      "not_found": "No calendar was found at this address.",
+      "invalid_url": "The server URL is invalid.",
+      "insecure_url": "The server URL must start with https://.",
+      "sink_not_available": "This target is not enabled on this server.",
+      "unknown_list": "The list no longer exists on the server.",
+      "list_not_found": "The list no longer exists on the server.",
+      "other": "The server sent an unexpected answer."
     }
   }
 }
