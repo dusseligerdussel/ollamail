@@ -18,6 +18,7 @@ from datetime import date
 from difflib import SequenceMatcher
 
 from app.ai.llm.metrics import LLMCallMetrics
+from app.evals.timeout import TIMEOUT_ERROR
 
 # Fuzzy title similarity from which a predicted todo counts as the expected one.
 TITLE_THRESHOLD = 0.6
@@ -223,6 +224,8 @@ def percentile(values: Sequence[float], share: float) -> float:
 class CallStats:
     calls: int
     failed: int
+    # Calls cancelled by the evaluation's time limit (part of ``failed``).
+    timeouts: int
     seconds_mean: float
     seconds_p50: float
     seconds_p95: float
@@ -240,6 +243,7 @@ class CallStats:
         return {
             "calls": self.calls,
             "failed": self.failed,
+            "timeouts": self.timeouts,
             "seconds_mean": round(self.seconds_mean, 2),
             "seconds_p50": round(self.seconds_p50, 2),
             "seconds_p95": round(self.seconds_p95, 2),
@@ -266,6 +270,7 @@ def call_stats(calls: Sequence[LLMCallMetrics]) -> CallStats:
     return CallStats(
         calls=len(calls),
         failed=sum(not c.success for c in calls),
+        timeouts=sum(c.error_type == TIMEOUT_ERROR for c in calls),
         seconds_mean=statistics.fmean(seconds) if seconds else 0.0,
         seconds_p50=percentile(seconds, 0.5),
         seconds_p95=percentile(seconds, 0.95),

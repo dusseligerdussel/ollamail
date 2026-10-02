@@ -38,6 +38,12 @@ Bewertungsregeln im Detail:
   zusätzlich frei; sein Ergebnis steht getrennt im Bericht, zusammen mit dem Anteil der Fragen, bei
   denen er den Regeln widerspricht. Ein kleiner Judge irrt oft – die Zahl ist ein Hinweis, kein
   Maßstab.
+- **Timeouts:** Manche Modelle erzeugen bei einzelnen Prompts endlos Text (z. B. JSON, das nie
+  geschlossen wird), bis der HTTP-Timeout des Endpunkts greift (#132). Der Runner begrenzt deshalb
+  jeden Aufruf selbst (`--timeout`). Ein abgebrochener Aufruf ist für das Feature ein nicht
+  erreichbares Modell, zählt in seiner Stufe als Fehler (falsche bzw. fehlende Antwort) und
+  erscheint im Bericht als eigene Kennzahl: Timeouts je Task und Timeout-Quote über alle
+  Chat-Aufrufe.
 - **Tokens/s:** Ollama meldet Token-Zahlen pro Aufruf; die Rate bezieht sich auf die gesamte
   Aufrufdauer (Prompt-Verarbeitung eingeschlossen). Auf CPU dominiert bei langen Prompts und kurzen
   Antworten die Prompt-Verarbeitung, deshalb gibt es zusätzlich „processed tok/s“. RAG-Antworten
@@ -100,6 +106,7 @@ Optionen:
 | `--database-url` | Datenbank der RAG-Stufe; sonst `OLLAMAIL_EVAL_DATABASE_URL`. Fehlt sie, wird die RAG-Stufe übersprungen |
 | `--language de\|en`, `--limit N` | Teilmenge: nur eine Sprache bzw. N gleichmäßig verteilte Mails (Fragen, deren Quelle fehlt, entfallen) |
 | `--no-prefilter` | Triage ohne Vorfilter |
+| `--timeout SEK` | Zeitlimit je Modellaufruf (Standard 120 s, ganze Streams eingeschlossen); länger dauernde Aufrufe werden abgebrochen und zählen als Timeout |
 | `--output DIR` | `report.md` und `report.json` schreiben; sonst Markdown auf stdout |
 
 Alle übrigen Einstellungen kommen wie im Betrieb aus der Umgebung (`OLLAMAIL_LLM_PROFILE` für

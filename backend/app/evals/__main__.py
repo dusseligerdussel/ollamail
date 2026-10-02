@@ -15,7 +15,7 @@ from pathlib import Path
 from app.core.config import Settings
 from app.evals.dataset import load_dataset
 from app.evals.report import STAGES
-from app.evals.runner import RunOptions, run
+from app.evals.runner import DEFAULT_TIMEOUT, RunOptions, run
 
 
 def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
@@ -58,6 +58,12 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
         "--no-prefilter", action="store_true", help="send every mail to the triage model"
     )
     parser.add_argument(
+        "--timeout",
+        type=float,
+        default=DEFAULT_TIMEOUT,
+        help=f"seconds per model call before it counts as a timeout (default {DEFAULT_TIMEOUT:g})",
+    )
+    parser.add_argument(
         "--output", type=Path, help="directory for report.json and report.md (else stdout)"
     )
     return parser.parse_args(argv)
@@ -77,6 +83,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         judge_model=args.judge_model,
         database_url=args.database_url,
         use_prefilter=not args.no_prefilter,
+        timeout=args.timeout,
         settings=Settings(),
     )
     report = asyncio.run(run(dataset, options))

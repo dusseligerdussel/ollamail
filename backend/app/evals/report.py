@@ -21,12 +21,15 @@ class ModelResult:
     calls: dict[str, dict[str, Any]] = field(default_factory=dict)
     seconds: float = 0.0
     error: str | None = None
+    # Chat calls of all tasks and how many hit the time limit.
+    timeouts: dict[str, Any] = field(default_factory=dict)
 
     def as_dict(self) -> dict[str, Any]:
         return {
             "model": self.model,
             "seconds": round(self.seconds, 1),
             "error": self.error,
+            "timeouts": self.timeouts,
             "stages": self.stages,
             "calls": self.calls,
         }
@@ -59,6 +62,13 @@ def _get(result: ModelResult, stage: str, key: str) -> Any:
     return result.stages.get(stage, {}).get(key)
 
 
+def _timeouts(result: ModelResult) -> str:
+    timeouts = result.timeouts
+    if not timeouts.get("calls"):
+        return "-"
+    return f"{timeouts['timed_out']}/{timeouts['calls']} ({_pct(timeouts['rate'])})"
+
+
 def _table(header: Sequence[str], rows: Sequence[Sequence[str]]) -> list[str]:
     lines = ["| " + " | ".join(header) + " |", "|" + "---|" * len(header)]
     lines += ["| " + " | ".join(row) + " |" for row in rows]
@@ -79,6 +89,7 @@ def render_markdown(report: Report) -> str:
         f"- Stages: {', '.join(run.get('stages', []))}",
         f"- Embedding model (RAG): {run.get('embedding_model') or '-'}",
         f"- Judge model: {run.get('judge_model') or '-'}",
+        f"- Time limit per model call: {_num(run.get('call_timeout_seconds'), 0)} s",
         "",
         "## Summary",
         "",
@@ -107,6 +118,7 @@ def render_markdown(report: Report) -> str:
             ("RAG answer (rules)", lambda r: _pct(_get(r, "rag", "answer_correct_rules"))),
             ("RAG no answer (rules)", lambda r: _pct(_get(r, "rag", "no_answer_correct_rules"))),
         ]
+    columns.append(("Timeouts", _timeouts))
     header += [name for name, _ in columns]
     rows = [[f"`{r.model}`", *[render(r) for _, render in columns]] for r in report.models]
     lines += _table(header, rows)
@@ -124,6 +136,7 @@ def render_markdown(report: Report) -> str:
                     f"`{r.model}`",
                     task,
                     str(calls["calls"]),
+                    str(calls["timeouts"]),
                     _num(calls["seconds_mean"]),
                     _num(calls["seconds_p95"]),
                     _num(calls["tokens_per_second"]),
@@ -131,7 +144,16 @@ def render_markdown(report: Report) -> str:
                 ]
             )
     lines += _table(
-        ["Model", "Task", "Calls", "s/call", "p95 s", "generated tok/s", "processed tok/s"],
+        [
+            "Model",
+            "Task",
+            "Calls",
+            "Timeouts",
+            "s/call",
+            "p95 s",
+            "generated tok/s",
+            "processed tok/s",
+        ],
         speed_rows,
     )
     lines += [
@@ -140,6 +162,8 @@ def render_markdown(report: Report) -> str:
         + ", ".join(f"`{r.model}` {_num(r.seconds / 60)} min" for r in report.models)
         + ".",
         "",
+        "Timeouts: calls cancelled at the time limit; they count as failed answers "
+        "(error) in the stage that made them. "
         "Seconds per call include retries of structured output. Generated tok/s: answer "
         "tokens per second of call time; processed tok/s: prompt and answer tokens per "
         "second of call time. `rag_chat` streams its answers; their token count is "

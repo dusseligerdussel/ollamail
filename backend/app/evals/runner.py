@@ -25,11 +25,13 @@ from app.evals.digest import run_digest
 from app.evals.metrics import RecordingSink, call_stats
 from app.evals.rag import EvalInbox, eval_inbox, run_rag
 from app.evals.report import STAGES, ModelResult, Report
+from app.evals.timeout import time_limited
 from app.evals.todos import run_todos
 from app.evals.triage import run_triage
 from app.search.embedder import GatewayEmbedder
 
 CHAT_TASKS = (LLMTask.TRIAGE, LLMTask.TODOS, LLMTask.DIGEST, LLMTask.RAG_CHAT)
+DEFAULT_TIMEOUT = 120.0
 
 
 @dataclass
@@ -44,6 +46,8 @@ class RunOptions:
     use_prefilter: bool = True
     settings: Settings = field(default_factory=Settings)
     provider_factory: ProviderFactory | None = None
+    # Seconds per model call before it counts as a timeout (``None``: endpoint timeout).
+    timeout: float | None = DEFAULT_TIMEOUT
 
 
 def _log(message: str) -> None:
@@ -60,6 +64,9 @@ def llm_settings(options: RunOptions, model: str | None) -> LLMSettings:
         update["provider"] = options.provider
     if options.embedding_model:
         update["task_embeddings_model"] = options.embedding_model
+    if options.timeout is not None:
+        # The HTTP timeout must not fire before the evaluation's own limit.
+        update["timeout"] = max(options.settings.llm.timeout, options.timeout + 30)
     if model:
         update["default_chat_model"] = model
         update |= {f"task_{task.value}_model": model for task in CHAT_TASKS}
@@ -69,7 +76,7 @@ def llm_settings(options: RunOptions, model: str | None) -> LLMSettings:
 def gateway(settings: LLMSettings, options: RunOptions, sink: RecordingSink) -> LLMGateway:
     return LLMGateway(
         EnvConfigResolver(settings),
-        provider_factory=options.provider_factory or create_provider,
+        provider_factory=time_limited(options.provider_factory or create_provider, options.timeout),
         metrics=sink,
     )
 
@@ -163,10 +170,18 @@ async def _evaluate_model(
     finally:
         await llm.aclose()
     result.seconds = time.perf_counter() - started
+    all_calls = []
     for task in CHAT_TASKS:
         calls = sink.for_task(task.value)
+        all_calls += calls
         if calls:
             result.calls[task.value] = call_stats(calls).as_dict()
+    timed_out = call_stats(all_calls).timeouts
+    result.timeouts = {
+        "calls": len(all_calls),
+        "timed_out": timed_out,
+        "rate": round(timed_out / len(all_calls), 4) if all_calls else None,
+    }
     return result
 
 
@@ -190,6 +205,7 @@ async def run(dataset: Dataset, options: RunOptions) -> Report:
             "languages": sorted({m.language for m in dataset.mails}),
         },
         "prefilter": options.use_prefilter,
+        "call_timeout_seconds": options.timeout,
         "judge_model": options.judge_model,
         "prompt_versions": prompt_versions(),
     }
