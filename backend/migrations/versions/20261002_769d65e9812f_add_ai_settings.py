@@ -1,7 +1,7 @@
 """add ai settings
 
 Revision ID: 769d65e9812f
-Revises: 068c341b2ca9
+Revises: 4f174bab2c45
 Create Date: 2026-10-02 05:24:03.227056+00:00
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "769d65e9812f"
-down_revision: str | Sequence[str] | None = "068c341b2ca9"
+down_revision: str | Sequence[str] | None = "4f174bab2c45"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

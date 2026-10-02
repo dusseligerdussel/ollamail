@@ -546,6 +546,150 @@
         "title": "ActorKind",
         "type": "string"
       },
+      "AnswerStatus": {
+        "enum": [
+          "answered",
+          "no_evidence"
+        ],
+        "title": "AnswerStatus",
+        "type": "string"
+      },
+      "AppliedFilters": {
+        "description": "Filters the search used: the UI filters, completed by those found in the question.",
+        "properties": {
+          "category_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Ids"
+          },
+          "extracted": {
+            "items": {
+              "enum": [
+                "mailbox_ids",
+                "category_ids",
+                "sender",
+                "since",
+                "until"
+              ],
+              "type": "string"
+            },
+            "title": "Extracted",
+            "type": "array"
+          },
+          "folder_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Ids"
+          },
+          "mailbox_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mailbox Ids"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          }
+        },
+        "title": "AppliedFilters",
+        "type": "object"
+      },
+      "AskRequest": {
+        "additionalProperties": false,
+        "properties": {
+          "conversation_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Conversation Id"
+          },
+          "filters": {
+            "$ref": "#/components/schemas/RagFilters"
+          },
+          "question": {
+            "maxLength": 2000,
+            "minLength": 1,
+            "title": "Question",
+            "type": "string"
+          }
+        },
+        "required": [
+          "question"
+        ],
+        "title": "AskRequest",
+        "type": "object"
+      },
       "AuditAction": {
         "enum": [
           "auth.setup_completed",
@@ -1002,6 +1146,59 @@
         "title": "CategoryUpdate",
         "type": "object"
       },
+      "CitationRead": {
+        "properties": {
+          "attachment_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Attachment Id"
+          },
+          "heading": {
+            "title": "Heading",
+            "type": "string"
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "number": {
+            "title": "Number",
+            "type": "integer"
+          },
+          "snippet": {
+            "title": "Snippet",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "number",
+          "message_id",
+          "mailbox_id",
+          "attachment_id",
+          "source",
+          "heading",
+          "snippet"
+        ],
+        "title": "CitationRead",
+        "type": "object"
+      },
       "CloudUsage": {
         "properties": {
           "display_name": {
@@ -1059,6 +1256,716 @@
         "title": "ConnectionTestResult",
         "type": "object"
       },
+      "ConversationMessage": {
+        "properties": {
+          "citations": {
+            "items": {
+              "$ref": "#/components/schemas/CitationRead"
+            },
+            "title": "Citations",
+            "type": "array"
+          },
+          "content": {
+            "title": "Content",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "filters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AppliedFilters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "role": {
+            "$ref": "#/components/schemas/RagRole"
+          },
+          "status": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/AnswerStatus"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "id",
+          "role",
+          "content",
+          "created_at",
+          "filters",
+          "status",
+          "citations"
+        ],
+        "title": "ConversationMessage",
+        "type": "object"
+      },
+      "ConversationRead": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "messages": {
+            "items": {
+              "$ref": "#/components/schemas/ConversationMessage"
+            },
+            "title": "Messages",
+            "type": "array"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at",
+          "messages"
+        ],
+        "title": "ConversationRead",
+        "type": "object"
+      },
+      "ConversationSummary": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "ConversationSummary",
+        "type": "object"
+      },
+      "DigestLength": {
+        "enum": [
+          "short",
+          "normal"
+        ],
+        "title": "DigestLength",
+        "type": "string"
+      },
+      "DigestRead": {
+        "properties": {
+          "audio_formats": {
+            "items": {
+              "enum": [
+                "mp3",
+                "opus"
+              ],
+              "type": "string"
+            },
+            "title": "Audio Formats",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "length": {
+            "$ref": "#/components/schemas/DigestLength"
+          },
+          "message_count": {
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "period_end": {
+            "format": "date-time",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date-time",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "references": {
+            "items": {
+              "$ref": "#/components/schemas/DigestReference"
+            },
+            "title": "References",
+            "type": "array"
+          },
+          "scheduled_for": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled For"
+          },
+          "script": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Script"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DigestStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "todo_count": {
+            "title": "Todo Count",
+            "type": "integer"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/DigestTrigger"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          }
+        },
+        "required": [
+          "id",
+          "trigger",
+          "status",
+          "error_code",
+          "title",
+          "language",
+          "length",
+          "period_start",
+          "period_end",
+          "scheduled_for",
+          "message_count",
+          "todo_count",
+          "duration_seconds",
+          "audio_formats",
+          "created_at",
+          "generated_at",
+          "script",
+          "references",
+          "voice",
+          "model"
+        ],
+        "title": "DigestRead",
+        "type": "object"
+      },
+      "DigestReference": {
+        "description": "``[ref]`` in the script refers to this mail.",
+        "properties": {
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "ref": {
+            "title": "Ref",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "ref",
+          "message_id",
+          "mailbox_id"
+        ],
+        "title": "DigestReference",
+        "type": "object"
+      },
+      "DigestSettingsRead": {
+        "properties": {
+          "delivery_time": {
+            "format": "time",
+            "title": "Delivery Time",
+            "type": "string"
+          },
+          "effective_language": {
+            "enum": [
+              "de",
+              "en"
+            ],
+            "title": "Effective Language",
+            "type": "string"
+          },
+          "effective_timezone": {
+            "title": "Effective Timezone",
+            "type": "string"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "feed": {
+            "$ref": "#/components/schemas/FeedStatus"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "de",
+                  "en"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "length": {
+            "$ref": "#/components/schemas/DigestLength"
+          },
+          "mailbox_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mailbox Ids"
+          },
+          "next_run_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Run At"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          },
+          "weekdays": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Weekdays",
+            "type": "array"
+          }
+        },
+        "required": [
+          "enabled",
+          "delivery_time",
+          "timezone",
+          "effective_timezone",
+          "weekdays",
+          "language",
+          "effective_language",
+          "voice",
+          "length",
+          "mailbox_ids",
+          "next_run_at",
+          "feed"
+        ],
+        "title": "DigestSettingsRead",
+        "type": "object"
+      },
+      "DigestSettingsUpdate": {
+        "additionalProperties": false,
+        "description": "Fields to change; omitted fields stay. ``null`` resets timezone, language, voice and\nmailboxes to their defaults.",
+        "properties": {
+          "delivery_time": {
+            "anyOf": [
+              {
+                "format": "time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Delivery Time"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "enum": [
+                  "de",
+                  "en"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "length": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/DigestLength"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mailbox_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mailbox Ids"
+          },
+          "timezone": {
+            "anyOf": [
+              {
+                "maxLength": 64,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Timezone"
+          },
+          "voice": {
+            "anyOf": [
+              {
+                "pattern": "^[A-Za-z0-9_.-]{1,128}$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Voice"
+          },
+          "weekdays": {
+            "anyOf": [
+              {
+                "description": "0 = Monday ... 6 = Sunday",
+                "items": {
+                  "maximum": 6.0,
+                  "minimum": 0.0,
+                  "type": "integer"
+                },
+                "maxItems": 7,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Weekdays"
+          }
+        },
+        "title": "DigestSettingsUpdate",
+        "type": "object"
+      },
+      "DigestStatus": {
+        "enum": [
+          "pending",
+          "summarizing",
+          "synthesizing",
+          "ready",
+          "failed"
+        ],
+        "title": "DigestStatus",
+        "type": "string"
+      },
+      "DigestSummary": {
+        "properties": {
+          "audio_formats": {
+            "items": {
+              "enum": [
+                "mp3",
+                "opus"
+              ],
+              "type": "string"
+            },
+            "title": "Audio Formats",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "duration_seconds": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Duration Seconds"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "generated_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Generated At"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "language": {
+            "title": "Language",
+            "type": "string"
+          },
+          "length": {
+            "$ref": "#/components/schemas/DigestLength"
+          },
+          "message_count": {
+            "title": "Message Count",
+            "type": "integer"
+          },
+          "period_end": {
+            "format": "date-time",
+            "title": "Period End",
+            "type": "string"
+          },
+          "period_start": {
+            "format": "date-time",
+            "title": "Period Start",
+            "type": "string"
+          },
+          "scheduled_for": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Scheduled For"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DigestStatus"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          },
+          "todo_count": {
+            "title": "Todo Count",
+            "type": "integer"
+          },
+          "trigger": {
+            "$ref": "#/components/schemas/DigestTrigger"
+          }
+        },
+        "required": [
+          "id",
+          "trigger",
+          "status",
+          "error_code",
+          "title",
+          "language",
+          "length",
+          "period_start",
+          "period_end",
+          "scheduled_for",
+          "message_count",
+          "todo_count",
+          "duration_seconds",
+          "audio_formats",
+          "created_at",
+          "generated_at"
+        ],
+        "title": "DigestSummary",
+        "type": "object"
+      },
+      "DigestTrigger": {
+        "enum": [
+          "scheduled",
+          "manual"
+        ],
+        "title": "DigestTrigger",
+        "type": "string"
+      },
       "DirectoryType": {
         "enum": [
           "active_directory",
@@ -1066,6 +1973,52 @@
         ],
         "title": "DirectoryType",
         "type": "string"
+      },
+      "FeedCreated": {
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "feed_url": {
+            "title": "Feed Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "feed_url",
+          "created_at"
+        ],
+        "title": "FeedCreated",
+        "type": "object"
+      },
+      "FeedStatus": {
+        "description": "Whether the podcast feed is enabled. The token itself is only shown on creation.",
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "created_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Created At"
+          }
+        },
+        "required": [
+          "active",
+          "created_at"
+        ],
+        "title": "FeedStatus",
+        "type": "object"
       },
       "FolderKind": {
         "enum": [
@@ -1213,6 +2166,352 @@
           "folders"
         ],
         "title": "FolderSelectionUpdate",
+        "type": "object"
+      },
+      "GitHubProviderCreate": {
+        "properties": {
+          "allowed_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "allowed_organizations": {
+            "default": [],
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Organizations",
+            "type": "array"
+          },
+          "allowed_teams": {
+            "default": [],
+            "items": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Teams",
+            "type": "array"
+          },
+          "auto_provision": {
+            "default": true,
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "client_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "client_secret": {
+            "maxLength": 4096,
+            "minLength": 1,
+            "title": "Client Secret",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "GitHub",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "link_by_email": {
+            "default": false,
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "name": {
+            "maxLength": 32,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "name",
+          "client_secret"
+        ],
+        "title": "GitHubProviderCreate",
+        "type": "object"
+      },
+      "GitHubProviderRead": {
+        "properties": {
+          "allowed_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "allowed_organizations": {
+            "default": [],
+            "items": {
+              "maxLength": 64,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Organizations",
+            "type": "array"
+          },
+          "allowed_teams": {
+            "default": [],
+            "items": {
+              "maxLength": 255,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Teams",
+            "type": "array"
+          },
+          "auto_provision": {
+            "default": true,
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "client_id": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Client Id",
+            "type": "string"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "default": "GitHub",
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "has_client_secret": {
+            "title": "Has Client Secret",
+            "type": "boolean"
+          },
+          "link_by_email": {
+            "default": false,
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "redirect_uri": {
+            "title": "Redirect Uri",
+            "type": "string"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "client_id",
+          "name",
+          "provider",
+          "has_client_secret",
+          "redirect_uri",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "GitHubProviderRead",
+        "type": "object"
+      },
+      "GitHubProviderUpdate": {
+        "description": "Fields to change; omitted fields stay. ``base_url: null`` switches to github.com.",
+        "properties": {
+          "allowed_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 254,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Domains"
+          },
+          "allowed_organizations": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 64,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Organizations"
+          },
+          "allowed_teams": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 255,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Teams"
+          },
+          "auto_provision": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Provision"
+          },
+          "base_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Url"
+          },
+          "client_id": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Id"
+          },
+          "client_secret": {
+            "anyOf": [
+              {
+                "maxLength": 4096,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Client Secret"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "link_by_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link By Email"
+          }
+        },
+        "title": "GitHubProviderUpdate",
         "type": "object"
       },
       "GmailOAuthStart": {
@@ -3045,6 +4344,106 @@
         "title": "ProfileUpdate",
         "type": "object"
       },
+      "RagFilters": {
+        "additionalProperties": false,
+        "description": "Filters set in the UI; each one narrows the mailboxes the user may read.",
+        "properties": {
+          "category_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Ids"
+          },
+          "folder_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Ids"
+          },
+          "mailbox_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mailbox Ids"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender"
+          },
+          "since": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Since"
+          },
+          "until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Until"
+          }
+        },
+        "title": "RagFilters",
+        "type": "object"
+      },
+      "RagRole": {
+        "enum": [
+          "user",
+          "assistant"
+        ],
+        "title": "RagRole",
+        "type": "string"
+      },
       "ReadinessStatus": {
         "properties": {
           "checks": {
@@ -4549,6 +5948,227 @@
         ]
       }
     },
+    "/admin/auth/github/providers": {
+      "get": {
+        "description": "All GitHub providers (secrets are never returned).",
+        "operationId": "admin_list_github_providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/GitHubProviderRead"
+                  },
+                  "title": "Response Admin List Github Providers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Github Providers",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Add a GitHub provider. The client secret is stored encrypted.",
+        "operationId": "admin_create_github_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitHubProviderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Name taken"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Create Github Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/github/providers/{name}": {
+      "delete": {
+        "description": "Remove a GitHub provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "operationId": "admin_delete_github_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Github Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "admin_get_github_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Github Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "Change a GitHub provider. Omitted fields stay as they are.",
+        "operationId": "admin_update_github_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GitHubProviderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GitHubProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "description": "Invalid settings"
+          }
+        },
+        "summary": "Update Github Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
     "/admin/auth/oidc/presets": {
       "get": {
         "description": "Presets with defaults for the provider form (see docs/auth/oidc.md).",
@@ -5170,6 +6790,95 @@
         "summary": "Verify",
         "tags": [
           "audit"
+        ]
+      }
+    },
+    "/auth/github/{name}/callback": {
+      "get": {
+        "description": "Redirect target of GitHub: checks the response and membership, signs the user in.",
+        "operationId": "auth_github_callback",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to return_to (signed in), or to /login?error=<code>"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Github Callback",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/github/{name}/login": {
+      "get": {
+        "description": "Start the login with a GitHub provider (browser navigation, not fetch).",
+        "operationId": "auth_github_login",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "return_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Return To"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to GitHub, or to /login?error=<code>"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Github Login",
+        "tags": [
+          "auth"
         ]
       }
     },
@@ -6004,6 +7713,375 @@
         ]
       }
     },
+    "/digests": {
+      "get": {
+        "description": "Own digests, newest first.",
+        "operationId": "digests_list_digests",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 30,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DigestSummary"
+                  },
+                  "title": "Response Digests List Digests",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Digests",
+        "tags": [
+          "digests"
+        ]
+      },
+      "post": {
+        "description": "Generate a digest of the mails since the last one, now.",
+        "operationId": "digests_create_digest",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "A digest is already being generated"
+          }
+        },
+        "summary": "Create Digest",
+        "tags": [
+          "digests"
+        ]
+      }
+    },
+    "/digests/feed": {
+      "delete": {
+        "description": "Disable the feed; its URL and all audio URLs in it return 404 from now on.",
+        "operationId": "digests_revoke_feed",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Revoke Feed",
+        "tags": [
+          "digests"
+        ]
+      },
+      "get": {
+        "description": "Whether the private podcast feed is enabled (the URL is only shown on creation).",
+        "operationId": "digests_get_feed",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Feed",
+        "tags": [
+          "digests"
+        ]
+      },
+      "post": {
+        "description": "Create a new secret feed URL. An existing feed URL stops working immediately.",
+        "operationId": "digests_create_feed",
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FeedCreated"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Create Feed",
+        "tags": [
+          "digests"
+        ]
+      }
+    },
+    "/digests/settings": {
+      "get": {
+        "description": "Own digest settings with defaults filled in.",
+        "operationId": "digests_get_digest_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Digest Settings",
+        "tags": [
+          "digests"
+        ]
+      },
+      "patch": {
+        "description": "Change own digest settings. A changed schedule starts with the next slot.",
+        "operationId": "digests_update_digest_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DigestSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Invalid value or mailbox"
+          }
+        },
+        "summary": "Update Digest Settings",
+        "tags": [
+          "digests"
+        ]
+      }
+    },
+    "/digests/{digest_id}": {
+      "delete": {
+        "description": "Delete a digest and its audio files.",
+        "operationId": "digests_delete_digest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "digest_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Digest Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such digest"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Digest",
+        "tags": [
+          "digests"
+        ]
+      },
+      "get": {
+        "description": "A digest with its script and the mails it refers to.",
+        "operationId": "digests_get_digest",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "digest_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Digest Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DigestRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such digest"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Digest",
+        "tags": [
+          "digests"
+        ]
+      }
+    },
+    "/digests/{digest_id}/audio.{fmt}": {
+      "get": {
+        "description": "The audio of a digest for the web player; supports Range requests.",
+        "operationId": "digests_get_audio",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "digest_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Digest Id",
+              "type": "string"
+            }
+          },
+          {
+            "in": "path",
+            "name": "fmt",
+            "required": true,
+            "schema": {
+              "enum": [
+                "mp3",
+                "opus"
+              ],
+              "title": "Fmt",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "audio/mpeg": {},
+              "audio/ogg": {}
+            },
+            "description": "Audio file"
+          },
+          "206": {
+            "description": "Partial content (Range request)"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such digest"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Audio",
+        "tags": [
+          "digests"
+        ]
+      }
+    },
     "/events": {
       "get": {
         "description": "Stream the current user's events. Each SSE ``event`` is the event type, ``data``\nthe JSON-encoded event.",
@@ -6785,6 +8863,545 @@
         "summary": "Sync Mailbox",
         "tags": [
           "mailboxes"
+        ]
+      }
+    },
+    "/rag/ask": {
+      "post": {
+        "description": "Ask a question about the own mails; the answer is streamed with citations.\n\nOnly mails of mailboxes the user may read are searched. Without ``conversation_id`` a\nnew conversation is started; the question and the answer are stored when the answer\nis complete.",
+        "operationId": "rag_ask",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AskRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "discriminator": {
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "description": "First event: IDs of the conversation and of the question and answer to be stored.",
+                      "properties": {
+                        "answer_id": {
+                          "format": "uuid",
+                          "title": "Answer Id",
+                          "type": "string"
+                        },
+                        "conversation_id": {
+                          "format": "uuid",
+                          "title": "Conversation Id",
+                          "type": "string"
+                        },
+                        "question_id": {
+                          "format": "uuid",
+                          "title": "Question Id",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "start",
+                          "default": "start",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "conversation_id",
+                        "question_id",
+                        "answer_id"
+                      ],
+                      "title": "StartEvent",
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "filters": {
+                          "description": "Filters the search used: the UI filters, completed by those found in the question.",
+                          "properties": {
+                            "category_ids": {
+                              "anyOf": [
+                                {
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "maxItems": 100,
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Category Ids"
+                            },
+                            "extracted": {
+                              "items": {
+                                "enum": [
+                                  "mailbox_ids",
+                                  "category_ids",
+                                  "sender",
+                                  "since",
+                                  "until"
+                                ],
+                                "type": "string"
+                              },
+                              "title": "Extracted",
+                              "type": "array"
+                            },
+                            "folder_ids": {
+                              "anyOf": [
+                                {
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "maxItems": 100,
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Folder Ids"
+                            },
+                            "mailbox_ids": {
+                              "anyOf": [
+                                {
+                                  "items": {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  "maxItems": 100,
+                                  "type": "array"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Mailbox Ids"
+                            },
+                            "sender": {
+                              "anyOf": [
+                                {
+                                  "maxLength": 200,
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Sender"
+                            },
+                            "since": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Since"
+                            },
+                            "until": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Until"
+                            }
+                          },
+                          "title": "AppliedFilters",
+                          "type": "object"
+                        },
+                        "type": {
+                          "const": "filters",
+                          "default": "filters",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "filters"
+                      ],
+                      "title": "FiltersEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "The numbered sources the model answers from; citations refer to their numbers.",
+                      "properties": {
+                        "sources": {
+                          "items": {
+                            "description": "A retrieved chunk, passed to the model as source ``[number]``.",
+                            "properties": {
+                              "attachment_id": {
+                                "anyOf": [
+                                  {
+                                    "format": "uuid",
+                                    "type": "string"
+                                  },
+                                  {
+                                    "type": "null"
+                                  }
+                                ],
+                                "title": "Attachment Id"
+                              },
+                              "heading": {
+                                "title": "Heading",
+                                "type": "string"
+                              },
+                              "mailbox_id": {
+                                "format": "uuid",
+                                "title": "Mailbox Id",
+                                "type": "string"
+                              },
+                              "message_id": {
+                                "format": "uuid",
+                                "title": "Message Id",
+                                "type": "string"
+                              },
+                              "number": {
+                                "title": "Number",
+                                "type": "integer"
+                              },
+                              "snippet": {
+                                "title": "Snippet",
+                                "type": "string"
+                              },
+                              "source": {
+                                "title": "Source",
+                                "type": "string"
+                              }
+                            },
+                            "required": [
+                              "number",
+                              "message_id",
+                              "mailbox_id",
+                              "attachment_id",
+                              "source",
+                              "heading",
+                              "snippet"
+                            ],
+                            "title": "Source",
+                            "type": "object"
+                          },
+                          "title": "Sources",
+                          "type": "array"
+                        },
+                        "type": {
+                          "const": "sources",
+                          "default": "sources",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "sources"
+                      ],
+                      "title": "SourcesEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "Next piece of the answer. Citation markers ``[n]`` only name listed sources.",
+                      "properties": {
+                        "text": {
+                          "title": "Text",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "token",
+                          "default": "token",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ],
+                      "title": "TokenEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "Last event of a successful answer; it is stored in the conversation.",
+                      "properties": {
+                        "citations": {
+                          "items": {
+                            "type": "integer"
+                          },
+                          "title": "Citations",
+                          "type": "array"
+                        },
+                        "status": {
+                          "enum": [
+                            "answered",
+                            "no_evidence"
+                          ],
+                          "title": "AnswerStatus",
+                          "type": "string"
+                        },
+                        "ttft_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Ttft Ms"
+                        },
+                        "type": {
+                          "const": "done",
+                          "default": "done",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "status",
+                        "citations",
+                        "ttft_ms"
+                      ],
+                      "title": "DoneEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "Last event if no answer could be generated; nothing is stored.",
+                      "properties": {
+                        "code": {
+                          "title": "Code",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "error",
+                          "default": "error",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "code"
+                      ],
+                      "title": "ErrorEvent",
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Server-Sent Events stream; `data` of each event is one of these"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such conversation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Ask",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/rag/conversations": {
+      "delete": {
+        "description": "Delete all own conversations.",
+        "operationId": "rag_delete_all_conversations",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Delete All Conversations",
+        "tags": [
+          "rag"
+        ]
+      },
+      "get": {
+        "description": "Own conversations, most recently used first.",
+        "operationId": "rag_list_conversations",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "offset",
+            "required": false,
+            "schema": {
+              "default": 0,
+              "minimum": 0,
+              "title": "Offset",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ConversationSummary"
+                  },
+                  "title": "Response Rag List Conversations",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Conversations",
+        "tags": [
+          "rag"
+        ]
+      }
+    },
+    "/rag/conversations/{conversation_id}": {
+      "delete": {
+        "description": "Delete a conversation with its questions, answers and cited excerpts.",
+        "operationId": "rag_delete_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such conversation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Conversation",
+        "tags": [
+          "rag"
+        ]
+      },
+      "get": {
+        "operationId": "rag_get_conversation",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "conversation_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Conversation Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ConversationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such conversation"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Conversation",
+        "tags": [
+          "rag"
         ]
       }
     },

@@ -620,6 +620,66 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - Text → Piper → Audiodatei. Text-Version wird mitgespeichert (Transkript, barrierefrei).
 - Auslieferung: Web-Player in der App + **privater Podcast-RSS-Feed** (Token-URL, widerrufbar).
 
+**Umsetzung (`backend/app/digest/`, #28):**
+
+- **Einstellungen pro Nutzer** (`digest_user_settings`, API `GET/PATCH /api/digests/settings`):
+  aktiv, Uhrzeit, Zeitzone (leer = Profil), Wochentage (0 = Montag), Sprache (`de`/`en`, leer =
+  Profil), Stimme (leer = Standardstimme der Sprache), Länge (`short`/`normal`), Postfächer (leer =
+  alle lesbaren). Ohne Zeile gelten die Standards, der Digest ist aus.
+- **Zeitplan** (`app.digest.schedule`, reine Funktionen): Der periodische Job `digest.schedule`
+  (jede Minute, Queue `default`) berechnet je Nutzer den letzten fälligen Termin in dessen
+  Zeitzone und legt dafür genau einen Digest an (`last_scheduled_for` plus Unique-Constraint
+  `(user_id, scheduled_for)`). Sommerzeit nach PEP 495: Eine Uhrzeit, die es beim Umstellen nicht
+  gibt (02:30 Ende März), läuft eine Stunde später nach Wanduhr; eine doppelte Uhrzeit (Ende
+  Oktober) läuft einmal, beim ersten Auftreten. Eine geänderte Planung startet mit dem nächsten
+  Termin, ein heute schon vergangener feuert nicht nachträglich.
+- **Zeitraum:** Mails mit Eingang in `[period_start, period_end)`. `period_end` ist der Termin
+  (bzw. „jetzt“ bei manuellen Digests), `period_start` das Ende des letzten nicht
+  fehlgeschlagenen Digests (erster Digest: `OLLAMAIL_DIGEST_FIRST_LOOKBACK_HOURS`, höchstens
+  `OLLAMAIL_DIGEST_MAX_LOOKBACK_DAYS`). Mails eines fehlgeschlagenen Digests kommen in den nächsten.
+- **Inhalt** (`app.digest.content`): Mails aus den gewählten, lesbaren Postfächern, ohne
+  Gesendet/Entwürfe/Papierkorb/Spam-Ordner. Reihenfolge nach Triage: Handlungsbedarf, Wichtig,
+  Warten auf, eigene/ungetriagte, Info; innerhalb nach Priorität und Eingang. Höchstens
+  `OLLAMAIL_DIGEST_MAX_MESSAGES` Mails werden zusammengefasst, der Rest gezählt. Newsletter und
+  Benachrichtigungen (`OLLAMAIL_DIGEST_BULK_CATEGORIES`) werden nur in einem Sammelsatz mit
+  Anzahl und Absendern erwähnt, Spam (`OLLAMAIL_DIGEST_SKIP_CATEGORIES`) gar nicht. Todos: neue
+  offene Todos des Zeitraums sowie überfällige, heute und morgen fällige (Datum in der Zeitzone
+  des Nutzers).
+- **Zusammenfassung (Map-Reduce, `app.digest.summarize`)**, Aufgabe `digest` des Gateways:
+  1. *Map:* Mails in kleinen Gruppen (`OLLAMAIL_DIGEST_MAP_BATCH_SIZE`, begrenzt durch das
+     Kontextfenster des zugewiesenen Modells) → je Mail ein Satz plus Termin/Frist
+     (strukturierte Ausgabe). Ungültige Antworten: Gruppe wird halbiert und erneut gefragt;
+     scheitert eine einzelne Mail, steht stattdessen „Absender schreibt: Betreff“ da.
+  2. *Condense:* Passen die Notizen nicht in ein Kontextfenster, werden Gruppen zu weniger
+     Notizen zusammengefasst (Referenzen bleiben erhalten), bei Bedarf mehrfach.
+  3. *Reduce:* aus den Notizen der gesprochene Hauptteil mit `[n]`-Referenzen. Erfundene
+     Referenzen, Überschriften, Listen und `<think>`-Blöcke werden entfernt; eine unbrauchbare
+     Antwort wird durch die Notizen ersetzt.
+  Zahlen, Datum, Todos und Sammelsätze schreibt der Code selbst (`app.digest.texts`), nicht das
+  Modell. Ohne Mails kommt der Digest ohne Modellaufruf aus.
+- **Ergebnis `Digest`** (`digests`): Titel, Skript (Markdown, `[n]` verweist auf
+  `references` = Mail- und Postfach-IDs), Anzahl Mails/Todos, Modell, Prompt-Versionen,
+  Audiodateien je Format, Dauer, Status `pending` → `summarizing` → `synthesizing` → `ready`
+  (oder `failed` mit `error_code`). Statuswechsel als Event `digest.changed`.
+- **Jobs:** `digest.generate` (Queue `llm`) schreibt das Skript, `digest.synthesize` (Queue `tts`)
+  spricht es über `TTSService` (#27) nach `<data_dir>/digests/<user_id>/<digest_id>.mp3|.opus`.
+  Beide sind idempotent und per Lock je Digest serialisiert; das Skript wird ohne Titel und
+  ohne Referenzen gesprochen. Abgeschaltete Cloud-LLMs und fehlende Stimmen sind dauerhafte Fehler
+  (kein Retry).
+- **API** (angemeldet, nur eigene Digests, fremde = 404): `GET /api/digests`,
+  `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft), `GET/DELETE
+  /api/digests/{id}`, `GET /api/digests/{id}/audio.{mp3|opus}` (Range-Requests, Web-Player).
+- **Podcast-Feed:** `POST /api/digests/feed` erzeugt ein zufälliges Token (256 Bit) und liefert
+  einmalig die URL `/api/feeds/{token}.xml`; gespeichert wird nur der SHA-256-Hash. Erneutes
+  `POST` ersetzt, `DELETE /api/digests/feed` widerruft das Token; alte URLs liefern danach 404.
+  Der Feed (RSS 2.0 mit iTunes-Namespace, `itunes:block`) enthält fertige Digests mit Audio;
+  die Audio-URLs `/api/feeds/{token}/{digest_id}.mp3` sind ebenfalls nur mit Token abrufbar und
+  unterstützen `HEAD` und Range-Requests. Feed-Routen sind nicht Teil des OpenAPI-Schemas.
+- **Aufbewahrung:** Der stündliche Job `digest.cleanup` löscht Digests älter als
+  `OLLAMAIL_DIGEST_RETENTION_DAYS` (Standard 30) samt Dateien, Digests eines inzwischen
+  gelöschten Postfachs, Dateien ohne Digest (z. B. gelöschter Nutzer) und markiert seit Stunden
+  hängende Digests als fehlgeschlagen.
+
 ### 4.5 RAG („Frag deine Inbox“)
 
 - Chunking von Mail-Text und extrahiertem Anhangstext (PDF, DOCX, TXT; später OCR).
@@ -666,6 +726,59 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Zugriff:** Jede Abfrage enthält `mailbox_id IN (readable_mailbox_ids(user_id))` aus
   `app.search.access`, der einzigen Stelle dieser Regel. Heute: eigene Postfächer; Shared
   Mailboxes werden dort mit #34 ergänzt.
+- **Kategorie-Filter** (`SearchFilters.category_ids`): Triage-Kategorie der Mail
+  (`triage_results.category_id`).
+
+**Umsetzung „Frag deine Inbox“ (`backend/app/rag/`, #25):**
+
+- **Ablauf** (`RagService.ask`, ein Event-Stream pro Frage):
+  1. Kontext aus der DB: frühere Runden des Gesprächs, lesbare Postfächer, sichtbare Kategorien.
+  2. **Query-Analyse** (Prompt `rag_query@1`, Structured Output `QueryAnalysis`): eigenständige
+     Suchanfrage (löst Bezüge in Folgefragen auf) und Filter Zeitraum, Absender, Postfach,
+     Kategorie. Das Modell sieht nur die Fragen des Nutzers und die Schlüssel seiner Postfächer
+     (`m1`, `m2`, …) und Kategorien, nie Mailinhalte. Übernommen wird nur, was sich auf ein
+     lesbares Postfach, eine sichtbare Kategorie oder einen gültigen Zeitraum (Tage in der
+     Zeitzone des Nutzers) abbilden lässt. **UI-Filter haben Vorrang**, extrahierte Filter
+     füllen nur Lücken (`extracted` nennt sie). Schlägt die Analyse fehl, wird die Frage
+     unverändert gesucht. Abschaltbar: `OLLAMAIL_RAG_FILTER_EXTRACTION_ENABLED`.
+  3. **Retrieval** über `search()` (Zugriff in SQL, siehe oben), `OLLAMAIL_RAG_RETRIEVAL_LIMIT`
+     Chunks. **Reranker** (optional, `app.rag.rerank`): das Chat-Modell ordnet
+     `OLLAMAIL_RAG_RERANK_CANDIDATES` Kandidaten (Prompt `rag_rerank@1`); standardmäßig an für
+     `gpu-consumer`/`gpu-server`, **aus beim Profil `cpu`**, per
+     `OLLAMAIL_RAG_RERANKER_ENABLED` überschreibbar. Fehler → Reihenfolge der Suche.
+  4. **Antwort** (Prompt `rag_answer@1`, `LLMGateway.stream`, Aufgabe `rag_chat`): Die besten
+     Chunks, die neben Prompt, Verlauf und Antwort (`OLLAMAIL_RAG_MAX_ANSWER_TOKENS`) ins
+     Kontextfenster passen, werden nummerierte Quellen. Ohne Treffer wird kein Modell gefragt;
+     die Antwort sagt, dass nichts gefunden wurde.
+  5. Frage, Antwort und zitierte Ausschnitte speichern; Log-Event `rag_answer_finished` mit
+     `ttft_ms` (Anfrage bis erstes Antwortstück), `retrieval_ms`, `total_ms`, Anzahl Quellen
+     und Zitate, Status – ohne Inhalte.
+- **Zitate:** Das Modell zitiert mit `[n]`. `CitationFilter` liegt zwischen Modell und Client
+  und lässt nur Nummern durch, die einer übergebenen Quelle entsprechen (`[1, 3]` → `[1][3]`,
+  erfundene Nummern werden entfernt) – auch über Stream-Stücke hinweg. Zitiert die Antwort
+  nichts, ist ihr Status `no_evidence` (sonst `answered`); das UI kennzeichnet sie.
+- **Prompt-Injection:** Mailinhalte stehen nur in Datenblöcken mit pro Anfrage zufälligem
+  Tag (`<mail-3f9a… n="1">…</mail-3f9a…>`), eine Mail kann ihren Block also nicht schließen.
+  Der System-Prompt erklärt die Blöcke zu nicht vertrauenswürdigen Daten und verbietet, darin
+  enthaltenen Anweisungen zu folgen. Es gibt keine Tools: Die Ausgabe wird nur als Text mit
+  Zitatmarkern behandelt, nie ausgeführt. Zugriffskontrolle steht nie im Prompt.
+- **Verbindungen:** Für jeden Schritt wird eine eigene DB-Session geöffnet und wieder
+  geschlossen; während das Modell schreibt, hält der Stream keine Verbindung.
+- **Gesprächsverlauf:** `rag_conversations` (am Nutzer, `ON DELETE CASCADE`), `rag_messages`
+  (Frage/Antwort mit `position`, Filtern, Status, Modell, Prompt-Version), `rag_citations`
+  (Nummer, Mail, Postfach, Anhang, Kopfzeile, Ausschnitt; `ON DELETE CASCADE` an Antwort, Mail,
+  Anhang und Postfach). Folgefragen bekommen die letzten `OLLAMAIL_RAG_HISTORY_TURNS` Runden,
+  frühere Antworten ohne Zitatmarker. Beim Lesen eines Gesprächs werden Zitate aus nicht
+  (mehr) lesbaren Postfächern per SQL ausgeblendet. Der Job `rag.purge_conversations`
+  (täglich) löscht Gespräche nach `OLLAMAIL_RAG_HISTORY_RETENTION_DAYS` ohne neue Frage
+  (Standard 90, 0 = nie).
+
+| Endpunkt | Zweck |
+|---|---|
+| `POST /rag/ask` | Frage stellen (`question`, optional `conversation_id`, `filters`). Antwort als `text/event-stream`: `start` (IDs), `filters` (angewandte Filter), `sources` (nummerierte Quellen mit Mail-ID und Ausschnitt), `token`…, dann `done` (`status`, `citations`, `ttft_ms`) oder `error` (`code`). POST, damit die Frage nicht in URLs/Access-Logs landet; Clients lesen den Stream per `fetch` |
+| `GET /rag/conversations` | Eigene Gespräche, zuletzt genutzte zuerst |
+| `GET/DELETE /rag/conversations/{id}` | Gespräch mit Fragen, Antworten und Zitaten; löschen. Fremde Gespräche verhalten sich wie nicht vorhandene (404) |
+| `DELETE /rag/conversations` | Alle eigenen Gespräche löschen |
 
 ## 5. Auth & Mandantenmodell
 
@@ -724,6 +837,14 @@ werden je Issuer gecacht; ID-Token-Prüfung mit `joserfc`, PKCE-/Client-Auth-Hel
 Presets für Entra ID (`tid`-Prüfung, Multi-Tenant nur mit Tenant-Allowlist), Google Workspace
 (`hd`), Keycloak, Authentik und generisch. `POST /api/auth/oidc/logout` liefert zusätzlich die
 URL für das RP-initiated Logout.
+
+**GitHub** (`app/auth/providers/github/`, Anleitung: [`auth/github.md`](auth/github.md)): OAuth App
+oder GitHub App, github.com oder GitHub Enterprise Server (`base_url`, API unter `/api/v3`).
+Provider stehen in `auth_github_providers` (Client-Secret als `EncryptedStr`, Admin-API unter
+`/api/admin/auth/github`) und nutzen Redirect-Flow und Provisioning von OIDC. Subject ist die
+numerische GitHub-Nutzer-ID; E-Mail nur die verifizierte primäre Adresse. Org- und
+Team-Beschränkung (`allowed_organizations`, `allowed_teams`) wird serverseitig über die REST-API
+geprüft; Teams (`<org>/<team-slug>`) sind die Gruppen für das Rollen-Mapping (#33).
 
 **LDAP / Active Directory** (`app/auth/providers/ldap/`, Details: [`auth/ldap.md`](auth/ldap.md)):
 Verzeichnisse stehen in `auth_ldap_directories` (Einstellungen als JSONB, Bind-Passwort

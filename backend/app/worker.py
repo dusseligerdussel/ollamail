@@ -59,11 +59,13 @@ QUEUES: tuple[QueueName, ...] = get_args(QueueName)
 TASK_MODULES: list[str] = [
     "app.ai.tts.tasks",
     "app.auth.tasks",
+    "app.digest.tasks",
     "app.mail.sync.tasks",
     "app.processing.tasks",
     "app.triage.tasks",
     "app.search.tasks",
     "app.todos.steps",
+    "app.rag.tasks",
 ]
 
 # Waits 2, 4, 8, ... 128 seconds between attempts (8 attempts, ~4 minutes in total).
