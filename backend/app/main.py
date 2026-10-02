@@ -29,6 +29,7 @@ from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
 from app.mail.api.router import router as mailboxes_router
 from app.mail.providers.gmail_connect import router as gmail_connect_router
+from app.rag.router import router as rag_router
 from app.todos.router import router as todos_router
 from app.triage.router import router as triage_router
 from app.users.router import router as users_router
@@ -94,6 +95,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(audit_router)
     app.include_router(mailboxes_router)
     app.include_router(gmail_connect_router)
+    app.include_router(rag_router)
     oidc.install(app, settings)
     return app
 
