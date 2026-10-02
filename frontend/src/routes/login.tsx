@@ -4,13 +4,7 @@ import { LogIn } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  type AuthProviderInfo,
-  authProvidersQueryOptions,
-  login,
-  safeRedirect,
-  setSignedIn,
-} from "@/api/auth";
+import { authProvidersQueryOptions, login, safeRedirect, setSignedIn } from "@/api/auth";
 import { describeApiError, isApiError } from "@/api/errors";
 import { FormError, FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
@@ -32,12 +26,12 @@ export const Route = createFileRoute("/login")({
 });
 
 /**
- * Start URL of a redirect provider (OIDC, GitHub): a full page navigation to the backend,
- * which sends the browser to the identity provider and back.
+ * Start URL of a redirect provider (OIDC, GitHub): a full page navigation to the backend
+ * (`login_path` below `/api`), which sends the browser to the identity provider and back.
  */
-export function providerLoginUrl(provider: AuthProviderInfo, redirect: string) {
-  const params = new URLSearchParams({ redirect });
-  return `/api/auth/providers/${encodeURIComponent(provider.name)}/login?${params}`;
+export function providerLoginUrl(loginPath: string, redirect: string) {
+  const params = new URLSearchParams({ return_to: redirect });
+  return `/api${loginPath}?${params}`;
 }
 
 function loginErrorMessage(error: unknown, t: ReturnType<typeof useTranslation>["t"]) {
@@ -70,7 +64,9 @@ function LoginPage() {
 
   // The backend always offers the local login today; assume it until the list has loaded.
   const localLogin = providers.data?.local_login ?? true;
-  const externalProviders = (providers.data?.providers ?? []).filter((p) => p.kind === "redirect");
+  const externalProviders = (providers.data?.providers ?? []).flatMap((p) =>
+    p.kind === "redirect" && p.login_path ? [{ ...p, login_path: p.login_path }] : [],
+  );
 
   function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -124,7 +120,7 @@ function LoginPage() {
             {externalProviders.map((provider) => (
               <li key={provider.name}>
                 <Button asChild variant="outline" className="w-full">
-                  <a href={providerLoginUrl(provider, target)}>
+                  <a href={providerLoginUrl(provider.login_path, target)}>
                     <LogIn aria-hidden="true" />
                     {t("auth.login.withProvider", { provider: provider.display_name })}
                   </a>
