@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
+import { expectNoA11yViolations } from "./a11y";
 import { mockApi } from "./mock-api";
 import { mockMail, NOW } from "./mock-mail";
 import { mockTodos, offerMessage, todoId } from "./mock-todos";
@@ -16,18 +16,6 @@ test.beforeEach(async ({ page }) => {
     (route) => route.fulfill({ json: [] }),
   );
 });
-
-async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .exclude("iframe")
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  const summary = results.violations.map(
-    (violation) =>
-      `${violation.impact}: ${violation.id} – ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
-  );
-  expect(summary).toEqual([]);
-}
 
 async function overflow(page: Page) {
   return page.evaluate(

@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
+import { expectNoA11yViolations } from "./a11y";
 import { mockApi } from "./mock-api";
 import { answered, mockDrafts, overviewDrafts, SUGGESTION } from "./mock-drafts";
 import { mockMail } from "./mock-mail";
@@ -11,17 +11,6 @@ test.beforeEach(async ({ page }) => {
   await mockApi(page);
   await mockMail(page);
 });
-
-async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  const summary = results.violations.map(
-    (violation) =>
-      `${violation.impact}: ${violation.id} – ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
-  );
-  expect(summary).toEqual([]);
-}
 
 async function overflow(page: Page) {
   return page.evaluate(

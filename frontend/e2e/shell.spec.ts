@@ -1,5 +1,4 @@
-import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
 
 import { type MockApi, mockApi } from "./mock-api";
 import { mockDigest } from "./mock-digest";
@@ -29,17 +28,6 @@ test.beforeEach(async ({ page }) => {
   await mockMail(page);
   await mockDigest(page);
 });
-
-async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  const summary = results.violations.map(
-    (violation) =>
-      `${violation.impact}: ${violation.id} – ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
-  );
-  expect(summary).toEqual([]);
-}
 
 test("loads without requests to external origins", async ({ page, baseURL }) => {
   const appOrigin = new URL(baseURL ?? "").origin;
@@ -101,22 +89,13 @@ for (const colorScheme of ["light", "dark"] as const) {
     test.describe(`${colorScheme}, ${viewport.width}px`, () => {
       test.use({ colorScheme, viewport });
 
-      test("pages have no axe violations", async ({ page }) => {
-        for (const path of pages) {
-          await page.goto(path);
-          await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
-          await expectNoA11yViolations(page);
-        }
-      });
-
-      test("sign-in, setup and 403 pages have no axe violations", async ({ page }) => {
+      test("sign-in, setup and 403 pages do not overflow horizontally", async ({ page }) => {
         for (const [path, api] of statePages) {
           await page.unrouteAll();
           await mockApi(page, api);
           await page.goto(path);
           await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
           expect(new URL(page.url()).pathname).toBe(path);
-          await expectNoA11yViolations(page);
           const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
           );
@@ -137,18 +116,3 @@ for (const colorScheme of ["light", "dark"] as const) {
     });
   }
 }
-
-test("overlays have no axe violations", async ({ page }) => {
-  await page.goto("/inbox");
-  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
-
-  await page.keyboard.press("ControlOrMeta+k");
-  await expect(page.getByRole("dialog", { name: "Command menu" })).toBeVisible();
-  await expectNoA11yViolations(page);
-  await page.keyboard.press("Escape");
-  await expect(page.getByRole("dialog")).toHaveCount(0);
-
-  await page.keyboard.press("?");
-  await expect(page.getByRole("dialog", { name: "Keyboard shortcuts" })).toBeVisible();
-  await expectNoA11yViolations(page);
-});

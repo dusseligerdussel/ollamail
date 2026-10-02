@@ -41,6 +41,14 @@ die Main-Thread-Arbeit messen; Budgets siehe „Postfächer und Inbox“, E2E). 
 deckt einen Fehler zu. Gewartet wird auf Zustände (`expect`, `toPass`), nie mit festen Pausen.
 `E2E_PREVIEW=1` testet den Produktions-Build (`pnpm build` vorher) statt des Dev-Servers.
 
+**Barrierefreiheit (axe):** `e2e/a11y.spec.ts` prüft jede Route mit axe (WCAG 2.2 A/AA,
+Helfer `expectNoA11yViolations` in `e2e/a11y.ts`) in den Zuständen „mit Daten“ und „leer“ in
+Hell/Dunkel × Desktop (1440 px)/Handy (390 px), „Fehler“ (alle Anfragen 500) und „Laden“ (keine
+Antwort) in Hell/Desktop und Dunkel/Handy, dazu Anmelde-, Setup-, Einladungs- und 403-Seite sowie
+geöffnete Dialoge, Sheets, Menüs und die Command Palette. Neue Routen gehören in die Liste
+`routes`, neue Dialoge/Sheets in `overlays`. Die Admin-API mockt `e2e/mock-admin.ts`
+(`{ empty: true }` für leere Zustände). Feature-Specs nutzen denselben Helfer für ihre Abläufe.
+
 Lokal gegen den echten Stack (wie der CI-Job „E2E“ in `.github/workflows/ci.yml`):
 
 ```sh
