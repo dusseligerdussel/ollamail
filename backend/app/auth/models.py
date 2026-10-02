@@ -1,5 +1,6 @@
 """Authentication data: identities, server-side sessions and rate-limit counters."""
 
+import enum
 import uuid
 from datetime import datetime
 
@@ -100,6 +101,14 @@ def _role_column() -> Enum:
     )
 
 
+class MfaEnforcement(enum.StrEnum):
+    """Which local accounts must use a second factor (app/auth/mfa)."""
+
+    OFF = "off"
+    ADMINS = "admins"
+    ALL = "all"
+
+
 class AuthPolicy(Base):
     """Instance-wide sign-in settings (admin UI, #33). At most one row; missing means
     defaults (``app.auth.policy.get_policy``)."""
@@ -116,6 +125,19 @@ class AuthPolicy(Base):
     role_mapping_enabled: Mapped[bool] = mapped_column(default=False)
     # Role of external users no mapping rule matches (role mapping on).
     default_role: Mapped[UserRole] = mapped_column(_role_column(), default=UserRole.USER)
+    # Local accounts without a second factor must set one up at their next login (#96).
+    mfa_enforcement: Mapped[MfaEnforcement] = mapped_column(
+        Enum(
+            MfaEnforcement,
+            name="mfa_enforcement",
+            native_enum=False,
+            create_constraint=True,
+            length=16,
+            values_callable=lambda members: [member.value for member in members],
+        ),
+        server_default=MfaEnforcement.OFF.value,
+        default=MfaEnforcement.OFF,
+    )
 
 
 class RoleMappingRule(Base):

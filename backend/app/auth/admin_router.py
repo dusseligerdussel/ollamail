@@ -72,6 +72,7 @@ async def _settings_read(
         admin_access=AdminAccess(
             usable_admins=len(access), own_providers=sorted(access.get(admin.user_id, set()))
         ),
+        mfa_enforcement=policy.mfa_enforcement,
     )
 
 
@@ -96,8 +97,9 @@ async def update_auth_settings(
     registry: RegistryDep,
     settings: SettingsDep,
 ) -> AuthSettingsRead:
-    """Switch local login on or off. Switching it off is refused (409) unless another
-    admin access (external provider) keeps working."""
+    """Switch local login on or off and set which local accounts need a second factor.
+    Switching local login off is refused (409) unless another admin access (external
+    provider) keeps working."""
     if body.local_login_enabled is not None:
         guard = await AdminAccessGuard.start(db, registry)
         policy = await policy_service.get_policy_for_update(db)
@@ -117,6 +119,19 @@ async def update_auth_settings(
                 enabled=body.local_login_enabled,
                 by_user_id=admin.user_id,
             )
+    if body.mfa_enforcement is not None:
+        policy = await policy_service.get_policy_for_update(db)
+        if policy.mfa_enforcement != body.mfa_enforcement:
+            policy.mfa_enforcement = body.mfa_enforcement
+            await audit.record(
+                db,
+                audit.Actor.user(admin.user_id),
+                audit.AuditAction.IDP_CONFIG_CHANGED,
+                audit.Target.of(audit.TargetType.SETTINGS, "auth"),
+                {"kind": "mfa", "change": str(body.mfa_enforcement)},
+            )
+            await db.commit()
+            log.info("mfa_enforcement_changed", enforcement=str(body.mfa_enforcement))
     return await _settings_read(db, registry, request, settings, admin)
 
 

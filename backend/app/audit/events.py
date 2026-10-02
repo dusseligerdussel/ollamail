@@ -17,6 +17,11 @@ class AuditAction(enum.StrEnum):
     LOGIN_FAILED = "auth.login_failed"
     LOGOUT = "auth.logout"
     SESSION_REVOKED = "auth.session_revoked"
+    # Second factor of local accounts (#96): passkey or TOTP added/removed (``method``),
+    # recovery codes generated; removal by ``app.cli reset-password --reset-2fa`` (via cli).
+    MFA_ENABLED = "auth.mfa_enabled"
+    MFA_DISABLED = "auth.mfa_disabled"
+    MFA_RECOVERY_CODES_GENERATED = "auth.mfa_recovery_codes_generated"
     # Users
     USER_CREATED = "user.created"
     USER_ROLE_CHANGED = "user.role_changed"  # group mapping at login; user administration

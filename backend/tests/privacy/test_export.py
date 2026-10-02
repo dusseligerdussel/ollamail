@@ -96,6 +96,12 @@ async def test_export_contains_own_data_and_nothing_of_other_users(
     profile = json.loads(archive.read("profile.json"))
     assert profile["user"]["email"] == "erika@example.org"
     assert [i["provider"] for i in profile["identities"]] == ["local"]
+    factors = profile["second_factors"]
+    assert [p["name"] for p in factors["passkeys"]] == ["Passkey erika"]
+    assert factors["recovery_codes_remaining"] == 1
+    # Names and dates only: no TOTP secret, keys or code hashes.
+    assert "JBSWY3DPEHPK3PXP" not in archive.read("profile.json").decode()
+    assert "public_key" not in json.dumps(factors)
     assert [t["title"] for t in json.loads(archive.read("todos.json"))] == ["Todo erika"]
     triage = json.loads(archive.read("triage.json"))
     assert [c["name"] for c in triage["categories"] if c["own"]] == ["Category erika"]

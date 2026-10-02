@@ -62,7 +62,7 @@ export interface TestBackend {
 export function backend({
   initialized = true,
   user = testAdmin,
-  providers = { local_login: true, local_registration: false, providers: [] },
+  providers = { local_login: true, local_registration: false, passkey_login: false, providers: [] },
 }: TestBackend = {}): FetchHandler {
   return (request) => {
     const { pathname } = new URL(request.url);

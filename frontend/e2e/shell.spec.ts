@@ -5,7 +5,15 @@ import { type MockApi, mockApi } from "./mock-api";
 import { mockDigest } from "./mock-digest";
 import { mockMail } from "./mock-mail";
 
-const pages = ["/inbox", "/tasks", "/digest", "/search", "/settings", "/admin"] as const;
+const pages = [
+  "/inbox",
+  "/tasks",
+  "/digest",
+  "/search",
+  "/settings",
+  "/settings/security",
+  "/admin",
+] as const;
 
 // Pages that need a different session state: path → mocked API.
 const statePages: [string, MockApi][] = [

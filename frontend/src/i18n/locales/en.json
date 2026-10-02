@@ -173,7 +173,10 @@
           "login_succeeded": "Signed in",
           "login_failed": "Sign-in failed",
           "logout": "Signed out",
-          "session_revoked": "Sessions ended"
+          "session_revoked": "Sessions ended",
+          "mfa_enabled": "Two-factor method added",
+          "mfa_disabled": "Two-factor method removed",
+          "mfa_recovery_codes_generated": "Recovery codes created"
         },
         "user": {
           "created": "User created",
@@ -522,6 +525,18 @@
           "generic": "HTTPS address of the IdP metadata. Certificates are reloaded from here later."
         },
         "verifySaml": "Register ollamail at the identity provider, most easily with the SP metadata URL, then enable the provider."
+      },
+      "mfa": {
+        "title": "Two-factor authentication",
+        "label": "Local accounts",
+        "description": "Accounts without a passkey or authenticator app must set one up at their next sign-in. Accounts of identity providers use the provider's sign-in.",
+        "options": {
+          "off": "Optional",
+          "admins": "Required for administrators",
+          "all": "Required for everyone"
+        },
+        "recommended": "Recommended: at least for administrators.",
+        "changed": "Two-factor setting saved."
       }
     },
     "roleMapping": {
@@ -914,7 +929,10 @@
       "or": "or",
       "providers": "Other sign-in methods",
       "withProvider": "Continue with {{provider}}",
-      "noMethods": "No sign-in method is configured. Contact your administrator."
+      "noMethods": "No sign-in method is configured. Contact your administrator.",
+      "passkey": "Sign in with a passkey",
+      "passkeyFailed": "This passkey cannot be used to sign in.",
+      "passkeyCancelled": "No passkey was used. Try again or sign in with your password."
     },
     "setup": {
       "step": "Step {{step}} of {{of}}",
@@ -943,6 +961,46 @@
       "submit": "Set password and sign in",
       "submitting": "Signing in…",
       "toLogin": "Go to sign-in"
+    },
+    "mfa": {
+      "title": "Two-factor authentication",
+      "description": "Confirm that it is you with your second factor.",
+      "methods": {
+        "webauthn": "Passkey",
+        "totp": "Authenticator app",
+        "recovery": "Recovery code"
+      },
+      "methodsLabel": "Verification method",
+      "passkeyHint": "Use the passkey or security key you added to this account.",
+      "usePasskey": "Use passkey",
+      "waiting": "Waiting for your device…",
+      "totpLabel": "Code from your authenticator app",
+      "totpHint": "6 digits. A new code appears every 30 seconds.",
+      "recoveryLabel": "Recovery code",
+      "recoveryHint": "One of the codes you saved when you set up two-factor authentication. Each code works once.",
+      "verify": "Verify",
+      "verifying": "Verifying…",
+      "invalidCode": "The code is not correct. Try again.",
+      "expired": "The sign-in has expired. Enter your password again.",
+      "passkeyCancelled": "No passkey was used. Try again or choose another method.",
+      "passkeyFailed": "This passkey was not accepted.",
+      "noMethods": "No second factor can be used. Contact your administrator.",
+      "back": "Back to sign-in",
+      "enrollTitle": "Set up two-factor authentication",
+      "enrollDescription": "Your administrator requires a second factor for this account. Set one up to finish signing in.",
+      "codesTitle": "Save your recovery codes",
+      "continue": "Continue",
+      "switch": {
+        "webauthn": "Use a passkey",
+        "totp": "Use your authenticator app",
+        "recovery": "Use a recovery code"
+      },
+      "enrollSwitch": {
+        "webauthn": "Set up a passkey instead",
+        "totp": "Set up an authenticator app instead"
+      },
+      "otherMethods": "Other methods",
+      "passkeyName": "Passkey"
     }
   },
   "account": {
@@ -964,6 +1022,78 @@
       "revoke": "Sign out",
       "revokeLabel": "Sign out {{device}}",
       "revokeOthers": "Sign out all other sessions"
+    },
+    "security": {
+      "title": "Security",
+      "linkDescription": "Passkeys, authenticator app and recovery codes.",
+      "back": "Back to settings",
+      "enforced": "Your administrator requires two-factor authentication for this account.",
+      "off": "Two-factor authentication is off. Add a passkey or an authenticator app to protect your account if your password becomes known.",
+      "on": "Two-factor authentication is on.",
+      "unavailable": "You sign in through an identity provider. Two-factor authentication is managed there.",
+      "lastFactor": "Two-factor authentication is required for your account. Add another method before removing this one.",
+      "passkeys": {
+        "title": "Passkeys",
+        "description": "Fingerprint, face, device PIN or security key. Also works without a password.",
+        "empty": "No passkeys yet.",
+        "add": "Add passkey",
+        "meta": "Added {{added}}",
+        "metaUsed": "Added {{added}} · Last used {{used}}",
+        "synced": "Synced",
+        "remove": "Remove",
+        "removeLabel": "Remove passkey {{name}}",
+        "removed": "Passkey removed.",
+        "notConfigured": "Passkeys are not configured on this server.",
+        "unsupported": "This browser does not support passkeys.",
+        "sheetTitle": "Add passkey",
+        "sheetDescription": "Name the passkey so you can recognise it later. Your browser then asks you to confirm with your device.",
+        "name": "Name",
+        "namePlaceholder": "e.g. Work laptop",
+        "nameRequired": "Enter a name.",
+        "create": "Create passkey",
+        "failed": "The passkey could not be added.",
+        "cancelled": "No passkey was created. Try again when you are ready.",
+        "exists": "This passkey is already registered.",
+        "created": "Passkey added."
+      },
+      "totp": {
+        "title": "Authenticator app",
+        "description": "Time-based codes from an app such as Aegis, 2FAS or your password manager.",
+        "active": "Active",
+        "setup": "Set up",
+        "remove": "Remove",
+        "removed": "Authenticator app removed.",
+        "sheetTitle": "Set up authenticator app",
+        "sheetDescription": "Two steps: add ollamail to your app, then confirm with a code.",
+        "scan": "1. Scan the QR code with your authenticator app.",
+        "qrAlt": "QR code for the authenticator app",
+        "secret": "Key for manual entry",
+        "enterCode": "2. Enter the 6-digit code the app shows.",
+        "code": "Code",
+        "confirm": "Activate",
+        "confirming": "Checking…",
+        "invalid": "The code is not correct. Check the time on your phone and try again.",
+        "enabled": "Authenticator app set up."
+      },
+      "recovery": {
+        "title": "Recovery codes",
+        "description": "For when you cannot use your passkey or app. Each code works once.",
+        "remaining_one": "{{count}} code left",
+        "remaining_other": "{{count}} codes left",
+        "none": "Available once a second factor is set up.",
+        "regenerate": "New codes",
+        "sheetTitle": "Recovery codes",
+        "sheetDescription": "Store these codes in a safe place, e.g. your password manager. They are shown only now.",
+        "regenerateDescription": "New codes replace your current ones. The current codes stop working.",
+        "create": "Create new codes",
+        "listLabel": "Your recovery codes",
+        "copyAll": "Copy all",
+        "copied": "Copied",
+        "download": "Download",
+        "fileName": "ollamail-recovery-codes.txt",
+        "done": "Done, codes saved"
+      },
+      "more": "More options"
     }
   },
   "forbidden": {

@@ -6,6 +6,7 @@ from typing import Annotated
 
 from pydantic import BaseModel, Field, StringConstraints
 
+from app.auth.models import MfaEnforcement
 from app.auth.providers import AuthProviderKind
 from app.users.models import UserRole
 from app.users.schemas import DisplayName, Email, Language, Password, TimeZone
@@ -51,6 +52,8 @@ class AuthProviderInfo(BaseModel):
 class AuthProviders(BaseModel):
     local_login: bool
     local_registration: bool
+    # Sign-in with a passkey instead of a password (local accounts, WebAuthn configured).
+    passkey_login: bool = False
     # External providers (OIDC, GitHub, LDAP); empty until they are configured.
     providers: list[AuthProviderInfo]
 
@@ -87,10 +90,13 @@ class AuthSettingsRead(BaseModel):
     # ``github`` once available).
     provider_kinds: list[str]
     admin_access: AdminAccess
+    # Local accounts that must use a second factor (#96): off, admins, all.
+    mfa_enforcement: MfaEnforcement = MfaEnforcement.OFF
 
 
 class AuthSettingsUpdate(BaseModel):
     local_login_enabled: bool | None = None
+    mfa_enforcement: MfaEnforcement | None = None
 
 
 class RoleMappingRuleFields(BaseModel):
