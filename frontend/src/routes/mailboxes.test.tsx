@@ -18,11 +18,14 @@ function mockMailboxApi({
   providers = [{ type: "imap", connect: "credentials", oauth_start_path: null }],
   test = { ok: true, error: null, folders: [] },
   create,
+  discovered,
 }: {
   mailboxes?: Mailbox[];
   providers?: MailboxProvider[];
   test?: unknown;
   create?: Response;
+  /** Holds back the autodiscovery answer until it resolves. */
+  discovered?: Promise<void>;
 } = {}) {
   const calls: Recorded[] = [];
   const base = backend();
@@ -40,6 +43,7 @@ function mockMailboxApi({
       case "GET /api/mailboxes/providers":
         return json(providers);
       case "POST /api/mailboxes/autodiscover":
+        await discovered;
         return json({
           suggestions: [
             {
@@ -195,6 +199,48 @@ describe("add mailbox", () => {
         sync_enabled: true,
       },
     });
+  });
+
+  it("keeps server settings the user entered before a late suggestion arrives", async () => {
+    let answer = () => {};
+    const calls = mockMailboxApi({ discovered: new Promise((resolve) => (answer = resolve)) });
+    await renderApp("/settings/mailboxes/new");
+    await typeInto(await screen.findByLabelText("Email address"), "erika@firma.example");
+    // Leaving the field starts autodiscovery; its answer is still outstanding.
+    await typeInto(screen.getByLabelText("Password"), "secret");
+    await waitFor(() =>
+      expect(calls.some((call) => call.path === "/api/mailboxes/autodiscover")).toBe(true),
+    );
+    await typeInto(screen.getByLabelText("IMAP server"), "localhost");
+    await typeInto(screen.getByLabelText("Port"), "1143");
+    await userEvent.selectOptions(screen.getByLabelText("Encryption"), "starttls");
+
+    answer();
+    expect(await screen.findByText(/The server was guessed from the domain/)).toBeInTheDocument();
+    expect(screen.getByLabelText("IMAP server")).toHaveValue("localhost");
+    expect(screen.getByLabelText("Port")).toHaveValue("1143");
+    expect(screen.getByLabelText("Encryption")).toHaveValue("starttls");
+    expect(screen.queryByText("Settings guessed from the domain.")).not.toBeInTheDocument();
+  });
+
+  it("does not fill the server field the user is in when a late suggestion arrives", async () => {
+    let answer = () => {};
+    const calls = mockMailboxApi({ discovered: new Promise((resolve) => (answer = resolve)) });
+    await renderApp("/settings/mailboxes/new");
+    await typeInto(await screen.findByLabelText("Email address"), "erika@firma.example");
+    await typeInto(screen.getByLabelText("Password"), "secret");
+    await waitFor(() =>
+      expect(calls.some((call) => call.path === "/api/mailboxes/autodiscover")).toBe(true),
+    );
+    const host = screen.getByLabelText("IMAP server");
+    host.focus();
+
+    answer();
+    expect(await screen.findByText(/The server was guessed from the domain/)).toBeInTheDocument();
+    expect(host).toHaveValue("");
+    await userEvent.keyboard("localhost");
+    expect(host).toHaveValue("localhost");
+    expect(screen.getByLabelText("Port")).toHaveValue("");
   });
 
   it("shows the server's reason when adding fails", async () => {
