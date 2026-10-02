@@ -1,5 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, useNavigate } from "@tanstack/react-router";
+import type { TFunction } from "i18next";
 import { LogIn } from "lucide-react";
 import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
@@ -34,7 +35,7 @@ export function providerLoginUrl(loginPath: string, redirect: string) {
   return `/api${loginPath}?${params}`;
 }
 
-function loginErrorMessage(error: unknown, t: ReturnType<typeof useTranslation>["t"]) {
+function loginErrorMessage(error: unknown, t: TFunction) {
   if (isApiError(error) && error.status === 401) return t("auth.login.invalidCredentials");
   if (isApiError(error) && error.status === 429) return t("auth.login.throttled");
   return describeApiError(error, t).title;

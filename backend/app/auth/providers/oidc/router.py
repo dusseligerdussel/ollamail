@@ -10,14 +10,18 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.auth import redirect_flow, service
+from app.auth.admin_access import AdminAccessGuard
 from app.auth.dependencies import AdminSessionDep, SettingsDep
 from app.auth.models import AuthSession
 from app.auth.providers.oidc.config import OIDCConfig, validate_config
 from app.auth.providers.oidc.errors import OIDCError
+from app.auth.providers.oidc.metadata import MetadataCache
 from app.auth.providers.oidc.models import OIDCProviderRecord
 from app.auth.providers.oidc.presets import PRESETS
+from app.auth.providers.oidc.provider import OIDCProvider
 from app.auth.providers.oidc.schemas import (
     LogoutResult,
+    OIDCConnectionTest,
     OIDCPresetRead,
     OIDCProviderCreate,
     OIDCProviderRead,
@@ -301,7 +305,7 @@ _CLEARABLE = frozenset({"client_secret", "groups_claim"})
     "/providers/{name}",
     responses={
         404: {"description": "Unknown provider"},
-        409: {"description": "Configured in the environment"},
+        409: {"description": "Configured in the environment, or admin lockout"},
         422: {"description": "Invalid settings"},
     },
 )
@@ -320,6 +324,7 @@ async def update_oidc_provider(
     record = await _record(db, name)
     if record is None:
         raise _not_found()
+    guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
     for field in body.model_fields_set:
         value = getattr(body, field)
         if value is None and field not in _CLEARABLE:
@@ -330,6 +335,7 @@ async def update_oidc_provider(
     except ProblemError:
         await db.rollback()
         raise
+    await guard.check()
     await _config_changed(db, admin.user_id, record.id, "updated")
     await db.commit()
     await db.refresh(record)
@@ -342,11 +348,11 @@ async def update_oidc_provider(
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         404: {"description": "Unknown provider"},
-        409: {"description": "Configured in the environment"},
+        409: {"description": "Configured in the environment, or admin lockout"},
     },
 )
 async def delete_oidc_provider(
-    name: str, admin: AdminSessionDep, db: DbDep, store: StoreDep
+    name: str, admin: AdminSessionDep, request: Request, db: DbDep, store: StoreDep
 ) -> None:
     """Remove an OIDC provider. Users and their linked identities are kept; sessions
     started with the provider stay valid until they expire or are revoked."""
@@ -355,7 +361,38 @@ async def delete_oidc_provider(
     record = await _record(db, name)
     if record is None:
         raise _not_found()
-    await _config_changed(db, admin.user_id, record.id, "deleted")
+    guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
+    record_id = record.id
     await db.delete(record)
+    await guard.check()
+    await _config_changed(db, admin.user_id, record_id, "deleted")
     await db.commit()
     log.info("oidc_provider_deleted", provider_name=name, by_user_id=admin.user_id)
+
+
+@admin_router.post("/providers/{name}/test", responses={404: {"description": "Unknown provider"}})
+async def test_oidc_provider(
+    name: str, _: AdminSessionDep, db: DbDep, store: StoreDep
+) -> OIDCConnectionTest:
+    """Fetch the discovery document and signing keys (bypassing the cache), as a login
+    would. The client secret can only be checked by a real login."""
+    config = await store.config(db, name)
+    if config is None:
+        raise _not_found()
+    # A fresh cache: the test must reach the IdP, and must not replace cached keys.
+    cache = MetadataCache(ttl=0, allow_http=store.allow_http, transport=store.transport)
+    provider = OIDCProvider(config, cache)
+    try:
+        metadata = await provider.metadata()
+        keys = await cache.keys(metadata)
+    except OIDCError as exc:
+        log.info("oidc_provider_test_failed", provider_name=name, reason=exc.reason)
+        return OIDCConnectionTest(ok=False, error=exc.code.value)
+    return OIDCConnectionTest(
+        ok=True,
+        issuer=metadata.issuer,
+        authorization_endpoint=metadata.authorization_endpoint,
+        token_endpoint=metadata.token_endpoint,
+        end_session_supported=metadata.end_session_endpoint is not None,
+        signing_keys=len(keys.keys),
+    )
