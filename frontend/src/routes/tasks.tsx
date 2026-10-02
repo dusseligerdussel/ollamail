@@ -145,7 +145,8 @@ function TasksPage() {
         });
       }
     }
-    return list;
+    // Found when searching for "task" as well.
+    return list.map((command) => ({ ...command, keywords: [t("nav.tasks")] }));
   }, [t, usable, toggleDone, dismiss, focusNew, openMail]);
   useCommands(commands);
 
