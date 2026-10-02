@@ -9,7 +9,8 @@ well. The session cookie additionally uses ``SameSite=Lax``.
 
 The middleware covers the whole app (closed by default). ``exempt_paths`` lists the few
 endpoints that are called by other servers without cookies and authenticate requests
-themselves (e.g. Microsoft Graph change notifications). Responses get a fresh cookie when
+themselves (e.g. Microsoft Graph change notifications); entries ending in ``/`` exempt
+every path below them (SCIM, #95). Responses get a fresh cookie when
 the request had none or one bound to a different session.
 """
 
@@ -126,4 +127,7 @@ class CSRFMiddleware:
         root_path: str = scope.get("root_path", "")
         if root_path and path.startswith(root_path):
             path = path[len(root_path) :]
-        return path in self.exempt_paths
+        # Entries ending in "/" exempt everything below them (SCIM, bearer tokens).
+        return path in self.exempt_paths or any(
+            path.startswith(exempt) for exempt in self.exempt_paths if exempt.endswith("/")
+        )

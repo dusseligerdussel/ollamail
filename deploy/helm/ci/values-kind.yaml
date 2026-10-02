@@ -1,0 +1,46 @@
+# Install test in kind (.github/workflows/helm.yml): images built from this commit and
+# loaded into the cluster, small resource requests, two worker groups, NetworkPolicies on.
+image:
+  backend:
+    repository: ollamail-api
+    tag: ci
+  frontend:
+    repository: ollamail-frontend
+    tag: ci
+  pullPolicy: Never
+
+secrets:
+  existingSecret: ollamail-secrets
+
+config:
+  OLLAMAIL_LOG_LEVEL: INFO
+  # No LLM in the test cluster; /readyz only checks the database.
+  OLLAMAIL_LLM_READINESS_CHECK: false
+  # Nothing to download in CI.
+  OLLAMAIL_TTS_DOWNLOAD_VOICES: false
+
+api:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 1Gi}
+
+worker:
+  resources:
+    requests: {cpu: 50m, memory: 128Mi}
+    limits: {memory: 1Gi}
+  groups:
+    - name: main
+      queues: [sync, tts, default]
+    - name: llm
+      queues: [llm]
+      llmMaxConcurrency: 2
+
+frontend:
+  resources:
+    requests: {cpu: 10m, memory: 16Mi}
+
+persistence:
+  size: 1Gi
+
+networkPolicy:
+  enabled: true

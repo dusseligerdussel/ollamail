@@ -1,0 +1,68 @@
+{{- include "ollamail.validate" . }}
+{{- range $group := .Values.worker.groups }}
+{{- $name := $group.name }}
+{{- $component := printf "worker-%s" $name }}
+{{- $overrides := merge (dict
+  "OLLAMAIL_WORKER_QUEUES" (join "," $group.queues)
+  "OLLAMAIL_WORKER_CONCURRENCY" (default $.Values.worker.concurrency $group.concurrency)
+  "OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT" $.Values.worker.shutdownTimeout
+) (deepCopy (default dict $group.config)) }}
+{{- if $group.llmMaxConcurrency }}
+{{- $_ := set $overrides "OLLAMAIL_LLM_MAX_CONCURRENCY" $group.llmMaxConcurrency }}
+{{- end }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "ollamail.fullname" $ }}-{{ $component }}
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" $ "component" "worker") | nindent 4 }}
+    ollamail/worker-group: {{ $name }}
+spec:
+  replicas: {{ default 1 $group.replicaCount }}
+  selector:
+    matchLabels:
+      {{- include "ollamail.componentSelectorLabels" (dict "root" $ "component" "worker") | nindent 6 }}
+      ollamail/worker-group: {{ $name }}
+  template:
+    metadata:
+      labels:
+        {{- include "ollamail.componentLabels" (dict "root" $ "component" "worker") | nindent 8 }}
+        ollamail/worker-group: {{ $name }}
+        {{- with (default $.Values.worker.podLabels $group.podLabels) }}
+        {{- toYaml . | nindent 8 }}
+        {{- end }}
+      {{- with (default $.Values.worker.podAnnotations $group.podAnnotations) }}
+      annotations:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
+    spec:
+      serviceAccountName: {{ include "ollamail.serviceAccountName" $ }}
+      automountServiceAccountToken: false
+      # Running jobs get OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT seconds after SIGTERM.
+      terminationGracePeriodSeconds: {{ $.Values.worker.terminationGracePeriodSeconds }}
+      {{- include "ollamail.podCommon" $ | nindent 6 }}
+      containers:
+        - name: worker
+          {{- include "ollamail.backendImage" $ | nindent 10 }}
+          command: ["python", "-m", "app.worker"]
+          securityContext:
+            {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          {{- include "ollamail.backendEnv" (dict "root" $ "overrides" $overrides) | nindent 10 }}
+          {{- with $.Values.worker.livenessProbe }}
+          livenessProbe:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
+          resources:
+            {{- toYaml (default $.Values.worker.resources $group.resources) | nindent 12 }}
+          volumeMounts:
+            {{- include "ollamail.backendVolumeMounts" $ | nindent 12 }}
+      volumes:
+        {{- include "ollamail.backendVolumes" $ | nindent 8 }}
+      {{- $scheduling := dict
+        "nodeSelector" (default $.Values.worker.nodeSelector $group.nodeSelector)
+        "tolerations" (default $.Values.worker.tolerations $group.tolerations)
+        "affinity" (default $.Values.worker.affinity $group.affinity)
+        "topologySpreadConstraints" (default $.Values.worker.topologySpreadConstraints $group.topologySpreadConstraints) }}
+      {{- with (include "ollamail.scheduling" $scheduling) }}{{ trim . | nindent 6 }}{{ end }}
+{{- end }}

@@ -21,6 +21,11 @@ Gmail keeps one change log per mailbox (``historyId``), so the provider declares
 * with a cursor: ``history.list`` from ``history_id`` (a 404 means the history expired:
   ``CursorInvalidError``, the engine resyncs), then a pending import continues.
 
+Sending (``send``): ``messages.send`` with the RFC 5322 source and the ``threadId`` of the
+answered mail (its ``In-Reply-To``/``References``/subject keep Gmail's threading); Gmail
+files the copy under SENT itself. ``gmail.modify`` covers sending; with
+``OLLAMAIL_GMAIL_READONLY`` sending is refused (``read_only``).
+
 Message sources (``format=raw``) are fetched with batch requests. Push: ``watch`` uses a
 Pub/Sub *pull* subscription (no public URL needed); without one the provider has no push
 and the watcher polls.
@@ -54,10 +59,13 @@ from app.mail.providers.base import (
     MessageFetched,
     MessageNotFoundError,
     MessageUpdated,
+    OutgoingReply,
     ProviderCapabilities,
     ProviderError,
     RawMessage,
     RemoteFolder,
+    SendError,
+    SentMessage,
     SyncCursor,
     SyncEvent,
 )
@@ -616,6 +624,25 @@ class GmailProvider:
         label_id = await self._label_id(label)
         if label_id is not None:
             await self._modify(remote_ref, remove=[label_id])
+
+    async def send(self, reply: OutgoingReply) -> SentMessage:
+        self._require_write()
+        body: dict[str, Any] = {"raw": base64.urlsafe_b64encode(reply.raw).decode("ascii")}
+        if reply.provider_thread_id:
+            body["threadId"] = reply.provider_thread_id
+        try:
+            data = await self._api.request("POST", "/messages/send", json=body, retry=False)
+        except AuthenticationError as exc:
+            if exc.code in {"insufficient_scope", "access_denied"}:
+                raise SendError(code="send_not_permitted") from None
+            raise
+        except (BadRequestError, NotFoundError, ConflictError):
+            raise SendError(code="message_refused") from None
+        message_id = data.get("id")
+        return SentMessage(
+            remote_ref=message_id if isinstance(message_id, str) else None,
+            message_id=reply.message_id,
+        )
 
     async def aclose(self) -> None:
         if self._own_http:

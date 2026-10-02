@@ -80,14 +80,14 @@ Details: `docs/ARCHITECTURE.md`.
 | Auth | Lokale Accounts (nur Erst-Admin/Fallback), OIDC (Entra ID, GitHub, Google, generisch), LDAP/AD |
 | Frontend | React 19, Vite, TypeScript (strict), Tailwind CSS v4, shadcn/ui, TanStack Router + Query |
 | Tooling | Backend: `uv`, `ruff`, `mypy`, `pytest`. Frontend: `pnpm`, Biome, Vitest, Playwright |
-| Deployment | Docker Compose (primär), Multi-Arch-Images (amd64/arm64) über GHCR; Helm später |
+| Deployment | Docker Compose (primär), Multi-Arch-Images (amd64/arm64) über GHCR; Helm-Chart für Kubernetes |
 
 Verzeichnisstruktur (Monorepo):
 
 ```
 backend/    FastAPI-App, Worker, Alembic
 frontend/   React-App
-deploy/     compose.yaml, .env.example, später Helm-Chart
+deploy/     compose.yaml, .env.example, helm/ (Helm-Chart)
 docs/       Architektur, Datenschutz, Design, Roadmap
 ```
 
