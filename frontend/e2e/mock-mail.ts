@@ -189,6 +189,8 @@ function mailbox(id: string, name: string, address: string, mailboxStatus: objec
     display_name: name,
     address,
     is_shared: false,
+    // Own mailboxes grant everything (shared mailboxes only what was assigned).
+    permissions: ["read", "sync", "manage", "act"],
     provider_settings: { host: "imap.example.org", port: 993, security: "tls" },
     has_credentials: true,
     sync_enabled: true,

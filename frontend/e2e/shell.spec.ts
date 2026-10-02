@@ -70,7 +70,10 @@ test("is operable with the keyboard", async ({ page }) => {
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox").fill("digest");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { level: 1, name: "Digest", exact: true })).toBeVisible();
+  // `.first()`: the detail pane briefly shows a second "Digest" heading while it loads.
+  await expect(
+    page.getByRole("heading", { level: 1, name: "Digest", exact: true }).first(),
+  ).toBeVisible();
 
   await page.keyboard.press("g");
   await page.keyboard.press("s");
@@ -93,7 +96,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       test("pages have no axe violations", async ({ page }) => {
         for (const path of pages) {
           await page.goto(path);
-          await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
           await expectNoA11yViolations(page);
         }
       });
@@ -103,7 +106,7 @@ for (const colorScheme of ["light", "dark"] as const) {
           await page.unrouteAll();
           await mockApi(page, api);
           await page.goto(path);
-          await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
           expect(new URL(page.url()).pathname).toBe(path);
           await expectNoA11yViolations(page);
           const overflow = await page.evaluate(
@@ -116,7 +119,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       test("layout does not overflow horizontally", async ({ page }) => {
         for (const path of pages) {
           await page.goto(path);
-          await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+          await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
           const overflow = await page.evaluate(
             () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
           );
@@ -129,7 +132,7 @@ for (const colorScheme of ["light", "dark"] as const) {
 
 test("overlays have no axe violations", async ({ page }) => {
   await page.goto("/inbox");
-  await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
 
   await page.keyboard.press("ControlOrMeta+k");
   await expect(page.getByRole("dialog", { name: "Command menu" })).toBeVisible();

@@ -145,7 +145,7 @@ for (const colorScheme of ["light", "dark"] as const) {
       await mockTodos(page);
       for (const path of ["/tasks", `/inbox?message=${offerMessage}`]) {
         await page.goto(path);
-        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
         await page.waitForLoadState("networkidle");
         await expectNoA11yViolations(page);
         expect(await overflow(page), path).toBe(0);
