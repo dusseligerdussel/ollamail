@@ -4,6 +4,76 @@
  */
 
 export interface paths {
+    "/admin/auth/oidc/presets": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Oidc Presets
+         * @description Presets with defaults for the provider form (see docs/auth/oidc.md).
+         */
+        get: operations["admin_list_oidc_presets"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/oidc/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Oidc Providers
+         * @description All OIDC providers (secrets are never returned).
+         */
+        get: operations["admin_list_oidc_providers"];
+        put?: never;
+        /**
+         * Create Oidc Provider
+         * @description Add an OIDC provider. The client secret is stored encrypted.
+         */
+        post: operations["admin_create_oidc_provider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/oidc/providers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Oidc Provider */
+        get: operations["admin_get_oidc_provider"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Oidc Provider
+         * @description Remove an OIDC provider. Users and their linked identities are kept; sessions
+         *     started with the provider stay valid until they expire or are revoked.
+         */
+        delete: operations["admin_delete_oidc_provider"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Oidc Provider
+         * @description Change an OIDC provider. Omitted fields stay as they are.
+         */
+        patch: operations["admin_update_oidc_provider"];
+        trace?: never;
+    };
     "/audit/events": {
         parameters: {
             query?: never;
@@ -238,6 +308,68 @@ export interface paths {
         patch: operations["auth_update_me"];
         trace?: never;
     };
+    "/auth/oidc/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Oidc Logout
+         * @description End the current session like ``POST /auth/logout``. If it was started with an OIDC
+         *     provider that supports RP-initiated logout, ``redirect_url`` ends the IdP session too
+         *     (the browser navigates there and comes back to the login page).
+         */
+        post: operations["auth_oidc_logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/{name}/callback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oidc Callback
+         * @description Redirect target of the IdP: validates the response and signs the user in.
+         */
+        get: operations["auth_oidc_callback"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/oidc/{name}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Oidc Login
+         * @description Start the login with an OIDC provider (browser navigation, not fetch).
+         */
+        get: operations["auth_oidc_login"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/providers": {
         parameters: {
             query?: never;
@@ -403,6 +535,169 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/mailboxes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Mailboxes
+         * @description The user's mailboxes with their sync status.
+         */
+        get: operations["mailboxes_list_mailboxes"];
+        put?: never;
+        /**
+         * Create Mailbox
+         * @description Add a mailbox. The connection is tested first; then the initial import starts
+         *     (unless ``sync_enabled`` is false).
+         */
+        post: operations["mailboxes_create_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mailboxes/autodiscover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Autodiscover
+         * @description Connection suggestions for an address (known providers, else guesses from the
+         *     domain). Offline; nothing is looked up or stored. The address travels in the body so
+         *     it never appears in access logs.
+         */
+        post: operations["mailboxes_autodiscover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mailboxes/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Mailbox Connection
+         * @description Connect and list the folders without saving anything. A failed test is a normal
+         *     result (``ok: false`` with an error code), not an HTTP error.
+         */
+        post: operations["mailboxes_test_mailbox_connection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mailboxes/{mailbox_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Mailbox */
+        get: operations["mailboxes_get_mailbox"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Mailbox
+         * @description Remove the mailbox and everything derived from it: mails, attachments (including
+         *     the files), threads, folders, sync state, processing results, todos, triage results
+         *     and the search index. Hard delete; returns what was removed as confirmation.
+         */
+        delete: operations["mailboxes_delete_mailbox"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Mailbox
+         * @description Rename, change connection settings or credentials (tested before saving), change
+         *     the import period or excluded folder roles, pause (``sync_enabled: false``) or resume
+         *     syncing.
+         */
+        patch: operations["mailboxes_update_mailbox"];
+        trace?: never;
+    };
+    "/mailboxes/{mailbox_id}/folders": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Folders
+         * @description Folders known from the last sync, with selection and per-folder sync status.
+         *     Before the first sync, use the folder list of the connection test.
+         */
+        get: operations["mailboxes_list_folders"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Select Folders
+         * @description Choose which folders are synced. Deselected folders keep their stored mails;
+         *     newly selected folders are imported with the next sync (requested right away).
+         */
+        patch: operations["mailboxes_select_folders"];
+        trace?: never;
+    };
+    "/mailboxes/{mailbox_id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Mailbox Status
+         * @description Sync status only (cheap to poll as a fallback to SSE).
+         */
+        get: operations["mailboxes_get_mailbox_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/mailboxes/{mailbox_id}/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Mailbox
+         * @description Start a sync now. Progress arrives as ``mailbox.sync`` events.
+         */
+        post: operations["mailboxes_sync_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/readyz": {
         parameters: {
             query?: never;
@@ -509,6 +804,240 @@ export interface paths {
         patch: operations["todos_update_todo"];
         trace?: never;
     };
+    "/triage/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Categories
+         * @description Organisation and own categories in the user's order, hidden ones included.
+         */
+        get: operations["triage_list_categories"];
+        put?: never;
+        /**
+         * Create Category
+         * @description Create an own category; the description tells the model what belongs in it.
+         */
+        post: operations["triage_create_category"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/triage/categories/order": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Order Categories
+         * @description Set the order of all of the user's categories.
+         */
+        put: operations["triage_order_categories"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/triage/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Category
+         * @description Delete an own category. Its messages become uncategorised; corrections and sender
+         *     rules pointing to it are deleted.
+         */
+        delete: operations["triage_delete_category"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Category
+         * @description Rename or describe an own category, or hide/show any category.
+         */
+        patch: operations["triage_update_category"];
+        trace?: never;
+    };
+    "/triage/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Inbox
+         * @description Inbox of the user's mailboxes grouped by visible category, in the user's order;
+         *     the last group (``category: null``) holds messages without a visible category.
+         */
+        get: operations["triage_get_inbox"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/triage/mailboxes/{mailbox_id}/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Mailbox Settings */
+        get: operations["triage_get_mailbox_settings"];
+        /**
+         * Update Mailbox Settings
+         * @description Write the category back to the server (keyword/label or folder). Enabling it also
+         *     labels the messages triaged so far, in batches.
+         */
+        put: operations["triage_update_mailbox_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/triage/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Triage
+         * @description Category, priority and reason of a message (404 while it is not triaged yet).
+         */
+        get: operations["triage_get_triage"];
+        /**
+         * Correct Triage
+         * @description Correct category and priority. The correction is kept on reprocessing and used as
+         *     example for this user's future classifications.
+         */
+        put: operations["triage_correct_triage"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/triage/organization/categories": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Organization Categories
+         * @description Organisation defaults offered to every user.
+         */
+        get: operations["triage_list_organization_categories"];
+        put?: never;
+        /** Create Organization Category */
+        post: operations["triage_create_organization_category"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/triage/organization/categories/{category_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Organization Category */
+        delete: operations["triage_delete_organization_category"];
+        options?: never;
+        head?: never;
+        /** Update Organization Category */
+        patch: operations["triage_update_organization_category"];
+        trace?: never;
+    };
+    "/triage/sender-rules": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List Sender Rules */
+        get: operations["triage_list_sender_rules"];
+        put?: never;
+        /**
+         * Create Sender Rule
+         * @description "Always <category>" for an address or a domain; applied before the model.
+         */
+        post: operations["triage_create_sender_rule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/triage/sender-rules/suggestions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Sender Rule Suggestions
+         * @description Senders the user corrected repeatedly into the same category.
+         */
+        get: operations["triage_list_sender_rule_suggestions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/triage/sender-rules/{rule_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /** Delete Sender Rule */
+        delete: operations["triage_delete_sender_rule"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/users": {
         parameters: {
             query?: never;
@@ -593,6 +1122,8 @@ export interface components {
             /** Display Name */
             display_name: string;
             kind: components["schemas"]["AuthProviderKind"];
+            /** Login Path */
+            login_path?: string | null;
             /** Name */
             name: string;
         };
@@ -610,11 +1141,149 @@ export interface components {
             /** Providers */
             providers: components["schemas"]["AuthProviderInfo"][];
         };
+        /** AutodiscoverRequest */
+        AutodiscoverRequest: {
+            /** Address */
+            address: string;
+        };
+        /** AutodiscoverResult */
+        AutodiscoverResult: {
+            /** Suggestions */
+            suggestions: components["schemas"]["AutodiscoverSuggestion"][];
+        };
+        /** AutodiscoverSuggestion */
+        AutodiscoverSuggestion: {
+            /** Hints */
+            hints: components["schemas"]["Hint"][];
+            /** Provider Settings */
+            provider_settings: {
+                [key: string]: unknown;
+            };
+            source: components["schemas"]["Source"];
+            type: components["schemas"]["MailboxType"];
+        };
+        /** CategoryCreate */
+        CategoryCreate: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Name */
+            name: string;
+        };
+        /**
+         * CategoryOrder
+         * @description All visible and hidden categories of the user, in the new order.
+         */
+        CategoryOrder: {
+            /** Category Ids */
+            category_ids: string[];
+        };
+        /** CategoryRead */
+        CategoryRead: {
+            /** Builtin Key */
+            builtin_key: string | null;
+            /** Description */
+            description: string;
+            /** Hidden */
+            hidden: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Position */
+            position: number;
+            /**
+             * Scope
+             * @enum {string}
+             */
+            scope: "organization" | "user";
+        };
+        /**
+         * CategoryUpdate
+         * @description Own categories: all fields. Organisation categories: ``hidden`` only.
+         */
+        CategoryUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Hidden */
+            hidden?: boolean | null;
+            /** Name */
+            name?: string | null;
+        };
+        /** ConnectionTestResult */
+        ConnectionTestResult: {
+            /** Error */
+            error?: string | null;
+            /** Folders */
+            folders?: components["schemas"]["RemoteFolderRead"][];
+            /** Ok */
+            ok: boolean;
+        };
         /**
          * DirectoryType
          * @enum {string}
          */
         DirectoryType: "active_directory" | "openldap";
+        /**
+         * FolderKind
+         * @enum {string}
+         */
+        FolderKind: "folder" | "label";
+        /** FolderRead */
+        FolderRead: {
+            /** Excluded By Role */
+            excluded_by_role: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Import Pending */
+            import_pending: boolean;
+            kind: components["schemas"]["FolderKind"];
+            /** Last Error */
+            last_error: string | null;
+            /** Last Synced At */
+            last_synced_at: string | null;
+            /** Message Count */
+            message_count: number;
+            /** Name */
+            name: string;
+            /** Remote Id */
+            remote_id: string;
+            role: components["schemas"]["FolderRole"] | null;
+            /** Sync Enabled */
+            sync_enabled: boolean;
+            /** Synced */
+            synced: boolean;
+        };
+        /**
+         * FolderRole
+         * @description Special-use roles (RFC 6154 for IMAP, well-known folders in Graph, system labels
+         *     in Gmail).
+         * @enum {string}
+         */
+        FolderRole: "inbox" | "sent" | "drafts" | "trash" | "junk" | "archive" | "all";
+        /** FolderSelection */
+        FolderSelection: {
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Sync Enabled */
+            sync_enabled: boolean;
+        };
+        /** FolderSelectionUpdate */
+        FolderSelectionUpdate: {
+            /** Folders */
+            folders: components["schemas"]["FolderSelection"][];
+        };
         /** GmailOAuthStart */
         GmailOAuthStart: {
             /** Login Hint */
@@ -637,6 +1306,46 @@ export interface components {
              * @constant
              */
             status: "ok";
+        };
+        /**
+         * Hint
+         * @description Machine-readable notes for the UI (translated there).
+         * @enum {string}
+         */
+        Hint: "app_password" | "enable_imap" | "oauth_required" | "mail_password" | "guessed";
+        /** InboxGroup */
+        InboxGroup: {
+            category: components["schemas"]["CategoryRead"] | null;
+            /** Messages */
+            messages: components["schemas"]["InboxMessage"][];
+            /** Total */
+            total: number;
+        };
+        /** InboxMessage */
+        InboxMessage: {
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /** Priority */
+            priority: number | null;
+            /** Reason */
+            reason: string | null;
+            /** Received At */
+            received_at: string | null;
+            /** Sender Address */
+            sender_address: string | null;
+            /** Sender Name */
+            sender_name: string | null;
+            source: components["schemas"]["TriageSource"] | null;
+            /** Subject */
+            subject: string;
         };
         /** LdapConnectionTest */
         LdapConnectionTest: {
@@ -817,6 +1526,388 @@ export interface components {
             /** Password */
             password: string;
         };
+        /** LogoutResult */
+        LogoutResult: {
+            /** Redirect Url */
+            redirect_url: string | null;
+        };
+        /**
+         * MailboxConnection
+         * @description Everything needed to connect to a mailbox.
+         */
+        MailboxConnection: {
+            /** Address */
+            address: string;
+            /** Credentials */
+            credentials?: {
+                [key: string]: string;
+            };
+            /** Provider Settings */
+            provider_settings?: {
+                [key: string]: unknown;
+            };
+            type: components["schemas"]["MailboxType"];
+        };
+        /** MailboxCreate */
+        MailboxCreate: {
+            /** Address */
+            address: string;
+            /** Credentials */
+            credentials?: {
+                [key: string]: string;
+            };
+            /** Display Name */
+            display_name?: string | null;
+            /** Provider Settings */
+            provider_settings?: {
+                [key: string]: unknown;
+            };
+            /**
+             * Sync Enabled
+             * @default true
+             */
+            sync_enabled: boolean;
+            sync_settings?: components["schemas"]["SyncSettings"];
+            type: components["schemas"]["MailboxType"];
+        };
+        /**
+         * MailboxDeleted
+         * @description Confirmation of a removal: the mailbox and all data derived from it (mails,
+         *     attachments and their files, threads, folders, sync state, processing results, todos,
+         *     triage results, search index) are deleted.
+         */
+        MailboxDeleted: {
+            /** Attachments */
+            attachments: number;
+            /**
+             * Deleted
+             * @default true
+             * @constant
+             */
+            deleted: true;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /** Messages */
+            messages: number;
+        };
+        /** MailboxRead */
+        MailboxRead: {
+            /** Address */
+            address: string;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Has Credentials */
+            has_credentials: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Shared */
+            is_shared: boolean;
+            /** Provider Settings */
+            provider_settings: {
+                [key: string]: unknown;
+            };
+            status: components["schemas"]["MailboxSyncStatus"];
+            /** Sync Enabled */
+            sync_enabled: boolean;
+            sync_settings: components["schemas"]["SyncSettings"];
+            type: components["schemas"]["MailboxType"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * MailboxSyncStatus
+         * @description ``phase`` summarises the fields: ``paused`` (sync disabled), ``error`` (the last sync
+         *     failed for the whole mailbox), ``syncing`` (a sync job is queued or running),
+         *     ``pending`` (never synced), ``importing`` (initial import of some folder unfinished),
+         *     else ``idle``.
+         */
+        MailboxSyncStatus: {
+            /** Folders Failed */
+            folders_failed: number;
+            /** Folders Imported */
+            folders_imported: number;
+            /** Folders Total */
+            folders_total: number;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Synced At */
+            last_synced_at: string | null;
+            /** Message Count */
+            message_count: number;
+            /**
+             * Phase
+             * @enum {string}
+             */
+            phase: "paused" | "pending" | "importing" | "syncing" | "idle" | "error";
+            /** Sync Queued */
+            sync_queued: boolean;
+        };
+        /** MailboxTriageSettings */
+        MailboxTriageSettings: {
+            write_back: components["schemas"]["WriteBackMode"];
+        };
+        /**
+         * MailboxType
+         * @enum {string}
+         */
+        MailboxType: "imap" | "graph" | "gmail";
+        /**
+         * MailboxUpdate
+         * @description Fields to change; omitted fields stay. Changed connection settings or credentials
+         *     are tested before they are saved. ``sync_enabled`` pauses or resumes syncing.
+         */
+        MailboxUpdate: {
+            /** Credentials */
+            credentials?: {
+                [key: string]: string;
+            } | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Provider Settings */
+            provider_settings?: {
+                [key: string]: unknown;
+            } | null;
+            /** Sync Enabled */
+            sync_enabled?: boolean | null;
+            sync_settings?: components["schemas"]["SyncSettingsUpdate"] | null;
+        };
+        /**
+         * OIDCPreset
+         * @enum {string}
+         */
+        OIDCPreset: "generic" | "entra" | "google" | "keycloak" | "authentik";
+        /** OIDCPresetRead */
+        OIDCPresetRead: {
+            /** Docs */
+            docs: string;
+            /** Fields */
+            fields: string[];
+            /** Groups Claim */
+            groups_claim: string | null;
+            /** Issuer Template */
+            issuer_template: string;
+            /** Label */
+            label: string;
+            preset: components["schemas"]["OIDCPreset"];
+            /** Scopes */
+            scopes: string[];
+        };
+        /** OIDCProviderCreate */
+        OIDCProviderCreate: {
+            /**
+             * Allowed Domains
+             * @default []
+             */
+            allowed_domains: string[];
+            /**
+             * Allowed Tenants
+             * @default []
+             */
+            allowed_tenants: string[];
+            /**
+             * Auto Provision
+             * @default true
+             */
+            auto_provision: boolean;
+            /** Client Id */
+            client_id: string;
+            /** Client Secret */
+            client_secret?: string | null;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Groups Claim
+             * @default groups
+             */
+            groups_claim: string | null;
+            /**
+             * Hosted Domains
+             * @default []
+             */
+            hosted_domains: string[];
+            /** Issuer */
+            issuer: string;
+            /**
+             * Link By Email
+             * @default false
+             */
+            link_by_email: boolean;
+            /** Name */
+            name: string;
+            /** @default generic */
+            preset: components["schemas"]["OIDCPreset"];
+            /**
+             * Scopes
+             * @default [
+             *       "openid",
+             *       "email",
+             *       "profile"
+             *     ]
+             */
+            scopes: string[];
+        };
+        /** OIDCProviderRead */
+        OIDCProviderRead: {
+            /**
+             * Allowed Domains
+             * @default []
+             */
+            allowed_domains: string[];
+            /**
+             * Allowed Tenants
+             * @default []
+             */
+            allowed_tenants: string[];
+            /**
+             * Auto Provision
+             * @default true
+             */
+            auto_provision: boolean;
+            /** Client Id */
+            client_id: string;
+            /** Created At */
+            created_at: string | null;
+            /** Display Name */
+            display_name: string;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /**
+             * Groups Claim
+             * @default groups
+             */
+            groups_claim: string | null;
+            /** Has Client Secret */
+            has_client_secret: boolean;
+            /**
+             * Hosted Domains
+             * @default []
+             */
+            hosted_domains: string[];
+            /** Issuer */
+            issuer: string;
+            /**
+             * Link By Email
+             * @default false
+             */
+            link_by_email: boolean;
+            /** Name */
+            name: string;
+            /** @default generic */
+            preset: components["schemas"]["OIDCPreset"];
+            /** Provider */
+            provider: string;
+            /** Redirect Uri */
+            redirect_uri: string;
+            /**
+             * Scopes
+             * @default [
+             *       "openid",
+             *       "email",
+             *       "profile"
+             *     ]
+             */
+            scopes: string[];
+            /**
+             * Source
+             * @enum {string}
+             */
+            source: "env" | "db";
+            /** Updated At */
+            updated_at: string | null;
+        };
+        /**
+         * OIDCProviderUpdate
+         * @description Fields to change; omitted fields stay. ``client_secret: null`` removes the secret.
+         */
+        OIDCProviderUpdate: {
+            /** Allowed Domains */
+            allowed_domains?: string[] | null;
+            /** Allowed Tenants */
+            allowed_tenants?: string[] | null;
+            /** Auto Provision */
+            auto_provision?: boolean | null;
+            /** Client Id */
+            client_id?: string | null;
+            /** Client Secret */
+            client_secret?: string | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Groups Claim */
+            groups_claim?: string | null;
+            /** Hosted Domains */
+            hosted_domains?: string[] | null;
+            /** Issuer */
+            issuer?: string | null;
+            /** Link By Email */
+            link_by_email?: boolean | null;
+            preset?: components["schemas"]["OIDCPreset"] | null;
+            /** Scopes */
+            scopes?: string[] | null;
+        };
+        /** OrganizationCategoryCreate */
+        OrganizationCategoryCreate: {
+            /**
+             * Description
+             * @default
+             */
+            description: string;
+            /** Name */
+            name: string;
+            /**
+             * Position
+             * @default 0
+             */
+            position: number;
+        };
+        /** OrganizationCategoryRead */
+        OrganizationCategoryRead: {
+            /** Builtin Key */
+            builtin_key: string | null;
+            /** Description */
+            description: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+            /** Position */
+            position: number;
+        };
+        /** OrganizationCategoryUpdate */
+        OrganizationCategoryUpdate: {
+            /** Description */
+            description?: string | null;
+            /** Name */
+            name?: string | null;
+            /** Position */
+            position?: number | null;
+        };
         /**
          * ProfileUpdate
          * @description Fields a user may change on their own account.
@@ -860,6 +1951,69 @@ export interface components {
              * @default UTC
              */
             timezone: string;
+        };
+        /**
+         * RemoteFolderRead
+         * @description A folder as reported by the server (connection test).
+         */
+        RemoteFolderRead: {
+            kind: components["schemas"]["FolderKind"];
+            /** Name */
+            name: string;
+            /** Parent Id */
+            parent_id: string | null;
+            /** Remote Id */
+            remote_id: string;
+            role: components["schemas"]["FolderRole"] | null;
+        };
+        /** SenderRuleCreate */
+        SenderRuleCreate: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /**
+             * Priority
+             * @default 3
+             */
+            priority: number;
+            /**
+             * Sender
+             * @description Address (news@example.org) or domain with @ (@example.org)
+             */
+            sender: string;
+        };
+        /** SenderRuleRead */
+        SenderRuleRead: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Priority */
+            priority: number;
+            /** Sender */
+            sender: string;
+        };
+        /** SenderRuleSuggestion */
+        SenderRuleSuggestion: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /** Corrections */
+            corrections: number;
+            /** Priority */
+            priority: number;
+            /** Sender */
+            sender: string;
         };
         /** SessionRead */
         SessionRead: {
@@ -916,6 +2070,49 @@ export interface components {
         SetupStatus: {
             /** Initialized */
             initialized: boolean;
+        };
+        /**
+         * Source
+         * @enum {string}
+         */
+        Source: "known" | "guess";
+        /** SyncRequestResult */
+        SyncRequestResult: {
+            /** Queued */
+            queued: boolean;
+        };
+        /**
+         * SyncSettings
+         * @description ``Mailbox.sync_settings``. Unset values fall back to instance settings.
+         */
+        SyncSettings: {
+            /** Excluded Folders */
+            excluded_folders?: string[];
+            /** Excluded Roles */
+            excluded_roles?: components["schemas"]["FolderRole"][];
+            /** Initial Sync Days */
+            initial_sync_days?: number | null;
+            /**
+             * Poll Interval Seconds
+             * @default 300
+             */
+            poll_interval_seconds: number;
+        };
+        /**
+         * SyncSettingsUpdate
+         * @description Changes to ``SyncSettings``; omitted fields stay, ``initial_sync_days: null`` falls
+         *     back to the instance default. The import period applies to folders whose initial
+         *     import has not started yet.
+         */
+        SyncSettingsUpdate: {
+            /** Excluded Folders */
+            excluded_folders?: string[] | null;
+            /** Excluded Roles */
+            excluded_roles?: components["schemas"]["FolderRole"][] | null;
+            /** Initial Sync Days */
+            initial_sync_days?: number | null;
+            /** Poll Interval Seconds */
+            poll_interval_seconds?: number | null;
         };
         /**
          * TargetType
@@ -1015,6 +2212,51 @@ export interface components {
             /** Title */
             title?: string | null;
         };
+        /** TriageCorrection */
+        TriageCorrection: {
+            /**
+             * Category Id
+             * Format: uuid
+             */
+            category_id: string;
+            /**
+             * Priority
+             * @description 1 = high, 2 = normal, 3 = low
+             */
+            priority: number;
+        };
+        /** TriageRead */
+        TriageRead: {
+            /** Category Id */
+            category_id: string | null;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /** Model */
+            model: string | null;
+            /** Priority */
+            priority: number;
+            /** Prompt Version */
+            prompt_version: string | null;
+            /** Reason */
+            reason: string | null;
+            /** Rule */
+            rule: string | null;
+            source: components["schemas"]["TriageSource"];
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * TriageSource
+         * @description Who decided the category of a message.
+         * @enum {string}
+         */
+        TriageSource: "rule" | "sender_rule" | "llm" | "user";
         /**
          * UserCreate
          * @description A new local account (admin).
@@ -1084,6 +2326,12 @@ export interface components {
             /** Error Type */
             type: string;
         };
+        /**
+         * WriteBackMode
+         * @description What the triage writes back to the mail server (opt-in per mailbox).
+         * @enum {string}
+         */
+        WriteBackMode: "off" | "label" | "move";
     };
     responses: never;
     parameters: never;
@@ -1093,6 +2341,296 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    admin_list_oidc_presets: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCPresetRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_list_oidc_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCProviderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_create_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OIDCProviderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Name taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_get_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_delete_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Configured in the environment */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OIDCProviderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Configured in the environment */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     audit_get_events: {
         parameters: {
             query?: {
@@ -1793,6 +3331,86 @@ export interface operations {
             };
         };
     };
+    auth_oidc_logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoutResult"];
+                };
+            };
+        };
+    };
+    auth_oidc_callback: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to return_to (signed in), or to /login?error=<code> */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_oidc_login: {
+        parameters: {
+            query?: {
+                return_to?: string | null;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the IdP, or to /login?error=<code> */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     auth_providers: {
         parameters: {
             query?: never;
@@ -2114,6 +3732,484 @@ export interface operations {
             };
         };
     };
+    mailboxes_list_mailboxes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    mailboxes_create_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MailboxCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Mailbox already added */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request, unavailable mailbox type or failed connection test */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    mailboxes_autodiscover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AutodiscoverRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AutodiscoverResult"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mailboxes_test_mailbox_connection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MailboxConnection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ConnectionTestResult"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request, unavailable mailbox type or failed connection test */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    mailboxes_get_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mailboxes_delete_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxDeleted"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mailboxes_update_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MailboxUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid request, unavailable mailbox type or failed connection test */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    mailboxes_list_folders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mailboxes_select_folders: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FolderSelectionUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FolderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mailboxes_get_mailbox_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxSyncStatus"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    mailboxes_sync_mailbox: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncRequestResult"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Syncing is paused */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     health_readyz: {
         parameters: {
             query?: never;
@@ -2423,6 +4519,762 @@ export interface operations {
                 content?: never;
             };
             /** @description No such todo */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_list_categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    triage_create_category: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_order_categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryOrder"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not all categories */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    triage_delete_category: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_update_category: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CategoryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CategoryRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_get_inbox: {
+        parameters: {
+            query?: {
+                mailbox_id?: string | null;
+                /** @description Messages per group */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InboxGroup"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_get_mailbox_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxTriageSettings"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_update_mailbox_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MailboxTriageSettings"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailboxTriageSettings"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_get_triage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriageRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_correct_triage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TriageCorrection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TriageRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_list_organization_categories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationCategoryRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    triage_create_organization_category: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationCategoryCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationCategoryRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_delete_organization_category: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_update_organization_category: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                category_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OrganizationCategoryUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OrganizationCategoryRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not yours */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_list_sender_rules: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SenderRuleRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    triage_create_sender_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SenderRuleCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SenderRuleRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Rule for this sender exists */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    triage_list_sender_rule_suggestions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SenderRuleSuggestion"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    triage_delete_sender_rule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                rule_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not found or not yours */
             404: {
                 headers: {
                     [name: string]: unknown;

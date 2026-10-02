@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from app.ai.llm import EnvConfigResolver, LLMGateway
 from app.audit.router import router as audit_router
 from app.auth.csrf import CSRFMiddleware
-from app.auth.providers import AuthProviderRegistry
+from app.auth.providers import AuthProviderRegistry, oidc
 from app.auth.providers.ldap.router import login_router as ldap_login_router
 from app.auth.providers.ldap.router import router as ldap_router
 from app.auth.router import router as auth_router
@@ -23,11 +23,14 @@ from app.core.events import EventBroker
 from app.core.events import router as events_router
 from app.core.health import ReadinessRegistry, register_readiness_check
 from app.core.health import router as health_router
+from app.core.jobs import JobQueue
 from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
+from app.mail.api.router import router as mailboxes_router
 from app.mail.providers.gmail_connect import router as gmail_connect_router
 from app.todos.router import router as todos_router
+from app.triage.router import router as triage_router
 from app.users.router import router as users_router
 
 
@@ -38,6 +41,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     database = Database(settings.database)
     llm = LLMGateway(EnvConfigResolver(settings.llm))
     events = EventBroker(settings.database)
+    job_queue = JobQueue()
 
     @asynccontextmanager
     async def lifespan(_: FastAPI) -> AsyncIterator[None]:
@@ -54,6 +58,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
                 await pull
         await llm.aclose()
         await events.stop()
+        await job_queue.close()
         await database.dispose()
 
     app = FastAPI(
@@ -64,6 +69,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.database = database
     app.state.events = events
+    app.state.job_queue = job_queue
     app.state.readiness = ReadinessRegistry()
     register_readiness_check(app, "database", database.ping)
     app.state.llm = llm
@@ -84,8 +90,11 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ldap_router)
     app.include_router(users_router)
     app.include_router(todos_router)
+    app.include_router(triage_router)
     app.include_router(audit_router)
+    app.include_router(mailboxes_router)
     app.include_router(gmail_connect_router)
+    oidc.install(app, settings)
     return app
 
 

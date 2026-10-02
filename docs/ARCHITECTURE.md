@@ -219,6 +219,45 @@ Design und Einrichtung: [`providers/gmail.md`](providers/gmail.md). Kurzfassung:
   `@on_message_stored` (siehe 4.1, die Verarbeitungspipeline tut das); ein fehlschlagender
   Handler wird geloggt und stoppt den Sync nicht.
 
+#### Postfach-API (`backend/app/mail/api/`)
+
+Nutzer verwalten ihre eigenen Postfächer unter `/mailboxes`. Die API nutzt Registry, Sync-Job
+und `delete_mailbox`; sie baut nichts davon nach.
+
+| Endpunkt | Zweck |
+|---|---|
+| `POST /mailboxes/autodiscover` | Host/Port-Vorschläge zur Adresse (bekannte Anbieter, sonst `imap.<domain>`/`mail.<domain>`). Offline, keine DNS-/HTTP-Abfragen; Adresse im Body, damit sie nicht in Access-Logs landet. Hinweise als Codes (`app_password`, `enable_imap`, `oauth_required`, …) |
+| `POST /mailboxes/test` | Verbindungstest ohne Speichern (Provider aus der Registry, `list_folders`). Ergebnis `ok`, Fehlercode oder Ordnerliste für die Ordnerauswahl vor dem Anlegen |
+| `GET/POST /mailboxes` | Eigene Postfächer mit Sync-Status; Anlegen testet die Verbindung (422 mit `error_code`), lehnt Duplikate ab (409) und stößt den Initialimport an |
+| `GET/PATCH/DELETE /mailboxes/{id}` | Details; Umbenennen, Verbindung/Zugangsdaten (vor dem Speichern getestet), Importzeitraum, ausgeschlossene Rollen, Pausieren/Fortsetzen (`sync_enabled`); Entfernen |
+| `GET /mailboxes/{id}/status` | Nur der Sync-Status |
+| `POST /mailboxes/{id}/sync` | Sync sofort anstoßen (202, `queued`); 409, wenn pausiert |
+| `GET/PATCH /mailboxes/{id}/folders` | Ordner mit Auswahl und Status je Ordner; Auswahl setzen |
+
+- **Zugriff:** ausschließlich über `app/mail/api/access.py` (`get_mailbox`, `visible_to`,
+  Berechtigungen `read`/`sync`/`manage`). Heute nur der Besitzer; #34 erweitert diese Funktionen
+  um Shared Mailboxes. Fremde Postfächer verhalten sich wie nicht vorhandene (404).
+- **Zugangsdaten** sind write-only (Antworten enthalten nur `has_credentials`) und werden
+  verschlüsselt gespeichert. Ein PATCH ersetzt sie als Ganzes; neue Verbindungsdaten werden mit den
+  gespeicherten Zugangsdaten getestet.
+- **Sync-Status** (`MailboxSyncStatus`): `phase` = `paused` | `error` (letzter Sync für das ganze
+  Postfach fehlgeschlagen) | `syncing` (Sync-Job wartet oder läuft, aus `procrastinate_jobs`) |
+  `pending` (nie synchronisiert) | `importing` (Initialimport eines Ordners offen) | `idle`, dazu
+  letzte Synchronisierung, Fehlercode, Ordner gesamt/importiert/fehlgeschlagen und Anzahl Mails.
+  „Import offen“ heißt: kein Cursor oder der Cursor enthält den Schlüssel `import`
+  (Konvention für Provider, die in Batches importieren, siehe `SyncCursor`).
+- **Ordnerauswahl** setzt `Folder.sync_enabled` und hält `SyncSettings.excluded_folders`
+  synchron (bleibt erhalten, wenn ein Ordner neu angelegt wird). Abgewählte Ordner behalten ihre
+  gespeicherten Mails. Ordner mit ausgeschlossener Rolle (Papierkorb, Spam) bleiben aus, bis die
+  Rolle aus `excluded_roles` entfernt wird. Der Importzeitraum gilt für Ordner, deren Import noch
+  nicht begonnen hat.
+- **Events:** Neben `mailbox.sync` aus dem Sync sendet die API `mailbox.changed`
+  (`created`, `updated`, `deleted`) an den Besitzer.
+- **Jobs aus der API:** `app/core/jobs.py` öffnet die Procrastinate-App beim ersten Einreihen
+  (der Start der API hängt nicht an der Queue) und schließt sie beim Shutdown.
+- **Audit:** `mailbox.created` und `mailbox.deleted` (über `delete_mailbox`) mit dem Nutzer als
+  Akteur, in derselben Transaktion wie die Änderung.
+
 ### 3.2 LLM-Provider
 
 ```python
@@ -423,6 +462,50 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - Korrekturen durch den Nutzer werden gespeichert und als Few-Shot-Beispiele genutzt (pro Nutzer, nie nutzerübergreifend).
 - Vorfilter ohne LLM (Header wie `List-Unsubscribe`, `Precedence: bulk`, bekannte Absender) sparen Rechenzeit.
 
+**Umsetzung (`backend/app/triage/`, #20):**
+
+- **Kategorien** (`categories.py`, `models.py`): Die sieben Standardkategorien legt die Migration als
+  Org-Kategorien an (`owner_user_id IS NULL`, `builtin_key` für die Übersetzung im UI). Admins pflegen
+  Org-Kategorien (`/triage/organization/categories`), Nutzer legen eigene an und blenden beliebige aus
+  bzw. sortieren sie (`triage_category_preferences`). Ausgeblendete Kategorien bietet die Triage dem
+  Modell nicht an; mindestens eine bleibt sichtbar.
+- **Pipeline:** Schritt `triage` (Queue `llm`, `TRIAGE_STEP_VERSION`), danach `triage_write_back`
+  (Queue `sync`). Eine Korrektur des Nutzers (`source = user`) überschreibt die Triage nie, auch nicht
+  beim Neuverarbeiten.
+- **Todos:** Der Schritt `todos` läuft `after=("triage",)` und liest die Kategorie über
+  `app.triage.service.category_key` (`builtin_key` bzw. Slug des Namens, registriert beim Import von
+  `app.triage.tasks`). Mails in `OLLAMAIL_TODOS_SKIP_CATEGORIES` (Standard: Newsletter,
+  Benachrichtigung, Spam) werden nicht nach Todos durchsucht.
+- **Vorfilter** (`rules.py`, ohne LLM, `OLLAMAIL_TRIAGE_PREFILTER_ENABLED`): erst Absenderregeln des
+  Nutzers (Adresse vor Domain), dann `Auto-Submitted` ≠ `no` und Roboter-Absender (`no-reply@`, …) →
+  Benachrichtigung, `Precedence: junk` → Spam, `List-Unsubscribe`/`Precedence: bulk|list` → Newsletter,
+  Priorität 3. Gespeichert wird der Regelname (`rule`), keine Begründung.
+- **LLM** (`classify.py`, Prompt `triage@1` in `prompts.py`): `LLMGateway.complete_structured` mit
+  Task `triage`, Temperatur 0. Das Antwortschema wird je Aufruf gebaut, die erlaubten
+  Kategorie-Schlüssel stehen als `enum` darin. Ergebnis: Kategorie, Priorität 1–3 (1 = hoch), ein Satz
+  Begründung in der UI-Sprache des Nutzers. Die Mail steht als Daten zwischen `<<<`/`>>>`, Text gekürzt
+  auf `OLLAMAIL_TRIAGE_MAX_BODY_CHARS`.
+- **Lernen aus Korrekturen** (`feedback.py`): `PUT /triage/messages/{id}` speichert die Korrektur als
+  Ergebnis und als Beispiel (`triage_feedback`). In den Prompt kommen bis zu
+  `OLLAMAIL_TRIAGE_FEW_SHOT_EXAMPLES` Beispiele **nur desselben Nutzers** (Filter auf Nutzer *und* auf
+  eigene Postfächer). Gibt es mehr Kandidaten, wählt die Triage die ähnlichsten per Embedding
+  (Kosinus, Embeddings werden im Job nachberechnet und mit Modellname gespeichert); ohne
+  Embedding-Modell die neuesten. Absenderregeln schlägt `GET /triage/sender-rules/suggestions` vor,
+  sobald ein Absender mindestens `OLLAMAIL_TRIAGE_RULE_SUGGESTION_MIN_CORRECTIONS`-mal und immer in
+  dieselbe Kategorie korrigiert wurde.
+- **Zurückschreiben** (`writeback.py`, opt-in je Postfach, `PUT /triage/mailboxes/{id}/settings`):
+  `label` ruft `MailProvider.apply_label` mit `<prefix><key>` auf (IMAP-Keyword, Gmail-Label,
+  Graph-Kategorie) und entfernt vorher das alte Label; `move` verschiebt mit `MailProvider.move` in
+  einen vorhandenen Ordner dieses Namens. Neue Mails erledigt der Pipeline-Schritt; Korrekturen und
+  das nachträgliche Aktivieren arbeitet der minütliche Job `triage.write_back` ab
+  (`write_back_pending`).
+- **API** (`/triage`): Kategorien (CRUD, Reihenfolge, Ausblenden), Triage einer Mail lesen/korrigieren,
+  Inbox nach Kategorie gruppiert (`GET /triage/inbox`, Posteingangsordner der eigenen Postfächer),
+  Absenderregeln, Write-back-Einstellung je Postfach.
+- **Evaluierung:** `uv run python -m scripts.eval_triage --model qwen2.5:3b [--model …]` klassifiziert
+  einen synthetischen, gelabelten Datensatz (`scripts/triage_eval_dataset.json`, DE/EN) und gibt die
+  Genauigkeit je Modell aus (Kategorie, Priorität, Anteil Vorfilter, Fehlklassifikationen).
+
 ### 4.3 Todos
 
 - Extraktion: Titel, Beschreibung, Fälligkeit (falls genannt), Priorität, Link zur Quell-Mail/zum Thread.
@@ -553,20 +636,38 @@ mehrere Identitäten haben; lokal: `provider=local`, `subject` = Nutzer-ID, Argo
 `auth_sessions`, `auth_rate_limits`. Alles hängt per `ON DELETE CASCADE` am Nutzer.
 
 **Provider-Interface** (`app/auth/providers/base.py`): Ein Provider beweist nur, wer jemand ist,
-und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups)`.
-`PasswordAuthProvider.authenticate(login, password)` für lokale Konten und LDAP (#32),
-`RedirectAuthProvider.authorization_url(...)`/`complete(...)` für OIDC (#30) und GitHub (#31).
-Die Zuordnung Identität → Nutzer (`auth.service.user_for_identity`, später mit
-JIT-Provisioning), Sperre, Session und Rollenprüfung sind für alle Provider gleich. Konfigurierte
-externe Provider registrieren sich in `app.state.auth_providers`; `GET /api/auth/providers`
-listet sie für die Login-Seite, zusätzlich die aktiven LDAP-Verzeichnisse aus der Datenbank.
+und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups,
+email_verified)`. `PasswordAuthProvider.authenticate(login, password)` für lokale Konten und
+LDAP (#32), `RedirectAuthProvider.authorization_url(...)`/`complete(...)` (mit `state`, `nonce`
+und PKCE-`code_verifier`) für OIDC (#30) und GitHub (#31). Sperre, Session und Rollenprüfung
+sind für alle Provider gleich. Externe Provider stehen in `app.state.auth_providers`: fest per
+`register` oder als *Quelle* per `add_source` (z. B. OIDC-Provider aus der Datenbank, pro Anfrage
+gelesen, damit Änderungen sofort auf allen API-Instanzen gelten). `GET /api/auth/providers`
+listet sie für die Login-Seite (Redirect-Provider mit `login_path`), zusätzlich die aktiven
+LDAP-Verzeichnisse aus der Datenbank.
 
 **JIT-Provisioning** (`app/auth/provisioning.py`, für alle externen Provider):
-`provision_user(db, identity, role=...)` findet den Nutzer über `auth_identities` oder legt ihn
-beim ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben
-Adresse wird **nicht** automatisch verknüpft (409), sonst könnte jeder, der ein E-Mail-Attribut
-im externen Verzeichnis setzen darf, ein lokales (Admin-)Konto übernehmen. `role` kommt aus dem
-Gruppen-Mapping des Providers; `None` heißt, der Provider verwaltet keine Rollen.
+`provision_user(db, identity, policy, role=...)` meldet bekannte Identitäten an (Gruppen werden in
+`auth_identities.groups` aktualisiert, sofern der Provider sie speichert) oder legt den Nutzer beim
+ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben Adresse
+wird nur verknüpft, wenn der Provider es erlaubt (`link_by_email`) **und** die Adresse als
+verifiziert meldet; sonst 409 (`account-exists`), denn wer ein E-Mail-Attribut im externen
+Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Dazu kommen
+Domain-Allowlist und Abschalten der Kontoanlage je Provider. `role` kommt aus dem Gruppen-Mapping
+des Providers; `None` heißt, der Provider verwaltet keine Rollen. Kontoanlage und Rollenwechsel
+landen im Audit-Log. Fehler sind `ProvisioningError` (ein `ProblemError` mit statischem `code`).
+
+**Externe Logins im Browser** (`app/auth/redirect_flow.py`): Der Flow für Redirect-Provider
+(verschlüsseltes Einmal-Cookie mit `state`, `nonce`, PKCE-Verifier; Fehler als Redirect auf
+`/login?error=<code>`) ist providerunabhängig; GitHub (#31) nutzt ihn mit.
+
+**OIDC** (`app/auth/providers/oidc/`, Anleitung: [`auth/oidc.md`](auth/oidc.md)): Provider aus der
+Datenbank (`auth_oidc_providers`, Client-Secret als `EncryptedStr`, Admin-API unter
+`/api/admin/auth/oidc`) und aus `OLLAMAIL_AUTH_OIDC_PROVIDERS` (read-only). Discovery und JWKS
+werden je Issuer gecacht; ID-Token-Prüfung mit `joserfc`, PKCE-/Client-Auth-Helfer aus Authlib.
+Presets für Entra ID (`tid`-Prüfung, Multi-Tenant nur mit Tenant-Allowlist), Google Workspace
+(`hd`), Keycloak, Authentik und generisch. `POST /api/auth/oidc/logout` liefert zusätzlich die
+URL für das RP-initiated Logout.
 
 **LDAP / Active Directory** (`app/auth/providers/ldap/`, Details: [`auth/ldap.md`](auth/ldap.md)):
 Verzeichnisse stehen in `auth_ldap_directories` (Einstellungen als JSONB, Bind-Passwort

@@ -30,9 +30,11 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. Die eingebaute Telemetrie von ONNX Runtime (von Piper genutzt) ist per `ORT_DISABLE_TELEMETRY=1` abgeschaltet, im Code und im Image (Test: `tests/ai/tts/test_piper.py`) |
+| Triage | Few-Shot-Beispiele nur aus Korrekturen desselben Nutzers in eigenen Postfächern (doppelt gefiltert, Test `tests/triage/test_isolation.py`); Kategorien anderer Nutzer werden nie angeboten. Prompts, Antworten und Begründungen nie in Logs, Fehlercodes statt Exception-Texten. Zurückschreiben aufs Postfach nur nach Opt-in je Postfach |
 | LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename und die Verzeichnis-ID (`objectGUID`/`entryUUID`); Gruppen werden bei jedem Login gelesen, nicht gespeichert. Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
 | Anhänge lesen | Textextraktion (PDF, DOCX, TXT, HTML) in einem eigenen Prozess ohne Umgebungsvariablen (keine Secrets), mit Grenzen für Dateigröße, Laufzeit, Speicher und ohne Schreibrechte; Fehler nur als Statuscode |
 | Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/search/access.py`), getestet in `tests/search/test_service.py` |
+| Single Sign-on (OIDC) | Gespeichert werden nur `sub` (Identität), Gruppen-Claims (für das Rollen-Mapping) und beim ersten Login E-Mail-Adresse und Name; IdP-Tokens nie. Client-Secrets verschlüsselt. `state`/`nonce`/PKCE-Verifier nur im verschlüsselten Einmal-Cookie. Logs nur mit Provider und statischem Fehlercode, nie Claims oder Tokens |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
 
 ### Logging im Detail
@@ -105,8 +107,9 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `user.deleted` | Nutzerverwaltung | geplant (#33) |
 | `idp.config_changed` | LDAP-Verzeichnis angelegt, geändert, gelöscht (`details.change`) | aktiv; OIDC mit #30 |
 | `ai.settings_changed` | KI-Einstellungen inkl. Cloud-Freigabe (`details.cloud_enabled`) | geplant |
-| `mailbox.created`, `mailbox.shared` | Postfach-API, Shared Mailboxes | geplant (#15) |
-| `mailbox.deleted` | `app.mail.service.delete_mailbox` | aktiv |
+| `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
+| `mailbox.shared` | Shared Mailboxes | geplant (#34) |
+| `mailbox.deleted` | `app.mail.service.delete_mailbox`; über die Postfach-API mit dem Nutzer als Akteur | aktiv |
 | `data.exported`, `data.deleted` | Datenexport, Lösch- und Aufbewahrungsjobs | geplant (#36) |
 | `crypto.keys_rotated` | `python -m app.cli rotate-keys` (mit Zählern) | aktiv |
 | `audit.exported` | CSV-Export des Audit-Logs | aktiv |
@@ -124,6 +127,11 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   Schritt) und `processing_mailbox_settings` (Opt-out je Postfach) hängen per `ON DELETE CASCADE`
   an Mail bzw. Postfach. Gespeichert werden nur Schrittname, Version, Status und ein
   Fehlercode (`StepError.code` oder Name der Exception-Klasse), nie Exception-Texte.
+  Umsetzung Triage (`backend/app/triage/`, #20): `triage_results` und `triage_feedback` hängen per
+  `ON DELETE CASCADE` an der Mail, `triage_mailbox_settings` am Postfach; eigene Kategorien,
+  Sichtbarkeit/Reihenfolge und Absenderregeln am Nutzer. Korrekturen speichern keinen Mailtext,
+  sondern verweisen auf die Mail; der Text für Few-Shot-Beispiele wird beim Klassifizieren aus der
+  Mail gelesen und verschwindet mit ihr.
   Umsetzung Suchindex (`backend/app/search/`): `search_chunks` (Textabschnitte aus Mails und
   Anhängen) hängen per `ON DELETE CASCADE` an Mail, Anhang und Postfach, `search_embeddings` an
   den Chunks. Mail oder Postfach löschen löscht ihren Index mit. Der Index enthält Mail-Inhalte;
@@ -133,7 +141,12 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   (das Todo gehört dem Nutzer und bleibt, bis er es löscht). Die Extraktion protokolliert nur
   Anzahlen, nie Titel oder Beschreibungen. Die API liefert ausschließlich eigene Todos; ein
   fremdes Todo verhält sich wie ein nicht vorhandenes (404).
-- **Nutzer löschen:** `users` → `auth_identities`, `auth_sessions` und eigene Postfächer
+  Umsetzung API (`DELETE /mailboxes/{id}`, `backend/app/mail/api/`): ruft `delete_mailbox` auf und
+  bestätigt die Löschung mit der Anzahl gelöschter Mails und Anhänge. Neue Tabellen anderer
+  Module (Triage, Suchindex, …) müssen per `ON DELETE CASCADE` an Postfach oder Mail hängen;
+  `tests/mail/api/test_mailbox_deletion.py` ermittelt alle Tabellen mit Bezug zum Postfach aus
+  dem Schema und schlägt an, wenn eine davon beim Löschen Zeilen zurücklassen würde.
+- **Nutzer löschen:** `users` → `auth_identities` (inkl. gespeicherter Gruppen), `auth_sessions` und eigene Postfächer
   (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).
   Ein periodischer Job setzt sie durch.

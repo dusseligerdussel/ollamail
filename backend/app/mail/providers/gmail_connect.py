@@ -199,7 +199,7 @@ async def connect_mailbox(
             audit.Actor.user(user_id),
             audit.AuditAction.MAILBOX_CREATED,
             audit.Target.of(audit.TargetType.MAILBOX, mailbox.id),
-            {"provider": MailboxType.GMAIL.value},
+            {"type": MailboxType.GMAIL.value},
         )
     elif refresh_token is not None:
         mailbox.credentials = {**(mailbox.credentials or {}), "refresh_token": refresh_token}

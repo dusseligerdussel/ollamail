@@ -22,11 +22,11 @@ class AuditAction(enum.StrEnum):
     USER_ROLE_CHANGED = "user.role_changed"  # LDAP group sync; user administration (#33)
     USER_DELETED = "user.deleted"  # planned: user administration (#33)
     # Sign-in providers
-    IDP_CONFIG_CHANGED = "idp.config_changed"  # LDAP (#32); planned: OIDC (#30)
+    IDP_CONFIG_CHANGED = "idp.config_changed"  # LDAP (#32), OIDC (#30)
     # AI settings, including enabling cloud providers
     AI_SETTINGS_CHANGED = "ai.settings_changed"  # planned: admin LLM settings
     # Mailboxes
-    MAILBOX_CREATED = "mailbox.created"  # planned: mailbox API (#15)
+    MAILBOX_CREATED = "mailbox.created"
     MAILBOX_DELETED = "mailbox.deleted"
     MAILBOX_SHARED = "mailbox.shared"  # planned: shared mailboxes
     # Data subject rights and data deletion
