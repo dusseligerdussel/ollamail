@@ -21,6 +21,7 @@ from fastapi import Request
 from pydantic import BaseModel
 
 from app.ai.llm.base import LLMProvider
+from app.ai.llm.circuit import CircuitBreaker
 from app.ai.llm.config import EndpointConfig, LLMConfigResolver, ModelAssignment
 from app.ai.llm.context import CHARS_PER_TOKEN, estimate_tokens, fit_messages
 from app.ai.llm.errors import (
@@ -87,9 +88,11 @@ class LLMGateway:
         provider_factory: ProviderFactory = create_provider,
         metrics: MetricsSink | None = None,
         concurrency: Callable[[], Awaitable[int]] | None = None,
+        circuit: CircuitBreaker | None = None,
     ) -> None:
         """``concurrency`` limits parallel requests of this gateway (worker: the admin
-        setting, re-read on every request); ``None`` means no limit."""
+        setting, re-read on every request); ``None`` means no limit. ``circuit`` stops
+        calls to an endpoint that is down (worker); ``None`` means always call."""
         self._resolver = resolver
         self._limiter = DynamicLimiter(concurrency) if concurrency is not None else None
         self._provider_factory = provider_factory
@@ -97,6 +100,7 @@ class LLMGateway:
         self._providers: dict[str, tuple[EndpointConfig, LLMProvider]] = {}
         # (endpoint, model) pairs that rejected the native JSON-schema parameter.
         self._prompt_only: set[tuple[str, str]] = set()
+        self._circuit = circuit
 
     async def _provider(self, endpoint: EndpointConfig) -> LLMProvider:
         cached = self._providers.get(endpoint.name)
@@ -109,6 +113,28 @@ class LLMGateway:
         provider = self._provider_factory(endpoint)
         self._providers[endpoint.name] = (endpoint, provider)
         return provider
+
+    def _admit(self, assignment: ModelAssignment) -> None:
+        """Raise ``LLMCircuitOpenError`` if the endpoint is paused by the breaker."""
+        if self._circuit is not None:
+            self._circuit.before_call(assignment.endpoint.name)
+
+    @asynccontextmanager
+    async def _watched(self, assignment: ModelAssignment) -> AsyncIterator[None]:
+        """Report the outcome of an admitted call to the breaker."""
+        if self._circuit is None:
+            yield
+            return
+        endpoint = assignment.endpoint.name
+        try:
+            yield
+        except Exception as exc:
+            self._circuit.record(endpoint, exc)
+            raise
+        except BaseException:
+            self._circuit.release(endpoint)
+            raise
+        self._circuit.record(endpoint, None)
 
     def _slot(self) -> AbstractAsyncContextManager[None]:
         return self._limiter.slot() if self._limiter is not None else nullcontext()
@@ -178,9 +204,14 @@ class LLMGateway:
     ) -> LLMResult:
         assignment, provider = await self._select(task)
         fitted, opts = self._prepare(assignment, messages, options)
+        self._admit(assignment)
         started = time.perf_counter()
         try:
-            async with self._slot(), _deadline(assignment.call_timeout):
+            async with (
+                self._watched(assignment),
+                self._slot(),
+                _deadline(assignment.call_timeout),
+            ):
                 result = await provider.complete(fitted, model=assignment.model, options=opts)
         except Exception as exc:
             self._record(assignment, "complete", prompt_version, started, error=exc)
@@ -206,9 +237,14 @@ class LLMGateway:
         retries = await self._resolver.structured_output_retries()
         key = (assignment.endpoint.name, assignment.model)
         native = assignment.endpoint.structured_output == "native" and key not in self._prompt_only
+        self._admit(assignment)
         started = time.perf_counter()
         try:
-            async with self._slot(), _deadline(assignment.call_timeout):
+            async with (
+                self._watched(assignment),
+                self._slot(),
+                _deadline(assignment.call_timeout),
+            ):
                 result = await self._structured(
                     provider, assignment, fitted, schema, opts, native, retries, language
                 )
@@ -281,11 +317,13 @@ class LLMGateway:
     ) -> AsyncIterator[str]:
         assignment, provider = await self._select(task)
         fitted, opts = self._prepare(assignment, messages, options)
+        self._admit(assignment)
         started = time.perf_counter()
         streamed_chars = 0
         error: BaseException | None = None
         try:
             async with (
+                self._watched(assignment),
                 self._slot(),
                 aclosing(
                     self._bounded_stream(
@@ -348,9 +386,10 @@ class LLMGateway:
         assignment, provider = await self._select(task)
         if model is not None:
             assignment = dataclasses.replace(assignment, model=model)
+        self._admit(assignment)
         started = time.perf_counter()
         try:
-            async with self._slot():
+            async with self._watched(assignment), self._slot():
                 vectors = await provider.embed(texts, model=assignment.model)
         except Exception as exc:
             self._record(assignment, "embed", None, started, error=exc)
