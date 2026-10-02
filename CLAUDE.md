@@ -6,9 +6,9 @@ und – bei UI-Arbeit – `docs/DESIGN.md`.
 
 ## 1. Git-Workflow (verbindlich)
 
-> **Wichtig:** Das Repository ist privat. GitHub setzt Branch-Rulesets für private Repos im
-> Free-Plan **nicht** durch. `main` ist also technisch **nicht** geschützt. Die folgenden Regeln
-> gelten trotzdem uneingeschränkt und müssen von jedem Agenten selbst eingehalten werden.
+> **Wichtig:** Das Repository ist öffentlich. GitHub setzt das Branch-Ruleset für `main` damit
+> durch. Die folgenden Regeln gelten trotzdem uneingeschränkt und müssen von jedem Agenten selbst
+> eingehalten werden – das Ruleset ist eine Absicherung, kein Ersatz dafür.
 
 - **Niemals direkt auf `main` committen oder pushen** – auch nicht „nur kurz“, auch nicht für Doku.
 - Vor jedem Commit prüfen: `git branch --show-current` darf **nicht** `main` sein.
@@ -16,14 +16,14 @@ und – bei UI-Arbeit – `docs/DESIGN.md`.
 - Änderungen gelangen **ausschließlich über einen Pull Request** nach `main`.
 - Ein PR wird erst gemerged, wenn die **CI grün** ist und ein Review erfolgt ist.
   Maßgeblich ist der Check **`ci-ok`** (`.github/workflows/ci.yml`); er ist der einzige Required Check
-  für eine spätere Branch-Protection.
+  im Ruleset für `main`.
 - **Agenten mergen keine PRs** (weder eigene noch fremde) – das Mergen macht der Repository-Owner,
   außer er beauftragt einen Agenten ausdrücklich damit.
 - Kein Force-Push auf `main`, kein Löschen von `main`. Kein Umschreiben fremder Branch-Historie.
 - Pushen nur den eigenen Branch: `git push -u origin <eigener-branch>` – nie `git push origin main`,
   nie `git push origin HEAD:main`, nie `git push --all`.
 
-### Technische Absicherung (Ersatz für Branch-Protection)
+### Technische Absicherung (zusätzlich zum Ruleset)
 
 - `.githooks/pre-push` blockiert jeden Push auf `main` (Löschen und Force-Push eingeschlossen).
 - `.claude/settings.json` aktiviert diesen Hook bei jedem Session-Start automatisch
@@ -100,8 +100,8 @@ Ein Issue ist erst fertig, wenn:
 - [ ] Frontend: `pnpm lint && pnpm typecheck && pnpm test` grün.
 - [ ] E2E: `pnpm e2e` grün (gemockte Specs; neue Abläufe bekommen eine Spec). Die CI führt die
       Suite zusätzlich gegen den echten Stack aus (Job „E2E“, siehe `frontend/README.md`).
-- [ ] Bei Änderungen an `deploy/` oder den Dockerfiles: Job „Compose smoke test“ grün (läuft
-      automatisch; für andere PRs per Label `ci:compose`).
+- [ ] Bei Änderungen an `deploy/`, den Dockerfiles oder den Abhängigkeiten: Job „Compose smoke test“
+      grün (läuft automatisch; für andere PRs per Label `ci:compose`).
 - [ ] Neue Logik hat Tests (Unit; bei API-Endpunkten mindestens ein Integrationstest).
 - [ ] Neue Settings sind in `deploy/.env.example` dokumentiert.
 - [ ] Datenschutz-Check aus `docs/PRIVACY.md` bedacht (keine Mail-Inhalte in Logs, Verschlüsselung von Secrets, Löschbarkeit).

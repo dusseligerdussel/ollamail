@@ -2,17 +2,15 @@ name: Release
 
 # Builds the multi-arch (amd64/arm64) images and pushes them to GHCR:
 #   - tag v*         -> semver tags (+ latest for stable releases) and a GitHub release
-#   - push to main   -> edge
+#   - nightly        -> edge, only if backend/, frontend/ or this workflow changed on main
+#                       in the last 25 hours (an arm64 build under QEMU costs many runner
+#                       minutes, so it no longer runs on every merge)
 #   - manual run     -> build and scan only; pushes a branch tag if `push` is checked
 on:
   push:
     tags: ["v*"]
-    branches: [main]
-    # Path filters only apply to branch pushes; tag pushes always build.
-    paths:
-      - "backend/**"
-      - "frontend/**"
-      - ".github/workflows/release.yml"
+  schedule:
+    - cron: "17 2 * * *"
   workflow_dispatch:
     inputs:
       push:
@@ -33,8 +31,40 @@ env:
   PLATFORMS: linux/amd64,linux/arm64
 
 jobs:
+  # Nightly runs only build when main changed since the previous night; other events always do.
+  changes:
+    name: Check for changes
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      build: ${{ steps.check.outputs.build }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        if: github.event_name == 'schedule'
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+      - name: Check
+        id: check
+        env:
+          EVENT: ${{ github.event_name }}
+        run: |
+          if [ "$EVENT" != "schedule" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          changed="$(git log --since='25 hours ago' --format=%H -- backend frontend .github/workflows/release.yml)"
+          if [ -n "$changed" ]; then
+            echo "build=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No changes since the last nightly build."
+            echo "build=false" >> "$GITHUB_OUTPUT"
+          fi
+
   images:
     name: Image (${{ matrix.image }})
+    needs: changes
+    if: needs.changes.outputs.build == 'true'
     runs-on: ubuntu-latest
     timeout-minutes: 60
     permissions:
@@ -49,7 +79,7 @@ jobs:
           - image: frontend
             context: frontend
     env:
-      PUSH: ${{ github.event_name == 'push' || inputs.push }}
+      PUSH: ${{ github.event_name == 'push' || github.event_name == 'schedule' || inputs.push }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
