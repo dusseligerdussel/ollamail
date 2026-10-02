@@ -22,6 +22,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 |---|---|
 | Secrets | IMAP-Passwörter, OAuth-Tokens, IdP-Client-Secrets, LDAP-Bind-Passwörter: AES-256-GCM, Envelope-Encryption mit Master-Key aus `OLLAMAIL_SECRET_KEY` (Key-Rotation unterstützt) |
 | At rest | Empfehlung: verschlüsseltes Volume/Dateisystem. Optional: Verschlüsselung von Mail-Bodies/Anhängen auf Anwendungsebene (Feature-Flag) |
+| Microsoft 365 | OAuth-Tokens verschlüsselt (`mail_mailboxes.credentials`), Client-Secret nur in der Umgebung. App-only-Zugriff nur mit Einschränkung auf freigegebene Postfächer (RBAC for Applications / `ApplicationAccessPolicy`, siehe `docs/providers/microsoft365.md`). Change Notifications optional, ohne Inhalte (nur IDs, `clientState` per HMAC geprüft) |
 | In transit | TLS für IMAP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting, IMAP: `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS`), HTTPS hinter Reverse Proxy |
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
 | Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |

@@ -1030,6 +1030,50 @@
         "title": "GmailOAuthStartResponse",
         "type": "object"
       },
+      "GraphConnectRequest": {
+        "properties": {
+          "return_to": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return To"
+          },
+          "shared_mailbox": {
+            "anyOf": [
+              {
+                "maxLength": 320,
+                "pattern": "^[^@\\s/?#]+@[^@\\s/?#]+$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Shared Mailbox"
+          }
+        },
+        "title": "GraphConnectRequest",
+        "type": "object"
+      },
+      "GraphConnectResponse": {
+        "properties": {
+          "authorization_url": {
+            "title": "Authorization Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "title": "GraphConnectResponse",
+        "type": "object"
+      },
       "HTTPValidationError": {
         "properties": {
           "detail": {
@@ -5761,6 +5805,48 @@
           }
         },
         "summary": "Start Gmail Oauth",
+        "tags": [
+          "mail"
+        ]
+      }
+    },
+    "/mail/graph/connect": {
+      "post": {
+        "description": "Start connecting a Microsoft 365 mailbox; the client navigates to the returned URL.",
+        "operationId": "mail_connect_graph_mailbox",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/GraphConnectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/GraphConnectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Connect Graph Mailbox",
         "tags": [
           "mail"
         ]
