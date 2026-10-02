@@ -118,6 +118,11 @@ stehen in `src/api/auth.ts`.
 - **Deine Daten** (`/settings`, `src/components/account/`): Datenexport anfordern (Status live über
   das Event `privacy.export`, Download-Link bis zum Ablauf) und Konto löschen (Dialog, Bestätigung
   durch Eingabe der eigenen E-Mail-Adresse; danach Login-Seite). API: `src/api/privacy.ts`.
+- **Admin → Nutzer → „Nutzer löschen …“** (`/admin/users`, `src/components/admin/delete-user-dialog.tsx`):
+  `DELETE /api/admin/privacy/users/{id}`. Der Dialog zählt auf, was gelöscht wird (eigene
+  Postfächer, Mails, Aufgaben, Digests, …; Team-Postfächer bleiben), und verlangt die E-Mail-Adresse
+  des Nutzers. `last-admin` und `admin-lockout` (409) erscheinen als eigener Hinweis im Dialog.
+  Danach Toast mit der Zahl gelöschter Postfächer; beim eigenen Konto Warnung und danach Login-Seite.
 - **Admin → Aufbewahrung** (`/admin/retention`): Fristen je Datenkategorie mit Standardwert aus der
   Umgebung, „Standard verwenden“, Hinweis bei Mail-Frist unter dem Erstimport, letzter Lauf.
 
