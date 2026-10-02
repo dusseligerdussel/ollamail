@@ -6,7 +6,10 @@ cursor and applies the events:
 
 * ``MessageFetched``  → ``store_message`` (new messages are reported to
   ``app.mail.hooks.message_stored`` after the commit),
-* ``MessageUpdated``  → flags/folders of the stored message,
+* ``MessageUpdated``  → flags/folders of the stored message; a message that is in no
+  synced folder any more (e.g. moved to the trash) is deleted,
+* ``MessageChanged``  → like ``MessageUpdated`` for known messages, otherwise the source
+  is loaded and stored like ``MessageFetched``,
 * ``MessageDeleted``  → ``delete_messages`` (hard delete incl. attachment files),
 * ``CursorAdvanced``  → everything above plus the new cursor is committed in one
   transaction. A sync that breaks off resumes at the last committed cursor.
@@ -26,9 +29,10 @@ import uuid
 from collections.abc import Callable, Iterable
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
+from typing import Any
 
 from sqlalchemy import delete, exists, select, update
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased, selectinload
 
 from app.core.config import MailSettings
@@ -46,11 +50,15 @@ from app.mail.providers.base import (
     CursorInvalidError,
     MailboxConfig,
     MailProvider,
+    MessageChanged,
     MessageDeleted,
     MessageFetched,
+    MessageNotFoundError,
     MessageUpdated,
     ProviderError,
+    RawMessage,
     RemoteFolder,
+    SaveCredentials,
     SyncCursor,
 )
 from app.mail.providers.registry import ProviderFactory, registry
@@ -224,28 +232,36 @@ class MailboxSync:
         new_ids: list[tuple[uuid.UUID, bool]] = []
         updates: dict[str, MessageUpdated] = {}
         deletes: list[str] = []
+
+        async def store(raw: RawMessage, known: uuid.UUID | None, initial: bool) -> None:
+            updates.pop(raw.remote_ref, None)
+            message = await store_message(self.session, self.mailbox_id, raw, self.storage, folders)
+            self.stats.fetched += 1
+            if known is None:
+                new_ids.append((message.id, initial))
+
         async for event in self.provider.fetch_since(remote_id, cursor, since=since):
             if isinstance(event, MessageFetched):
                 raw = event.message
-                updates.pop(raw.remote_ref, None)
-                known = await self.session.scalar(
-                    select(Message.id).where(
-                        Message.mailbox_id == self.mailbox_id, Message.remote_ref == raw.remote_ref
+                await store(raw, await self._known(raw.remote_ref), event.initial)
+            elif isinstance(event, MessageChanged):
+                if await self._known(event.remote_ref) is not None:
+                    updates[event.remote_ref] = MessageUpdated(
+                        event.remote_ref, flags=event.flags, folder_ids=event.folder_ids
                     )
-                )
-                message = await store_message(
-                    self.session, self.mailbox_id, raw, self.storage, folders
-                )
-                self.stats.fetched += 1
-                if known is None:
-                    new_ids.append((message.id, event.initial))
+                    continue
+                try:
+                    raw = await event.load()
+                except MessageNotFoundError:
+                    continue
+                await store(raw, None, False)
             elif isinstance(event, MessageUpdated):
                 updates[event.remote_ref] = event
             elif isinstance(event, MessageDeleted):
                 updates.pop(event.remote_ref, None)
                 deletes.append(event.remote_ref)
             elif isinstance(event, CursorAdvanced):
-                await self._apply_updates(updates.values(), folders)
+                deletes.extend(await self._apply_updates(updates.values(), folders))
                 state.cursor = event.cursor.data
                 state.last_synced_at = self.now()
                 state.last_error = None
@@ -265,9 +281,24 @@ class MailboxSync:
                 updates.clear()
                 self._release_messages()
 
+    async def _known(self, remote_ref: str) -> uuid.UUID | None:
+        return await self.session.scalar(
+            select(Message.id).where(
+                Message.mailbox_id == self.mailbox_id, Message.remote_ref == remote_ref
+            )
+        )
+
     async def _apply_updates(
         self, events: Iterable[MessageUpdated], folders: dict[str, Folder]
-    ) -> None:
+    ) -> list[str]:
+        """Apply flag/folder changes; return the references of messages that are in no
+        synced folder any more (to be deleted)."""
+        unsynced: list[str] = []
+        synced = {
+            remote_id
+            for remote_id, folder in folders.items()
+            if folder.sync_enabled and not self._excluded(folder.role, remote_id)
+        }
         by_ref = {event.remote_ref: event for event in events}
         refs = list(by_ref)
         for start in range(0, len(refs), _UPDATE_CHUNK):
@@ -287,6 +318,9 @@ class MailboxSync:
                         .values(flags=sorted(event.flags))
                     )
                     changed = True
+                if event.folder_ids is not None and not synced.intersection(event.folder_ids):
+                    unsynced.append(remote_ref)
+                    continue
                 if event.folder_ids is not None:
                     message = await self.session.get(
                         Message, message_id, options=[selectinload(Message.folders)]
@@ -295,6 +329,7 @@ class MailboxSync:
                         message.folders = [folders[f] for f in event.folder_ids if f in folders]
                         changed = True
                 self.stats.updated += changed
+        return unsynced
 
     def _release_messages(self) -> None:
         """Keep the session small during long imports: drop committed messages."""
@@ -355,13 +390,33 @@ async def _finish(
     await session.commit()
 
 
-def mailbox_config(mailbox: Mailbox) -> MailboxConfig:
+def credentials_saver(
+    sessionmaker: async_sessionmaker[AsyncSession], mailbox_id: uuid.UUID
+) -> SaveCredentials:
+    """``MailboxConfig.save_credentials`` for a mailbox: stores the (encrypted) credentials
+    in a transaction of its own, so they survive a sync that fails afterwards."""
+
+    async def save(credentials: dict[str, Any]) -> None:
+        async with sessionmaker() as session:
+            await session.execute(
+                update(Mailbox).where(Mailbox.id == mailbox_id).values(credentials=credentials)
+            )
+            await session.commit()
+        log.info("mail_credentials_saved", mailbox_id=str(mailbox_id))
+
+    return save
+
+
+def mailbox_config(
+    mailbox: Mailbox, *, save_credentials: SaveCredentials | None = None
+) -> MailboxConfig:
     return MailboxConfig(
         mailbox_id=mailbox.id,
         type=mailbox.type,
         address=mailbox.address,
         settings=dict(mailbox.provider_settings or {}),
         credentials=dict(mailbox.credentials or {}),
+        save_credentials=save_credentials,
     )
 
 
@@ -382,8 +437,15 @@ async def sync_mailbox(
         log.info("mail_sync_skipped", mailbox_id=str(mailbox_id))
         return None
     owner_user_id = mailbox.owner_user_id
+    # Credentials are saved outside the sync's transaction (same connection pool).
+    saver = credentials_saver(
+        async_sessionmaker(
+            session.bind, expire_on_commit=False, join_transaction_mode="create_savepoint"
+        ),
+        mailbox_id,
+    )
     try:
-        provider = provider_factory(mailbox_config(mailbox))
+        provider = provider_factory(mailbox_config(mailbox, save_credentials=saver))
         try:
             stats = await MailboxSync(session, mailbox, provider, storage, settings, now=now).run()
         finally:
