@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import date, datetime
-from typing import Annotated, Any
+from typing import Annotated, Any, Literal
 
 from pydantic import BaseModel, ConfigDict, StringConstraints
 
@@ -10,6 +10,18 @@ from app.todos.models import TodoPriority, TodoStatus
 
 Title = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=255)]
 Description = Annotated[str, StringConstraints(strip_whitespace=True, max_length=10_000)]
+
+
+class TodoExportState(BaseModel):
+    """Export of a todo to the user's task system (#40)."""
+
+    sink: str
+    # ``pending`` (waiting), ``synced``, ``error`` (rejected by the target, retried) or
+    # ``removed`` (deleted in the target system, not exported again unless requested).
+    state: Literal["pending", "synced", "error", "removed"]
+    synced_at: datetime | None
+    # Static error code, e.g. ``http_400``.
+    error: str | None
 
 
 class TodoRead(BaseModel):
@@ -31,6 +43,7 @@ class TodoRead(BaseModel):
     message_id: uuid.UUID | None
     thread_id: uuid.UUID | None
     external_refs: dict[str, Any]
+    export_state: TodoExportState | None
     # Team todo of a shared mailbox: visible to all its readers, assignable to one of them.
     shared: bool
     assignee_id: uuid.UUID | None

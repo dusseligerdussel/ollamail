@@ -2090,6 +2090,103 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/todo-export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Export Settings
+         * @description Own export settings and the target types the admin allows.
+         */
+        get: operations["todos_get_export_settings"];
+        /**
+         * Save Export Settings
+         * @description Connect the export (or change server, account, list or mode). The connection is
+         *     checked and the list must be one of those the server offers. Open todos are exported
+         *     right away in mode ``auto``.
+         */
+        put: operations["todos_save_export_settings"];
+        post?: never;
+        /**
+         * Disconnect Export
+         * @description Stop exporting and delete the stored credentials. Tasks already exported stay in
+         *     the target system.
+         */
+        delete: operations["todos_disconnect_export"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Export Settings
+         * @description Switch between automatic and manual export.
+         */
+        patch: operations["todos_update_export_settings"];
+        trace?: never;
+    };
+    "/todo-export/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List Task Lists
+         * @description Connect to the target with the given credentials and list the lists that can hold
+         *     todos (CalDAV: calendars with tasks). Nothing is stored.
+         */
+        post: operations["todos_list_task_lists"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todo-export/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Sync Now
+         * @description Sync now, including the status check of exported todos.
+         */
+        post: operations["todos_sync_now"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todo-export/todos/{todo_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Export Todo
+         * @description Export one todo (manual mode), or export it again after it was deleted in the
+         *     target system.
+         */
+        post: operations["todos_export_todo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/todos": {
         parameters: {
             query?: never;
@@ -2125,7 +2222,10 @@ export interface paths {
         get: operations["todos_get_todo"];
         put?: never;
         post?: never;
-        /** Delete Todo */
+        /**
+         * Delete Todo
+         * @description Delete a todo; an exported copy is deleted in the target system with the next sync.
+         */
         delete: operations["todos_delete_todo"];
         options?: never;
         head?: never;
@@ -2831,7 +2931,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -3456,10 +3556,127 @@ export interface components {
             to?: components["schemas"]["Recipient"][] | null;
         };
         /**
+         * ExportConnection
+         * @description How to reach the target. ``password`` ``null``: keep the stored one (same server
+         *     and user name).
+         */
+        ExportConnection: {
+            /** Password */
+            password?: string | null;
+            /**
+             * Sink
+             * @constant
+             */
+            sink: "caldav";
+            /** Url */
+            url: string;
+            /**
+             * Username
+             * @default
+             */
+            username: string;
+        };
+        /**
+         * ExportCounts
+         * @description Todos of this target by export state.
+         */
+        ExportCounts: {
+            /**
+             * Error
+             * @default 0
+             */
+            error: number;
+            /**
+             * Pending
+             * @default 0
+             */
+            pending: number;
+            /**
+             * Removed
+             * @default 0
+             */
+            removed: number;
+            /**
+             * Synced
+             * @default 0
+             */
+            synced: number;
+        };
+        /**
+         * ExportMode
+         * @enum {string}
+         */
+        ExportMode: "auto" | "manual";
+        /** ExportSettingsRead */
+        ExportSettingsRead: {
+            /** Available Sinks */
+            available_sinks?: "caldav"[];
+            target: components["schemas"]["ExportTargetRead"] | null;
+        };
+        /**
          * ExportStatus
          * @enum {string}
          */
         ExportStatus: "pending" | "running" | "ready" | "failed";
+        /** ExportTargetRead */
+        ExportTargetRead: {
+            /** Active */
+            active: boolean;
+            counts: components["schemas"]["ExportCounts"];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Has Password */
+            has_password: boolean;
+            /** Last Error */
+            last_error: string | null;
+            /** Last Sync At */
+            last_sync_at: string | null;
+            /** List Id */
+            list_id: string;
+            /** List Name */
+            list_name: string;
+            mode: components["schemas"]["ExportMode"];
+            /**
+             * Sink
+             * @constant
+             */
+            sink: "caldav";
+            /** Url */
+            url: string;
+            /** Username */
+            username: string;
+        };
+        /**
+         * ExportTargetSave
+         * @description Connect (or reconnect) the export: target, list and mode.
+         */
+        ExportTargetSave: {
+            /** List Id */
+            list_id: string;
+            /** @default auto */
+            mode: components["schemas"]["ExportMode"];
+            /** Password */
+            password?: string | null;
+            /**
+             * Sink
+             * @constant
+             */
+            sink: "caldav";
+            /** Url */
+            url: string;
+            /**
+             * Username
+             * @default
+             */
+            username: string;
+        };
+        /** ExportTargetUpdate */
+        ExportTargetUpdate: {
+            mode: components["schemas"]["ExportMode"];
+        };
         /** FeedCreated */
         FeedCreated: {
             /**
@@ -5343,6 +5560,13 @@ export interface components {
             /** Provider */
             provider?: string | null;
         };
+        /** TaskListRead */
+        TaskListRead: {
+            /** Id */
+            id: string;
+            /** Name */
+            name: string;
+        };
         /** TaskSettingRead */
         TaskSettingRead: {
             /** Blocked */
@@ -5400,6 +5624,23 @@ export interface components {
             title: string;
         };
         /**
+         * TodoExportState
+         * @description Export of a todo to the user's task system (#40).
+         */
+        TodoExportState: {
+            /** Error */
+            error: string | null;
+            /** Sink */
+            sink: string;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "pending" | "synced" | "error" | "removed";
+            /** Synced At */
+            synced_at: string | null;
+        };
+        /**
          * TodoPriority
          * @enum {string}
          */
@@ -5423,6 +5664,7 @@ export interface components {
             done_suggested: boolean;
             /** Due Date */
             due_date: string | null;
+            export_state: components["schemas"]["TodoExportState"] | null;
             /** External Refs */
             external_refs: {
                 [key: string]: unknown;
@@ -11835,6 +12077,279 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["SetupStatus"];
                 };
+            };
+        };
+    };
+    todos_get_export_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_save_export_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportTargetSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not allowed, invalid URL, credentials rejected, no list */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not reachable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_disconnect_export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Export not connected */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_update_export_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportTargetUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Export not connected */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    todos_list_task_lists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ExportConnection"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TaskListRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not allowed, invalid URL, credentials rejected, no list */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not reachable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_sync_now: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Export not connected */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_export_todo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                todo_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TodoRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such todo or export not connected */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Todo of somebody else (team todo assigned to another person) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

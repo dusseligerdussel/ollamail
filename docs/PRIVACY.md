@@ -46,6 +46,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Login mit SAML | Gespeichert werden nur die Kennung (NameID bzw. konfiguriertes Attribut), die Gruppen aus dem Gruppen-Attribut (für das Rollen-Mapping) und beim ersten Login E-Mail-Adresse und Anzeigename; weitere Attribute werden verworfen. Gegen Replay nur SHA-256 von Provider und Assertion-ID (`auth_saml_assertions`, gelöscht nach Ablauf, höchstens 24 h). Keine Secrets (IdP-Zertifikate sind öffentlich). Logs nur mit Provider, Code und statischem Prüfschritt, nie Attribute oder die Response ([`auth/saml.md`](auth/saml.md)) |
 | Antwortentwürfe und Versand | Entwürfe erzeugt das Modell der Aufgabe `reply_draft` (lokal, solange der Admin keinen Cloud-Provider zuweist; dann erscheint die Aufgabe in der Cloud-Anzeige). Kontext nur aus Mails, die der Nutzer lesen darf (SQL-Filter); Stilbeispiele nur aus den eigenen gesendeten Mails eigener Postfächer, pro Nutzer abschaltbar. Mailinhalte stehen nur als markierte Daten im Prompt. **Nichts wird automatisch gesendet**: Senden ist ein eigener Request des Autors, nur aus eigenen Postfächern (Shared Mailboxes: nur lesen). Empfänger kommen aus den Kopfzeilen, nie vom Modell; Kopfzeilen werden gegen Header-Injection geprüft. Jeder Versand steht im Audit-Log (`mail.sent`, nur IDs und Anzahl Empfänger). Entwürfe, Prompts, Anweisungen und Antworten nie in Logs (nur IDs, Anzahlen, Zeiten, Fehlercodes); SMTP-Serverantworten werden weder geloggt noch weitergegeben |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
+| Aufgaben-Export (#40) | Admin-Opt-in (`OLLAMAIL_TODOS_EXPORT_SINKS`, Standard aus), dann Opt-in je Nutzer unter Einstellungen → Aufgaben-Export; vor dem Verbinden steht, was übertragen wird: Titel, Beschreibung, Fälligkeit, Priorität, Status und ein Link zur Mail, nie Mail-Inhalte. Zugangsdaten verschlüsselt (`EncryptedJSON`), nie an das Frontend zurückgegeben. Nur `https` (außer `OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP`); Anfragen nur an den eingetragenen Server, Weiterleitungen nur dorthin. Jobs nur mit der Ziel-ID; Logs nur IDs, Anzahlen und Fehlercodes, nie Titel oder Serverantworten. Verbinden, Ändern und Trennen im Audit-Log (`todo_export.changed`) |
 
 ### Logging im Detail
 
@@ -156,6 +157,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `data.exported` | Datenexport: angefordert und heruntergeladen (`details.stage`: `requested`, `downloaded`; `export_id`) | aktiv |
 | `data.deleted` | Aufbewahrungsjob `privacy.retention`, nur wenn er etwas gelöscht hat: Anzahlen (`mails`, `attachments`, `search_chunks`, `threads`, `audit_events`) und neuer Startpunkt der Hash-Kette | aktiv |
 | `data.retention_changed` | Admin → Aufbewahrung: geänderte Fristen in Tagen (`mail_days`, …) | aktiv |
+| `todo_export.changed` | Aufgaben-Export verbunden, geändert oder getrennt (`details.change`: `connected`, `updated`, `disconnected`; `sink`, `mode`); Ziel ist die ID der Export-Einstellung | aktiv |
 | `crypto.keys_rotated` | `python -m app.cli rotate-keys` (mit Zählern) | aktiv |
 | `audit.exported` | CSV-Export des Audit-Logs | aktiv |
 
@@ -166,6 +168,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   Export-ID) schreibt ein ZIP mit JSON-Dateien: Profil mit Anmeldeidentitäten und Sitzungen,
   eigene Postfächer (ohne Zugangsdaten), eigene Kategorien, Kategorie-Einstellungen,
   Absenderregeln, Korrekturen und die Triage-Ergebnisse der eigenen Mails, Aufgaben,
+  Einstellungen des Aufgaben-Exports (ohne Passwort),
   Digest-Einstellungen (ohne Feed-Token) und Digests mit Audiodateien, Fragen-Verläufe mit
   Zitaten, Antwortentwürfe mit Signatur und Einstellungen (`app/privacy/export.py`,
   `manifest.json` listet den Inhalt). Mails selbst sind nicht
@@ -203,6 +206,13 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   Team-Todos lesbarer Shared Mailboxes; ein fremdes Todo verhält sich wie ein nicht vorhandenes
   (404). Team-Todos (`user_id IS NULL`) hängen am Shared Mailbox; die Zuweisung an eine Person
   (`assignee_id`) wird beim Löschen dieser Person auf `NULL` gesetzt.
+  Umsetzung Aufgaben-Export (`backend/app/todos/export/`, #40): `todo_export_targets` hängt per
+  `ON DELETE CASCADE` am Nutzer; Server, Konto und Passwort liegen verschlüsselt darin. Welche
+  Aufgabe wohin exportiert wurde, steht in `todos.external_refs` und verschwindet mit der
+  Aufgabe. Wird eine exportierte Aufgabe in ollamail gelöscht, löscht der nächste Abgleich die
+  Kopie im Ziel. Trennen löscht die Zugangsdaten und die Verweise, die exportierten Aufgaben
+  bleiben im Ziel (sie gehören dort dem Nutzer); ebenso beim Löschen eines Postfachs oder des
+  Kontos. Das steht vor dem Trennen in der UI.
   Umsetzung Shared Mailboxes (`backend/app/mail/`, #34): `mail_mailbox_assignments` hängt per
   `ON DELETE CASCADE` am Postfach und am Nutzer. Wird ein Nutzer gelöscht, verschwinden nur seine
   Zuweisungen, das Shared Mailbox und seine Daten bleiben für die anderen erhalten.
@@ -322,6 +332,7 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 | `triage_categories`, `triage_category_preferences`, `triage_sender_rules` | eigene Kategorien, Reihenfolge/Sichtbarkeit, Absenderadressen bzw. Domains | U (Organisationskategorien: Admin) |
 | `triage_mailbox_settings` | Zurückschreiben je Postfach | P |
 | `todos` | Titel, Beschreibung, Fälligkeit, Status; Verweis auf Mail | U, P (Mail-Verweis wird bei M geleert) |
+| `todo_export_targets` | Ziel, Server-URL, Benutzername und Passwort (verschlüsselt), Listenname, Modus, letzter Fehlercode | U; Nutzer (Trennen) |
 | `digest_user_settings` | Zeitplan, Stimme, Postfachauswahl, SHA-256 des Feed-Tokens | U |
 | `digests` + `<data>/digests/<user_id>/<digest_id>.{mp3,opus}` | Skript, Titel, Verweise auf Mails, Audio | U; Aufbewahrung Digests; Postfach entfernt (`digest.cleanup`) |
 | `rag_conversations`, `rag_messages` | Fragen und Antworten | U; Nutzer; Aufbewahrung Fragen-Verläufe |

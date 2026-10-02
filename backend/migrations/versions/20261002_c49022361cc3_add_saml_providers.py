@@ -1,7 +1,7 @@
 """add saml providers
 
 Revision ID: c49022361cc3
-Revises: ff4e75fd2ab8
+Revises: 2183db5869b4
 Create Date: 2026-10-02 11:34:02.172175+00:00
 """
 
@@ -12,7 +12,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "c49022361cc3"
-down_revision: str | Sequence[str] | None = "ff4e75fd2ab8"
+down_revision: str | Sequence[str] | None = "2183db5869b4"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
