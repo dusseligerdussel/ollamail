@@ -392,7 +392,7 @@ lehnt `gtasks` mit `oauth_required` ab.
 `401` → Token einmal erneuern, dann `auth_failed` (UI: neu verbinden); `429`, `403`
 mit Rate-Limit und `5xx` → Backoff (wie Gmail), danach `unavailable`; `404` der Liste →
 `list_not_found`; Tasks API nicht aktiviert → `api_disabled`; kein OAuth-Client →
-`oauth_not_configured`. Connect-Flow zusätzlich: `access_denied`, `insufficient_scope`,
+`oauth_not_configured`. Connect-Flow zusätzlich: `consent_denied` (abgebrochen), `insufficient_scope`,
 `invalid_state`, `token_revoked`, `refresh_token_missing`, `no_lists`, `sink_not_available`.
 
 ### 8.5 Tests und manuelle Prüfung

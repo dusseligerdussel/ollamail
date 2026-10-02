@@ -3,18 +3,19 @@ import { Info } from "lucide-react";
 import { type FormEvent, useCallback, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 
+import { pageNavigation } from "@/api/auth";
 import { problemErrorCode } from "@/api/mail";
 import {
   type ExportMode,
   type ExportSink,
   type ExportTarget,
   listTaskLists,
-  OAUTH_SINKS,
   startGoogleTasksOAuth,
   type TaskList,
   useSaveTodoExport,
 } from "@/api/todo-export";
 import { FormError, FormField } from "@/components/form-field";
+import { MsTodoConnect } from "@/components/task-export/mstodo-connect";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
@@ -30,11 +31,19 @@ const KNOWN_ERRORS = new Set([
   "insecure_url",
   "sink_not_available",
   "unknown_list",
+  // Microsoft To Do sign-in (`mstodo=error&reason=…`) and its API.
+  "not_configured",
+  "mstodo_not_connected",
+  "consent_denied",
+  "access_denied",
+  "state_invalid",
+  "session_mismatch",
+  "token_exchange_failed",
+  "offline_access_missing",
   "list_not_found",
-  // Google Tasks connect flow (`?gtasks_error=` after the redirect back from Google).
+  // Google Tasks sign-in (`?gtasks_error=` after the redirect back from Google).
   "oauth_required",
   "oauth_not_configured",
-  "access_denied",
   "insufficient_scope",
   "invalid_state",
   "token_revoked",
@@ -47,10 +56,10 @@ export function useExportErrorText() {
   const { t } = useTranslation();
   return useCallback(
     (code: string | null | undefined, sink?: ExportSink) => {
+      if (sink === "mstodo" && code === "auth_failed")
+        return t("taskExport.errors.mstodo_auth_failed");
       // Google has no user name or password; the user connects again.
-      if (code === "auth_failed" && sink && OAUTH_SINKS.has(sink)) {
-        return t("taskExport.errors.reconnect");
-      }
+      if (sink === "gtasks" && code === "auth_failed") return t("taskExport.errors.reconnect");
       return code && KNOWN_ERRORS.has(code)
         ? t(`taskExport.errors.${code as "auth_failed"}`)
         : t("taskExport.errors.other");
@@ -62,62 +71,36 @@ export function useExportErrorText() {
 /** What leaves the instance, shown before the user connects (docs/PRIVACY.md). */
 export function ExportPrivacyNotice({ sink }: { sink?: ExportSink }) {
   const { t } = useTranslation();
-  const google = sink === "gtasks";
+  if (sink === "gtasks") {
+    return (
+      <div className="flex items-start gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-ui">
+        <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <div className="flex flex-col gap-1">
+          <p>{t("taskExport.privacy.sentGoogle")}</p>
+          <p className="text-muted-foreground">{t("taskExport.privacy.notSentGoogle")}</p>
+        </div>
+      </div>
+    );
+  }
+  if (sink === "mstodo") {
+    return (
+      <div className="flex items-start gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-ui">
+        <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
+        <div className="flex flex-col gap-1">
+          <p>{t("taskExport.mstodo.privacySent")}</p>
+          <p className="text-muted-foreground">{t("taskExport.mstodo.privacyNotSent")}</p>
+        </div>
+      </div>
+    );
+  }
   return (
     <div className="flex items-start gap-3 rounded-lg border bg-muted/40 px-4 py-3 text-ui">
       <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-muted-foreground" />
       <div className="flex flex-col gap-1">
-        <p>{t(google ? "taskExport.privacy.sentGoogle" : "taskExport.privacy.sent")}</p>
-        <p className="text-muted-foreground">
-          {t(google ? "taskExport.privacy.notSentGoogle" : "taskExport.privacy.notSent")}
-        </p>
+        <p>{t("taskExport.privacy.sent")}</p>
+        <p className="text-muted-foreground">{t("taskExport.privacy.notSent")}</p>
       </div>
     </div>
-  );
-}
-
-/**
- * Connect a target with OAuth: the mode is chosen here, the list after the redirect back
- * (the default list is used until then). Nothing is stored before the provider agreed.
- */
-function OAuthConnect({ current, onCancel }: { current?: ExportTarget; onCancel?: () => void }) {
-  const { t } = useTranslation();
-  const errorText = useExportErrorText();
-  const [mode, setMode] = useState<ExportMode>(current?.mode ?? "auto");
-  const start = useMutation({
-    mutationFn: () => startGoogleTasksOAuth(mode),
-    meta: { errorToast: false },
-    onSuccess: ({ authorization_url }) => window.location.assign(authorization_url),
-  });
-
-  const onSubmit = (event: FormEvent) => {
-    event.preventDefault();
-    start.mutate();
-  };
-
-  return (
-    <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
-      <p className="text-ui text-muted-foreground">{t("taskExport.google.hint")}</p>
-      {!current && (
-        <div className="flex flex-col gap-2">
-          <div className="text-ui">{t("taskExport.mode.label")}</div>
-          <ModeChoice value={mode} onChange={setMode} />
-        </div>
-      )}
-      {start.isError && <FormError>{errorText(problemErrorCode(start.error))}</FormError>}
-      <div className="flex gap-2">
-        <Button type="submit" size="sm" disabled={start.isPending || start.isSuccess}>
-          {start.isPending || start.isSuccess
-            ? t("taskExport.google.redirecting")
-            : t(current ? "taskExport.google.reconnect" : "taskExport.google.connect")}
-        </Button>
-        {onCancel && (
-          <Button type="button" size="sm" variant="outline" onClick={onCancel}>
-            {t("taskExport.cancel")}
-          </Button>
-        )}
-      </div>
-    </form>
   );
 }
 
@@ -158,10 +141,63 @@ export function ModeChoice({
   );
 }
 
+/**
+ * Google Tasks: sign in with Google; the mode is chosen here, the list after the redirect back
+ * (the default list is used until then). Nothing is stored before the provider agreed.
+ */
+function GoogleTasksConnect({
+  current,
+  onCancel,
+}: {
+  current?: ExportTarget;
+  onCancel?: () => void;
+}) {
+  const { t } = useTranslation();
+  const errorText = useExportErrorText();
+  const [mode, setMode] = useState<ExportMode>(current?.mode ?? "auto");
+  const start = useMutation({
+    mutationFn: () => startGoogleTasksOAuth(mode),
+    meta: { errorToast: false },
+    onSuccess: ({ authorization_url }) => pageNavigation.assign(authorization_url),
+  });
+
+  const onSubmit = (event: FormEvent) => {
+    event.preventDefault();
+    start.mutate();
+  };
+
+  return (
+    <form onSubmit={onSubmit} className="flex flex-col gap-6" noValidate>
+      <p className="text-ui text-muted-foreground">{t("taskExport.google.hint")}</p>
+      {!current && (
+        <div className="flex flex-col gap-2">
+          <div className="text-ui">{t("taskExport.mode.label")}</div>
+          <ModeChoice value={mode} onChange={setMode} />
+        </div>
+      )}
+      {start.isError && <FormError>{errorText(problemErrorCode(start.error))}</FormError>}
+      <div className="flex gap-2">
+        <Button type="submit" size="sm" disabled={start.isPending || start.isSuccess}>
+          {start.isPending || start.isSuccess
+            ? t("taskExport.google.redirecting")
+            : t(current ? "taskExport.google.reconnect" : "taskExport.google.connect")}
+        </Button>
+        {onCancel && (
+          <Button type="button" size="sm" variant="outline" onClick={onCancel}>
+            {t("taskExport.cancel")}
+          </Button>
+        )}
+      </div>
+    </form>
+  );
+}
+
 interface ConnectFormProps {
   sinks: ExportSink[];
   /** Change an existing connection (server, account, list). */
   current?: ExportTarget;
+  /** Target the user just signed in to (OAuth flow), preselected. */
+  signedIn?: ExportSink;
   /** Preselected target, e.g. after a failed OAuth sign-in. */
   initialSink?: ExportSink;
   onDone: () => void;
@@ -172,15 +208,25 @@ interface ConnectFormProps {
  * Connect the export in two steps: target and credentials (checked by listing the task lists),
  * then list and mode. Nothing is stored before the second step.
  */
-export function ConnectForm({ sinks, current, initialSink, onDone, onCancel }: ConnectFormProps) {
+export function ConnectForm({
+  sinks,
+  current,
+  signedIn,
+  initialSink,
+  onDone,
+  onCancel,
+}: ConnectFormProps) {
   const { t } = useTranslation();
   const errorText = useExportErrorText();
   const sinkLabel = useId();
   const [sink, setSink] = useState<ExportSink>(
-    current?.sink ??
+    signedIn ??
+      current?.sink ??
       (initialSink && sinks.includes(initialSink) ? initialSink : sinks[0]) ??
       "caldav",
   );
+  // Targets connected by signing in have no URL or password.
+  const credentials = sink !== "mstodo" && sink !== "gtasks";
   const [url, setUrl] = useState(current?.url ?? "");
   const [username, setUsername] = useState(current?.username ?? "");
   const [password, setPassword] = useState("");
@@ -229,7 +275,6 @@ export function ConnectForm({ sinks, current, initialSink, onDone, onCancel }: C
   };
 
   const discoverError = discover.isError ? errorText(problemErrorCode(discover.error)) : undefined;
-  const oauth = OAUTH_SINKS.has(sink);
 
   return (
     <div className="flex flex-col gap-8">
@@ -268,7 +313,7 @@ export function ConnectForm({ sinks, current, initialSink, onDone, onCancel }: C
             </RadioGroup>
           </section>
         )}
-        {!oauth && (
+        {credentials && (
           <>
             <FormField
               label={t("taskExport.url")}
@@ -322,10 +367,21 @@ export function ConnectForm({ sinks, current, initialSink, onDone, onCancel }: C
           </>
         )}
       </form>
-      {oauth && (
-        <OAuthConnect current={current?.sink === sink ? current : undefined} onCancel={onCancel} />
+      {sink === "mstodo" && (
+        <MsTodoConnect
+          current={current}
+          signedIn={signedIn === "mstodo"}
+          onDone={onDone}
+          onCancel={onCancel}
+        />
       )}
-      {!oauth && lists && (
+      {sink === "gtasks" && (
+        <GoogleTasksConnect
+          current={current?.sink === sink ? current : undefined}
+          onCancel={onCancel}
+        />
+      )}
+      {credentials && lists && (
         <form onSubmit={onSave} className="flex flex-col gap-6">
           {lists.length === 0 ? (
             <FormError>{t("taskExport.noLists")}</FormError>

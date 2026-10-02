@@ -111,6 +111,9 @@ def error_for(status: int, body: Any) -> ProviderError:
         return AuthenticationError()
     if status == 403:
         return AuthenticationError(code="access_denied")
+    if status == 412:
+        # ``If-Match`` failed (Microsoft To Do, app/todos/export/mstodo.py).
+        return ProviderError(code="precondition_failed")
     if status == 404 or code in {"errorinvalidid", "errorinvalididmalformed", "erroritemnotfound"}:
         return GraphNotFoundError()
     if status in {429, 503, 504}:
@@ -157,6 +160,7 @@ class GraphClient:
         json_body: Any = None,
         prefer: Sequence[str] = (),
         retry: bool = True,
+        headers: Mapping[str, str] | None = None,
     ) -> httpx.Response:
         """Send a request; returns the successful response or raises a provider error.
         ``retry=False`` (sending mail) only repeats after a token refresh, never after
@@ -164,13 +168,14 @@ class GraphClient:
         refreshed = False
         attempt = 0
         while True:
-            headers = {
+            sent = {
+                **(headers or {}),
                 "Authorization": f"Bearer {await self._token(False)}",
                 "Prefer": ", ".join((IMMUTABLE_IDS, *prefer)),
             }
             try:
                 response = await self._http.request(
-                    method, self.url(path), params=params, json=json_body, headers=headers
+                    method, self.url(path), params=params, json=json_body, headers=sent
                 )
             except httpx.TransportError as exc:
                 log.warning("graph_request_failed", error_type=type(exc).__name__)

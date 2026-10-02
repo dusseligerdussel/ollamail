@@ -233,6 +233,7 @@ class DelegatedTokens:
         tenant: str | None = None,
         shared: bool = False,
         send: bool = False,
+        scopes: Sequence[str] | None = None,
         save: SaveCredentials | None = None,
         clock: Clock = time.time,
     ) -> None:
@@ -244,7 +245,12 @@ class DelegatedTokens:
             # once with the send scopes.
             self._tokens = TokenSet("", 0, self._tokens.refresh_token)
         self._tenant = tenant or settings.tenant_id
-        self._scopes = delegated_scopes(settings, shared=shared, send=send)
+        # ``scopes``: another set than the mailbox's, e.g. Microsoft To Do (app/todos/export).
+        self._scopes = (
+            list(scopes)
+            if scopes is not None
+            else delegated_scopes(settings, shared=shared, send=send)
+        )
         self._save = save
         self._clock = clock
         self._lock = asyncio.Lock()

@@ -405,7 +405,8 @@ async def sync_target(
     if target is None or target.sink not in available_sinks(settings):
         return None
     poll = force_poll or target.next_poll_at is None or target.next_poll_at <= now
-    sink = sink_builder(target.sink, target.config, settings)
+    config = dict(target.config)
+    sink = sink_builder(target.sink, config, settings)
     sync = _Sync(session, target, sink, public_url or target.app_url)
     result = sync.result
     try:
@@ -432,6 +433,10 @@ async def sync_target(
     target = await session.get(TodoExportTarget, target_id, populate_existing=True)
     if target is None:
         return result
+    updated = sink.updated_config()
+    if updated is not None and target.config == config:
+        # Rotated tokens or sync state; not if the user reconnected meanwhile.
+        target.config = dict(updated)
     target.last_sync_at = now
     target.last_error = result.error
     if poll or result.error:

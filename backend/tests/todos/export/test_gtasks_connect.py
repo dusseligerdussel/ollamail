@@ -251,7 +251,8 @@ async def test_callback_connects_google_tasks(
 
     settings = (await erika.get("/todo-export")).json()
     assert settings["target"]["sink"] == "gtasks"
-    assert settings["target"]["has_password"] is True
+    # Only passwords count; the refresh token is never reported.
+    assert settings["target"]["has_password"] is False
     assert "rt-tasks-1" not in str(settings)
 
 
@@ -275,7 +276,7 @@ async def test_callback_cancelled_at_google(erika: AsyncClient, db_session: Asyn
         params={"state": params["state"], "error": "access_denied"},
     )
 
-    assert response.headers["location"] == "/settings/task-export?gtasks_error=access_denied"
+    assert response.headers["location"] == "/settings/task-export?gtasks_error=consent_denied"
     assert await targets(db_session) == []
 
 
@@ -419,3 +420,27 @@ async def test_pick_another_list(
 
 async def test_lists_need_a_connected_target(erika: AsyncClient) -> None:
     assert (await erika.get("/todo-export/lists")).status_code == 404
+
+
+async def test_list_choice_keeps_rotated_tokens(
+    erika: AsyncClient,
+    db_session: AsyncSession,
+    google: respx.MockRouter,
+    google_lists: FakeSink,
+) -> None:
+    """Sinks with rotating refresh tokens (Microsoft To Do) hand them back after use; the
+    generic list endpoints store them, even when the request fails afterwards."""
+    google.post(TOKEN_URL).mock(return_value=token_response(SCOPE_TASKS))
+    await callback(erika, (await start(erika))["state"])
+    rotated = {"refresh_token": "rt-rotated"}
+    google_lists.updated_config = lambda: rotated  # type: ignore[method-assign]
+
+    assert (await erika.get("/todo-export/lists")).status_code == 200
+    [target] = await targets(db_session)
+    assert target.config == {"refresh_token": "rt-rotated"}
+
+    rotated = {"refresh_token": "rt-rotated-2"}
+    unknown = await erika.patch("/todo-export", json={"list_id": "gl-nope"})
+    assert unknown.status_code == 422
+    [target] = await targets(db_session)
+    assert target.config == {"refresh_token": "rt-rotated-2"}

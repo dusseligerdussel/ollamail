@@ -8,9 +8,7 @@ from pydantic import BaseModel, Field, StringConstraints
 from app.todos.export.models import ExportMode
 
 # Target types; new sinks are added here and in ``registry.FACTORIES``.
-SinkKind = Literal["caldav", "gtasks"]
-# Connected with OAuth (own connect flow), not with the URL/credentials form.
-OAUTH_SINKS: frozenset[str] = frozenset({"gtasks"})
+SinkKind = Literal["caldav", "mstodo", "gtasks"]
 ServerUrl = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)]
 Username = Annotated[str, StringConstraints(strip_whitespace=True, max_length=255)]
 Password = Annotated[str, StringConstraints(max_length=1024)]
@@ -30,6 +28,29 @@ class ExportConnection(BaseModel):
 class TaskListRead(BaseModel):
     id: str
     name: str
+
+
+class MsTodoConnectRequest(BaseModel):
+    # Relative path of the web UI to return to after the Microsoft sign-in.
+    return_to: str | None = Field(default=None, max_length=2048)
+
+
+class MsTodoConnectResponse(BaseModel):
+    authorization_url: str
+
+
+class MsTodoLists(BaseModel):
+    """Lists of the connected (or just signed-in) Microsoft account."""
+
+    account: str
+    lists: list[TaskListRead]
+
+
+class MsTodoTargetSave(BaseModel):
+    """Save the Microsoft To Do export: list and mode (the account comes from the sign-in)."""
+
+    list_id: ListId
+    mode: ExportMode = ExportMode.AUTO
 
 
 class ExportTargetSave(ExportConnection):

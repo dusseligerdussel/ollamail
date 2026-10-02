@@ -29,9 +29,8 @@ from app.todos.export.base import (
     TaskList,
 )
 from app.todos.export.models import TodoExportTarget
-from app.todos.export.registry import available_sinks, create_sink
+from app.todos.export.registry import OAUTH_SINKS, available_sinks, create_sink
 from app.todos.export.schemas import (
-    OAUTH_SINKS,
     ExportConnection,
     ExportCounts,
     ExportSettingsRead,
@@ -114,7 +113,9 @@ def _connection_config(
         )
     if body.sink in OAUTH_SINKS:
         raise ProblemError(
-            422, detail="This export target is connected with OAuth.", error_code="oauth_required"
+            422,
+            detail="This export target is connected by signing in.",
+            error_code="oauth_required",
         )
     password = body.password
     if password is None:
@@ -143,6 +144,32 @@ async def _discover(
         await sink.aclose()
 
 
+async def _target_lists(
+    db: AsyncSession,
+    sink_builder: service.SinkBuilder,
+    target: TodoExportTarget,
+    settings: Settings,
+) -> list[TaskList]:
+    """Lists of the connected account; keeps tokens the sink rotated meanwhile."""
+    config = dict(target.config)
+    try:
+        sink = sink_builder(target.sink, config, settings.todos)
+    except SinkError as exc:
+        raise _sink_problem(exc) from None
+    try:
+        lists = await sink.list_task_lists()
+    except SinkError as exc:
+        raise _sink_problem(exc) from None
+    finally:
+        await sink.aclose()
+    updated = sink.updated_config()
+    if updated is not None:
+        # Committed right away: also kept when the request fails afterwards.
+        target.config = {**config, **updated}
+        await db.commit()
+    return lists
+
+
 async def _counts(db: AsyncSession, target: TodoExportTarget) -> ExportCounts:
     state = Todo.external_refs[target.sink]["state"].astext
     rows = await db.execute(
@@ -169,7 +196,7 @@ async def _read(
             sink=target.sink,
             url=str(target.config.get("url", "")),
             username=str(target.config.get("username", "")),
-            has_password=bool(target.config.get("password") or target.config.get("refresh_token")),
+            has_password=bool(target.config.get("password")),
             list_id=target.list_id,
             list_name=target.list_name,
             mode=target.mode,
@@ -182,7 +209,7 @@ async def _read(
     )
 
 
-async def audit_change(
+async def _audit(
     db: AsyncSession, user_id: uuid.UUID, target: TodoExportTarget, change: str
 ) -> None:
     await audit.record(
@@ -227,7 +254,7 @@ async def list_connected_task_lists(
     """The lists of the connected account, with the stored credentials (to pick another
     list, e.g. after connecting with OAuth)."""
     target = await _target(db, current.user_id)
-    lists = await _discover(sink_builder, target.sink, target.config, settings)
+    lists = await _target_lists(db, sink_builder, target, settings)
     return [TaskListRead(id=item.id, name=item.name) for item in lists]
 
 
@@ -272,7 +299,7 @@ async def save_export_settings(
     target.last_error = None
     target.next_poll_at = None
     await db.flush()
-    await audit_change(db, current.user_id, target, change)
+    await _audit(db, current.user_id, target, change)
     await db.commit()
     await enqueue(target.id)
     return await _read(db, settings, target)
@@ -299,7 +326,7 @@ async def update_export_settings(
     target = await _target(db, current.user_id)
     changed = False
     if body.list_id is not None and body.list_id != target.list_id:
-        lists = await _discover(sink_builder, target.sink, target.config, settings)
+        lists = await _target_lists(db, sink_builder, target, settings)
         chosen = next((item for item in lists if item.id == body.list_id), None)
         if chosen is None:
             raise ProblemError(422, detail="Unknown list.", error_code="unknown_list")
@@ -312,7 +339,7 @@ async def update_export_settings(
         target.mode = body.mode
         changed = True
     if changed:
-        await audit_change(db, current.user_id, target, "updated")
+        await _audit(db, current.user_id, target, "updated")
         await db.commit()
         await enqueue(target.id)
     return await _read(db, settings, target)
@@ -324,7 +351,7 @@ async def disconnect_export(current: CurrentSessionDep, db: DbDep) -> Response:
     the target system."""
     target = await _target(db, current.user_id)
     await service.forget_refs(db, target)
-    await audit_change(db, current.user_id, target, "disconnected")
+    await _audit(db, current.user_id, target, "disconnected")
     await db.delete(target)
     await db.commit()
     return Response(status_code=status.HTTP_204_NO_CONTENT)

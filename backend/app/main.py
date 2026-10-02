@@ -51,6 +51,7 @@ from app.scim.router import CSRF_EXEMPT_PREFIX as SCIM_PATH_PREFIX
 from app.scim.router import router as scim_router
 from app.search.router import router as search_router
 from app.todos.export.gtasks_connect import router as gtasks_connect_router
+from app.todos.export.mstodo_router import router as mstodo_router
 from app.todos.export.router import router as todo_export_router
 from app.todos.router import router as todos_router
 from app.triage.router import router as triage_router
@@ -130,6 +131,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(invitations_router)
     app.include_router(todos_router)
     app.include_router(todo_export_router)
+    app.include_router(mstodo_router)
     app.include_router(gtasks_connect_router)
     app.include_router(triage_router)
     app.include_router(audit_router)

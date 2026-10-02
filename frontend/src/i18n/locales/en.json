@@ -1623,7 +1623,7 @@
     "title": "Task export",
     "back": "Back to settings",
     "manage": "Export tasks",
-    "linkDescription": "Send tasks to Nextcloud, Google Tasks or another task list.",
+    "linkDescription": "Send tasks to Nextcloud, Microsoft To Do, Google Tasks or another task list.",
     "intro": "Sends your tasks to the task list you already work with. What you complete there is completed here as well.",
     "loading": "Loading settings",
     "disabledTitle": "Export not enabled",
@@ -1639,6 +1639,10 @@
       "caldav": {
         "title": "CalDAV",
         "description": "Nextcloud, Radicale, Baïkal, iCloud and other CalDAV servers"
+      },
+      "mstodo": {
+        "title": "Microsoft To Do",
+        "description": "Task list of your Microsoft 365 or Outlook account"
       },
       "gtasks": {
         "title": "Google Tasks",
@@ -1696,10 +1700,18 @@
       "sink_not_available": "This target is not enabled on this server.",
       "unknown_list": "The list no longer exists on the server.",
       "list_not_found": "The list no longer exists on the server.",
+      "not_configured": "Microsoft 365 is not set up on this server.",
+      "mstodo_not_connected": "Sign in with Microsoft first.",
+      "consent_denied": "The sign-in was cancelled or access was not allowed.",
+      "access_denied": "Microsoft denied access to the tasks.",
+      "state_invalid": "The sign-in expired. Please try again.",
+      "session_mismatch": "The sign-in belongs to another session. Please try again.",
+      "token_exchange_failed": "Microsoft did not confirm the sign-in. Please try again.",
+      "offline_access_missing": "Microsoft did not grant lasting access. Please sign in again.",
+      "mstodo_auth_failed": "Microsoft rejected the access. Sign in again.",
       "reconnect": "Google refused the access. Connect Google Tasks again.",
       "oauth_required": "This target is connected by signing in with the provider.",
       "oauth_not_configured": "Signing in with Google is not set up on this server.",
-      "access_denied": "Access was denied or cancelled at Google.",
       "insufficient_scope": "Access to Google Tasks was not allowed. Tick the box for tasks at Google.",
       "invalid_state": "The sign-in expired or is invalid. Please try again.",
       "token_revoked": "Google no longer accepted the sign-in. Please try again.",
@@ -1707,6 +1719,18 @@
       "no_lists": "Your Google account has no task list.",
       "api_disabled": "The Google Tasks API is not enabled in the Google Cloud project.",
       "other": "The server sent an unexpected answer."
+    },
+    "mstodo": {
+      "signIn": "Sign in with Microsoft",
+      "signInHint": "Sign in with your Microsoft account and allow access to your tasks. Then pick the list.",
+      "redirecting": "Redirecting…",
+      "loadingLists": "Loading lists",
+      "signedInAs": "Signed in as {{account}}",
+      "otherAccount": "Other account",
+      "account": "Account",
+      "signInFailed": "Microsoft sign-in failed",
+      "privacySent": "The export sends the title, description, due date, priority and status of your tasks, plus a link to the message, to Microsoft To Do.",
+      "privacyNotSent": "The messages themselves are not sent. ollamail only gets access to your tasks, not to your mailbox."
     },
     "google": {
       "hint": "You are taken to Google to allow access to your tasks. ollamail then exports to your default list; you can pick another list afterwards.",

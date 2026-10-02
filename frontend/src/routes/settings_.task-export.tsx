@@ -8,7 +8,6 @@ import { toast } from "sonner";
 import {
   connectedTaskListsQueryOptions,
   type ExportTarget,
-  OAUTH_SINKS,
   todoExportQueryOptions,
   useDisconnectTodoExport,
   useSyncTodoExport,
@@ -34,19 +33,33 @@ import { useCurrentUser } from "@/hooks/use-current-user";
 import { formatDateTime } from "@/lib/mail-format";
 
 interface TaskExportSearch {
-  /** Result of the Google Tasks connect flow (`?gtasks=connected` / `?gtasks_error=<code>`). */
-  connected?: boolean;
-  error?: string;
+  /** Result of the Microsoft To Do sign-in (`mstodo=connected` or `mstodo=error&reason=…`). */
+  mstodo?: "connected" | "error";
+  reason?: string;
+  /** Result of the Google Tasks sign-in (`gtasks=connected` or `gtasks_error=<code>`). */
+  gtasks?: "connected";
+  gtasks_error?: string;
 }
 
 const CODE = /^[a-z][a-z0-9_]{0,63}$/;
 
 export const Route = createFileRoute("/settings_/task-export")({
   validateSearch: (search: Record<string, unknown>): TaskExportSearch => {
-    const connected = search.gtasks === "connected";
-    const raw = search.gtasks_error;
-    const error = typeof raw === "string" && CODE.test(raw) ? raw : undefined;
-    return { ...(connected && { connected }), ...(error && { error }) };
+    const mstodo =
+      search.mstodo === "connected" || search.mstodo === "error" ? search.mstodo : undefined;
+    const reason =
+      typeof search.reason === "string" && CODE.test(search.reason) ? search.reason : undefined;
+    const gtasks = search.gtasks === "connected" ? search.gtasks : undefined;
+    const gtasksError =
+      typeof search.gtasks_error === "string" && CODE.test(search.gtasks_error)
+        ? search.gtasks_error
+        : undefined;
+    return {
+      ...(mstodo && { mstodo }),
+      ...(mstodo === "error" && reason && { reason }),
+      ...(gtasks && { gtasks }),
+      ...(gtasksError && { gtasks_error: gtasksError }),
+    };
   },
   component: TaskExportPage,
 });
@@ -57,19 +70,39 @@ function TaskExportPage() {
   const search = Route.useSearch();
   const errorText = useExportErrorText();
   const settings = useQuery(todoExportQueryOptions);
-  const [editing, setEditing] = useState(false);
+  // Back from the Microsoft sign-in: continue with list and mode.
+  const [signedIn] = useState(search.mstodo === "connected");
+  const [editing, setEditing] = useState(signedIn);
   // After a failed Google sign-in the form opens on Google Tasks again.
-  const [retrySink] = useState(() => (search.error ? ("gtasks" as const) : undefined));
+  const [retrySink] = useState(() => (search.gtasks_error ? ("gtasks" as const) : undefined));
 
-  // Report the result of the OAuth connect flow once, then clean the URL.
+  // Report a failed sign-in once, then clean the URL.
   useEffect(() => {
-    if (!search.connected && !search.error) return;
+    if (!search.mstodo) return;
+    if (search.mstodo === "error") {
+      // A fixed ID: effects run twice in development (StrictMode), the toast shows once.
+      toast.error(t("taskExport.mstodo.signInFailed"), {
+        id: "task-export-mstodo",
+        description: errorText(search.reason),
+      });
+    }
+    void navigate({ to: "/settings/task-export", search: {}, replace: true });
+  }, [search.mstodo, search.reason, navigate, t, errorText]);
+
+  // Google Tasks: the target is saved by the callback; report the result once.
+  useEffect(() => {
+    if (!search.gtasks && !search.gtasks_error) return;
     // A fixed ID: effects run twice in development (StrictMode), the toast shows once.
     const id = "task-export-oauth";
-    if (search.connected) toast.success(t("taskExport.google.connected"), { id });
-    else toast.error(t("taskExport.google.failed"), { id, description: errorText(search.error) });
+    if (search.gtasks) toast.success(t("taskExport.google.connected"), { id });
+    else {
+      toast.error(t("taskExport.google.failed"), {
+        id,
+        description: errorText(search.gtasks_error),
+      });
+    }
     void navigate({ to: "/settings/task-export", search: {}, replace: true });
-  }, [search.connected, search.error, navigate, t, errorText]);
+  }, [search.gtasks, search.gtasks_error, navigate, t, errorText]);
 
   let content: ReactNode;
   if (settings.isPending) {
@@ -98,6 +131,7 @@ function TaskExportPage() {
         <ConnectForm
           sinks={sinks}
           current={target ?? undefined}
+          signedIn={signedIn ? "mstodo" : undefined}
           initialSink={retrySink}
           onDone={() => {
             setEditing(false);
@@ -209,9 +243,17 @@ function ConnectedTarget({ target, onEdit }: { target: ExportTarget; onEdit: () 
         <dl className="divide-y rounded-lg border">
           <Row label={t("taskExport.target")}>{t(`taskExport.sinks.${target.sink}.title`)}</Row>
           {target.url && <Row label={t("taskExport.url")}>{target.url}</Row>}
-          {target.username && <Row label={t("taskExport.username")}>{target.username}</Row>}
+          {target.username && (
+            <Row
+              label={t(
+                target.sink === "mstodo" ? "taskExport.mstodo.account" : "taskExport.username",
+              )}
+            >
+              {target.username}
+            </Row>
+          )}
           <Row label={t("taskExport.list")}>
-            {OAUTH_SINKS.has(target.sink) ? <ListChoice target={target} /> : target.list_name}
+            {target.sink === "gtasks" ? <ListChoice target={target} /> : target.list_name}
           </Row>
           <Row label={t("taskExport.status")}>
             <SyncStatus target={target} />

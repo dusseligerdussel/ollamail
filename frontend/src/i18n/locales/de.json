@@ -1623,7 +1623,7 @@
     "title": "Aufgaben-Export",
     "back": "Zurück zu den Einstellungen",
     "manage": "Aufgaben exportieren",
-    "linkDescription": "Aufgaben in Nextcloud, Google Tasks oder eine andere Aufgabenliste übertragen.",
+    "linkDescription": "Aufgaben in Nextcloud, Microsoft To Do, Google Tasks oder eine andere Aufgabenliste übertragen.",
     "intro": "Überträgt deine Aufgaben in die Aufgabenliste, mit der du ohnehin arbeitest. Was du dort erledigst, wird hier ebenfalls erledigt.",
     "loading": "Einstellungen werden geladen",
     "disabledTitle": "Export nicht freigegeben",
@@ -1639,6 +1639,10 @@
       "caldav": {
         "title": "CalDAV",
         "description": "Nextcloud, Radicale, Baïkal, iCloud und andere CalDAV-Server"
+      },
+      "mstodo": {
+        "title": "Microsoft To Do",
+        "description": "Aufgabenliste deines Microsoft-365- oder Outlook-Kontos"
       },
       "gtasks": {
         "title": "Google Tasks",
@@ -1696,10 +1700,18 @@
       "sink_not_available": "Dieses Ziel ist auf diesem Server nicht freigegeben.",
       "unknown_list": "Die Liste gibt es auf dem Server nicht mehr.",
       "list_not_found": "Die Liste gibt es auf dem Server nicht mehr.",
+      "not_configured": "Microsoft 365 ist auf diesem Server nicht eingerichtet.",
+      "mstodo_not_connected": "Melde dich zuerst mit Microsoft an.",
+      "consent_denied": "Die Anmeldung wurde abgebrochen oder der Zugriff nicht erlaubt.",
+      "access_denied": "Microsoft hat den Zugriff auf die Aufgaben verweigert.",
+      "state_invalid": "Die Anmeldung ist abgelaufen. Bitte erneut versuchen.",
+      "session_mismatch": "Die Anmeldung gehört zu einer anderen Sitzung. Bitte erneut versuchen.",
+      "token_exchange_failed": "Microsoft hat die Anmeldung nicht bestätigt. Bitte erneut versuchen.",
+      "offline_access_missing": "Microsoft hat keinen dauerhaften Zugriff erteilt. Bitte erneut anmelden.",
+      "mstodo_auth_failed": "Microsoft hat den Zugriff abgelehnt. Melde dich erneut an.",
       "reconnect": "Google hat den Zugriff abgelehnt. Verbinde Google Tasks erneut.",
       "oauth_required": "Dieses Ziel wird über die Anmeldung beim Anbieter verbunden.",
       "oauth_not_configured": "Die Anmeldung bei Google ist auf diesem Server nicht eingerichtet.",
-      "access_denied": "Der Zugriff wurde bei Google abgelehnt oder abgebrochen.",
       "insufficient_scope": "Der Zugriff auf Google Tasks wurde nicht erlaubt. Setze bei Google das Häkchen für Aufgaben.",
       "invalid_state": "Die Anmeldung ist abgelaufen oder ungültig. Versuche es erneut.",
       "token_revoked": "Google hat die Anmeldung nicht mehr akzeptiert. Versuche es erneut.",
@@ -1707,6 +1719,18 @@
       "no_lists": "In deinem Google-Konto gibt es keine Aufgabenliste.",
       "api_disabled": "Die Google Tasks API ist im Google-Cloud-Projekt nicht aktiviert.",
       "other": "Der Server hat unerwartet geantwortet."
+    },
+    "mstodo": {
+      "signIn": "Mit Microsoft anmelden",
+      "signInHint": "Melde dich mit deinem Microsoft-Konto an und erlaube den Zugriff auf deine Aufgaben. Danach wählst du die Liste aus.",
+      "redirecting": "Weiterleitung …",
+      "loadingLists": "Listen werden geladen",
+      "signedInAs": "Angemeldet als {{account}}",
+      "otherAccount": "Anderes Konto",
+      "account": "Konto",
+      "signInFailed": "Anmeldung bei Microsoft fehlgeschlagen",
+      "privacySent": "Beim Export gehen Titel, Beschreibung, Fälligkeit, Priorität und Status deiner Aufgaben sowie ein Link zur Mail an Microsoft To Do.",
+      "privacyNotSent": "Die Mails selbst werden nicht übertragen. ollamail erhält nur Zugriff auf deine Aufgaben, nicht auf dein Postfach."
     },
     "google": {
       "hint": "Du wirst zu Google weitergeleitet und bestätigst dort den Zugriff auf deine Aufgaben. Danach exportiert ollamail in deine Standardliste; die Liste kannst du anschließend ändern.",

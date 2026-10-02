@@ -48,7 +48,7 @@ from app.todos.export.base import SinkError
 from app.todos.export.gtasks import GoogleTasksSink
 from app.todos.export.models import ExportMode, TodoExportTarget
 from app.todos.export.registry import available_sinks
-from app.todos.export.router import EnqueuerDep, SinkBuilderDep, audit_change
+from app.todos.export.router import EnqueuerDep, SinkBuilderDep, _audit
 
 log = get_logger(__name__)
 
@@ -188,7 +188,7 @@ async def gtasks_oauth_callback(
         return _redirect(settings, gtasks_error="invalid_state")
     if error is not None or code is None:
         # The user cancelled at Google (``access_denied``) or Google refused the request.
-        return _redirect(settings, gtasks_error="access_denied")
+        return _redirect(settings, gtasks_error="consent_denied")
     if SINK not in available_sinks(settings.todos):
         return _redirect(settings, gtasks_error="sink_not_available")
     try:
@@ -250,7 +250,7 @@ async def gtasks_oauth_callback(
     target.last_error = None
     target.next_poll_at = None
     await db.flush()
-    await audit_change(db, current.user_id, target, change)
+    await _audit(db, current.user_id, target, change)
     await db.commit()
     await enqueue(target.id)
     log.info("gtasks_connected", user_id=str(current.user_id), target_id=str(target.id))

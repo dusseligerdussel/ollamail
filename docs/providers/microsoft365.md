@@ -29,13 +29,16 @@ getrennt freigegeben werden sollen.
 1. Entra Admin Center → *App registrations* → *New registration*.
    - *Supported account types*: „Accounts in this organizational directory only“ (Single
      Tenant) oder „Any organizational directory“ (Multi-Tenant).
-   - *Redirect URI* (Plattform **Web**): `https://<ollamail-host>/api/mail/graph/callback`.
+   - *Redirect URI* (Plattform **Web**): `https://<ollamail-host>/api/mail/graph/callback`;
+     für den Aufgaben-Export nach Microsoft To Do zusätzlich
+     `https://<ollamail-host>/api/todo-export/mstodo/callback` (Abschnitt 11).
 2. *Certificates & secrets* → *New client secret*. Wert in `OLLAMAIL_MAIL_GRAPH_CLIENT_SECRET`.
    Ablaufdatum notieren; ein abgelaufenes Secret führt zu `authentication_failed`.
 3. *API permissions* → *Microsoft Graph*:
    - **Delegiert** (Nutzer verbindet sein Postfach): `Mail.ReadWrite`, `Mail.Send`, `User.Read`,
      `offline_access`; für freigegebene Postfächer zusätzlich `Mail.ReadWrite.Shared` und
-     `Mail.Send.Shared`.
+     `Mail.Send.Shared`. Für den Aufgaben-Export nach Microsoft To Do zusätzlich `Tasks.ReadWrite`
+     (Abschnitt 11).
    - **Application** (App-only, Shared Mailboxes/Rollout): `Mail.ReadWrite`, zum Senden
      `Mail.Send`, danach *Grant admin consent*.
 4. Umgebungsvariablen (siehe `deploy/.env.example`):
@@ -297,6 +300,10 @@ Requests ohne Änderungen sind billig.
   mit `Mail.Send`, fehlende Berechtigung, keine Wiederholung).
 - Engine-Tests für `MessageChanged` und „kein synchronisierter Ordner“.
 
+- **Microsoft To Do** (`backend/tests/todos/export/test_mstodo*.py`): Listen, Anlegen mit
+  `linkedResources`, kein Duplikat bei erneutem Senden, Konflikt 412, Delta mit `@removed` und
+  abgelaufenem Delta-Link, 401/403/429, Token-Refresh; Connect-Flow mit Scopes und Cookies.
+
 ### Manuelle Testanleitung mit einem M365-Developer-Tenant
 
 1. Tenant besorgen: <https://developer.microsoft.com/microsoft-365/dev-program> (Sandbox mit
@@ -324,3 +331,69 @@ Requests ohne Änderungen sind billig.
    neue Mail → Sync innerhalb weniger Sekunden. Anschließend die Variable wieder entfernen.
 8. Aufräumen: Postfach in ollamail löschen, App-Zustimmung unter <https://myapps.microsoft.com>
    entfernen.
+
+## 11. Microsoft To Do als Ziel des Aufgaben-Exports (#101)
+
+Der Aufgaben-Export (`docs/ARCHITECTURE.md` §4.3, Interface `TodoSink`) kann Aufgaben nach
+Microsoft To Do übertragen (`backend/app/todos/export/mstodo.py`). Er nutzt dieselbe Entra-App
+wie die Postfächer (`OLLAMAIL_MAIL_GRAPH_*`) und deren Token-Erneuerung (`graph_auth.py`) sowie
+den Graph-Client mit `Retry-After`-Drosselung (`graph_client.py`).
+
+**Einrichtung:**
+
+1. In der App-Registrierung (Abschnitt 2) die delegierte Berechtigung **`Tasks.ReadWrite`**
+   ergänzen und die Redirect-URI `https://<ollamail-host>/api/todo-export/mstodo/callback`
+   eintragen (Basis: `OLLAMAIL_AUTH_PUBLIC_URL`, sonst der Origin der Anfrage). Je nach
+   Tenant-Einstellung braucht `Tasks.ReadWrite` eine Admin-Zustimmung.
+2. `OLLAMAIL_TODOS_EXPORT_SINKS` um `mstodo` erweitern (z. B. `caldav,mstodo`). Ohne
+   Client-ID/Secret antwortet der Connect-Flow mit `not_configured`.
+
+**Berechtigungen:** To Do gibt es nur delegiert; App-only (Client Credentials) wird von der
+To-Do-API nicht unterstützt. Der Postfach-Connect-Flow fordert `Tasks.ReadWrite` bewusst nicht
+an: Wer nur Mails verbindet, gibt keinen Zugriff auf seine Aufgaben. Stattdessen gibt es einen
+eigenen Flow (inkrementelle Zustimmung) mit `offline_access User.Read Tasks.ReadWrite`. Er hat
+einen eigenen Refresh-Token, verschlüsselt in `todo_export_targets.config`; der Postfach-Token
+bleibt unverändert. Das Microsoft-Konto muss nicht dasselbe wie das des Postfachs sein.
+
+**Ablauf** (`backend/app/todos/export/mstodo_router.py`):
+
+| Endpunkt | Zweck |
+|---|---|
+| `POST /todo-export/mstodo/connect` | Anmelde-URL (Authorization Code + PKCE); `state`, Verifier und Nutzer in einem kurzlebigen, verschlüsselten `HttpOnly`-Cookie |
+| `GET /todo-export/mstodo/callback` | prüft `state` und Nutzer, tauscht den Code, liest `/me` (Objekt-ID, Anmeldename). Die Tokens warten bis zur Listenauswahl höchstens 10 Minuten in einem zweiten verschlüsselten Cookie (AES-GCM, Schlüssel aus `OLLAMAIL_SECRET_KEY`, ohne Access-Token); gespeichert wird noch nichts. Danach Weiterleitung zu `/settings/task-export?mstodo=connected` bzw. `?mstodo=error&reason=<code>` |
+| `POST /todo-export/mstodo/lists` | Listen des gerade angemeldeten oder des verbundenen Kontos (Standardliste „Aufgaben“ zuerst) |
+| `PUT /todo-export/mstodo` | Liste und Modus speichern; ein anderes Konto beginnt neu (wie ein anderer CalDAV-Server) |
+
+Modus ändern, Abgleich und Trennen laufen über die allgemeinen `/todo-export`-Endpunkte.
+
+**Abbildung einer Aufgabe:**
+
+| ollamail | To Do (`todoTask`) |
+|---|---|
+| Titel | `title` |
+| Beschreibung + Link zur Mail | `body` (Text) |
+| Link zur Mail, Todo-ID | `linkedResources` (`applicationName` `ollamail`, `externalId` = Todo-ID, `webUrl`) |
+| Fälligkeit | `dueDateTime` 12:00 UTC (To Do zeigt das Datum in der Zeitzone des Nutzers; Mittag bleibt fast überall am selben Tag) |
+| Priorität hoch/normal/niedrig | `importance` `high`/`normal`/`low` |
+| offen / erledigt / verworfen | `status` `notStarted` / `completed` / `completed` (To Do kennt kein „abgesagt“) |
+
+- **Schreiben:** `POST`, `PATCH` mit `If-Match` (`@odata.etag`; 412 → Konflikt, der Abgleich
+  vergleicht dann den Stand neu) und `DELETE` auf `/me/todo/lists/{list}/tasks/{task}`. Graph
+  vergibt die IDs selbst; damit ein wiederholtes Anlegen kein Duplikat erzeugt, sucht der Sink
+  einmal pro Abgleich die Aufgaben der Liste mit `linkedResources.externalId` und überschreibt
+  eine vorhandene.
+- **Statusabgleich:** Delta Query (`/me/todo/lists/{list}/tasks/delta`) statt ETag-PROPFIND.
+  Der Delta-Link liegt (verschlüsselt) in der Konfiguration; dazu die Änderungen, die der
+  Abgleich noch nicht übernommen hat (nur ID, ETag, Status, Zeit), damit keine verloren geht,
+  wenn der Nutzer die Aufgabe gerade selbst ändert. `@removed` → im Ziel gelöscht. Ein
+  abgelaufener Delta-Link (`410`/`SyncStateNotFound`) startet eine volle Runde; dort gilt als
+  gelöscht, was fehlt. Bis zu fünf bekannte Aufgaben (z. B. nach einem Konflikt) werden
+  einzeln gelesen.
+- **Fehler:** 401 → einmal Token erneuern, dann `auth_failed` (UI: erneut anmelden); 403
+  (fehlende Zustimmung) → `auth_failed`; 404 → Aufgabe bzw. Liste fehlt; 429/5xx → Warten nach
+  `Retry-After`, danach `unavailable`. Rotierte Refresh-Tokens und der Delta-Stand werden nach
+  jedem Abgleich gespeichert (`TodoSink.updated_config`), aber nicht, wenn der Nutzer das Konto
+  währenddessen neu verbunden hat.
+- **Datenschutz:** übertragen werden nur die Felder oben, nie Mail-Inhalte. Logs enthalten nur
+  IDs, Anzahlen und Fehlercodes. Trennen löscht die Tokens; ein Widerruf der Zustimmung unter
+  <https://myaccount.microsoft.com> → *Apps* beendet den Zugriff zusätzlich auf Microsoft-Seite.

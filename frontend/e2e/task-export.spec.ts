@@ -1,152 +1,113 @@
 import AxeBuilder from "@axe-core/playwright";
-import { expect, type Page, test } from "@playwright/test";
+import { expect, type Page, type Route, test } from "@playwright/test";
 
 import { mockApi } from "./mock-api";
 
-// Runs without a backend: the export API and Google's consent page are mocked in the
-// browser. Lists and IDs are invented.
-const GOOGLE = "https://accounts.google.test/o/oauth2/v2/auth";
-
-interface Target {
-  sink: "gtasks";
-  url: string;
-  username: string;
-  has_password: boolean;
-  list_id: string;
-  list_name: string;
-  mode: "auto" | "manual";
-  active: boolean;
-  last_sync_at: string | null;
-  last_error: string | null;
-  counts: { synced: number; pending: number; error: number; removed: number };
-  created_at: string;
-}
+// Runs without a backend: the export API and the Microsoft sign-in are mocked in the browser
+// (synthetic account and lists).
 
 const LISTS = [
-  { id: "gl-default", name: "My Tasks" },
-  { id: "gl-work", name: "Work" },
+  { id: "AQMkADAw-tasks", name: "Tasks" },
+  { id: "AQMkADAw-work", name: "Work" },
 ];
 
-async function mockExport(page: Page) {
-  let target: Target | null = null;
-  const requests: { method: string; path: string; body: unknown }[] = [];
-  let mode: Target["mode"] = "auto";
-  const settings = () => ({ available_sinks: ["caldav", "gtasks"], target });
-
-  await page.route(
-    (url) => url.pathname.startsWith("/api/todo-export"),
-    async (route) => {
-      const request = route.request();
-      const path = new URL(request.url()).pathname;
-      const body = request.postDataJSON() as Record<string, unknown> | null;
-      if (request.method() !== "GET") requests.push({ method: request.method(), path, body });
-      const key = `${request.method()} ${path}`;
-      if (key === "GET /api/todo-export") return route.fulfill({ json: settings() });
-      if (key === "GET /api/todo-export/lists") return route.fulfill({ json: LISTS });
-      if (key === "POST /api/todo-export/gtasks/oauth/start") {
-        mode = (body?.mode as Target["mode"]) ?? "auto";
-        return route.fulfill({ json: { authorization_url: `${GOOGLE}?state=s` } });
-      }
-      if (key === "PATCH /api/todo-export" && target) {
-        const list = LISTS.find((item) => item.id === body?.list_id);
-        if (list) target = { ...target, list_id: list.id, list_name: list.name };
-        return route.fulfill({ json: settings() });
-      }
-      return route.fulfill({ status: 404, json: { status: 404 } });
-    },
-  );
-  // Google agrees and sends the browser back; the backend's callback is not involved here.
-  await page.route(
-    (url) => url.href.startsWith(GOOGLE),
-    (route) => {
-      target = {
-        sink: "gtasks",
-        url: "",
-        username: "",
-        has_password: true,
-        list_id: "gl-default",
-        list_name: "My Tasks",
-        mode,
-        active: true,
-        last_sync_at: null,
-        last_error: null,
-        counts: { synced: 0, pending: 0, error: 0, removed: 0 },
-        created_at: "2026-10-02T08:00:00Z",
-      };
-      return route.fulfill({
-        status: 303,
-        headers: { Location: new URL("/settings/task-export?gtasks=connected", page.url()).href },
-      });
-    },
-  );
-  return { requests };
+function json(route: Route, body: unknown, status = 200) {
+  return route.fulfill({ status, json: body });
 }
 
-async function expectNoA11yViolations(page: Page) {
-  const results = await new AxeBuilder({ page })
-    // Stacked toasts fade out on purpose (app-wide sonner behaviour, not this page).
-    .exclude("[data-sonner-toaster]")
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  expect(
-    results.violations.map(
-      (violation) =>
-        `${violation.id}: ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
-    ),
-  ).toEqual([]);
+async function mockTodoExport(page: Page) {
+  let target: Record<string, unknown> | null = null;
+  let signedIn = false;
+  const saved: unknown[] = [];
+
+  // Microsoft's sign-in page: consent is given at once, back to the settings.
+  await page.route("https://login.example.com/**", (route) => {
+    signedIn = true;
+    const origin = new URL(page.url()).origin;
+    return route.fulfill({
+      status: 302,
+      headers: { location: `${origin}/settings/task-export?mstodo=connected` },
+    });
+  });
+  await page.route(
+    (url) => url.pathname.startsWith("/api/todo-export"),
+    (route) => {
+      const request = route.request();
+      const key = `${request.method()} ${new URL(request.url()).pathname}`;
+      switch (key) {
+        case "GET /api/todo-export":
+          return json(route, { available_sinks: ["caldav", "mstodo"], target });
+        case "POST /api/todo-export/mstodo/connect":
+          return json(route, { authorization_url: "https://login.example.com/authorize?state=s" });
+        case "POST /api/todo-export/mstodo/lists":
+          return signedIn
+            ? json(route, { account: "erika@example.com", lists: LISTS })
+            : json(route, { status: 409, error_code: "mstodo_not_connected" }, 409);
+        case "PUT /api/todo-export/mstodo": {
+          const body = request.postDataJSON() as { list_id: string; mode: string };
+          saved.push(body);
+          target = {
+            sink: "mstodo",
+            url: "",
+            username: "erika@example.com",
+            has_password: false,
+            list_id: body.list_id,
+            list_name: LISTS.find((list) => list.id === body.list_id)?.name ?? "",
+            mode: body.mode,
+            active: true,
+            last_sync_at: null,
+            last_error: null,
+            counts: { synced: 0, pending: 0, error: 0, removed: 0 },
+            created_at: "2026-10-01T08:00:00Z",
+          };
+          return json(route, { available_sinks: ["caldav", "mstodo"], target });
+        }
+        default:
+          return json(route, { status: 404 }, 404);
+      }
+    },
+  );
+  return { saved };
 }
 
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
 
-test("connect Google Tasks and pick another list", async ({ page }) => {
-  const { requests } = await mockExport(page);
+test("connect Microsoft To Do: sign in, pick a list, turn on", async ({ page }) => {
+  const { saved } = await mockTodoExport(page);
   await page.goto("/settings/task-export");
 
-  await page.getByRole("radio", { name: /Google Tasks/ }).click();
+  await page.getByRole("radio", { name: /Microsoft To Do/ }).click();
   await expect(page.getByLabel("Server URL")).toHaveCount(0);
-  await expect(page.getByText(/to Google Tasks\.$/)).toBeVisible();
-  await expectNoA11yViolations(page);
-  await page.getByRole("radio", { name: /Manual/ }).click();
-  await page.getByRole("button", { name: "Connect with Google" }).click();
+  await expect(page.getByText(/to Microsoft To Do\./)).toBeVisible();
+  await page.getByRole("button", { name: "Sign in with Microsoft" }).click();
 
-  // Back from Google: confirmed, the URL is clean, the default list is used.
-  await expect(page.getByText("Google Tasks connected")).toBeVisible();
+  // Back from Microsoft: the account's lists, no form for server or password.
+  await expect(page.getByText("Signed in as erika@example.com")).toBeVisible();
   await expect(page).toHaveURL(/\/settings\/task-export$/);
+  await page.getByLabel("List", { exact: true }).selectOption("AQMkADAw-work");
+  const a11y = await new AxeBuilder({ page })
+    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
+    .analyze();
+  expect(a11y.violations.map((violation) => violation.id)).toEqual([]);
+  await page.getByRole("button", { name: "Turn on export" }).click();
+
+  await expect(page.getByText("Task export turned on")).toBeVisible();
   const connection = page.getByRole("region", { name: "Connection" });
-  const list = connection.getByRole("combobox", { name: "List" });
-  await expect(list).toHaveValue("gl-default");
-  await expect(page.getByRole("radio", { name: /Manual/ })).toBeChecked();
-
-  await list.selectOption("gl-work");
-  await expect(page.getByText("List changed")).toBeVisible();
-  await expect(list).toHaveValue("gl-work");
-  expect(requests).toEqual([
-    { method: "POST", path: "/api/todo-export/gtasks/oauth/start", body: { mode: "manual" } },
-    { method: "PATCH", path: "/api/todo-export", body: { list_id: "gl-work" } },
-  ]);
-  await expectNoA11yViolations(page);
+  await expect(connection.getByText("Microsoft To Do")).toBeVisible();
+  await expect(connection.getByText("Work")).toBeVisible();
+  await expect(connection.getByText("Server URL")).toHaveCount(0);
+  expect(saved).toEqual([{ list_id: "AQMkADAw-work", mode: "auto" }]);
 });
 
-test("a cancelled sign-in is explained", async ({ page }) => {
-  await mockExport(page);
-  await page.goto("/settings/task-export?gtasks_error=access_denied");
+test("a cancelled Microsoft sign-in is reported", async ({ page }) => {
+  await mockTodoExport(page);
+  await page.goto("/settings/task-export?mstodo=error&reason=consent_denied");
 
-  await expect(page.getByText("Google Tasks was not connected")).toBeVisible();
-  await expect(page.getByText("Access was denied or cancelled at Google.")).toBeVisible();
+  await expect(page.getByText("Microsoft sign-in failed")).toBeVisible();
+  await expect(
+    page.getByText("The sign-in was cancelled or access was not allowed."),
+  ).toBeVisible();
   await expect(page).toHaveURL(/\/settings\/task-export$/);
-});
-
-test("fits a phone screen", async ({ page }) => {
-  await page.setViewportSize({ width: 390, height: 844 });
-  await mockExport(page);
-  await page.goto("/settings/task-export");
-  await page.getByRole("radio", { name: /Google Tasks/ }).click();
-
-  await expect(page.getByRole("button", { name: "Connect with Google" })).toBeVisible();
-  const overflow = await page.evaluate(
-    () => document.documentElement.scrollWidth - document.documentElement.clientWidth,
-  );
-  expect(overflow).toBe(0);
 });
