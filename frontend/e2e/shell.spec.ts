@@ -2,6 +2,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
 import { type MockApi, mockApi } from "./mock-api";
+import { mockDigest } from "./mock-digest";
 import { mockMail } from "./mock-mail";
 
 const pages = ["/inbox", "/tasks", "/digest", "/search", "/settings", "/admin"] as const;
@@ -18,6 +19,7 @@ const statePages: [string, MockApi][] = [
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
   await mockMail(page);
+  await mockDigest(page);
 });
 
 async function expectNoA11yViolations(page: Page) {
@@ -68,7 +70,7 @@ test("is operable with the keyboard", async ({ page }) => {
   await page.keyboard.press("ControlOrMeta+k");
   await page.getByRole("combobox").fill("digest");
   await page.keyboard.press("Enter");
-  await expect(page.getByRole("heading", { level: 1, name: "Digest" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1, name: "Digest", exact: true })).toBeVisible();
 
   await page.keyboard.press("g");
   await page.keyboard.press("s");

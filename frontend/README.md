@@ -167,6 +167,38 @@ API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
   E2E_API=1 E2E_IMAP=1 E2E_SETUP_TOKEN=e2e pnpm e2e e2e/mailbox.spec.ts
   ```
 
+### Digest (#29)
+
+API und Query-Keys in `src/api/digest.ts`, Komponenten in `src/components/digest/`.
+
+- **Seite** (`/digest`): links „Aktuell“ (neuester Digest) und „Archiv“, rechts der gewählte
+  Digest (`?digest=<id>`, ohne Parameter auf breiten Bildschirmen der neueste). Laufende Digests
+  zeigen ihren Status und werden per Event `digest.changed` aktualisiert (Fallback: Polling alle
+  5 s, solange einer läuft). „Jetzt erzeugen“ in der Kopfzeile, im leeren Zustand und in der
+  Command Palette.
+- **Player** (`DigestPlayerProvider`): ein `<audio>`-Element für die ganze Seite, damit die
+  Wiedergabe beim Wechsel ins Archiv (gestapeltes Mobil-Layout) weiterläuft; dann erscheint unter
+  der Liste ein Mini-Player. Opus, wenn der Browser es abspielt, sonst MP3
+  (`/api/digests/{id}/audio.{fmt}`, Range-Requests, nie vom Service Worker gecacht).
+  Play/Pause, ±15 s, Position, Geschwindigkeit 1–2× (lokal gespeichert). Tasten: `Leertaste`,
+  `←`/`→`, `<`/`>`. **Media Session API:** Titel auf Sperrbildschirm/Benachrichtigung,
+  Play/Pause/Vor/Zurück/Springen über Kopfhörer und Sperrbildschirm, Position per
+  `setPositionState`.
+- **Transkript:** `parseScript()` (`src/lib/digest-script.ts`) zerlegt das Skript in Überschriften
+  und Absätze; nur dieser Ausschnitt von Markdown wird interpretiert, nichts wird als HTML
+  gerendert. `[n]` wird zum Link auf die Mail (`/inbox?message=<id>`).
+- **Einstellungen** (`/digest/settings`): Änderungen werden sofort gespeichert
+  (`PATCH /api/digests/settings`, nur das geänderte Feld). Stimmen aus `GET /api/digests/voices`,
+  gefiltert nach der Sprache des Digests; ein Sprachwechsel setzt die Stimme auf den Standard
+  zurück.
+- **Podcast-Feed:** Die URL gibt es nur einmal, direkt nach `POST /api/digests/feed` (der Server
+  speichert nur einen Hash). Sie bleibt nur im Zustand der Komponente (kein Query-Cache, kein
+  `localStorage`) und ist mit Kopieren und QR-Code sichtbar, bis die Seite verlassen wird. Der
+  QR-Code entsteht lokal mit [`uqr`](https://github.com/unjs/uqr) (MIT, ohne Abhängigkeiten) als
+  SVG. Neu erzeugen und Abschalten verlangen eine Bestätigung inline; ein Hinweis erklärt, dass
+  die URL ohne Anmeldung Zugriff gibt (`docs/PRIVACY.md`).
+- **E2E:** `e2e/digest.spec.ts` (gemockt, `e2e/mock-digest.ts`).
+
 ## Design-System und App-Shell
 
 Grundlage ist `docs/DESIGN.md`.

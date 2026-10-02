@@ -90,8 +90,8 @@
     },
     "digest": {
       "emptyTitle": "No digest yet",
-      "emptyDescription": "A daily summary of new messages is created after the first sync.",
-      "emptyAction": "Open settings",
+      "emptyDescription": "The digest summarizes new mails daily, to read and listen to. Set it up or generate one now.",
+      "emptyAction": "Settings",
       "noSelection": "No digest selected"
     },
     "search": {
@@ -317,6 +317,111 @@
         "saved": "Settings saved"
       },
       "default": "Default"
+    }
+  },
+  "digest": {
+    "title": "Digest",
+    "current": "Current",
+    "archive": "Archive",
+    "loadOlder": "Load older digests",
+    "back": "Back",
+    "generateNow": "Generate now",
+    "retry": "Generate again",
+    "firstScheduled": "The first digest arrives on {{date}}. You can also generate one now.",
+    "transcript": "Transcript",
+    "openMail": "Open mail {{ref}}",
+    "mailCount_one": "{{count}} mail",
+    "mailCount_other": "{{count}} mails",
+    "todoCount_one": "{{count}} task",
+    "todoCount_other": "{{count}} tasks",
+    "inProgressHint": "Depending on the hardware this takes a few minutes. The page updates by itself.",
+    "status": {
+      "pending": "Waiting to be processed …",
+      "summarizing": "Writing the summary …",
+      "synthesizing": "Generating audio …",
+      "ready": "Ready",
+      "failed": "Failed"
+    },
+    "errors": {
+      "digest_failed": "The digest could not be generated.",
+      "llm_cloud_disabled": "A cloud model is set for summaries, but cloud models are turned off. Please contact your administrator.",
+      "tts_voice_not_available": "The selected voice is not available. Choose another voice in the settings.",
+      "stalled": "Generation was stopped because it took too long."
+    },
+    "player": {
+      "label": "Playback",
+      "play": "Play",
+      "pause": "Pause",
+      "back": "Back {{seconds}} seconds",
+      "forward": "Forward {{seconds}} seconds",
+      "position": "Position",
+      "positionText": "{{position}} of {{duration}}",
+      "speedLabel": "Speed: {{rate}}"
+    },
+    "shortcuts": {
+      "playPause": "Play / pause",
+      "slower": "Play slower",
+      "faster": "Play faster",
+      "close": "Back to the archive"
+    },
+    "settings": {
+      "title": "Digest settings",
+      "schedule": "Schedule",
+      "enabled": "Daily digest",
+      "enabledDescription": "Generates the digest automatically at the set time.",
+      "nextRun": "Next digest: {{date}}",
+      "time": "Time",
+      "timeDescription": "The digest is ready at this time.",
+      "weekdays": "Days",
+      "timezone": "Time zone",
+      "timezoneDescription": "Applies to time and days.",
+      "fromProfile": "Same as profile ({{value}})",
+      "content": "Content",
+      "length": "Length",
+      "lengthDescription": "Short covers only the most important points.",
+      "lengths": {
+        "short": "Short",
+        "normal": "Normal"
+      },
+      "language": "Language",
+      "languageDescription": "Language of text and audio.",
+      "voice": "Voice",
+      "voiceDescription": "Voices for the selected language.",
+      "defaultVoice": "Default voice",
+      "defaultVoiceNamed": "Default ({{voice}})",
+      "quality": {
+        "x_low": "very basic",
+        "low": "basic",
+        "medium": "medium",
+        "high": "high"
+      },
+      "mailboxes": "Mailboxes",
+      "mailboxesDescription": "The digest summarizes mails from these mailboxes.",
+      "noMailboxes": "No mailbox connected yet.",
+      "manual": "Manual",
+      "generateDescription": "Summarizes the mails since the last digest."
+    },
+    "feed": {
+      "section": "Podcast",
+      "title": "Private podcast feed",
+      "description": "Subscribe to your digests in a podcast app.",
+      "warning": "Anyone who knows the feed URL can listen to and read your digests without signing in. Do not share it.",
+      "create": "Create feed URL",
+      "url": "Feed URL",
+      "copy": "Copy",
+      "copied": "Feed URL copied",
+      "qrLabel": "QR code of the feed URL",
+      "shownOnce": "The URL is only shown now. If you lose it, create a new one.",
+      "active": "The feed is active.",
+      "activeSince": "The feed has been active since {{date}}.",
+      "urlHidden": "For security reasons the URL is only shown when it is created.",
+      "rotate": "Create new URL",
+      "rotateWarning": "The previous URL stops working immediately. Podcast apps need to subscribe to the new URL.",
+      "rotateConfirm": "Create new URL",
+      "revoke": "Turn off feed",
+      "revokeWarning": "The feed URL and all audio links in it stop working.",
+      "revokeConfirm": "Turn off feed",
+      "cancel": "Cancel"
     }
   },
   "notFound": {
