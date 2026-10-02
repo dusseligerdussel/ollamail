@@ -741,7 +741,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 
 ### 4.5 RAG („Frag deine Inbox“)
 
-- Chunking von Mail-Text und extrahiertem Anhangstext (PDF, DOCX, TXT; später OCR).
+- Chunking von Mail-Text und extrahiertem Anhangstext (PDF, DOCX, TXT, HTML; gescannte PDFs und Bilder per OCR).
 - **Hybrid-Retrieval**: Postgres-Volltextsuche (`tsvector`) + pgvector (HNSW), Fusion via Reciprocal Rank Fusion,
   optional Reranker.
 - Filter (Zeitraum, Absender, Ordner, Kategorie) werden aus der Frage extrahiert bzw. im UI gesetzt.
@@ -762,7 +762,22 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   abgelehnt), TXT, HTML. Je Datei ein Kindprozess (`python -m app.search._extract_child`) mit
   leerer Umgebung (keine Secrets), `RLIMIT_AS`/`RLIMIT_CPU`, ohne Dateischreibrechte, nach
   `OLLAMAIL_SEARCH_EXTRACTION_TIMEOUT` beendet. Ergebnisse als Statuscodes (`ok`, `too_large`,
-  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`). Kein OCR.
+  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`, `ocr_pending`).
+- **OCR** (#98, Tesseract, lokal): `OLLAMAIL_SEARCH_OCR_MODE` `off` / `pdf` (Standard) / `all`.
+  Der Schritt `index` erkennt nur, ob ein PDF Seiten ohne Textlayer, aber mit Bild hat (Modus
+  `detect` im Kindprozess, Status `ocr_pending`), indiziert den vorhandenen Textlayer sofort und
+  stellt den Job `search.ocr_attachment` auf die Queue `ocr` (eigene Job-Slots
+  `OLLAMAIL_SEARCH_OCR_CONCURRENCY`, niedrigste Priorität; gleicher Lock wie der `index`-Job der
+  Mail, startet also erst nach dessen Commit). Der Job liest das Anhang erneut im selben
+  isolierten Kindprozess (Modus `run`): Textlayer zuerst, nur Seiten ohne Text werden mit
+  `pypdfium2` als Graustufenbild (300 dpi, höchstens 40 Mpx) gerendert und an `tesseract`
+  (Kind des Kindprozesses, erbt leere Umgebung und Limits, Bild über stdin, Text über stdout)
+  gegeben, höchstens `OLLAMAIL_SEARCH_OCR_MAX_PAGES` Seiten. Bilder (PNG, JPEG, TIFF; nicht
+  inline) nur im Modus `all`. Bei Timeout (`OLLAMAIL_SEARCH_OCR_TIMEOUT`) wird die ganze
+  Prozessgruppe beendet. Ergebnis: Die Chunks des Anhangs werden ersetzt, mit Quelle
+  `attachment_ocr` („Anhang (OCR)“ in Treffern und Zitaten); Vektoren ergänzt
+  `search.fill_embeddings`. Der OCR-Job ruft nie das LLM auf. Fehler (`timeout`, `ocr_failed`,
+  `ocr_unavailable`) nur als Statuscode; der Textlayer bleibt dann im Index.
 - **Tabellen:** `search_chunks` (Text, `ts_config` `german`/`english`/`simple` aus der erkannten
   Sprache, generierte `tsvector`-Spalte mit GIN-Index), `search_embeddings` (`chunk_id`, `model`,
   `embedding vector(n)` mit HNSW-Index, Kosinus), `search_index_state` (aktives Modell). `n` kommt
@@ -781,7 +796,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   ODER-verknüpft, Rang `ts_rank_cd`. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
   `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
   (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
-  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang).
+  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang, mit oder ohne OCR).
 - **Zugriff:** Jede Abfrage enthält `mailbox_id IN (accessible_mailbox_ids(user_id))` aus
   `app.mail.access`, der einzigen Stelle dieser Regel (eigene und zugewiesene Shared Mailboxes).
 - **Kategorie-Filter** (`SearchFilters.category_ids`): Triage-Kategorie der Mail

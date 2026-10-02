@@ -244,7 +244,8 @@ Worker-Prozess nacheinander und nutzt dabei alle Kerne.
 ### 3.7 Suchindex und Embedding-Modell
 
 Jede neue Mail durchläuft den Verarbeitungsschritt `index` (Queue `llm`): Mailtext (ohne Zitate
-und Signatur) und Text aus Anhängen (PDF, DOCX, TXT, HTML; kein OCR) werden in Abschnitte
+und Signatur) und Text aus Anhängen (PDF, DOCX, TXT, HTML; Scans per OCR, siehe
+[3.8](#38-ocr-für-gescannte-anhänge)) werden in Abschnitte
 („Chunks“) zerlegt, in PostgreSQL volltextindiziert und mit dem Embedding-Modell
 (Standard `bge-m3`, Aufgabe `embeddings`) in Vektoren umgerechnet. Die Suche kombiniert beide
 Indizes. Ist das LLM beim Indizieren nicht erreichbar, ist die Mail trotzdem sofort per Volltext
@@ -286,6 +287,57 @@ Länge, alte und neue Vektoren können nicht nebeneinander liegen.
 
 Eine Neu-Indizierung inklusive Chunking (z. B. nach geänderter Chunk-Größe) startet
 `python -m app.cli processing reprocess --step index`.
+
+### 3.8 OCR für gescannte Anhänge
+
+Gescannte PDFs (Seiten ohne Textlayer) und auf Wunsch Bilder werden lokal mit Tesseract erkannt
+und landen als Chunks mit der Quelle „Anhang (OCR)“ im Suchindex und in den Zitaten von „Frag
+deine Inbox“. Tesseract samt deutschen und englischen Sprachdaten ist im Backend-Image enthalten
+(amd64 und arm64); es werden keine Daten nachgeladen.
+
+| Einstellung | Standard | Bedeutung |
+|---|---|---|
+| `OLLAMAIL_SEARCH_OCR_MODE` | `pdf` | `off` (kein OCR), `pdf` (nur PDF-Seiten ohne Text), `all` (zusätzlich PNG, JPEG, TIFF; Inline-Bilder wie Logos nie) |
+| `OLLAMAIL_SEARCH_OCR_MAX_PAGES` | `20` | Höchstens so viele Seiten je PDF werden erkannt; Seiten mit Textlayer zählen nicht |
+| `OLLAMAIL_SEARCH_OCR_LANGUAGES` | `deu+eng` | Tesseract-Sprachen; weitere nur mit eigenem Image (`tesseract-ocr-<lang>`) |
+| `OLLAMAIL_SEARCH_OCR_TIMEOUT` | `300` | Sekunden je Anhang; danach wird der Prozess samt Tesseract beendet (Status `timeout`) |
+| `OLLAMAIL_SEARCH_OCR_CONCURRENCY` | `1` | Parallele OCR-Jobs je Worker; jeder belegt einen CPU-Kern |
+
+**Ablauf:** Beim Indizieren einer Mail wird der Textlayer eines PDFs sofort indiziert. Hat das
+PDF Seiten ohne Text, aber mit Bild, kommt ein Job `search.ocr_attachment` auf die eigene Queue
+`ocr` (eigene Job-Slots, niedrigste Priorität). OCR blockiert damit weder den Mail-Sync noch die
+LLM-Verarbeitung neuer Mails. Der Job ersetzt die Chunks des Anhangs durch Textlayer plus
+erkannten Text; die Vektoren ergänzt `search.fill_embeddings`. Fehler und Timeouts erscheinen nur
+als Statuscode im Log (`search_attachment_ocr`, `status=timeout|ocr_failed|...`), der Textlayer
+bleibt dann im Index. Die Queue `ocr` muss von einem Worker abgearbeitet werden
+(`OLLAMAIL_WORKER_QUEUES`, Standard enthält `ocr`). Wer `OLLAMAIL_WORKER_QUEUES` explizit setzt,
+muss `ocr` ergänzen, sonst bleiben die Jobs liegen.
+
+**Bestehende Mails** nachträglich erkennen: `python -m app.cli processing reprocess --step index`
+(stellt für jeden Scan wieder einen OCR-Job ein).
+
+**Durchsatz** (`backend/scripts/ocr_benchmark.py`, synthetische A4-Seiten mit ~3.300 Zeichen,
+300 dpi, Intel Xeon 2,1 GHz, 4 Kerne, Tesseract 5.3.4 ohne OpenMP, LSTM-Modelle `deu+eng`):
+
+| `OLLAMAIL_SEARCH_OCR_CONCURRENCY` | Seiten pro Minute | Sekunden pro Seite |
+|---|---|---|
+| 1 | 18,6 | 3,2 |
+| 2 | 36,8 | 1,6 |
+| 4 | 72,8 | 0,8 |
+
+Die Seiten sind sauber gerendert (Wortgenauigkeit 100 %); echte Scans (Rauschen, Schräglage,
+kleinere Schrift) sind langsamer und ungenauer. Richtwerte je Hardware-Profil:
+
+| Profil | Empfehlung |
+|---|---|
+| CPU-only (4 Kerne) | `OLLAMAIL_SEARCH_OCR_CONCURRENCY=1` (Standard): rund 1.000 Seiten pro Stunde, drei Kerne bleiben für Sync, LLM und TTS. Beim Erstimport großer Postfächer ggf. nachts auf `2` erhöhen |
+| Consumer-GPU / Server | Tesseract nutzt keine GPU. `OLLAMAIL_SEARCH_OCR_CONCURRENCY` = freie CPU-Kerne, oder ein eigener Worker-Container nur mit `OLLAMAIL_WORKER_QUEUES=ocr` |
+
+Speicher: Tesseract braucht je A4-Seite (300 dpi) rund 100 MB (gemessen 93 MB);
+`OLLAMAIL_SEARCH_EXTRACTION_MAX_MEMORY_MB` (Standard 1024) begrenzt Kindprozess und Tesseract
+jeweils einzeln.
+Image-Größe: Tesseract mit `deu`/`eng` und Abhängigkeiten rund 12 MB, `pypdfium2` (rendert
+PDF-Seiten) rund 8,5 MB.
 
 ## 4. Reverse Proxy und TLS
 
