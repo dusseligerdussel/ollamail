@@ -22,6 +22,7 @@ from app.core.config import get_settings
 from app.core.logging import get_logger
 from app.digest import service
 from app.digest.storage import DigestStorage
+from app.privacy.policy import effective_policy
 from app.processing.tasks import error_code, get_database
 from app.worker import DEFAULT_RETRY, app, resource_lock
 
@@ -139,11 +140,12 @@ async def synthesize_digest(digest_id: str) -> None:
 )
 async def cleanup_digests(timestamp: int) -> None:
     """Hourly: delete expired digests (retention) and files without a digest."""
-    settings = get_settings()
     async with get_database().sessionmaker() as session:
+        # Admin setting (Admin -> Retention), else OLLAMAIL_DIGEST_RETENTION_DAYS.
+        policy = await effective_policy(session, get_settings())
         await service.cleanup(
             session,
             get_storage(),
             now=datetime.fromtimestamp(timestamp, UTC),
-            retention_days=settings.digest.retention_days,
+            retention_days=policy.digest_days,
         )

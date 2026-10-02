@@ -101,9 +101,9 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Heute wird nur `database` geprüft; Prüfungen für Queue und LLM kommen mit #7 und #17. |
 
-Die UI ist unter `http://<host>:8080` erreichbar. LDAP/Active Directory ist per API konfigurierbar
-([`auth/ldap.md`](auth/ldap.md)); OIDC, GitHub und die Admin-UI für Identity-Provider sind
-**geplant (#30, #31, #33)**.
+Die UI ist unter `http://<host>:8080` erreichbar. Identity-Provider (Entra ID, Google, OIDC,
+LDAP/Active Directory), Rollen-Zuordnung und Nutzer verwaltet der Admin unter Admin → Anmeldung
+bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)).
 
 **Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
@@ -116,8 +116,10 @@ docker compose -f deploy/compose.yaml logs api | grep setup_pending
 docker compose -f deploy/compose.yaml run --rm --no-deps api python -m app.cli setup-token
 ```
 
-Nach dem Setup ist der Token wertlos. Notfallzugang ohne UI (z. B. ausgesperrt):
-`docker compose -f deploy/compose.yaml run --rm api python -m app.cli create-admin`.
+Nach dem Setup ist der Token wertlos. Notfallzugang ohne UI (z. B. ausgesperrt oder IdP
+ausgefallen): `docker compose -f deploy/compose.yaml run --rm api python -m app.cli reset-password`
+(neues lokales Passwort für ein vorhandenes Konto) bzw. `… create-admin` (neues Admin-Konto).
+Beide schalten eine abgeschaltete lokale Anmeldung wieder ein ([`auth/admin.md`](auth/admin.md#5-notfallzugang)).
 
 **Cookies nur über HTTPS:** Sitzungs-Cookies sind `Secure`. Browser speichern sie über
 `http://<ip>:8080` nicht (Ausnahme `http://localhost`); die Anmeldung schlägt dann fehl. Also TLS
@@ -604,7 +606,8 @@ bleibt (PostgreSQL-Standard: 100).
 
 Grundlage für Verarbeitungsverzeichnis und DSFA. Grundsätze und technische Maßnahmen:
 [`PRIVACY.md`](PRIVACY.md). Die Spalte „Status“ zeigt, was die aktuelle Version tatsächlich
-verarbeitet.
+verarbeitet. Die vollständige Liste aller Tabellen und Dateien mit Löschweg steht in
+[`PRIVACY.md`](PRIVACY.md#tabellen-und-speicherorte-grundlage-für-das-verarbeitungsverzeichnis).
 
 ### 9.1 Datenkategorien und Speicherorte
 
@@ -625,7 +628,9 @@ verarbeitet.
 | Suchindex: Text-Abschnitte von Mails und Anhängen, Volltextindex, Embeddings | PostgreSQL: `search_chunks`, `search_embeddings` (pgvector); hängen per `ON DELETE CASCADE` an Mail, Anhang und Postfach | vorhanden (#24) |
 | Chat-Verläufe („Frag deine Inbox“) | PostgreSQL | geplant (#25) |
 | Daily Digest: Text und Audio | PostgreSQL bzw. Daten-Volume | geplant (#28) |
-| Audit-Log (Ereignistyp, Zeitpunkt, Nutzer- bzw. Objekt-ID, Codes und Zähler; keine Inhalte, Betreffzeilen oder Adressen) | PostgreSQL: `audit_events`, append-only; Aufbewahrung `OLLAMAIL_AUDIT_RETENTION_DAYS` (Durchsetzung #36) | aktiv |
+| Audit-Log (Ereignistyp, Zeitpunkt, Nutzer- bzw. Objekt-ID, Codes und Zähler; keine Inhalte, Betreffzeilen oder Adressen) | PostgreSQL: `audit_events`, append-only; Aufbewahrung über Admin → Aufbewahrung bzw. `OLLAMAIL_AUDIT_RETENTION_DAYS` (Job `privacy.retention`) | aktiv |
+| Datenexporte der Nutzer (ZIP mit allen eigenen Daten) | PostgreSQL: `privacy_exports`; Daten-Volume `exports/<user_id>/`; nach `OLLAMAIL_PRIVACY_EXPORT_EXPIRY_HOURS` gelöscht | aktiv (#36) |
+| Aufbewahrungsfristen | PostgreSQL: `privacy_retention_settings` (keine personenbezogenen Daten) | aktiv (#36) |
 | Job-Queue | PostgreSQL | geplant (#7) |
 | Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
@@ -633,7 +638,8 @@ verarbeitet.
 | Instanz-Secrets und Konfiguration | `deploy/.env` auf dem Host | vorhanden |
 | Betriebslogs (ohne Mail-Inhalte, siehe 9.3) | Docker-Logging des Hosts | vorhanden |
 
-Aufbewahrungsfristen, Export und Löschung: **geplant (#36)**.
+Aufbewahrungsfristen (Admin → Aufbewahrung), Datenexport und Kontolöschung (Einstellungen →
+Deine Daten) sind aktiv (#36); Details in [`PRIVACY.md`](PRIVACY.md#betroffenenrechte--löschkonzept).
 
 ### 9.2 Datenflüsse
 

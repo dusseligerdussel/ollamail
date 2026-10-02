@@ -12,6 +12,7 @@ from app.auth import sessions as session_store
 from app.auth.dependencies import CurrentSessionDep, CurrentUserDep, SettingsDep
 from app.auth.models import LOCAL_PROVIDER
 from app.auth.passwords import hash_password
+from app.auth.policy import local_login_enabled
 from app.auth.providers import (
     AuthProviderKind,
     AuthProviderRegistry,
@@ -112,18 +113,36 @@ async def providers(request: Request, db: DbDep, settings: SettingsDep) -> AuthP
         )
         for d in await list_directories(db, enabled_only=True)
     ]
+    local = await local_login_enabled(db)
     return AuthProviders(
-        local_login=True,
-        local_registration=settings.auth.local_registration,
+        local_login=local,
+        local_registration=local and settings.auth.local_registration,
         providers=infos,
     )
 
 
-@router.post("/login", responses={401: {"description": "Wrong credentials"}, **_THROTTLED})
+def _local_login_disabled() -> ProblemError:
+    return ProblemError(
+        403,
+        detail="Sign-in with local accounts is disabled.",
+        type="urn:ollamail:problem:local-login-disabled",
+    )
+
+
+@router.post(
+    "/login",
+    responses={
+        401: {"description": "Wrong credentials"},
+        403: {"description": "Local login is disabled"},
+        **_THROTTLED,
+    },
+)
 async def login(
     body: LoginRequest, request: Request, response: Response, db: DbDep, settings: SettingsDep
 ) -> UserRead:
-    """Sign in with a local account."""
+    """Sign in with a local account (unless an admin switched local login off)."""
+    if not await local_login_enabled(db):
+        raise _local_login_disabled()
     await service.throttle_ip(db, settings, request)
     try:
         await service.throttle_account(db, settings, body.email)
@@ -168,7 +187,7 @@ async def register(
     settings: SettingsDep,
 ) -> UserRead:
     """Create a local account (role ``user``) and sign in, if self-registration is on."""
-    if not settings.auth.local_registration:
+    if not settings.auth.local_registration or not await local_login_enabled(db):
         raise ProblemError(403, detail="Registration is disabled.")
     if not await any_user_exists(db):
         raise ProblemError(

@@ -19,10 +19,16 @@ class AuditAction(enum.StrEnum):
     SESSION_REVOKED = "auth.session_revoked"
     # Users
     USER_CREATED = "user.created"
-    USER_ROLE_CHANGED = "user.role_changed"  # LDAP group sync; user administration (#33)
-    USER_DELETED = "user.deleted"  # planned: user administration (#33)
+    USER_ROLE_CHANGED = "user.role_changed"  # group mapping at login; user administration
+    USER_DEACTIVATED = "user.deactivated"
+    USER_REACTIVATED = "user.reactivated"
+    USER_INVITED = "user.invited"
+    # Local password set: invitation accepted, CLI reset-password.
+    USER_PASSWORD_SET = "user.password_set"
+    USER_DELETED = "user.deleted"  # account deletion by the user or an admin (app/privacy)
     # Sign-in providers
-    IDP_CONFIG_CHANGED = "idp.config_changed"  # LDAP (#32), OIDC (#30), GitHub (#31)
+    # LDAP (#32), OIDC (#30), GitHub (#31), local login switch and group → role mapping (#33)
+    IDP_CONFIG_CHANGED = "idp.config_changed"
     # AI settings, including enabling cloud providers
     AI_SETTINGS_CHANGED = "ai.settings_changed"  # planned: admin LLM settings
     # Mailboxes
@@ -30,8 +36,9 @@ class AuditAction(enum.StrEnum):
     MAILBOX_DELETED = "mailbox.deleted"
     MAILBOX_SHARED = "mailbox.shared"  # planned: shared mailboxes
     # Data subject rights and data deletion
-    DATA_EXPORTED = "data.exported"  # planned: personal data export
-    DATA_DELETED = "data.deleted"  # planned: retention/deletion jobs (#36)
+    DATA_EXPORTED = "data.exported"  # personal data export: requested, downloaded
+    DATA_DELETED = "data.deleted"  # retention job (counts only)
+    RETENTION_CHANGED = "data.retention_changed"  # admin retention settings
     # Instance operations
     KEYS_ROTATED = "crypto.keys_rotated"
     AUDIT_EXPORTED = "audit.exported"

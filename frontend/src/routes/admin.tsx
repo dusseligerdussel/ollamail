@@ -1,5 +1,14 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { ChevronRight, Cpu, ScrollText } from "lucide-react";
+import {
+  Archive,
+  ChevronRight,
+  Cpu,
+  KeyRound,
+  type LucideIcon,
+  ScrollText,
+  UserCog,
+  Users,
+} from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { Forbidden } from "@/components/forbidden";
@@ -21,6 +30,31 @@ function AdminPage() {
       <PageHeader title={t("nav.admin")} />
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
+          <section aria-labelledby="admin-access" className="mb-6">
+            <h2 id="admin-access" className="mb-2 text-xs font-medium text-muted-foreground">
+              {t("pages.admin.access")}
+            </h2>
+            <div className="divide-y rounded-lg border">
+              <AdminLink
+                to="/admin/sign-in"
+                icon={KeyRound}
+                title={t("pages.signIn.title")}
+                description={t("pages.admin.signInDescription")}
+              />
+              <AdminLink
+                to="/admin/role-mapping"
+                icon={UserCog}
+                title={t("pages.roleMapping.title")}
+                description={t("pages.admin.roleMappingDescription")}
+              />
+              <AdminLink
+                to="/admin/users"
+                icon={Users}
+                title={t("pages.users.title")}
+                description={t("pages.admin.usersDescription")}
+              />
+            </div>
+          </section>
           <section aria-labelledby="admin-security">
             <h2 id="admin-security" className="mb-2 text-xs font-medium text-muted-foreground">
               {t("pages.admin.security")}
@@ -39,6 +73,12 @@ function AdminPage() {
                 </span>
                 <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               </Link>
+              <AdminLink
+                to="/admin/retention"
+                icon={Archive}
+                title={t("pages.retention.title")}
+                description={t("pages.admin.retentionDescription")}
+              />
             </div>
           </section>
           <section aria-labelledby="admin-ai" className="mt-6">
@@ -65,5 +105,31 @@ function AdminPage() {
         </div>
       </div>
     </>
+  );
+}
+
+function AdminLink({
+  to,
+  icon: Icon,
+  title,
+  description,
+}: {
+  to: "/admin/sign-in" | "/admin/role-mapping" | "/admin/users" | "/admin/retention";
+  icon: LucideIcon;
+  title: string;
+  description: string;
+}) {
+  return (
+    <Link
+      to={to}
+      className="flex items-center gap-3 px-4 py-3.5 outline-none first:rounded-t-lg last:rounded-b-lg hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/50"
+    >
+      <Icon aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+      <span className="min-w-0 flex-1">
+        <span className="block text-ui font-medium">{title}</span>
+        <span className="block text-ui text-muted-foreground">{description}</span>
+      </span>
+      <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+    </Link>
   );
 }

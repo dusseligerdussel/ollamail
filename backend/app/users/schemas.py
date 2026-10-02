@@ -66,3 +66,38 @@ class ProfileUpdate(BaseModel):
     display_name: DisplayName | None = None
     language: Language | None = None
     timezone: TimeZone | None = None
+
+
+class AdminUserRead(UserRead):
+    """A user in the admin list: account data and sign-in state, never mailbox data."""
+
+    # Providers the user has identities at (``local``, ``oidc:entra``, ``ldap:corp``).
+    providers: list[str]
+    # Local account without password whose invitation is still valid.
+    invitation_pending: bool
+    active_sessions: int
+
+
+class AdminUserUpdate(BaseModel):
+    """Changes by an admin; omitted fields stay. Refused (409) if no admin could sign in
+    afterwards."""
+
+    role: UserRole | None = None
+    is_active: bool | None = None
+
+
+class UserInvite(BaseModel):
+    """A local account that sets its own password via an invitation link."""
+
+    email: Email
+    display_name: DisplayName
+    role: UserRole = UserRole.USER
+    language: Language = "en"
+    timezone: TimeZone = "UTC"
+
+
+class InvitationIssued(BaseModel):
+    user: AdminUserRead
+    # One-time link to pass on to the user; shown only once.
+    invite_url: str
+    expires_at: datetime

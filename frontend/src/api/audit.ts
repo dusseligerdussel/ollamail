@@ -16,6 +16,10 @@ const actionGroups = {
   "auth.session_revoked": "auth",
   "user.created": "users",
   "user.role_changed": "users",
+  "user.deactivated": "users",
+  "user.reactivated": "users",
+  "user.invited": "users",
+  "user.password_set": "users",
   "user.deleted": "users",
   "idp.config_changed": "settings",
   "ai.settings_changed": "settings",
@@ -24,6 +28,7 @@ const actionGroups = {
   "mailbox.deleted": "mailboxes",
   "data.exported": "data",
   "data.deleted": "data",
+  "data.retention_changed": "data",
   "crypto.keys_rotated": "operations",
   "audit.exported": "operations",
 } as const satisfies Record<AuditAction, string>;

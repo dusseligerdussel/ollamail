@@ -236,6 +236,142 @@ export interface paths {
         patch: operations["admin_update_oidc_provider"];
         trace?: never;
     };
+    "/admin/auth/oidc/providers/{name}/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Oidc Provider
+         * @description Fetch the discovery document and signing keys (bypassing the cache), as a login
+         *     would. The client secret can only be checked by a real login.
+         */
+        post: operations["admin_test_oidc_provider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/role-mapping": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Role Mapping
+         * @description Group → role rules, applied at every login with an external provider.
+         */
+        get: operations["admin_get_role_mapping"];
+        /**
+         * Update Role Mapping
+         * @description Replace the mapping. Takes effect at each user's next login; the last active admin
+         *     is never demoted by it.
+         */
+        put: operations["admin_update_role_mapping"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/role-mapping/test": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Test Role Mapping
+         * @description Which role a login with these groups would get under the saved mapping.
+         */
+        post: operations["admin_test_role_mapping"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Auth Settings
+         * @description Sign-in settings and which admins can currently sign in (counts only).
+         */
+        get: operations["admin_get_auth_settings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Auth Settings
+         * @description Switch local login on or off. Switching it off is refused (409) unless another
+         *     admin access (external provider) keeps working.
+         */
+        patch: operations["admin_update_auth_settings"];
+        trace?: never;
+    };
+    "/admin/privacy/retention": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Retention
+         * @description Effective retention periods, their environment defaults and the last run.
+         */
+        get: operations["privacy_get_retention"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update Retention
+         * @description Change retention periods; ``null`` resets one to the environment default. Applies
+         *     from the next run of the retention jobs.
+         */
+        patch: operations["privacy_update_retention"];
+        trace?: never;
+    };
+    "/admin/privacy/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete User
+         * @description Delete a user with all their data and files (Art. 17). Not reversible.
+         */
+        delete: operations["privacy_delete_user"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/status": {
         parameters: {
             query?: never;
@@ -356,6 +492,46 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/invitations/accept": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Accept Invitation
+         * @description Set the password of the invited account and sign in.
+         */
+        post: operations["auth_accept_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/invitations/lookup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Lookup Invitation
+         * @description Who the invitation is for (shown on the "set password" page).
+         */
+        post: operations["auth_lookup_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/ldap/directories": {
         parameters: {
             query?: never;
@@ -457,7 +633,7 @@ export interface paths {
         put?: never;
         /**
          * Login
-         * @description Sign in with a local account.
+         * @description Sign in with a local account (unless an admin switched local login off).
          */
         post: operations["auth_login"];
         delete?: never;
@@ -750,6 +926,26 @@ export interface paths {
          * @description Change own digest settings. A changed schedule starts with the next slot.
          */
         patch: operations["digests_update_digest_settings"];
+        trace?: never;
+    };
+    "/digests/voices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Digest Voices
+         * @description Voices for the digest: installed ones plus the default voice of each language.
+         */
+        get: operations["digests_list_digest_voices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/digests/{digest_id}": {
@@ -1177,6 +1373,96 @@ export interface paths {
          *     HTML comes sanitised with external images removed.
          */
         get: operations["messages_get_thread"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/account": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Account Privacy
+         * @description Whether the own account can be deleted here, and how long exports stay available.
+         */
+        get: operations["privacy_get_account_privacy"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Account
+         * @description Delete the own account with all data (mailboxes, mails, todos, digests, ...) and
+         *     files. Confirmed by entering the account's e-mail address. Not reversible.
+         */
+        delete: operations["privacy_delete_account"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/exports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Exports
+         * @description The own data exports that have not expired, newest first.
+         */
+        get: operations["privacy_list_exports"];
+        put?: never;
+        /**
+         * Request Export
+         * @description Start an export of the own data (ZIP with JSON and digest audio) as a background
+         *     job. While one is in progress, that one is returned.
+         */
+        post: operations["privacy_request_export"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/exports/{export_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete Export
+         * @description Delete an own export and its file before it expires.
+         */
+        delete: operations["privacy_delete_export"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/privacy/exports/{export_id}/download": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download Export
+         * @description Download a finished export before it expires. Only its owner can.
+         */
+        get: operations["privacy_download_export"];
         put?: never;
         post?: never;
         delete?: never;
@@ -1624,7 +1910,7 @@ export interface paths {
         };
         /**
          * List Users
-         * @description All users, ordered by e-mail address.
+         * @description All users, ordered by e-mail address, with their sign-in methods.
          */
         get: operations["users_list_users"];
         put?: never;
@@ -1634,6 +1920,87 @@ export interface paths {
          */
         post: operations["users_create_user"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/invitations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Invite User
+         * @description Create a local account without password and return a one-time invitation link.
+         */
+        post: operations["users_invite_user"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /**
+         * Update User
+         * @description Change role or active state. Deactivating ends all sessions of the user.
+         */
+        patch: operations["users_update_user"];
+        trace?: never;
+    };
+    "/users/{user_id}/invitation": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reissue Invitation
+         * @description New invitation link for an invited user who has not set a password yet (the old
+         *     link stops working).
+         */
+        post: operations["users_reissue_invitation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{user_id}/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Revoke Sessions
+         * @description Sign the user out everywhere (also the admin's own sessions, if it is them).
+         */
+        delete: operations["users_revoke_sessions"];
         options?: never;
         head?: never;
         patch?: never;
@@ -1811,6 +2178,24 @@ export interface components {
             cloud: components["schemas"]["CloudUsage"][];
         };
         /**
+         * AccountDeletion
+         * @description Confirmation of the own account's deletion: the account's e-mail address.
+         */
+        AccountDeletion: {
+            /** Confirm Email */
+            confirm_email: string;
+        };
+        /**
+         * AccountPrivacyRead
+         * @description What the account page offers.
+         */
+        AccountPrivacyRead: {
+            /** Export Expiry Hours */
+            export_expiry_hours: number;
+            /** Self Delete Enabled */
+            self_delete_enabled: boolean;
+        };
+        /**
          * ActorKind
          * @enum {string}
          */
@@ -1821,6 +2206,58 @@ export interface components {
             address: string;
             /** Name */
             name?: string | null;
+        };
+        /** AdminAccess */
+        AdminAccess: {
+            /** Own Providers */
+            own_providers: string[];
+            /** Usable Admins */
+            usable_admins: number;
+        };
+        /**
+         * AdminUserRead
+         * @description A user in the admin list: account data and sign-in state, never mailbox data.
+         */
+        AdminUserRead: {
+            /** Active Sessions */
+            active_sessions: number;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Invitation Pending */
+            invitation_pending: boolean;
+            /** Is Active */
+            is_active: boolean;
+            /** Language */
+            language: string;
+            /** Last Login At */
+            last_login_at: string | null;
+            /** Providers */
+            providers: string[];
+            role: components["schemas"]["UserRole"];
+            /** Timezone */
+            timezone: string;
+        };
+        /**
+         * AdminUserUpdate
+         * @description Changes by an admin; omitted fields stay. Refused (409) if no admin could sign in
+         *     afterwards.
+         */
+        AdminUserUpdate: {
+            /** Is Active */
+            is_active?: boolean | null;
+            role?: components["schemas"]["UserRole"] | null;
         };
         /**
          * AnswerStatus
@@ -1875,7 +2312,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "data.exported" | "data.deleted" | "data.retention_changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -1940,6 +2377,21 @@ export interface components {
             local_registration: boolean;
             /** Providers */
             providers: components["schemas"]["AuthProviderInfo"][];
+        };
+        /** AuthSettingsRead */
+        AuthSettingsRead: {
+            admin_access: components["schemas"]["AdminAccess"];
+            /** Local Login Enabled */
+            local_login_enabled: boolean;
+            /** Local Registration */
+            local_registration: boolean;
+            /** Provider Kinds */
+            provider_kinds: string[];
+        };
+        /** AuthSettingsUpdate */
+        AuthSettingsUpdate: {
+            /** Local Login Enabled */
+            local_login_enabled?: boolean | null;
         };
         /** AutodiscoverRequest */
         AutodiscoverRequest: {
@@ -2117,6 +2569,28 @@ export interface components {
              * Format: date-time
              */
             updated_at: string;
+        };
+        /** DataExportRead */
+        DataExportRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Code */
+            error_code: string | null;
+            /** Expires At */
+            expires_at: string | null;
+            /** Finished At */
+            finished_at: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Size */
+            size: number | null;
+            status: components["schemas"]["ExportStatus"];
         };
         /**
          * DigestLength
@@ -2301,10 +2775,32 @@ export interface components {
          */
         DigestTrigger: "scheduled" | "manual";
         /**
+         * DigestVoice
+         * @description A voice to offer in the digest settings.
+         */
+        DigestVoice: {
+            /** Default */
+            default: boolean;
+            /** Id */
+            id: string;
+            /** Installed */
+            installed: boolean;
+            /**
+             * Language
+             * @enum {string}
+             */
+            language: "de" | "en";
+        };
+        /**
          * DirectoryType
          * @enum {string}
          */
         DirectoryType: "active_directory" | "openldap";
+        /**
+         * ExportStatus
+         * @enum {string}
+         */
+        ExportStatus: "pending" | "running" | "ready" | "failed";
         /** FeedCreated */
         FeedCreated: {
             /**
@@ -2586,6 +3082,41 @@ export interface components {
             source: components["schemas"]["TriageSource"] | null;
             /** Subject */
             subject: string;
+        };
+        /** InvitationAccept */
+        InvitationAccept: {
+            /** Password */
+            password: string;
+            /** Token */
+            token: string;
+        };
+        /** InvitationInfo */
+        InvitationInfo: {
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string;
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+        };
+        /** InvitationIssued */
+        InvitationIssued: {
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Invite Url */
+            invite_url: string;
+            user: components["schemas"]["AdminUserRead"];
+        };
+        /** InvitationLookup */
+        InvitationLookup: {
+            /** Token */
+            token: string;
         };
         /**
          * LLMTask
@@ -3047,6 +3578,29 @@ export interface components {
             /** Seen */
             seen: boolean;
         };
+        /** OIDCConnectionTest */
+        OIDCConnectionTest: {
+            /** Authorization Endpoint */
+            authorization_endpoint?: string | null;
+            /**
+             * End Session Supported
+             * @default false
+             */
+            end_session_supported: boolean;
+            /** Error */
+            error?: string | null;
+            /** Issuer */
+            issuer?: string | null;
+            /** Ok */
+            ok: boolean;
+            /**
+             * Signing Keys
+             * @default 0
+             */
+            signing_keys: number;
+            /** Token Endpoint */
+            token_endpoint?: string | null;
+        };
         /**
          * OIDCPreset
          * @enum {string}
@@ -3364,6 +3918,152 @@ export interface components {
             /** Remote Id */
             remote_id: string;
             role: components["schemas"]["FolderRole"] | null;
+        };
+        /**
+         * RetentionRun
+         * @description Counters of the last run of the retention job.
+         */
+        RetentionRun: {
+            /**
+             * Attachments
+             * @default 0
+             */
+            attachments: number;
+            /**
+             * Audit Events
+             * @default 0
+             */
+            audit_events: number;
+            /**
+             * Finished At
+             * Format: date-time
+             */
+            finished_at: string;
+            /**
+             * Mails
+             * @default 0
+             */
+            mails: number;
+            /**
+             * Search Chunks
+             * @default 0
+             */
+            search_chunks: number;
+            /**
+             * Threads
+             * @default 0
+             */
+            threads: number;
+        };
+        /**
+         * RetentionSettingsRead
+         * @description Effective retention, the environment defaults and the last run.
+         */
+        RetentionSettingsRead: {
+            defaults: components["schemas"]["RetentionValues"];
+            /** Initial Sync Days */
+            initial_sync_days: number;
+            last_run: components["schemas"]["RetentionRun"] | null;
+            /** Overridden */
+            overridden: string[];
+            values: components["schemas"]["RetentionValues"];
+        };
+        /**
+         * RetentionSettingsUpdate
+         * @description New values; ``null`` resets a field to the environment default. Omitted fields
+         *     keep their value.
+         */
+        RetentionSettingsUpdate: {
+            /** Attachment Days */
+            attachment_days?: number | null;
+            /** Audit Days */
+            audit_days?: number | null;
+            /** Digest Days */
+            digest_days?: number | null;
+            /** Mail Days */
+            mail_days?: number | null;
+            /** Rag History Days */
+            rag_history_days?: number | null;
+            /** Search Index Days */
+            search_index_days?: number | null;
+        };
+        /**
+         * RetentionValues
+         * @description Retention in days per data category; 0 keeps the data.
+         */
+        RetentionValues: {
+            /** Attachment Days */
+            attachment_days: number;
+            /** Audit Days */
+            audit_days: number;
+            /** Digest Days */
+            digest_days: number;
+            /** Mail Days */
+            mail_days: number;
+            /** Rag History Days */
+            rag_history_days: number;
+            /** Search Index Days */
+            search_index_days: number;
+        };
+        /** RoleMappingRead */
+        RoleMappingRead: {
+            default_role: components["schemas"]["UserRole"];
+            /** Enabled */
+            enabled: boolean;
+            /** Rules */
+            rules: components["schemas"]["RoleMappingRuleRead"][];
+        };
+        /** RoleMappingRuleFields */
+        RoleMappingRuleFields: {
+            /** Group */
+            group: string;
+            /** Provider */
+            provider?: string | null;
+            role: components["schemas"]["UserRole"];
+        };
+        /** RoleMappingRuleRead */
+        RoleMappingRuleRead: {
+            /** Group */
+            group: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider */
+            provider?: string | null;
+            role: components["schemas"]["UserRole"];
+        };
+        /** RoleMappingTest */
+        RoleMappingTest: {
+            /**
+             * Groups
+             * @default []
+             */
+            groups: string[];
+            /** Provider */
+            provider: string;
+        };
+        /** RoleMappingTestResult */
+        RoleMappingTestResult: {
+            /** Matched Groups */
+            matched_groups: string[];
+            role: components["schemas"]["UserRole"] | null;
+        };
+        /**
+         * RoleMappingUpdate
+         * @description Replaces the mapping (all rules).
+         */
+        RoleMappingUpdate: {
+            /** @default user */
+            default_role: components["schemas"]["UserRole"];
+            /** Enabled */
+            enabled: boolean;
+            /**
+             * Rules
+             * @default []
+             */
+            rules: components["schemas"]["RoleMappingRuleFields"][];
         };
         /**
          * SearchFilterParams
@@ -3786,6 +4486,41 @@ export interface components {
             language: "de" | "en";
             /** Password */
             password: string;
+            /** @default user */
+            role: components["schemas"]["UserRole"];
+            /**
+             * Timezone
+             * @default UTC
+             */
+            timezone: string;
+        };
+        /** UserDeletionResult */
+        UserDeletionResult: {
+            /** Deleted */
+            deleted: boolean;
+            /** Mailboxes */
+            mailboxes: number;
+            /**
+             * User Id
+             * Format: uuid
+             */
+            user_id: string;
+        };
+        /**
+         * UserInvite
+         * @description A local account that sets its own password via an invitation link.
+         */
+        UserInvite: {
+            /** Display Name */
+            display_name: string;
+            /** Email */
+            email: string;
+            /**
+             * Language
+             * @default en
+             * @enum {string}
+             */
+            language: "de" | "en";
             /** @default user */
             role: components["schemas"]["UserRole"];
             /**
@@ -4414,6 +5149,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Validation Error */
             422: {
                 headers: {
@@ -4465,6 +5207,13 @@ export interface operations {
             };
             /** @description Unknown provider */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4690,7 +5439,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Configured in the environment */
+            /** @description Configured in the environment, or admin lockout */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4753,7 +5502,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Configured in the environment */
+            /** @description Configured in the environment, or admin lockout */
             409: {
                 headers: {
                     [name: string]: unknown;
@@ -4766,6 +5515,412 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    admin_test_oidc_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OIDCConnectionTest"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_role_mapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMappingRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_update_role_mapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMappingUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMappingRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Duplicate rules */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_test_role_mapping: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RoleMappingTest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RoleMappingTestResult"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_auth_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_update_auth_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AuthSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AuthSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    privacy_get_retention: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_update_retention: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetentionSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetentionSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    privacy_delete_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserDeletionResult"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Last active administrator */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };
@@ -4990,6 +6145,114 @@ export interface operations {
             };
         };
     };
+    auth_accept_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationAccept"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Local login is disabled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired invitation */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_lookup_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InvitationLookup"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationInfo"];
+                };
+            };
+            /** @description Local login is disabled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid or expired invitation */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_list_directories: {
         parameters: {
             query?: never;
@@ -5173,6 +6436,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description Invalid settings */
             422: {
                 headers: {
@@ -5216,6 +6486,13 @@ export interface operations {
             };
             /** @description No such directory */
             404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -5364,6 +6641,13 @@ export interface operations {
             };
             /** @description Wrong credentials */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Local login is disabled */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -6019,6 +7303,33 @@ export interface operations {
             };
             /** @description Invalid value or mailbox */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    digests_list_digest_voices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DigestVoice"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -7061,6 +8372,225 @@ export interface operations {
                 content?: never;
             };
             /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    privacy_get_account_privacy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AccountPrivacyRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_delete_account: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountDeletion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Self-deletion is disabled */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Last active administrator */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Confirmation does not match */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_list_exports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_request_export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DataExportRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    privacy_delete_export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such export */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    privacy_download_export: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                export_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The ZIP file */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/zip": unknown;
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such export */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -8527,7 +10057,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["UserRead"][];
+                    "application/json": components["schemas"]["AdminUserRead"][];
                 };
             };
             /** @description Not signed in */
@@ -8584,6 +10114,232 @@ export interface operations {
             };
             /** @description E-mail address taken */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    users_invite_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UserInvite"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationIssued"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description E-mail address taken or local login disabled */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    users_update_user: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    users_reissue_invitation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvitationIssued"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such user */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The user already has a password */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    users_revoke_sessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                user_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such user */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

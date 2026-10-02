@@ -9,6 +9,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.auth import redirect_flow
+from app.auth.admin_access import AdminAccessGuard
 from app.auth.dependencies import AdminSessionDep, SettingsDep
 from app.auth.providers.github import store
 from app.auth.providers.github.config import from_record, normalize_base_url
@@ -207,7 +208,11 @@ _CLEARABLE = frozenset({"base_url"})
 
 @admin_router.patch(
     "/providers/{name}",
-    responses={404: {"description": "Unknown provider"}, 422: {"description": "Invalid settings"}},
+    responses={
+        404: {"description": "Unknown provider"},
+        409: {"description": "No administrator could sign in afterwards (admin-lockout)"},
+        422: {"description": "Invalid settings"},
+    },
 )
 async def update_github_provider(
     name: str,
@@ -218,6 +223,7 @@ async def update_github_provider(
     settings: SettingsDep,
 ) -> GitHubProviderRead:
     """Change a GitHub provider. Omitted fields stay as they are."""
+    guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
     record = await _record(db, name)
     for field in body.model_fields_set:
         value = getattr(body, field)
@@ -229,6 +235,7 @@ async def update_github_provider(
     except ProblemError:
         await db.rollback()
         raise
+    await guard.check()
     await _config_changed(db, admin.user_id, record.id, "updated")
     await db.commit()
     await db.refresh(record)
@@ -239,13 +246,21 @@ async def update_github_provider(
 @admin_router.delete(
     "/providers/{name}",
     status_code=status.HTTP_204_NO_CONTENT,
-    responses={404: {"description": "Unknown provider"}},
+    responses={
+        404: {"description": "Unknown provider"},
+        409: {"description": "No administrator could sign in afterwards (admin-lockout)"},
+    },
 )
-async def delete_github_provider(name: str, admin: AdminSessionDep, db: DbDep) -> None:
+async def delete_github_provider(
+    name: str, admin: AdminSessionDep, request: Request, db: DbDep
+) -> None:
     """Remove a GitHub provider. Users and their linked identities are kept; sessions
     started with the provider stay valid until they expire or are revoked."""
+    guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
     record = await _record(db, name)
-    await _config_changed(db, admin.user_id, record.id, "deleted")
+    record_id = record.id
     await db.delete(record)
+    await guard.check()
+    await _config_changed(db, admin.user_id, record_id, "deleted")
     await db.commit()
     log.info("github_provider_deleted", provider_name=name, by_user_id=admin.user_id)
