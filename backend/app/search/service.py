@@ -53,6 +53,7 @@ from app.search.models import (
     SearchEmbedding,
     SearchIndexState,
 )
+from app.triage.models import TriageResult
 
 log = get_logger(__name__)
 
@@ -373,6 +374,8 @@ class SearchFilters:
     until: datetime | None = None
     # ``ChunkSource.BODY`` or ``ChunkSource.ATTACHMENT``.
     source: str | None = None
+    # Triage categories of the message (``TriageResult.category_id``).
+    category_ids: Sequence[uuid.UUID] | None = None
 
 
 @dataclass(frozen=True)
@@ -421,6 +424,13 @@ def _conditions(user_id: uuid.UUID, filters: SearchFilters) -> list[ColumnElemen
         )
     if filters.source is not None:
         conditions.append(SearchChunk.source == filters.source)
+    if filters.category_ids is not None:
+        conditions.append(
+            exists().where(
+                TriageResult.message_id == SearchChunk.message_id,
+                TriageResult.category_id.in_(list(filters.category_ids)),
+            )
+        )
     return conditions
 
 
