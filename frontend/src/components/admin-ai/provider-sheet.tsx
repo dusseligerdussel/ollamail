@@ -178,7 +178,7 @@ export function ProviderSheet({
           className="flex min-h-0 flex-1 flex-col"
           aria-label={t(editing ? "pages.ai.form.editTitle" : "pages.ai.form.addTitle")}
         >
-          <div className="flex flex-1 flex-col gap-5 overflow-y-auto p-4">
+          <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
             <FormField
               label={t("pages.ai.form.displayName")}
               value={form.displayName}
@@ -210,6 +210,7 @@ export function ProviderSheet({
               </Label>
               <NativeSelect
                 id={`${id}-kind`}
+                className="w-full"
                 value={form.kind}
                 onChange={(event) => set("kind", event.target.value as LLMProviderKind)}
               >
@@ -279,6 +280,7 @@ export function ProviderSheet({
               </Label>
               <NativeSelect
                 id={`${id}-structured`}
+                className="w-full"
                 value={form.structuredOutput}
                 onChange={(event) =>
                   set("structuredOutput", event.target.value as FormState["structuredOutput"])

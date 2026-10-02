@@ -126,4 +126,3 @@ async def test_gateway_respects_concurrency() -> None:
 @pytest.mark.parametrize("task", list(LLMTask))
 def test_every_task_resolves(task: LLMTask) -> None:
     assert ResolvedConfig(LLMSettings()).assignment(task).endpoint.name == "default"
-
