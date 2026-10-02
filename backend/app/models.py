@@ -8,6 +8,7 @@ from app.auth import models as auth_models
 from app.auth.providers.ldap import models as ldap_models
 from app.auth.providers.oidc import models as oidc_models
 from app.core.db import Base
+from app.digest import models as digest_models
 from app.mail import models as mail_models
 from app.processing import models as processing_models
 from app.search import models as search_models
@@ -19,6 +20,7 @@ __all__ = [
     "Base",
     "audit_models",
     "auth_models",
+    "digest_models",
     "ldap_models",
     "mail_models",
     "oidc_models",
