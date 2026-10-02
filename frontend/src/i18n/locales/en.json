@@ -1637,6 +1637,10 @@
       "caldav": {
         "title": "CalDAV",
         "description": "Nextcloud, Radicale, Baïkal, iCloud and other CalDAV servers"
+      },
+      "mstodo": {
+        "title": "Microsoft To Do",
+        "description": "Task list of your Microsoft 365 or Outlook account"
       }
     },
     "url": "Server URL",
@@ -1690,7 +1694,28 @@
       "sink_not_available": "This target is not enabled on this server.",
       "unknown_list": "The list no longer exists on the server.",
       "list_not_found": "The list no longer exists on the server.",
+      "not_configured": "Microsoft 365 is not set up on this server.",
+      "mstodo_not_connected": "Sign in with Microsoft first.",
+      "consent_denied": "The sign-in was cancelled or access was not allowed.",
+      "access_denied": "Microsoft denied access to the tasks.",
+      "state_invalid": "The sign-in expired. Please try again.",
+      "session_mismatch": "The sign-in belongs to another session. Please try again.",
+      "token_exchange_failed": "Microsoft did not confirm the sign-in. Please try again.",
+      "offline_access_missing": "Microsoft did not grant lasting access. Please sign in again.",
+      "mstodo_auth_failed": "Microsoft rejected the access. Sign in again.",
       "other": "The server sent an unexpected answer."
+    },
+    "mstodo": {
+      "signIn": "Sign in with Microsoft",
+      "signInHint": "Sign in with your Microsoft account and allow access to your tasks. Then pick the list.",
+      "redirecting": "Redirecting…",
+      "loadingLists": "Loading lists",
+      "signedInAs": "Signed in as {{account}}",
+      "otherAccount": "Other account",
+      "account": "Account",
+      "signInFailed": "Microsoft sign-in failed",
+      "privacySent": "The export sends the title, description, due date, priority and status of your tasks, plus a link to the message, to Microsoft To Do.",
+      "privacyNotSent": "The messages themselves are not sent. ollamail only gets access to your tasks, not to your mailbox."
     }
   }
 }

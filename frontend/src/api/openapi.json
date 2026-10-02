@@ -2834,7 +2834,10 @@
             "title": "Password"
           },
           "sink": {
-            "const": "caldav",
+            "enum": [
+              "caldav",
+              "mstodo"
+            ],
             "title": "Sink",
             "type": "string"
           },
@@ -2897,7 +2900,10 @@
         "properties": {
           "available_sinks": {
             "items": {
-              "const": "caldav",
+              "enum": [
+                "caldav",
+                "mstodo"
+              ],
               "type": "string"
             },
             "title": "Available Sinks",
@@ -2983,7 +2989,10 @@
             "$ref": "#/components/schemas/ExportMode"
           },
           "sink": {
-            "const": "caldav",
+            "enum": [
+              "caldav",
+              "mstodo"
+            ],
             "title": "Sink",
             "type": "string"
           },
@@ -3039,7 +3048,10 @@
             "title": "Password"
           },
           "sink": {
-            "const": "caldav",
+            "enum": [
+              "caldav",
+              "mstodo"
+            ],
             "title": "Sink",
             "type": "string"
           },
@@ -5418,6 +5430,79 @@
           "code"
         ],
         "title": "MfaVerifyRequest",
+        "type": "object"
+      },
+      "MsTodoConnectRequest": {
+        "properties": {
+          "return_to": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Return To"
+          }
+        },
+        "title": "MsTodoConnectRequest",
+        "type": "object"
+      },
+      "MsTodoConnectResponse": {
+        "properties": {
+          "authorization_url": {
+            "title": "Authorization Url",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authorization_url"
+        ],
+        "title": "MsTodoConnectResponse",
+        "type": "object"
+      },
+      "MsTodoLists": {
+        "description": "Lists of the connected (or just signed-in) Microsoft account.",
+        "properties": {
+          "account": {
+            "title": "Account",
+            "type": "string"
+          },
+          "lists": {
+            "items": {
+              "$ref": "#/components/schemas/TaskListRead"
+            },
+            "title": "Lists",
+            "type": "array"
+          }
+        },
+        "required": [
+          "account",
+          "lists"
+        ],
+        "title": "MsTodoLists",
+        "type": "object"
+      },
+      "MsTodoTargetSave": {
+        "description": "Save the Microsoft To Do export: list and mode (the account comes from the sign-in).",
+        "properties": {
+          "list_id": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "List Id",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExportMode",
+            "default": "auto"
+          }
+        },
+        "required": [
+          "list_id"
+        ],
+        "title": "MsTodoTargetSave",
         "type": "object"
       },
       "OIDCConnectionTest": {
@@ -17300,6 +17385,122 @@
           }
         },
         "summary": "List Task Lists",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/mstodo": {
+      "put": {
+        "description": "Connect the Microsoft To Do export (or change list or mode). The list must be one of\nthe account's; open todos are exported right away in mode ``auto``.",
+        "operationId": "todos_save_mstodo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MsTodoTargetSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "No Microsoft sign-in and no Microsoft To Do export"
+          },
+          "422": {
+            "description": "Target not allowed, invalid URL, credentials rejected, no list"
+          },
+          "502": {
+            "description": "Target not reachable"
+          }
+        },
+        "summary": "Save Mstodo",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/mstodo/connect": {
+      "post": {
+        "description": "Start the Microsoft sign-in for the To Do export; the client navigates to the URL.",
+        "operationId": "todos_connect_mstodo",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MsTodoConnectRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MsTodoConnectResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Target not enabled or configured"
+          }
+        },
+        "summary": "Connect Mstodo",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/mstodo/lists": {
+      "post": {
+        "description": "Lists of the Microsoft account just signed in with, or of the connected one.",
+        "operationId": "todos_list_mstodo_lists",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MsTodoLists"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "No Microsoft sign-in and no Microsoft To Do export"
+          },
+          "422": {
+            "description": "Target not allowed, invalid URL, credentials rejected, no list"
+          },
+          "502": {
+            "description": "Target not reachable"
+          }
+        },
+        "summary": "List Mstodo Lists",
         "tags": [
           "todos"
         ]

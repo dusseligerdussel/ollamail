@@ -2431,6 +2431,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/todo-export/mstodo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Save Mstodo
+         * @description Connect the Microsoft To Do export (or change list or mode). The list must be one of
+         *     the account's; open todos are exported right away in mode ``auto``.
+         */
+        put: operations["todos_save_mstodo"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todo-export/mstodo/connect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Connect Mstodo
+         * @description Start the Microsoft sign-in for the To Do export; the client navigates to the URL.
+         */
+        post: operations["todos_connect_mstodo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/todo-export/mstodo/lists": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List Mstodo Lists
+         * @description Lists of the Microsoft account just signed in with, or of the connected one.
+         */
+        post: operations["todos_list_mstodo_lists"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/todo-export/sync": {
         parameters: {
             query?: never;
@@ -3863,9 +3924,9 @@ export interface components {
             password?: string | null;
             /**
              * Sink
-             * @constant
+             * @enum {string}
              */
-            sink: "caldav";
+            sink: "caldav" | "mstodo";
             /** Url */
             url: string;
             /**
@@ -3908,7 +3969,7 @@ export interface components {
         /** ExportSettingsRead */
         ExportSettingsRead: {
             /** Available Sinks */
-            available_sinks?: "caldav"[];
+            available_sinks?: ("caldav" | "mstodo")[];
             target: components["schemas"]["ExportTargetRead"] | null;
         };
         /**
@@ -3939,9 +4000,9 @@ export interface components {
             mode: components["schemas"]["ExportMode"];
             /**
              * Sink
-             * @constant
+             * @enum {string}
              */
-            sink: "caldav";
+            sink: "caldav" | "mstodo";
             /** Url */
             url: string;
             /** Username */
@@ -3960,9 +4021,9 @@ export interface components {
             password?: string | null;
             /**
              * Sink
-             * @constant
+             * @enum {string}
              */
-            sink: "caldav";
+            sink: "caldav" | "mstodo";
             /** Url */
             url: string;
             /**
@@ -4865,6 +4926,36 @@ export interface components {
              * @enum {string}
              */
             method: "totp" | "recovery";
+        };
+        /** MsTodoConnectRequest */
+        MsTodoConnectRequest: {
+            /** Return To */
+            return_to?: string | null;
+        };
+        /** MsTodoConnectResponse */
+        MsTodoConnectResponse: {
+            /** Authorization Url */
+            authorization_url: string;
+        };
+        /**
+         * MsTodoLists
+         * @description Lists of the connected (or just signed-in) Microsoft account.
+         */
+        MsTodoLists: {
+            /** Account */
+            account: string;
+            /** Lists */
+            lists: components["schemas"]["TaskListRead"][];
+        };
+        /**
+         * MsTodoTargetSave
+         * @description Save the Microsoft To Do export: list and mode (the account comes from the sign-in).
+         */
+        MsTodoTargetSave: {
+            /** List Id */
+            list_id: string;
+            /** @default auto */
+            mode: components["schemas"]["ExportMode"];
         };
         /** OIDCConnectionTest */
         OIDCConnectionTest: {
@@ -13275,6 +13366,144 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not allowed, invalid URL, credentials rejected, no list */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not reachable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_save_mstodo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MsTodoTargetSave"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No Microsoft sign-in and no Microsoft To Do export */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not allowed, invalid URL, credentials rejected, no list */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not reachable */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_connect_mstodo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MsTodoConnectRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MsTodoConnectResponse"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Target not enabled or configured */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    todos_list_mstodo_lists: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MsTodoLists"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No Microsoft sign-in and no Microsoft To Do export */
+            409: {
                 headers: {
                     [name: string]: unknown;
                 };

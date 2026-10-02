@@ -36,10 +36,29 @@ export interface CapturedRequest {
  * In-memory export API: `GET/PUT/PATCH/DELETE /api/todo-export`, list discovery and the
  * single-task export. `listsError` makes the discovery fail with that error code.
  */
+/** A connected Microsoft To Do target (invented account and list IDs). */
+export function testMsTodoTarget(overrides: Partial<ExportTarget> = {}): ExportTarget {
+  return testExportTarget({
+    sink: "mstodo",
+    url: "",
+    username: "erika@example.com",
+    has_password: false,
+    list_id: "AQMkADAw-tasks",
+    list_name: "Tasks",
+    ...overrides,
+  });
+}
+
+export const testMsTodoLists: TaskList[] = [
+  { id: "AQMkADAw-tasks", name: "Tasks" },
+  { id: "AQMkADAw-work", name: "Work" },
+];
+
 export function todoExportApi({
   target = null as ExportTarget | null,
   sinks = ["caldav"] as ExportSettings["available_sinks"],
   listsError = undefined as string | undefined,
+  msTodoSignedIn = false,
 } = {}) {
   const requests: CapturedRequest[] = [];
   let current = target;
@@ -77,6 +96,23 @@ export function todoExportApi({
         return new Response(null, { status: 204 });
       case "POST /api/todo-export/sync":
         return new Response(null, { status: 202 });
+      case "POST /api/todo-export/mstodo/connect":
+        return json({ authorization_url: "https://login.example.com/authorize?state=s" });
+      case "POST /api/todo-export/mstodo/lists":
+        return msTodoSignedIn || current?.sink === "mstodo"
+          ? json({ account: "erika@example.com", lists: testMsTodoLists })
+          : problem(409, { error_code: "mstodo_not_connected" });
+      case "PUT /api/todo-export/mstodo": {
+        const list = testMsTodoLists.find((item) => item.id === body?.list_id);
+        current = testMsTodoTarget({
+          list_id: list?.id ?? "",
+          list_name: list?.name ?? "",
+          mode: body?.mode as ExportTarget["mode"],
+          last_sync_at: null,
+          counts: { synced: 0, pending: 0, error: 0, removed: 0 },
+        });
+        return json(settings());
+      }
       default:
         return problem(404);
     }

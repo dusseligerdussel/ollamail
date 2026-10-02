@@ -77,3 +77,28 @@ export function useExportTodo() {
     onSuccess: () => void queryClient.invalidateQueries({ queryKey: todoKeys.all }),
   });
 }
+
+// -- Microsoft To Do: connected by signing in with Microsoft instead of a URL and password.
+
+export type MsTodoLists = components["schemas"]["MsTodoLists"];
+export type MsTodoTargetSave = components["schemas"]["MsTodoTargetSave"];
+
+/** Outside `["todo"]`: a finished sync must not list the account's lists again. */
+export const msTodoListsKey = ["todo-export", "mstodo", "lists"] as const;
+
+/** The Microsoft sign-in URL; the browser comes back to `returnTo` with `mstodo=…`. */
+export function startMsTodoConnect(returnTo: string) {
+  return unwrap(api.POST("/todo-export/mstodo/connect", { body: { return_to: returnTo } }));
+}
+
+export function listMsTodoLists() {
+  return unwrap(api.POST("/todo-export/mstodo/lists"));
+}
+
+/** Errors are shown in the form. */
+export function useSaveMsTodo() {
+  return useSettingsMutation(
+    (body: MsTodoTargetSave) => unwrap(api.PUT("/todo-export/mstodo", { body })),
+    false,
+  );
+}

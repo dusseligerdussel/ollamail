@@ -11,7 +11,7 @@ import abc
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date, datetime
-from typing import ClassVar
+from typing import Any, ClassVar
 
 from app.todos.models import TodoPriority, TodoStatus
 
@@ -137,6 +137,11 @@ class TodoSink(abc.ABC):
         """Status sync: of the ``known`` tasks (remote ID → etag last written), those that
         changed in the target system (``RemoteTask``) or were deleted there (``None``).
         Unchanged tasks are left out."""
+
+    def updated_config(self) -> Mapping[str, Any] | None:
+        """The configuration to store after use if the sink changed it (rotated OAuth
+        tokens, sync state), else ``None``."""
+        return None
 
     async def aclose(self) -> None:  # noqa: B027 (optional hook)
         """Release connections."""
