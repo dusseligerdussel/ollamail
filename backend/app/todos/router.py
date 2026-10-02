@@ -40,6 +40,9 @@ async def list_todos(
         list[TodoStatus] | None, Query(alias="status", description="Repeat for several.")
     ] = None,
     mailbox_id: uuid.UUID | None = None,
+    message_id: Annotated[
+        uuid.UUID | None, Query(description="Todos from (or linked to) this mail.")
+    ] = None,
     due_before: Annotated[date | None, Query(description="Due on or before this day.")] = None,
     due_after: Annotated[date | None, Query(description="Due on or after this day.")] = None,
     limit: Annotated[int, Query(ge=1, le=500)] = 100,
@@ -49,6 +52,7 @@ async def list_todos(
     filters = service.TodoFilter(
         status=status_ or (),
         mailbox_id=mailbox_id,
+        message_id=message_id,
         due_before=due_before,
         due_after=due_after,
     )

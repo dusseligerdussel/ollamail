@@ -10345,6 +10345,25 @@
             }
           },
           {
+            "description": "Todos from (or linked to) this mail.",
+            "in": "query",
+            "name": "message_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "description": "Todos from (or linked to) this mail.",
+              "title": "Message Id"
+            }
+          },
+          {
             "description": "Due on or before this day.",
             "in": "query",
             "name": "due_before",
