@@ -1,7 +1,8 @@
 import { randomUUID } from "node:crypto";
-import tls from "node:tls";
 
-import { expect, type Page, test } from "@playwright/test";
+import { expect, test } from "@playwright/test";
+
+import { appendMessages, imap, signIn } from "./stack";
 
 /**
  * Add a mailbox against the IMAP test server and see its mails in the inbox (real API, worker
@@ -20,77 +21,6 @@ import { expect, type Page, test } from "@playwright/test";
  */
 test.skip(!process.env.E2E_API || !process.env.E2E_IMAP, "needs backend, worker and IMAP server");
 
-const imap = {
-  host: process.env.E2E_IMAP_HOST ?? "localhost",
-  port: Number(process.env.E2E_IMAP_PORT ?? 31993),
-  password: process.env.E2E_IMAP_PASSWORD ?? "ollamail-test",
-};
-const user = {
-  name: "E2E Admin",
-  email: process.env.E2E_EMAIL ?? "e2e-admin@example.org",
-  password: process.env.E2E_PASSWORD ?? "e2e admin password 1",
-};
-
-/** Puts synthetic messages into a fresh test account (IMAP APPEND over TLS). */
-async function appendMessages(address: string, subjects: string[]) {
-  const socket = tls.connect({ host: imap.host, port: imap.port, rejectUnauthorized: false });
-  let buffer = "";
-  socket.setEncoding("utf8");
-  socket.on("data", (chunk) => {
-    buffer += chunk;
-  });
-  const waitFor = async (pattern: RegExp) => {
-    for (let i = 0; i < 200; i += 1) {
-      if (pattern.test(buffer)) return;
-      await new Promise((resolve) => setTimeout(resolve, 25));
-    }
-    throw new Error(`IMAP: no ${pattern} in ${buffer.slice(-200)}`);
-  };
-  await waitFor(/^\* OK/m);
-  socket.write(`a1 LOGIN "${address}" "${imap.password}"\r\n`);
-  await waitFor(/^a1 OK/m);
-  for (const [index, subject] of subjects.entries()) {
-    const message = [
-      "From: Jonas Beispiel <jonas@example.org>",
-      `To: ${address}`,
-      `Subject: ${subject}`,
-      `Message-ID: <e2e-${index}-${randomUUID()}@example.org>`,
-      `Date: ${new Date(Date.now() - index * 60_000).toUTCString()}`,
-      "Content-Type: text/plain; charset=utf-8",
-      "",
-      `Synthetic body ${index}.`,
-      "",
-    ].join("\r\n");
-    const tag = `b${index}`;
-    socket.write(`${tag} APPEND INBOX {${Buffer.byteLength(message)}}\r\n`);
-    await waitFor(/^\+/m);
-    buffer = "";
-    socket.write(`${message}\r\n`);
-    await waitFor(new RegExp(`^${tag} OK`, "m"));
-  }
-  socket.write("z LOGOUT\r\n");
-  socket.end();
-}
-
-async function signIn(page: Page) {
-  const status = await (await page.request.get("/api/setup/status")).json();
-  if (!status.initialized) {
-    await page.goto("/setup");
-    await page.getByLabel("Name").fill(user.name);
-    await page.getByLabel("E-mail address").fill(user.email);
-    await page.getByLabel("Password").fill(user.password);
-    await page.getByLabel("Setup code").fill(process.env.E2E_SETUP_TOKEN ?? "");
-    await page.getByRole("button", { name: "Create administrator" }).click();
-    await page.getByRole("link", { name: "Continue to inbox" }).click();
-  } else {
-    await page.goto("/login");
-    await page.getByLabel("E-mail address").fill(user.email);
-    await page.getByLabel("Password").fill(user.password);
-    await page.getByRole("button", { name: "Sign in" }).click();
-  }
-  await expect(page.getByRole("heading", { level: 1, name: "Inbox" })).toBeVisible();
-}
-
 test("add a mailbox on the IMAP test server → its mails appear in the inbox", async ({ page }) => {
   test.setTimeout(120_000);
   const run = randomUUID().slice(0, 8);
@@ -99,7 +29,10 @@ test("add a mailbox on the IMAP test server → its mails appear in the inbox", 
   const subjects = ["Quarterly planning", "Invoice 2026-1042", "Maintenance on Saturday"].map(
     (subject) => `${subject} ${run}`,
   );
-  await appendMessages(address, subjects);
+  await appendMessages(
+    address,
+    subjects.map((subject) => ({ subject })),
+  );
   await signIn(page);
 
   await page.goto("/settings/mailboxes/new");

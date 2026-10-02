@@ -28,7 +28,10 @@ async function overflow(page: Page) {
   );
 }
 
-test("10,000 messages scroll smoothly", async ({ page }) => {
+// @perf: measures frame times, so it runs alone after all other tests (playwright.config.ts).
+test("10,000 messages scroll smoothly", { tag: "@perf" }, async ({ page }) => {
+  // Scrolling through 400 viewports takes ~20 s.
+  test.setTimeout(60_000);
   await mockMail(page, { messages: 10_000 });
   await page.goto("/inbox");
   const list = page.getByRole("list", { name: "Messages" });
@@ -183,7 +186,7 @@ for (const colorScheme of ["light", "dark"] as const) {
         "/settings/mailboxes/new",
       ]) {
         await page.goto(path);
-        await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
+        await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
         await page.waitForLoadState("networkidle");
         await expectNoA11yViolations(page);
         expect(await overflow(page), path).toBe(0);
