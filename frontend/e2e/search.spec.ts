@@ -52,6 +52,8 @@ test("keyboard only: search, filter, open a hit at the matching passage", async 
   await expect(hits.getByRole("listitem")).toHaveCount(4);
   await expect(hits.getByRole("listitem").first().locator("mark").first()).toHaveText("Rechnung");
   await expect(hits.getByText("Belege-2026.pdf")).toBeVisible();
+  // The receipt is a scan: its text was recognised (OCR).
+  await expect(hits.getByRole("listitem").nth(3).getByText("(OCR)")).toBeVisible();
 
   // Filter chip by keyboard: Tab to "Date", open, choose.
   await page.keyboard.press("Tab");

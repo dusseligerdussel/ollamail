@@ -19,7 +19,7 @@ ENV_PREFIX = "OLLAMAIL_"
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
 # Job queues, see app/worker.py.
-QueueName = Literal["sync", "llm", "tts", "default"]
+QueueName = Literal["sync", "llm", "tts", "ocr", "default"]
 
 
 def _config(group: str = "") -> SettingsConfigDict:
@@ -466,6 +466,19 @@ class SearchSettings(BaseSettings):
     extraction_timeout: float = Field(default=30.0, gt=0, le=600)
     extraction_max_memory_mb: int = Field(default=1024, ge=128)
 
+    # OCR of scanned attachments with Tesseract (docs/OPERATIONS.md, OCR): ``off``,
+    # ``pdf`` (PDF pages without text) or ``all`` (also PNG, JPEG and TIFF images).
+    # Runs as job on the ``ocr`` queue, in the same isolated process as the extraction.
+    ocr_mode: Literal["off", "pdf", "all"] = "pdf"
+    # Pages recognised per PDF at most (pages with a text layer do not count).
+    ocr_max_pages: int = Field(default=20, ge=1, le=1000)
+    # Tesseract language packs, ``+``-separated (the image contains ``deu`` and ``eng``).
+    ocr_languages: str = Field(default="deu+eng", pattern=r"^[a-z_]{3,16}(\+[a-z_]{3,16}){0,7}$")
+    # Run time limit of one attachment's OCR, in seconds.
+    ocr_timeout: float = Field(default=300.0, gt=0, le=3600)
+    # Parallel OCR jobs per worker process (``ocr`` queue); each uses one CPU core.
+    ocr_concurrency: int = Field(default=1, ge=1, le=64)
+
     # Retrieval: candidates per index (full text, vectors) before Reciprocal Rank Fusion,
     # and the RRF constant k (score = sum of 1 / (k + rank)).
     candidates: int = Field(default=50, ge=1, le=1000)
@@ -606,7 +619,7 @@ class WorkerSettings(BaseSettings):
     # Queues this worker process consumes, comma-separated in the environment
     # (e.g. ``OLLAMAIL_WORKER_QUEUES=llm`` for a dedicated LLM worker).
     queues: Annotated[list[QueueName], NoDecode] = Field(
-        default=["sync", "llm", "tts", "default"], min_length=1
+        default=["sync", "llm", "tts", "ocr", "default"], min_length=1
     )
     # Parallel jobs for all consumed queues except ``llm`` (see ``LLMSettings.concurrency``).
     concurrency: int = Field(default=4, ge=1)

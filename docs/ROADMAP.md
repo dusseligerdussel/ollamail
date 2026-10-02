@@ -25,4 +25,4 @@ Monorepo-Gerüst, CI, Docker Compose, Datenbank, Konfiguration, Krypto, Logging,
 - SAML, SCIM, WebAuthn
 - Helm-Chart
 - Paperless-ngx-Anbindung (Anhänge automatisch ablegen) – bewusst zurückgestellt
-- OCR für gescannte Anhänge
+- ~~OCR für gescannte Anhänge~~ (#98)

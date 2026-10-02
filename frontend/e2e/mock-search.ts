@@ -23,6 +23,8 @@ export interface MockSearch {
   searchError?: boolean;
   /** `POST /api/search` never answers (skeleton). */
   searchHang?: boolean;
+  /** The answer also cites the scanned attachment (source "attachment_ocr"). */
+  ocrSource?: boolean;
 }
 
 const id = (prefix: string, index: number) =>
@@ -41,6 +43,8 @@ interface SyntheticMail {
   text: string;
   excerpt: string;
   attachment?: string;
+  /** The attachment is a scan; its text was recognised (OCR). */
+  ocr?: boolean;
 }
 
 export const searchMails: SyntheticMail[] = [
@@ -76,6 +80,7 @@ export const searchMails: SyntheticMail[] = [
     excerpt:
       "… Seite 4: Rechnung Malerbetrieb Pinsel & Rolle, Betrag 1.240,00 EUR, bezahlt am 3. September …",
     attachment: "Belege-2026.pdf",
+    ocr: true,
   },
 ];
 
@@ -86,7 +91,7 @@ const hits = searchMails.map((mail, index) => ({
   subject: mail.subject,
   sender: { name: mail.sender[0], address: mail.sender[1] },
   date: mail.date,
-  source: mail.attachment ? "attachment" : "body",
+  source: mail.attachment ? (mail.ocr ? "attachment_ocr" : "attachment") : "body",
   attachment_id: mail.attachment ? id("0193d000", index) : null,
   attachment_filename: mail.attachment ?? null,
   excerpt: mail.excerpt,
@@ -150,6 +155,19 @@ const sources = [0, 1, 2].map((index) => ({
   snippet: searchMails[index]?.excerpt ?? "",
 }));
 
+const ocrSource = {
+  number: 4,
+  message_id: searchMessageId(3),
+  mailbox_id: mailboxIds.private,
+  attachment_id: id("0193d000", 3),
+  source: "attachment_ocr",
+  heading: `${heading(3)}\nAttachment: Belege-2026.pdf`,
+  snippet: searchMails[3]?.excerpt ?? "",
+};
+
+const ANSWER_OCR =
+  " Die Handwerker-Rechnung über 1.240,00 EUR ist laut Beleg am 3. September bezahlt worden [4].";
+
 const ANSWER =
   "Die Rechnung 2026-1042 für September ist innerhalb von 14 Tagen zu zahlen, also bis zum 15. Oktober [1]. Die Rechnungsstelle hat heute daran erinnert und bittet darum, die Rechnungsnummer im Verwendungszweck anzugeben [2].";
 
@@ -157,7 +175,7 @@ function words(text: string) {
   return text.match(/\S+\s*/g) ?? [];
 }
 
-function streamEvents(scenario: AnswerScenario) {
+function streamEvents(scenario: AnswerScenario, ocr = false) {
   const start = {
     type: "start",
     conversation_id: conversationId(100),
@@ -170,9 +188,9 @@ function streamEvents(scenario: AnswerScenario) {
       return [
         start,
         filters,
-        { type: "sources", sources },
-        ...words(ANSWER).map((text) => ({ type: "token", text })),
-        { type: "done", status: "answered", citations: [1, 2], ttft_ms: 840 },
+        { type: "sources", sources: ocr ? [...sources, ocrSource] : sources },
+        ...words(ocr ? ANSWER + ANSWER_OCR : ANSWER).map((text) => ({ type: "token", text })),
+        { type: "done", status: "answered", citations: ocr ? [1, 2, 4] : [1, 2], ttft_ms: 840 },
       ];
     case "no_evidence":
       return [
@@ -221,6 +239,7 @@ export async function mockSearch(
     history: withHistory = true,
     searchError = false,
     searchHang = false,
+    ocrSource: withOcrSource = false,
   }: MockSearch = {},
 ) {
   let stored = withHistory ? conversations() : [];
@@ -275,7 +294,7 @@ export async function mockSearch(
       };
     },
     {
-      events: streamEvents(answer),
+      events: streamEvents(answer, withOcrSource),
       step,
       pauseAfter: answer === "hang" ? streamEvents("hang").length : pauseAfter,
     },
@@ -377,11 +396,13 @@ export async function mockSearch(
                 id:
                   conversationKey === conversationId(100) ? conversationId(102) : id("0193f000", 2),
                 role: "assistant",
-                content: ANSWER,
+                content: withOcrSource ? ANSWER + ANSWER_OCR : ANSWER,
                 created_at: NOW.toISOString(),
                 filters: null,
                 status: "answered",
-                citations: sources.slice(0, 2),
+                citations: withOcrSource
+                  ? [...sources.slice(0, 2), ocrSource]
+                  : sources.slice(0, 2),
               },
             ],
           });

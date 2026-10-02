@@ -175,7 +175,7 @@ worker:
   tolerations: []
   affinity: {}
   topologySpreadConstraints: []
-  # One Deployment per group (<release>-worker-<name>). Queues: sync, llm, tts, default;
+  # One Deployment per group (<release>-worker-<name>). Queues: sync, llm, tts, ocr, default;
   # every queue must be consumed by at least one group. Per group: name, replicaCount,
   # queues, concurrency, llmMaxConcurrency (OLLAMAIL_LLM_MAX_CONCURRENCY), config (extra
   # settings), resources, nodeSelector, tolerations, affinity, topologySpreadConstraints,
@@ -183,7 +183,7 @@ worker:
   # Example: LLM jobs on a separate GPU node pool
   #   groups:
   #     - name: main
-  #       queues: [sync, tts, default]
+  #       queues: [sync, tts, ocr, default]
   #     - name: llm
   #       replicaCount: 2
   #       queues: [llm]
@@ -192,7 +192,7 @@ worker:
   groups:
     - name: all
       replicaCount: 1
-      queues: [sync, llm, tts, default]
+      queues: [sync, llm, tts, ocr, default]
 
 # -----------------------------------------------------------------------------
 # frontend (static UI + reverse proxy /api -> api, Caddy)

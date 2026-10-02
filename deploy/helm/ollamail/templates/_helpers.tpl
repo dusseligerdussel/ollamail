@@ -126,7 +126,7 @@ imagePullPolicy: {{ include "ollamail.pullPolicy" (dict "root" . "tag" $tag) }}
 {{- if not .Values.worker.groups }}
 {{- fail "worker.groups must define at least one worker group" }}
 {{- end }}
-{{- $allQueues := list "sync" "llm" "tts" "default" }}
+{{- $allQueues := list "sync" "llm" "tts" "ocr" "default" }}
 {{- $consumed := list }}
 {{- $names := list }}
 {{- range $group := .Values.worker.groups }}
@@ -146,7 +146,7 @@ imagePullPolicy: {{ include "ollamail.pullPolicy" (dict "root" . "tag" $tag) }}
 {{- end }}
 {{- range $queue := $group.queues }}
 {{- if not (has $queue $allQueues) }}
-{{- fail (printf "worker.groups.%s.queues: unknown queue %q (sync, llm, tts, default)" $name $queue) }}
+{{- fail (printf "worker.groups.%s.queues: unknown queue %q (sync, llm, tts, ocr, default)" $name $queue) }}
 {{- end }}
 {{- $consumed = append $consumed $queue }}
 {{- end }}

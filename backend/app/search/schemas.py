@@ -41,7 +41,7 @@ class SearchHitRead(BaseModel):
     sender: AddressRead | None
     # Received, else sent, else stored.
     date: datetime
-    # ``body`` or ``attachment``.
+    # ``body``, ``attachment`` or ``attachment_ocr`` (text recognised from a scan).
     source: str
     attachment_id: uuid.UUID | None
     attachment_filename: str | None

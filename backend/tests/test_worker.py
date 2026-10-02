@@ -51,13 +51,14 @@ def test_worker_groups_give_llm_its_own_concurrency() -> None:
     assert worker_groups(settings) == [
         WorkerGroup("main", ("sync", "tts", "default"), 6),
         WorkerGroup("llm", ("llm",), 3),
+        WorkerGroup("ocr", ("ocr",), 1),
     ]
 
 
 def test_llm_slots_cover_a_higher_default_concurrency() -> None:
     settings = Settings(llm=LLMSettings(concurrency=6, max_concurrency=2))
 
-    assert worker_groups(settings)[-1] == WorkerGroup("llm", ("llm",), 6)
+    assert worker_groups(settings)[1] == WorkerGroup("llm", ("llm",), 6)
 
 
 @pytest.mark.parametrize(
@@ -65,6 +66,7 @@ def test_llm_slots_cover_a_higher_default_concurrency() -> None:
     [
         ("llm", [WorkerGroup("llm", ("llm",), 4)]),
         ("sync, tts", [WorkerGroup("main", ("sync", "tts"), 4)]),
+        ("ocr", [WorkerGroup("ocr", ("ocr",), 1)]),
     ],
 )
 def test_worker_queues_from_environment(
@@ -78,10 +80,11 @@ def test_worker_queues_from_environment(
 def test_concurrency_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OLLAMAIL_WORKER_CONCURRENCY", "8")
     monkeypatch.setenv("OLLAMAIL_LLM_MAX_CONCURRENCY", "3")
+    monkeypatch.setenv("OLLAMAIL_SEARCH_OCR_CONCURRENCY", "2")
 
     groups = worker_groups(Settings())
 
-    assert [(g.name, g.concurrency) for g in groups] == [("main", 8), ("llm", 3)]
+    assert [(g.name, g.concurrency) for g in groups] == [("main", 8), ("llm", 3), ("ocr", 2)]
 
 
 def test_unknown_queue_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -236,7 +239,7 @@ async def test_worker_process_runs_task_and_stops_on_sigterm(
     )
     try:
         await _wait_for_status(job_id, "succeeded")
-        assert await _execute("SELECT count(*) FROM procrastinate_workers") == [(2,)]
+        assert await _execute("SELECT count(*) FROM procrastinate_workers") == [(3,)]
 
         process.send_signal(signal.SIGTERM)
         output, _ = await asyncio.wait_for(process.communicate(), timeout=20)

@@ -30,7 +30,7 @@ worker:
     limits: {memory: 1Gi}
   groups:
     - name: main
-      queues: [sync, tts, default]
+      queues: [sync, tts, ocr, default]
     - name: llm
       queues: [llm]
       llmMaxConcurrency: 2

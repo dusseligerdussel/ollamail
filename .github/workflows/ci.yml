@@ -143,6 +143,11 @@ jobs:
           sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends slapd
           sudo systemctl disable --now slapd
           sudo apparmor_parser -R /etc/apparmor.d/usr.sbin.slapd || true
+      # OCR tests run the real Tesseract (tests/search/test_ocr.py), as in the image.
+      - name: Install Tesseract
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -yq --no-install-recommends \
+            tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng
       - name: Lint
         run: uv run ruff check .
       - name: Format check
@@ -156,6 +161,7 @@ jobs:
         env:
           OLLAMAIL_TEST_REQUIRE_LDAP: "1"
           OLLAMAIL_TEST_REQUIRE_KEYCLOAK: "1"
+          OLLAMAIL_TEST_REQUIRE_TESSERACT: "1"
 
   frontend:
     name: Frontend

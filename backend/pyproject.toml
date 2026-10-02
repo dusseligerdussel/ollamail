@@ -26,6 +26,7 @@ dependencies = [
     "pydantic-settings>=2.3",
     "pyotp>=2.10.0",
     "pypdf>=5",
+    "pypdfium2>=5",
     "python3-saml>=1.16",
     "segno>=1.6.6",
     "sqlalchemy[asyncio]>=2.0.30",
@@ -40,6 +41,7 @@ dev = [
     "feedparser>=6.0.14",
     "httpx>=0.27",
     "mypy>=1.10",
+    "pillow>=11",
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
     "radicale>=3.5",
@@ -64,7 +66,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["authlib.*", "num2words.*", "onelogin.*", "py3langid.*"]
+module = ["authlib.*", "num2words.*", "onelogin.*", "py3langid.*", "pypdfium2.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
