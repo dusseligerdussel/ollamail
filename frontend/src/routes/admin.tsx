@@ -1,5 +1,6 @@
 import { createFileRoute, Link } from "@tanstack/react-router";
 import {
+  Archive,
   ChevronRight,
   Cpu,
   KeyRound,
@@ -72,6 +73,12 @@ function AdminPage() {
                 </span>
                 <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
               </Link>
+              <AdminLink
+                to="/admin/retention"
+                icon={Archive}
+                title={t("pages.retention.title")}
+                description={t("pages.admin.retentionDescription")}
+              />
             </div>
           </section>
           <section aria-labelledby="admin-ai" className="mt-6">
@@ -107,7 +114,7 @@ function AdminLink({
   title,
   description,
 }: {
-  to: "/admin/sign-in" | "/admin/role-mapping" | "/admin/users";
+  to: "/admin/sign-in" | "/admin/role-mapping" | "/admin/users" | "/admin/retention";
   icon: LucideIcon;
   title: string;
   description: string;

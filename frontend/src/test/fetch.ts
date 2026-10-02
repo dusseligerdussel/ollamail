@@ -57,7 +57,7 @@ export interface TestBackend {
 
 /**
  * Handler for a set-up instance: `/api/healthz`, setup status, the signed-in user (an admin by
- * default), sign-in options and sessions; everything else 404.
+ * default), sign-in options, sessions and the account's privacy options; everything else 404.
  */
 export function backend({
   initialized = true,
@@ -78,6 +78,10 @@ export function backend({
         return json(providers);
       case "GET /api/auth/sessions":
         return user ? json([testSession]) : problem(401);
+      case "GET /api/privacy/account":
+        return user ? json({ self_delete_enabled: true, export_expiry_hours: 24 }) : problem(401);
+      case "GET /api/privacy/exports":
+        return user ? json([]) : problem(401);
       default:
         return problem(404);
     }

@@ -119,7 +119,8 @@
       "access": "Sign-in and users",
       "signInDescription": "Identity providers, LDAP directories and local accounts.",
       "roleMappingDescription": "Derive roles from the groups of your identity provider.",
-      "usersDescription": "Roles, deactivation, sessions and invitations."
+      "usersDescription": "Roles, deactivation, sessions and invitations.",
+      "retentionDescription": "How long mails, attachments, search index, question history, digests and audit log are kept."
     },
     "audit": {
       "title": "Audit log",
@@ -193,7 +194,8 @@
         },
         "data": {
           "exported": "Data exported",
-          "deleted": "Data deleted"
+          "deleted": "Data deleted",
+          "retention_changed": "Retention changed"
         },
         "crypto": {
           "keys_rotated": "Keys rotated"
@@ -546,6 +548,51 @@
         "done": "Done",
         "localDisabled": "Local sign-in is disabled; invited users could not sign in."
       }
+    },
+    "retention": {
+      "title": "Retention",
+      "back": "Back to admin",
+      "section": "Retention periods",
+      "job": "Daily deletion",
+      "custom": "Custom",
+      "days": "days",
+      "forever": "keep forever",
+      "defaultDays_one": "Default: {{count}} day",
+      "defaultDays_other": "Default: {{count}} days",
+      "defaultForever": "Default: keep forever",
+      "reset": "Use default",
+      "hint": "0 keeps the data. Deleted data cannot be restored.",
+      "save": "Save",
+      "saved": "Retention periods saved.",
+      "shortMailWarning": "Shorter than the initial import of new mailboxes ({{days}} days): a full resync imports older mails, which are deleted again the next night.",
+      "neverRun": "Not run yet. Data older than the retention periods is deleted every night, including files.",
+      "lastRun": "Last run {{date}}: {{mails}} mails, {{attachments}} attachments, {{chunks}} search index entries and {{events}} audit log entries deleted.",
+      "fields": {
+        "mail_days": {
+          "label": "Mails",
+          "description": "With attachments, search index and triage results, by date received."
+        },
+        "attachment_days": {
+          "label": "Attachments",
+          "description": "Only the attachment files; the mail stays."
+        },
+        "search_index_days": {
+          "label": "Search index",
+          "description": "Older mails are no longer found by search and questions."
+        },
+        "rag_history_days": {
+          "label": "Question history",
+          "description": "Conversations, after the last question."
+        },
+        "digest_days": {
+          "label": "Digests",
+          "description": "Summaries with audio files. At least one day."
+        },
+        "audit_days": {
+          "label": "Audit log",
+          "description": "Security events. The hash chain stays verifiable from the oldest remaining entry."
+        }
+      }
     }
   },
   "notFound": {
@@ -838,5 +885,32 @@
     "copy": "Copy",
     "copied": "Copied",
     "label": "Copy {{label}}"
+  },
+  "privacy": {
+    "section": "Your data",
+    "export": {
+      "title": "Export data",
+      "description": "ZIP with your profile, categories, corrections, tasks, digests including audio, and question history. The download link is valid for {{hours}} hours.",
+      "request": "Request export",
+      "list": "Exports",
+      "item": "Export of {{date}}",
+      "running": "Being prepared…",
+      "ready": "{{size}} · available until {{date}}",
+      "failed": "Export failed. Please request it again.",
+      "download": "Download",
+      "deleteLabel": "Delete {{name}}"
+    },
+    "delete": {
+      "title": "Delete account",
+      "description": "Deletes your account with all mailboxes, mails, tasks, digests and question history. This cannot be undone.",
+      "disabled": "Accounts are deleted by an administrator. Contact them if you want your account removed.",
+      "open": "Delete account…",
+      "confirmTitle": "Delete your account permanently?",
+      "confirmDescription": "All mailboxes, mails, attachments, tasks, digests, question history and exports are deleted immediately. The mails remain in your mail accounts. Export your data first if you want to keep it.",
+      "confirmLabel": "To confirm, enter your e-mail address {{email}}",
+      "cancel": "Cancel",
+      "confirm": "Delete account",
+      "lastAdmin": "You are the last administrator. Make another user an administrator first."
+    }
   }
 }
