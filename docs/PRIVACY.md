@@ -30,6 +30,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Telemetrie | Keine. Keine externen Fonts/CDNs im Frontend. Die eingebaute Telemetrie von ONNX Runtime (von Piper genutzt) ist per `ORT_DISABLE_TELEMETRY=1` abgeschaltet, im Code und im Image (Test: `tests/ai/tts/test_piper.py`) |
+| Triage | Few-Shot-Beispiele nur aus Korrekturen desselben Nutzers in eigenen Postfächern (doppelt gefiltert, Test `tests/triage/test_isolation.py`); Kategorien anderer Nutzer werden nie angeboten. Prompts, Antworten und Begründungen nie in Logs, Fehlercodes statt Exception-Texten. Zurückschreiben aufs Postfach nur nach Opt-in je Postfach |
 | LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename und die Verzeichnis-ID (`objectGUID`/`entryUUID`); Gruppen werden bei jedem Login gelesen, nicht gespeichert. Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
 | Anhänge lesen | Textextraktion (PDF, DOCX, TXT, HTML) in einem eigenen Prozess ohne Umgebungsvariablen (keine Secrets), mit Grenzen für Dateigröße, Laufzeit, Speicher und ohne Schreibrechte; Fehler nur als Statuscode |
 | Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/search/access.py`), getestet in `tests/search/test_service.py` |
@@ -124,6 +125,11 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   Schritt) und `processing_mailbox_settings` (Opt-out je Postfach) hängen per `ON DELETE CASCADE`
   an Mail bzw. Postfach. Gespeichert werden nur Schrittname, Version, Status und ein
   Fehlercode (`StepError.code` oder Name der Exception-Klasse), nie Exception-Texte.
+  Umsetzung Triage (`backend/app/triage/`, #20): `triage_results` und `triage_feedback` hängen per
+  `ON DELETE CASCADE` an der Mail, `triage_mailbox_settings` am Postfach; eigene Kategorien,
+  Sichtbarkeit/Reihenfolge und Absenderregeln am Nutzer. Korrekturen speichern keinen Mailtext,
+  sondern verweisen auf die Mail; der Text für Few-Shot-Beispiele wird beim Klassifizieren aus der
+  Mail gelesen und verschwindet mit ihr.
   Umsetzung Suchindex (`backend/app/search/`): `search_chunks` (Textabschnitte aus Mails und
   Anhängen) hängen per `ON DELETE CASCADE` an Mail, Anhang und Postfach, `search_embeddings` an
   den Chunks. Mail oder Postfach löschen löscht ihren Index mit. Der Index enthält Mail-Inhalte;

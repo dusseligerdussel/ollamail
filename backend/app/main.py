@@ -27,6 +27,7 @@ from app.core.logging import configure_logging
 from app.core.middleware import RequestContextMiddleware
 from app.core.openapi import generate_operation_id
 from app.todos.router import router as todos_router
+from app.triage.router import router as triage_router
 from app.users.router import router as users_router
 
 
@@ -83,6 +84,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(ldap_router)
     app.include_router(users_router)
     app.include_router(todos_router)
+    app.include_router(triage_router)
     app.include_router(audit_router)
     return app
 

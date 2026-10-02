@@ -602,7 +602,10 @@ verarbeitet.
 | Postfach-Zugangsdaten, OAuth-Tokens, IdP-Secrets | PostgreSQL, verschlüsselt mit `OLLAMAIL_SECRET_KEY` | geplant (#6, #15) |
 | E-Mails (Header, Inhalte, Metadaten) | PostgreSQL | geplant (#13, #14) |
 | Anhänge | Daten-Volume (`ollamail-data`) | geplant (#13) |
-| KI-Ergebnisse: Triage, Aufgaben | PostgreSQL | geplant (#20, #22) |
+| Triage: Kategorie, Priorität, Begründung (ein Satz) je Mail | PostgreSQL (`triage_results`), gelöscht mit der Mail | vorhanden (#20) |
+| Triage-Korrekturen (Few-Shot-Beispiele, nur für denselben Nutzer; Embeddings als Zahlenvektor) | PostgreSQL (`triage_feedback`), gelöscht mit Mail oder Nutzer | vorhanden (#20) |
+| Kategorien, Absenderregeln (Adresse oder Domain), Einstellungen je Nutzer/Postfach | PostgreSQL (`triage_categories`, `triage_category_preferences`, `triage_sender_rules`, `triage_mailbox_settings`) | vorhanden (#20) |
+| KI-Ergebnisse: Aufgaben | PostgreSQL | geplant (#22) |
 | Suchindex: Text-Abschnitte von Mails und Anhängen, Volltextindex, Embeddings | PostgreSQL: `search_chunks`, `search_embeddings` (pgvector); hängen per `ON DELETE CASCADE` an Mail, Anhang und Postfach | vorhanden (#24) |
 | Chat-Verläufe („Frag deine Inbox“) | PostgreSQL | geplant (#25) |
 | Daily Digest: Text und Audio | PostgreSQL bzw. Daten-Volume | geplant (#28) |
