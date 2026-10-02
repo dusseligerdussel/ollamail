@@ -206,6 +206,9 @@ async def visible_contents(
         "todos": [t["id"] for t in (await client.get("/todos")).json()],
         "todo": (await client.get(f"/todos/{team.todo_id}")).status_code,
         "search": len(hits),
+        "search_api": len(
+            (await client.post("/search", json={"query": "hotline office"})).json()["hits"]
+        ),
         "rag_sources": len(events[2][1]["sources"]),
         "digest_mails": len(collected.mails),
         "members": (await client.get(f"/mailboxes/{team.mailbox_id}/members")).status_code,
@@ -223,6 +226,8 @@ VISIBLE = {
     "todo": 200,
     # Mail body and attachment.
     "search": 2,
+    # One hit per message.
+    "search_api": 1,
     "rag_sources": 2,
     "digest_mails": 1,
     "members": 200,
@@ -238,6 +243,7 @@ GONE = {
     "todos": [],
     "todo": 404,
     "search": 0,
+    "search_api": 0,
     "rag_sources": 0,
     "digest_mails": 0,
     "members": 404,

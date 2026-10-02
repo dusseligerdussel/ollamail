@@ -85,9 +85,8 @@
     },
     "tasks": {
       "emptyTitle": "No tasks",
-      "emptyDescription": "Tasks found in your messages are listed here.",
-      "emptyAction": "Go to inbox",
-      "noSelection": "No task selected"
+      "emptyDescription": "Tasks found in your messages appear here. Add your own with the field above.",
+      "emptyAction": "Go to inbox"
     },
     "digest": {
       "emptyTitle": "No digest yet",
@@ -849,6 +848,48 @@
     "title": "ollamail could not be loaded",
     "retry": "Try again"
   },
+  "tasks": {
+    "fromMail": "Tasks from this message",
+    "addFromMail": "Add task to this message",
+    "showAll": "All tasks",
+    "newTask": "New task",
+    "newTaskPlaceholder": "New task",
+    "title": "Title",
+    "rename": "Edit title",
+    "complete": "Mark as done",
+    "reopen": "Reopen",
+    "completeTask": "Mark “{{title}}” as done",
+    "reopenTask": "Reopen “{{title}}”",
+    "dismiss": "Dismiss",
+    "dismissTask": "Dismiss “{{title}}”",
+    "dismissed": "Task dismissed",
+    "undo": "Undo",
+    "openMailShort": "Open message",
+    "openMail": "Open message of “{{title}}”",
+    "dueDate": "Due date",
+    "dueOn": "Due {{date}}",
+    "setDate": "Set due date",
+    "changeDate": "Change due date",
+    "date": {
+      "today": "Today",
+      "tomorrow": "Tomorrow",
+      "nextWeek": "Next week",
+      "none": "No date",
+      "apply": "Set"
+    },
+    "groups": {
+      "overdue": "Overdue",
+      "today": "Today",
+      "upcoming": "Upcoming",
+      "someday": "No date",
+      "done": "Done"
+    },
+    "shortcuts": {
+      "new": "New task",
+      "toggleDone": "Mark task as done or open",
+      "date": "Change due date"
+    }
+  },
   "mail": {
     "listLabel": "Messages",
     "noSubject": "(No subject)",
@@ -888,7 +929,8 @@
     "ownMailboxes": "My mailboxes",
     "sharedMailboxes": "Shared mailboxes",
     "readOnly": "Shared mailbox, read only",
-    "readOnlyHint": "Read and unread are kept per mailbox; in shared mailboxes only your administrator can change them."
+    "readOnlyHint": "Read and unread are kept per mailbox; in shared mailboxes only your administrator can change them.",
+    "foundInAttachment": "Match found in this attachment"
   },
   "mailboxes": {
     "title": "Mailboxes",
@@ -1176,6 +1218,70 @@
       "empty": "No organization categories",
       "emptyDescription": "Add categories that every user gets.",
       "deleteDescription": "“{{category}}” will be deleted for all users. Its messages will be uncategorized."
+    }
+  },
+  "search": {
+    "inputLabel": "Search terms or question",
+    "placeholder": "Search or ask a question",
+    "followUpPlaceholder": "Ask a follow-up or search again",
+    "keyHint": "<0></0> Search · <1></1> Ask as a question",
+    "new": "New search",
+    "hits": "Results",
+    "askInstead": "Answer as a question",
+    "noHitsTitle": "No results",
+    "noHitsDescription": "Try other keywords or remove filters.",
+    "idleTitle": "Search your mail",
+    "idleDescription": "Keywords find messages, questions get an answer with sources from your mail.",
+    "noMailboxesTitle": "Nothing to search yet",
+    "noMailboxesDescription": "Search covers all synced messages and attachments of a connected mailbox.",
+    "detailHint": "Select a result or source to open the message at the matching passage. <0></0> / <1></1> moves between results.",
+    "detailHintTouch": "Select a result or source to open the message at the matching passage.",
+    "shortcuts": {
+      "open": "Open result"
+    },
+    "filters": {
+      "label": "Filters",
+      "period": "Date",
+      "anyTime": "Any time",
+      "periods": {
+        "7d": "Last 7 days",
+        "30d": "Last 30 days",
+        "1y": "Last 12 months"
+      },
+      "sender": "Sender",
+      "senderPlaceholder": "Name or address",
+      "mailbox": "Mailbox",
+      "category": "Category",
+      "anyCategory": "All categories",
+      "clear": "Remove filter “{{filter}}”",
+      "reset": "Reset filters"
+    },
+    "answer": {
+      "title": "Answers",
+      "searching": "Looking for matching messages …",
+      "cancel": "Cancel",
+      "cancelled": "Cancelled. The answer was not saved.",
+      "sources": "Sources",
+      "openSource": "Open source {{number}}",
+      "noEvidenceTitle": "Not enough evidence",
+      "noEvidenceDescription": "Nothing in your mail answers this question with evidence.",
+      "errors": {
+        "llm_unavailable": "The language model is not reachable right now. Please try again later.",
+        "llm_cloud_disabled": "The configured language model runs in the cloud, but cloud models are turned off.",
+        "llm_error": "The language model could not produce an answer.",
+        "internal": "The answer could not be created.",
+        "interrupted": "The connection was interrupted. The answer is incomplete."
+      }
+    },
+    "history": {
+      "title": "History",
+      "emptyTitle": "No questions yet",
+      "emptyDescription": "Questions you ask appear here and can be reopened or deleted.",
+      "delete": "Delete “{{title}}”",
+      "deleteShort": "Delete",
+      "deleteAll": "Clear history",
+      "confirmAll": "Delete all questions and answers?",
+      "keep": "Keep"
     }
   }
 }

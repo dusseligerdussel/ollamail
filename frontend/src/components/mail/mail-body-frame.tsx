@@ -2,6 +2,10 @@ import { useEffect, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { useTheme } from "@/components/theme-provider";
+import { findPassageRange } from "@/lib/find-passage";
+
+/** Name of the CSS highlight that marks a passage the mail was opened at (search). */
+const PASSAGE_HIGHLIGHT = "ollamail-passage";
 
 /**
  * Content Security Policy of the mail document. The HTML is already sanitised by the server;
@@ -37,6 +41,7 @@ const baseStyle = (paper: boolean) => `
   pre { white-space: pre-wrap; }
   a { color: #1d4ed8; }
   blockquote { margin: 0 0 0 8px; padding-left: 8px; border-left: 2px solid #d4d4d8; color: #52525b; }
+  ::highlight(${PASSAGE_HIGHLIGHT}) { background-color: #d6e4f7; color: inherit; }
 `;
 
 export function mailDocument(html: string, externalImages: boolean, paper = false) {
@@ -52,6 +57,23 @@ interface MailBodyFrameProps {
   html: string;
   externalImages: boolean;
   title: string;
+  /** Text to mark and scroll to, e.g. the passage a search hit or a cited source found. */
+  passage?: string;
+}
+
+/** Marks `passage` in the mail document (CSS highlight, no DOM change) and returns its range. */
+function markPassage(frame: HTMLIFrameElement, passage: string | undefined) {
+  const view = frame.contentWindow as (Window & typeof globalThis) | null;
+  const body = frame.contentDocument?.body;
+  if (!view || !body) return undefined;
+  const highlights = view.CSS?.highlights;
+  highlights?.delete(PASSAGE_HIGHLIGHT);
+  if (!passage) return undefined;
+  const range = findPassageRange(body, passage);
+  if (range && highlights && typeof view.Highlight === "function") {
+    highlights.set(PASSAGE_HIGHLIGHT, new view.Highlight(range));
+  }
+  return range;
 }
 
 /**
@@ -60,11 +82,14 @@ interface MailBodyFrameProps {
  * the app size the frame to its content and lets inline images load with the session cookie;
  * nothing inside the frame can run code.
  */
-export function MailBodyFrame({ html, externalImages, title }: MailBodyFrameProps) {
+export function MailBodyFrame({ html, externalImages, title, passage }: MailBodyFrameProps) {
   const { t } = useTranslation();
   const paper = useTheme().resolvedTheme === "dark";
   const frame = useRef<HTMLIFrameElement>(null);
   const [height, setHeight] = useState(160);
+  // Counts loads of the document, so the passage is marked again after a reload.
+  const [loads, setLoads] = useState(0);
+  const scrolledTo = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     const element = frame.current;
@@ -78,6 +103,7 @@ export function MailBodyFrame({ html, externalImages, title }: MailBodyFrameProp
     };
     const onLoad = () => {
       measure();
+      setLoads((count) => count + 1);
       const body = element.contentDocument?.body;
       if (body && typeof ResizeObserver !== "undefined") {
         observer?.disconnect();
@@ -91,6 +117,18 @@ export function MailBodyFrame({ html, externalImages, title }: MailBodyFrameProp
       observer?.disconnect();
     };
   }, []);
+
+  // Runs after the frame got its full height, so the page can scroll to the passage.
+  // biome-ignore lint/correctness/useExhaustiveDependencies: `height` re-runs it after resizing
+  useEffect(() => {
+    const element = frame.current;
+    if (!element || loads === 0) return;
+    const range = markPassage(element, passage);
+    const key = passage && `${loads}:${passage}`;
+    if (!range || !key || scrolledTo.current === key) return;
+    scrolledTo.current = key;
+    range.startContainer.parentElement?.scrollIntoView?.({ block: "center" });
+  }, [loads, passage, height]);
 
   return (
     <iframe

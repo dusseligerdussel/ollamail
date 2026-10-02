@@ -85,9 +85,8 @@
     },
     "tasks": {
       "emptyTitle": "Keine Aufgaben",
-      "emptyDescription": "Aufgaben aus deinen Nachrichten werden hier aufgelistet.",
-      "emptyAction": "Zum Posteingang",
-      "noSelection": "Keine Aufgabe ausgewählt"
+      "emptyDescription": "Aufgaben aus deinen Mails erscheinen hier. Eigene legst du im Feld oben an.",
+      "emptyAction": "Zum Posteingang"
     },
     "digest": {
       "emptyTitle": "Noch kein Digest",
@@ -849,6 +848,48 @@
     "title": "ollamail konnte nicht geladen werden",
     "retry": "Erneut versuchen"
   },
+  "tasks": {
+    "fromMail": "Aufgaben aus dieser Mail",
+    "addFromMail": "Aufgabe zu dieser Mail anlegen",
+    "showAll": "Alle Aufgaben",
+    "newTask": "Neue Aufgabe",
+    "newTaskPlaceholder": "Neue Aufgabe",
+    "title": "Titel",
+    "rename": "Titel bearbeiten",
+    "complete": "Als erledigt markieren",
+    "reopen": "Wieder öffnen",
+    "completeTask": "„{{title}}“ als erledigt markieren",
+    "reopenTask": "„{{title}}“ wieder öffnen",
+    "dismiss": "Verwerfen",
+    "dismissTask": "„{{title}}“ verwerfen",
+    "dismissed": "Aufgabe verworfen",
+    "undo": "Rückgängig",
+    "openMailShort": "Mail öffnen",
+    "openMail": "Mail zu „{{title}}“ öffnen",
+    "dueDate": "Fälligkeitsdatum",
+    "dueOn": "Fällig {{date}}",
+    "setDate": "Fälligkeitsdatum setzen",
+    "changeDate": "Fälligkeitsdatum ändern",
+    "date": {
+      "today": "Heute",
+      "tomorrow": "Morgen",
+      "nextWeek": "Nächste Woche",
+      "none": "Kein Datum",
+      "apply": "Setzen"
+    },
+    "groups": {
+      "overdue": "Überfällig",
+      "today": "Heute",
+      "upcoming": "Demnächst",
+      "someday": "Ohne Datum",
+      "done": "Erledigt"
+    },
+    "shortcuts": {
+      "new": "Neue Aufgabe",
+      "toggleDone": "Aufgabe erledigen oder wieder öffnen",
+      "date": "Fälligkeitsdatum ändern"
+    }
+  },
   "mail": {
     "listLabel": "Nachrichten",
     "noSubject": "(Kein Betreff)",
@@ -888,7 +929,8 @@
     "ownMailboxes": "Meine Postfächer",
     "sharedMailboxes": "Geteilte Postfächer",
     "readOnly": "Geteiltes Postfach, nur lesen",
-    "readOnlyHint": "Gelesen/ungelesen gilt für das ganze Postfach; in geteilten Postfächern kann das nur der Administrator ändern."
+    "readOnlyHint": "Gelesen/ungelesen gilt für das ganze Postfach; in geteilten Postfächern kann das nur der Administrator ändern.",
+    "foundInAttachment": "Fundstelle im Anhang"
   },
   "mailboxes": {
     "title": "Postfächer",
@@ -1176,6 +1218,70 @@
       "empty": "Keine Kategorien der Organisation",
       "emptyDescription": "Lege Kategorien an, die alle Nutzer erhalten.",
       "deleteDescription": "„{{category}}“ wird für alle Nutzer gelöscht. Nachrichten in dieser Kategorie sind danach ohne Kategorie."
+    }
+  },
+  "search": {
+    "inputLabel": "Suchbegriff oder Frage",
+    "placeholder": "Suchen oder Frage stellen",
+    "followUpPlaceholder": "Nachfrage stellen oder neu suchen",
+    "keyHint": "<0></0> Suchen · <1></1> Als Frage stellen",
+    "new": "Neue Suche",
+    "hits": "Treffer",
+    "askInstead": "Als Frage beantworten",
+    "noHitsTitle": "Keine Treffer",
+    "noHitsDescription": "Andere Stichwörter versuchen oder Filter entfernen.",
+    "idleTitle": "Mails durchsuchen",
+    "idleDescription": "Stichwörter liefern Treffer, Fragen liefern eine Antwort mit Quellen aus deinen Mails.",
+    "noMailboxesTitle": "Noch nichts zu durchsuchen",
+    "noMailboxesDescription": "Die Suche umfasst alle synchronisierten Nachrichten und Anhänge eines verbundenen Postfachs.",
+    "detailHint": "Treffer oder Quelle auswählen, um die Mail an der Fundstelle zu öffnen. <0></0> / <1></1> wechselt zwischen Treffern.",
+    "detailHintTouch": "Treffer oder Quelle auswählen, um die Mail an der Fundstelle zu öffnen.",
+    "shortcuts": {
+      "open": "Treffer öffnen"
+    },
+    "filters": {
+      "label": "Filter",
+      "period": "Zeitraum",
+      "anyTime": "Beliebig",
+      "periods": {
+        "7d": "Letzte 7 Tage",
+        "30d": "Letzte 30 Tage",
+        "1y": "Letzte 12 Monate"
+      },
+      "sender": "Absender",
+      "senderPlaceholder": "Name oder Adresse",
+      "mailbox": "Postfach",
+      "category": "Kategorie",
+      "anyCategory": "Alle Kategorien",
+      "clear": "Filter „{{filter}}“ entfernen",
+      "reset": "Filter zurücksetzen"
+    },
+    "answer": {
+      "title": "Antworten",
+      "searching": "Suche passende Mails …",
+      "cancel": "Abbrechen",
+      "cancelled": "Abgebrochen. Die Antwort wurde nicht gespeichert.",
+      "sources": "Quellen",
+      "openSource": "Quelle {{number}} öffnen",
+      "noEvidenceTitle": "Keine ausreichenden Belege",
+      "noEvidenceDescription": "In deinen Mails wurde nichts gefunden, das diese Frage belegt beantwortet.",
+      "errors": {
+        "llm_unavailable": "Das Sprachmodell ist gerade nicht erreichbar. Bitte später erneut versuchen.",
+        "llm_cloud_disabled": "Das eingestellte Sprachmodell läuft in der Cloud, Cloud-Modelle sind aber abgeschaltet.",
+        "llm_error": "Das Sprachmodell konnte keine Antwort erzeugen.",
+        "internal": "Die Antwort konnte nicht erstellt werden.",
+        "interrupted": "Die Verbindung wurde unterbrochen. Die Antwort ist unvollständig."
+      }
+    },
+    "history": {
+      "title": "Verlauf",
+      "emptyTitle": "Noch keine Fragen",
+      "emptyDescription": "Gestellte Fragen erscheinen hier und lassen sich wieder öffnen oder löschen.",
+      "delete": "„{{title}}“ löschen",
+      "deleteShort": "Löschen",
+      "deleteAll": "Verlauf löschen",
+      "confirmAll": "Alle Fragen und Antworten löschen?",
+      "keep": "Behalten"
     }
   }
 }

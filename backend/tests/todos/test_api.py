@@ -127,6 +127,26 @@ async def test_list_filters(db_client: AsyncClient, erika: MailData) -> None:
     assert (await db_client.get("/todos", params={"status": "later"})).status_code == 422
 
 
+async def test_list_by_message(db_client: AsyncClient, erika: MailData) -> None:
+    message = await erika.message()
+    other = await erika.message()
+    for title, source in [("from mail", message), ("other mail", other), ("manual", None)]:
+        erika.session.add(
+            Todo(
+                user_id=erika.user.id,
+                mailbox_id=source and source.mailbox_id,
+                message_id=source and source.id,
+                title=title,
+            )
+        )
+    await erika.session.flush()
+
+    response = await db_client.get("/todos", params={"message_id": str(message.id)})
+
+    assert response.status_code == 200
+    assert [todo["title"] for todo in response.json()] == ["from mail"]
+
+
 async def test_edit_and_change_status(
     db_client: AsyncClient, erika: MailData, db_session: AsyncSession
 ) -> None:
