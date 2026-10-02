@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DigestRouteImport } from './routes/digest'
+import { Route as DraftsRouteImport } from './routes/drafts'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as LoginRouteImport } from './routes/login'
@@ -50,6 +51,11 @@ const AdminRoute = AdminRouteImport.update({
 const DigestRoute = DigestRouteImport.update({
   id: '/digest',
   path: '/digest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DraftsRoute = DraftsRouteImport.update({
+  id: '/drafts',
+  path: '/drafts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -178,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
+  '/drafts': typeof DraftsRoute
   '/inbox': typeof InboxRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
@@ -207,6 +214,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
+  '/drafts': typeof DraftsRoute
   '/inbox': typeof InboxRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
@@ -237,6 +245,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
+  '/drafts': typeof DraftsRoute
   '/inbox': typeof InboxRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
@@ -268,6 +277,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/digest'
+    | '/drafts'
     | '/inbox'
     | '/invite'
     | '/login'
@@ -297,6 +307,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/digest'
+    | '/drafts'
     | '/inbox'
     | '/invite'
     | '/login'
@@ -326,6 +337,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/digest'
+    | '/drafts'
     | '/inbox'
     | '/invite'
     | '/login'
@@ -356,6 +368,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   DigestRoute: typeof DigestRoute
+  DraftsRoute: typeof DraftsRoute
   InboxRoute: typeof InboxRoute
   InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
@@ -403,6 +416,13 @@ declare module '@tanstack/react-router' {
       path: '/digest'
       fullPath: '/digest'
       preLoaderRoute: typeof DigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/drafts': {
+      id: '/drafts'
+      path: '/drafts'
+      fullPath: '/drafts'
+      preLoaderRoute: typeof DraftsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -580,6 +600,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   DigestRoute: DigestRoute,
+  DraftsRoute: DraftsRoute,
   InboxRoute: InboxRoute,
   InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,

@@ -1,5 +1,6 @@
 import type { LinkProps } from "@tanstack/react-router";
 import {
+  FilePen,
   Inbox,
   ListChecks,
   type LucideIcon,
@@ -9,7 +10,7 @@ import {
   Shield,
 } from "lucide-react";
 
-export type NavKey = "inbox" | "tasks" | "digest" | "search" | "settings" | "admin";
+export type NavKey = "inbox" | "tasks" | "digest" | "search" | "drafts" | "settings" | "admin";
 
 export interface NavItem {
   key: NavKey;
@@ -27,6 +28,7 @@ export const navItems: readonly NavItem[] = [
   { key: "tasks", to: "/tasks", icon: ListChecks, shortcut: "g t", primary: true },
   { key: "digest", to: "/digest", icon: Newspaper, shortcut: "g d", primary: true },
   { key: "search", to: "/search", icon: Search, shortcut: "/", primary: true },
+  { key: "drafts", to: "/drafts", icon: FilePen, shortcut: "g r", primary: false },
   { key: "settings", to: "/settings", icon: Settings, shortcut: "g s", primary: false },
   { key: "admin", to: "/admin", icon: Shield, shortcut: "g a", primary: false, adminOnly: true },
 ];
