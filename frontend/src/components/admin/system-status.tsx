@@ -18,7 +18,6 @@ import { InlineError } from "@/components/inline-error";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { useMailErrorText } from "@/components/mail/sync-status";
 import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
 
 function SectionTitle({ id, children }: { id: string; children: ReactNode }) {
   return (
@@ -198,10 +197,8 @@ function ModelRow({ model }: { model: ModelStatus }) {
         )}
       </span>
       <span
-        className={cn(
-          "text-ui",
-          model.state === "installed" ? "text-muted-foreground" : "font-medium text-destructive",
-        )}
+        // Plain strings: `cn` would drop the custom size `text-ui` next to a text color.
+        className={`text-ui ${model.state === "installed" || progress ? "text-muted-foreground" : "font-medium text-destructive"}`}
         aria-live="polite"
       >
         {progress ?? t(`pages.admin.models.state.${model.state}`)}
@@ -273,9 +270,10 @@ function ProcessingRow({ mailbox }: { mailbox: MailboxProcessing }) {
 
   return (
     <li className="flex flex-wrap items-center gap-x-3 gap-y-1 px-4 py-3">
-      <span className="min-w-0 flex-1">
+      {/* Mobile: name and status on their own line, counts and action below. */}
+      <span className="w-full min-w-0 sm:w-auto sm:flex-1">
         <span className="block truncate text-ui font-medium">{title}</span>
-        <span className="block truncate text-ui text-muted-foreground">
+        <span className="block text-ui text-muted-foreground">
           {kind}
           {" · "}
           {mailbox.sync_phase === "error" ? (
@@ -292,10 +290,7 @@ function ProcessingRow({ mailbox }: { mailbox: MailboxProcessing }) {
         {t("pages.admin.processing.pending", { count: mailbox.pending + mailbox.running })}
       </span>
       <span
-        className={cn(
-          "text-ui tabular-nums",
-          mailbox.failed > 0 ? "font-medium text-destructive" : "text-muted-foreground",
-        )}
+        className={`text-ui tabular-nums max-sm:flex-1 ${mailbox.failed > 0 ? "font-medium text-destructive" : "text-muted-foreground"}`}
       >
         {t("pages.admin.processing.failed", { count: mailbox.failed })}
       </span>
