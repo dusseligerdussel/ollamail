@@ -194,6 +194,9 @@
           "deleted": "Postfach entfernt",
           "unshared": "Postfachfreigabe entzogen"
         },
+        "mail": {
+          "sent": "Mail gesendet"
+        },
         "data": {
           "exported": "Daten exportiert",
           "deleted": "Daten gelöscht",
@@ -215,6 +218,7 @@
         "todos": "Aufgaben",
         "digest": "Zusammenfassung",
         "rag_chat": "Fragen an die Inbox",
+        "reply_draft": "Antwortentwürfe",
         "embeddings": "Suchindex"
       },
       "taskDescriptions": {
@@ -222,6 +226,7 @@
         "todos": "Erkennt Aufgaben in Mails.",
         "digest": "Schreibt die tägliche Zusammenfassung.",
         "rag_chat": "Beantwortet Fragen mit Quellen aus den Mails.",
+        "reply_draft": "Schreibt Antwortentwürfe; gesendet wird nur durch den Nutzer.",
         "embeddings": "Berechnet Vektoren für die Suche (Embedding-Modell)."
       },
       "cloud": {

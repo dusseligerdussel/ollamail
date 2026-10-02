@@ -947,6 +947,7 @@
           "mailbox.deleted",
           "mailbox.shared",
           "mailbox.unshared",
+          "mail.sent",
           "data.exported",
           "data.deleted",
           "data.retention_changed",
@@ -2402,6 +2403,377 @@
         "title": "DirectoryType",
         "type": "string"
       },
+      "DraftCreate": {
+        "additionalProperties": false,
+        "description": "A draft written by hand (no model call).",
+        "properties": {
+          "body": {
+            "default": "",
+            "maxLength": 100000,
+            "title": "Body",
+            "type": "string"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "reply_all": {
+            "default": false,
+            "title": "Reply All",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "message_id"
+        ],
+        "title": "DraftCreate",
+        "type": "object"
+      },
+      "DraftGenerate": {
+        "additionalProperties": false,
+        "properties": {
+          "draft_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Draft Id"
+          },
+          "instruction": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "reply_all": {
+            "default": false,
+            "title": "Reply All",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "message_id"
+        ],
+        "title": "DraftGenerate",
+        "type": "object"
+      },
+      "DraftRead": {
+        "properties": {
+          "body": {
+            "title": "Body",
+            "type": "string"
+          },
+          "can_send": {
+            "title": "Can Send",
+            "type": "boolean"
+          },
+          "cc": {
+            "items": {
+              "$ref": "#/components/schemas/RecipientRead"
+            },
+            "title": "Cc",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "instruction": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Instruction"
+          },
+          "language": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Language"
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "message_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Message Id"
+          },
+          "model": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Model"
+          },
+          "quote_original": {
+            "title": "Quote Original",
+            "type": "boolean"
+          },
+          "reply_all": {
+            "title": "Reply All",
+            "type": "boolean"
+          },
+          "sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sent At"
+          },
+          "status": {
+            "$ref": "#/components/schemas/DraftStatus"
+          },
+          "subject": {
+            "title": "Subject",
+            "type": "string"
+          },
+          "thread_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Thread Id"
+          },
+          "to": {
+            "items": {
+              "$ref": "#/components/schemas/RecipientRead"
+            },
+            "title": "To",
+            "type": "array"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "message_id",
+          "mailbox_id",
+          "thread_id",
+          "status",
+          "reply_all",
+          "to",
+          "cc",
+          "subject",
+          "body",
+          "quote_original",
+          "instruction",
+          "language",
+          "model",
+          "created_at",
+          "updated_at",
+          "sent_at",
+          "can_send"
+        ],
+        "title": "DraftRead",
+        "type": "object"
+      },
+      "DraftSettingsRead": {
+        "properties": {
+          "signature": {
+            "title": "Signature",
+            "type": "string"
+          },
+          "style_examples": {
+            "title": "Style Examples",
+            "type": "boolean"
+          },
+          "style_examples_available": {
+            "title": "Style Examples Available",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "signature",
+          "style_examples",
+          "style_examples_available"
+        ],
+        "title": "DraftSettingsRead",
+        "type": "object"
+      },
+      "DraftSettingsUpdate": {
+        "additionalProperties": false,
+        "properties": {
+          "signature": {
+            "anyOf": [
+              {
+                "maxLength": 2000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Signature"
+          },
+          "style_examples": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Style Examples"
+          }
+        },
+        "title": "DraftSettingsUpdate",
+        "type": "object"
+      },
+      "DraftStatus": {
+        "enum": [
+          "draft",
+          "sent",
+          "discarded"
+        ],
+        "title": "DraftStatus",
+        "type": "string"
+      },
+      "DraftUpdate": {
+        "additionalProperties": false,
+        "description": "Changes by the user; omitted fields stay. Changing ``reply_all`` recomputes the\nrecipients unless ``to``/``cc`` are given as well.",
+        "properties": {
+          "body": {
+            "anyOf": [
+              {
+                "maxLength": 100000,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Body"
+          },
+          "cc": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Recipient"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Cc"
+          },
+          "quote_original": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Quote Original"
+          },
+          "reply_all": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Reply All"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "maxLength": 998,
+                "pattern": "^[^\\r\\n]*$",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          },
+          "to": {
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/Recipient"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "To"
+          }
+        },
+        "title": "DraftUpdate",
+        "type": "object"
+      },
       "ExportStatus": {
         "enum": [
           "pending",
@@ -3315,6 +3687,7 @@
           "todos",
           "digest",
           "rag_chat",
+          "reply_draft",
           "embeddings"
         ],
         "title": "LLMTask",
@@ -5528,6 +5901,59 @@
           "checks"
         ],
         "title": "ReadinessStatus",
+        "type": "object"
+      },
+      "Recipient": {
+        "additionalProperties": false,
+        "description": "A recipient entered by the user; must be usable in a header.",
+        "properties": {
+          "address": {
+            "maxLength": 320,
+            "minLength": 3,
+            "title": "Address",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "maxLength": 200,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "title": "Recipient",
+        "type": "object"
+      },
+      "RecipientRead": {
+        "properties": {
+          "address": {
+            "title": "Address",
+            "type": "string"
+          },
+          "name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name"
+          }
+        },
+        "required": [
+          "address"
+        ],
+        "title": "RecipientRead",
         "type": "object"
       },
       "RegisterRequest": {
@@ -11163,6 +11589,808 @@
         "summary": "Get Audio",
         "tags": [
           "digests"
+        ]
+      }
+    },
+    "/drafts": {
+      "get": {
+        "description": "Own drafts, most recently changed first; optionally of one mail or one status.",
+        "operationId": "drafts_list_drafts",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "message_id",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Message Id"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/DraftStatus"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Status"
+            }
+          },
+          {
+            "in": "query",
+            "name": "limit",
+            "required": false,
+            "schema": {
+              "default": 50,
+              "maximum": 200,
+              "minimum": 1,
+              "title": "Limit",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/DraftRead"
+                  },
+                  "title": "Response Drafts List Drafts",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "List Drafts",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "post": {
+        "description": "Start a draft written by hand: recipients and subject are filled in from the mail.",
+        "operationId": "drafts_create_draft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Create Draft",
+        "tags": [
+          "drafts"
+        ]
+      }
+    },
+    "/drafts/generate": {
+      "post": {
+        "description": "Generate a reply to a mail with the local model; the text is streamed and stored as\ndraft when complete. With ``draft_id`` the text of that open draft is replaced.\n\nThe model sees the thread up to the mail (shortened), the instruction, the user's\nsignature and, unless switched off, a few of the user's own sent mails as style\nexamples. Mail content is passed as data, never as instructions.",
+        "operationId": "drafts_generate_draft",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftGenerate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "text/event-stream": {
+                "schema": {
+                  "discriminator": {
+                    "propertyName": "type"
+                  },
+                  "oneOf": [
+                    {
+                      "description": "First event: the ID the draft is stored under.",
+                      "properties": {
+                        "draft_id": {
+                          "format": "uuid",
+                          "title": "Draft Id",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "start",
+                          "default": "start",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "draft_id"
+                      ],
+                      "title": "StartEvent",
+                      "type": "object"
+                    },
+                    {
+                      "properties": {
+                        "text": {
+                          "title": "Text",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "token",
+                          "default": "token",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "text"
+                      ],
+                      "title": "TokenEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "Last event on success: the stored draft (with signature).",
+                      "properties": {
+                        "draft": {
+                          "properties": {
+                            "body": {
+                              "title": "Body",
+                              "type": "string"
+                            },
+                            "can_send": {
+                              "title": "Can Send",
+                              "type": "boolean"
+                            },
+                            "cc": {
+                              "items": {
+                                "properties": {
+                                  "address": {
+                                    "title": "Address",
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "title": "Name"
+                                  }
+                                },
+                                "required": [
+                                  "address"
+                                ],
+                                "title": "RecipientRead",
+                                "type": "object"
+                              },
+                              "title": "Cc",
+                              "type": "array"
+                            },
+                            "created_at": {
+                              "format": "date-time",
+                              "title": "Created At",
+                              "type": "string"
+                            },
+                            "id": {
+                              "format": "uuid",
+                              "title": "Id",
+                              "type": "string"
+                            },
+                            "instruction": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Instruction"
+                            },
+                            "language": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Language"
+                            },
+                            "mailbox_id": {
+                              "format": "uuid",
+                              "title": "Mailbox Id",
+                              "type": "string"
+                            },
+                            "message_id": {
+                              "anyOf": [
+                                {
+                                  "format": "uuid",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Message Id"
+                            },
+                            "model": {
+                              "anyOf": [
+                                {
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Model"
+                            },
+                            "quote_original": {
+                              "title": "Quote Original",
+                              "type": "boolean"
+                            },
+                            "reply_all": {
+                              "title": "Reply All",
+                              "type": "boolean"
+                            },
+                            "sent_at": {
+                              "anyOf": [
+                                {
+                                  "format": "date-time",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Sent At"
+                            },
+                            "status": {
+                              "enum": [
+                                "draft",
+                                "sent",
+                                "discarded"
+                              ],
+                              "title": "DraftStatus",
+                              "type": "string"
+                            },
+                            "subject": {
+                              "title": "Subject",
+                              "type": "string"
+                            },
+                            "thread_id": {
+                              "anyOf": [
+                                {
+                                  "format": "uuid",
+                                  "type": "string"
+                                },
+                                {
+                                  "type": "null"
+                                }
+                              ],
+                              "title": "Thread Id"
+                            },
+                            "to": {
+                              "items": {
+                                "properties": {
+                                  "address": {
+                                    "title": "Address",
+                                    "type": "string"
+                                  },
+                                  "name": {
+                                    "anyOf": [
+                                      {
+                                        "type": "string"
+                                      },
+                                      {
+                                        "type": "null"
+                                      }
+                                    ],
+                                    "title": "Name"
+                                  }
+                                },
+                                "required": [
+                                  "address"
+                                ],
+                                "title": "RecipientRead",
+                                "type": "object"
+                              },
+                              "title": "To",
+                              "type": "array"
+                            },
+                            "updated_at": {
+                              "format": "date-time",
+                              "title": "Updated At",
+                              "type": "string"
+                            }
+                          },
+                          "required": [
+                            "id",
+                            "message_id",
+                            "mailbox_id",
+                            "thread_id",
+                            "status",
+                            "reply_all",
+                            "to",
+                            "cc",
+                            "subject",
+                            "body",
+                            "quote_original",
+                            "instruction",
+                            "language",
+                            "model",
+                            "created_at",
+                            "updated_at",
+                            "sent_at",
+                            "can_send"
+                          ],
+                          "title": "DraftRead",
+                          "type": "object"
+                        },
+                        "ttft_ms": {
+                          "anyOf": [
+                            {
+                              "type": "integer"
+                            },
+                            {
+                              "type": "null"
+                            }
+                          ],
+                          "title": "Ttft Ms"
+                        },
+                        "type": {
+                          "const": "done",
+                          "default": "done",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "draft",
+                        "ttft_ms"
+                      ],
+                      "title": "DoneEvent",
+                      "type": "object"
+                    },
+                    {
+                      "description": "Last event on failure; nothing is stored. Codes: ``llm_unavailable``,\n``llm_cloud_disabled``, ``llm_error``, ``internal``.",
+                      "properties": {
+                        "code": {
+                          "title": "Code",
+                          "type": "string"
+                        },
+                        "type": {
+                          "const": "error",
+                          "default": "error",
+                          "title": "Type",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type",
+                        "code"
+                      ],
+                      "title": "ErrorEvent",
+                      "type": "object"
+                    }
+                  ]
+                }
+              }
+            },
+            "description": "Server-Sent Events stream; `data` of each event is one of these"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message or draft"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Generate Draft",
+        "tags": [
+          "drafts"
+        ]
+      }
+    },
+    "/drafts/settings": {
+      "get": {
+        "description": "Own drafting settings: signature and style examples.",
+        "operationId": "drafts_get_draft_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Draft Settings",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "put": {
+        "operationId": "drafts_update_draft_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Draft Settings",
+        "tags": [
+          "drafts"
+        ]
+      }
+    },
+    "/drafts/{draft_id}": {
+      "delete": {
+        "description": "Delete the draft for good.",
+        "operationId": "drafts_delete_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such draft"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Draft",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "get": {
+        "operationId": "drafts_get_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such draft"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Draft",
+        "tags": [
+          "drafts"
+        ]
+      },
+      "patch": {
+        "description": "Edit text, subject or recipients of an open draft.",
+        "operationId": "drafts_update_draft",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/DraftUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such draft"
+          },
+          "409": {
+            "description": "Draft already sent or discarded"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Draft",
+        "tags": [
+          "drafts"
+        ]
+      }
+    },
+    "/drafts/{draft_id}/discard": {
+      "post": {
+        "description": "Mark the draft as discarded (kept until the retention period ends).",
+        "operationId": "drafts_discard",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such draft"
+          },
+          "409": {
+            "description": "Draft already sent"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Discard",
+        "tags": [
+          "drafts"
+        ]
+      }
+    },
+    "/drafts/{draft_id}/send": {
+      "post": {
+        "description": "Send the draft from the mailbox of the answered mail. The sent copy is kept on the\nserver (sent folder) and arrives with the next sync. Recorded in the audit log.",
+        "operationId": "drafts_send",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "draft_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Draft Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DraftRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Sending from this mailbox is not allowed (shared mailbox)"
+          },
+          "404": {
+            "description": "No such draft"
+          },
+          "409": {
+            "description": "Draft already sent or discarded, or the mail was deleted"
+          },
+          "422": {
+            "description": "No or invalid recipients"
+          },
+          "502": {
+            "description": "The mail server refused the message (error_code)"
+          },
+          "503": {
+            "description": "The mail server is unreachable"
+          }
+        },
+        "summary": "Send",
+        "tags": [
+          "drafts"
         ]
       }
     },

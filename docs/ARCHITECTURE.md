@@ -92,6 +92,7 @@ class MailProvider(Protocol):  # app/mail/providers/base.py
     async def set_flags(self, remote_ref: str, flags: frozenset[str]) -> None: ...
     async def apply_label(self, remote_ref: str, label: str) -> None: ...  # Gmail: Label, Graph: Kategorie, IMAP: Keyword oder Ordner
     async def remove_label(self, remote_ref: str, label: str) -> None: ...
+    async def send(self, reply: OutgoingReply) -> SentMessage: ...  # Antwort senden, Kopie in „Gesendet“
     async def aclose(self) -> None: ...
 ```
 
@@ -106,6 +107,11 @@ class MailProvider(Protocol):  # app/mail/providers/base.py
   Ungültige Cursor (`CursorInvalidError`) erzwingen einen Neuabgleich des Ordners.
 - **Inhalt:** Alle Provider liefern die RFC-5322-Quelle (IMAP `BODY[]`, Graph `/$value`, Gmail
   `format=raw`), daher ist die Normalisierung (`app/mail/mime.py`) für alle gleich.
+- **Senden** (#92): `send(OutgoingReply)` bekommt die fertige RFC-5322-Quelle, für alle Provider
+  einmal in `app/mail/compose.py` gebaut (Empfänger, `Re:`, `In-Reply-To`, `References`,
+  `Message-ID`), plus die strukturierten Felder für Provider, die serverseitig zusammensetzen
+  (Graph). Senden wird nie automatisch wiederholt (kein doppelter Versand); abgelehnte Mails
+  sind `SendError` mit Code. Der Server legt die gesendete Kopie ab, der nächste Sync bringt sie.
 - **Registry:** Provider registrieren sich mit `registry.register(MailboxType.X, Factory)`; Features
   nutzen nur `registry.create(config)`. Für Tests anderer Module gibt es `FakeMailProvider`
   (In-Memory-Server mit Änderungslog, IMAP- oder Gmail-Verhalten).
@@ -168,6 +174,13 @@ Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto
   (Label → gültiges IMAP-Atom: Leerzeichen → `_`, Nicht-ASCII wie Ordnernamen kodiert) oder,
   wenn der Ordner keine Keywords erlaubt (`PERMANENTFLAGS` ohne `\*`), als Kopie in einen Ordner
   mit dem Label-Namen.
+- **Senden** (`smtp.py`): SMTP-Submission mit `smtplib` im Thread, eine Verbindung pro Mail.
+  Einstellungen `smtp_host` (Standard: IMAP-Host), `smtp_port` (Standard 587 bzw. 465),
+  `smtp_security` (`starttls` Standard, `tls`, `none` nur mit Admin-Flag), `smtp_username`
+  (Standard: IMAP-Login), `smtp_save_sent`; Passwort `credentials.smtp_password`, sonst das
+  IMAP-Passwort, bei `xoauth2` das Access-Token (`AUTH XOAUTH2`). Zertifikatsprüfung wie bei IMAP.
+  Danach `APPEND` mit `\Seen` in den Ordner mit Rolle „Gesendet“ (fehlt er, wird `Sent`
+  angelegt); scheitert nur die Kopie, gilt die Mail als gesendet (`sent_copy_error`).
 
 #### Microsoft-365-Provider (`backend/app/mail/providers/graph*.py`)
 
@@ -188,6 +201,12 @@ Design, App-Registrierung, Berechtigungsmodelle und Testanleitung:
 - **Push:** Standard ist Polling. Mit `OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL` hält `watch()` eine
   Subscription aktiv; `POST /api/mail/graph/notifications` (CSRF-frei, `clientState` per HMAC)
   stößt nur `request_sync` an.
+- **Senden:** `createReply` bzw. `createReplyAll` auf der Original-Mail (Empfänger, Betreff,
+  Text des Entwurfs), dann `send`; Exchange setzt die Threading-Header und legt die Kopie in
+  „Gesendete Elemente“ ab. Delegiert mit einem eigenen Token mit `Mail.Send`
+  (`Mail.Send.Shared` für fremde Postfächer), das beim Verbinden angefordert wird
+  (`OLLAMAIL_MAIL_GRAPH_SEND_ENABLED`); der Sync behält seine bisherigen Scopes. App-only braucht
+  die Anwendungsberechtigung `Mail.Send`. Ohne Berechtigung: `send_not_permitted`.
 
 #### Gmail-Provider (`backend/app/mail/providers/gmail*.py`)
 
@@ -206,6 +225,9 @@ Design und Einrichtung: [`providers/gmail.md`](providers/gmail.md). Kurzfassung:
 - **Sync** mit postfachweitem Cursor (`historyId`): Initialimport über `messages.list`, danach
   `history.list`; abgelaufene History → `CursorInvalidError` → Resync mit Abgleich.
 - **Push:** Pub/Sub *Pull* (keine öffentliche URL); ohne Konfiguration Polling.
+- **Senden:** `messages.send` mit der RFC-5322-Quelle und der `threadId` der Original-Mail;
+  Gmail legt die Kopie unter SENT ab. `gmail.modify` deckt das Senden ab, mit
+  `OLLAMAIL_GMAIL_READONLY` wird es abgelehnt (`read_only`).
 
 #### Sync (`backend/app/mail/sync/`)
 
@@ -841,6 +863,54 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 | `GET /rag/conversations` | Eigene Gespräche, zuletzt genutzte zuerst |
 | `GET/DELETE /rag/conversations/{id}` | Gespräch mit Fragen, Antworten und Zitaten; löschen. Fremde Gespräche verhalten sich wie nicht vorhandene (404) |
 | `DELETE /rag/conversations` | Alle eigenen Gespräche löschen |
+
+### 4.6 Antwortentwürfe (`backend/app/drafts/`, #92)
+
+Auf Wunsch erzeugt das lokale Modell einen Antwortentwurf zu einer Mail; der Nutzer bearbeitet
+ihn und sendet ihn über das Postfach, aus dem die Mail stammt. **Nichts wird automatisch
+gesendet** – Senden ist immer ein eigener Request des Autors.
+
+- **Datenmodell:** `reply_drafts` (Nutzer, Postfach – beide `ON DELETE CASCADE` –, Thread und
+  beantwortete Mail – `SET NULL` –, Status `draft|sent|discarded`, Empfänger, Betreff, Text,
+  Anweisung, Sprache, Modell, Prompt-Version, Versandzeitpunkt, `Message-ID` der gesendeten
+  Mail) und `reply_draft_settings` (Signatur, Stilbeispiele an/aus; am Nutzer).
+- **Zugriff:** Ein Entwurf ist nur für seinen Autor sichtbar und nur, solange er das Postfach
+  lesen darf (`accessible_mailbox_ids`, bei jeder Anfrage in SQL); sonst 404. Erzeugen braucht
+  Leserecht auf die Mail, Senden zusätzlich `MailboxPermission.ACT` (Eigentümer; Shared
+  Mailboxes sind vorerst nur lesbar → 403 `read_only`).
+- **Generierung** (Aufgabe `reply_draft` im LLM-Gateway, Modell im KI-Admin zuweisbar,
+  Prompt `reply_draft@1`, gestreamt per SSE): Kontext ist der Thread bis zur beantworteten Mail
+  (höchstens `OLLAMAIL_DRAFTS_THREAD_MESSAGES` Mails, je `OLLAMAIL_DRAFTS_MESSAGE_CHARS` Zeichen
+  aus `body_main`), die optionale Anweisung des Nutzers („kurz zusagen“), die Sprache der Mail
+  und der Name des Nutzers. Die Signatur wird nach der Generierung angehängt, nicht vom Modell
+  geschrieben. Optional (pro Nutzer abschaltbar, instanzweit über
+  `OLLAMAIL_DRAFTS_STYLE_EXAMPLES=0`) bekommt das Modell einige eigene gesendete Mails derselben
+  Sprache als Stilbeispiele – nur aus Ordnern mit Rolle „Gesendet“ in Postfächern, die dem
+  Nutzer gehören, und nur mit seiner Postfachadresse als Absender; nie aus Shared Mailboxes oder
+  von anderen Nutzern.
+- **Prompt-Injection:** wie bei RAG – Mails und Stilbeispiele stehen nur in Datenblöcken mit
+  zufälligem Tag pro Anfrage (`<mail-3f9a… n="2" latest="true">`), der System-Prompt erklärt sie
+  zu nicht vertrauenswürdigen Daten. Nur die Anweisung des Nutzers steht außerhalb. Das Modell
+  hat keine Tools; seine Ausgabe ist nur Text in einem Entwurf, den der Nutzer vor dem Senden
+  sieht. Empfänger bestimmt nie das Modell, sondern `app/mail/compose.py` aus den Kopfzeilen.
+- **Versand** (`sending.py`): Entwurfszeile gesperrt (`FOR UPDATE`), damit ein Doppelklick
+  nicht doppelt sendet; Quelle über `compose.build_reply` (Plain Text, optional mit zitierter
+  Original-Mail), dann `MailProvider.send`. Erfolg → Status `sent`, Audit-Eintrag `mail.sent`
+  (Akteur, Postfach-ID, Entwurfs- und Mail-ID, Anzahl Empfänger – keine Adressen, kein Betreff,
+  kein Text). Fehler lassen den Entwurf offen: 502 mit Code (z. B. `recipients_refused`,
+  `send_not_permitted`), 503 bei nicht erreichbarem Server, 409 für Konfigurationsfehler.
+- **Aufbewahrung:** Der tägliche Job `drafts.purge` löscht Entwürfe, die seit
+  `OLLAMAIL_DRAFTS_RETENTION_DAYS` (Standard 30, 0 = nie) nicht geändert wurden.
+
+| Endpunkt | Zweck |
+|---|---|
+| `POST /drafts/generate` | Entwurf erzeugen (`message_id`, optional `instruction`, `reply_all`, `draft_id` zum Neuschreiben). `text/event-stream`: `start` (`draft_id`), `token`…, dann `done` (gespeicherter Entwurf, `ttft_ms`) oder `error` (`code`) |
+| `POST /drafts` | Entwurf ohne Modell anlegen (Empfänger und Betreff aus der Mail) |
+| `GET /drafts` | Eigene Entwürfe (Filter `message_id`, `status`) |
+| `GET/PATCH/DELETE /drafts/{id}` | Lesen, bearbeiten (Text, Betreff, Empfänger, Allen antworten, Zitat), endgültig löschen |
+| `POST /drafts/{id}/send` | Senden |
+| `POST /drafts/{id}/discard` | Verwerfen (bleibt bis zum Ablauf der Aufbewahrung) |
+| `GET/PUT /drafts/settings` | Signatur, Stilbeispiele |
 
 ## 5. Auth & Mandantenmodell
 
