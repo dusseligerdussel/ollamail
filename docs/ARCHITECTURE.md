@@ -697,6 +697,11 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **API** (angemeldet, nur eigene Digests, fremde = 404): `GET /api/digests`,
   `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft), `GET/DELETE
   /api/digests/{id}`, `GET /api/digests/{id}/audio.{mp3|opus}` (Range-Requests, Web-Player).
+  `GET /api/digests/voices` listet die wählbaren Stimmen (installierte plus Standardstimme je
+  Sprache, mit `default`/`installed`).
+- **Web-UI** (#29, `frontend/README.md`): Seite `/digest` mit Player (Media Session API,
+  Tastatur), Transkript mit Links auf die Mails und Archiv; Einstellungen und Feed-URL (einmalig
+  angezeigt, mit QR-Code) unter `/digest/settings`.
 - **Podcast-Feed:** `POST /api/digests/feed` erzeugt ein zufälliges Token (256 Bit) und liefert
   einmalig die URL `/api/feeds/{token}.xml`; gespeichert wird nur der SHA-256-Hash. Erneutes
   `POST` ersetzt, `DELETE /api/digests/feed` widerruft das Token; alte URLs liefern danach 404.

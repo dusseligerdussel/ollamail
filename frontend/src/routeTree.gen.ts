@@ -25,6 +25,7 @@ import { Route as AdminRetentionRouteImport } from './routes/admin_.retention'
 import { Route as AdminRoleMappingRouteImport } from './routes/admin_.role-mapping'
 import { Route as AdminSignInRouteImport } from './routes/admin_.sign-in'
 import { Route as AdminUsersRouteImport } from './routes/admin_.users'
+import { Route as DigestSettingsRouteImport } from './routes/digest_.settings'
 import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
 import { Route as SettingsMailboxesNewRouteImport } from './routes/settings_.mailboxes_.new'
 
@@ -108,6 +109,11 @@ const AdminUsersRoute = AdminUsersRouteImport.update({
   path: '/admin/users',
   getParentRoute: () => rootRouteImport,
 } as any)
+const DigestSettingsRoute = DigestSettingsRouteImport.update({
+  id: '/digest_/settings',
+  path: '/digest/settings',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsMailboxesRoute = SettingsMailboxesRouteImport.update({
   id: '/settings_/mailboxes',
   path: '/settings/mailboxes',
@@ -136,6 +142,7 @@ export interface FileRoutesByFullPath {
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
+  '/digest/settings': typeof DigestSettingsRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
@@ -156,6 +163,7 @@ export interface FileRoutesByTo {
   '/admin/role-mapping': typeof AdminRoleMappingRoute
   '/admin/sign-in': typeof AdminSignInRoute
   '/admin/users': typeof AdminUsersRoute
+  '/digest/settings': typeof DigestSettingsRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
   '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
@@ -177,6 +185,7 @@ export interface FileRoutesById {
   '/admin_/role-mapping': typeof AdminRoleMappingRoute
   '/admin_/sign-in': typeof AdminSignInRoute
   '/admin_/users': typeof AdminUsersRoute
+  '/digest_/settings': typeof DigestSettingsRoute
   '/settings_/mailboxes': typeof SettingsMailboxesRoute
   '/settings_/mailboxes_/new': typeof SettingsMailboxesNewRoute
 }
@@ -199,6 +208,7 @@ export interface FileRouteTypes {
     | '/admin/role-mapping'
     | '/admin/sign-in'
     | '/admin/users'
+    | '/digest/settings'
     | '/settings/mailboxes'
     | '/settings/mailboxes/new'
   fileRoutesByTo: FileRoutesByTo
@@ -219,6 +229,7 @@ export interface FileRouteTypes {
     | '/admin/role-mapping'
     | '/admin/sign-in'
     | '/admin/users'
+    | '/digest/settings'
     | '/settings/mailboxes'
     | '/settings/mailboxes/new'
   id:
@@ -239,6 +250,7 @@ export interface FileRouteTypes {
     | '/admin_/role-mapping'
     | '/admin_/sign-in'
     | '/admin_/users'
+    | '/digest_/settings'
     | '/settings_/mailboxes'
     | '/settings_/mailboxes_/new'
   fileRoutesById: FileRoutesById
@@ -260,6 +272,7 @@ export interface RootRouteChildren {
   AdminRoleMappingRoute: typeof AdminRoleMappingRoute
   AdminSignInRoute: typeof AdminSignInRoute
   AdminUsersRoute: typeof AdminUsersRoute
+  DigestSettingsRoute: typeof DigestSettingsRoute
   SettingsMailboxesRoute: typeof SettingsMailboxesRoute
   SettingsMailboxesNewRoute: typeof SettingsMailboxesNewRoute
 }
@@ -378,6 +391,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminUsersRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/digest_/settings': {
+      id: '/digest_/settings'
+      path: '/digest/settings'
+      fullPath: '/digest/settings'
+      preLoaderRoute: typeof DigestSettingsRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings_/mailboxes': {
       id: '/settings_/mailboxes'
       path: '/settings/mailboxes'
@@ -412,6 +432,7 @@ const rootRouteChildren: RootRouteChildren = {
   AdminRoleMappingRoute: AdminRoleMappingRoute,
   AdminSignInRoute: AdminSignInRoute,
   AdminUsersRoute: AdminUsersRoute,
+  DigestSettingsRoute: DigestSettingsRoute,
   SettingsMailboxesRoute: SettingsMailboxesRoute,
   SettingsMailboxesNewRoute: SettingsMailboxesNewRoute,
 }

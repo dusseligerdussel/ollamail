@@ -157,6 +157,24 @@ async def test_default_settings(erika: AsyncClient) -> None:
     }
 
 
+async def test_voices(erika: AsyncClient, anonymous: AsyncClient, data_dir: Path) -> None:
+    voices = data_dir / "tts" / "voices" / "piper"
+    voices.mkdir(parents=True)
+    for name in ("de_DE-kerstin-low", "de_DE-thorsten-medium"):
+        (voices / f"{name}.onnx").write_bytes(b"model")
+        (voices / f"{name}.onnx.json").write_text("{}")
+
+    response = await erika.get("/digests/voices")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"id": "de_DE-kerstin-low", "language": "de", "default": False, "installed": True},
+        {"id": "de_DE-thorsten-medium", "language": "de", "default": True, "installed": True},
+        {"id": "en_US-ljspeech-medium", "language": "en", "default": True, "installed": False},
+    ]
+    assert (await anonymous.get("/digests/voices")).status_code == 401
+
+
 async def test_update_settings(erika: AsyncClient, db_session: AsyncSession) -> None:
     mailbox = await make_mailbox(db_session, await user(db_session, "erika@example.org"), "e@x.org")
 
