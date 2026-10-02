@@ -9160,6 +9160,8 @@ export interface operations {
                 /** @description Repeat for several. */
                 status?: components["schemas"]["TodoStatus"][] | null;
                 mailbox_id?: string | null;
+                /** @description Todos from (or linked to) this mail. */
+                message_id?: string | null;
                 /** @description Due on or before this day. */
                 due_before?: string | null;
                 /** @description Due on or after this day. */
