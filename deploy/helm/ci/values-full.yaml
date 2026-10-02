@@ -1,0 +1,102 @@
+# Render/schema check only (helm template + kubeconform): every optional feature enabled.
+image:
+  backend:
+    tag: "1.2.3"
+  frontend:
+    tag: "1.2.3"
+imagePullSecrets:
+  - name: ghcr
+secrets:
+  existingSecret: ollamail-secrets
+database:
+  cloudnativepg:
+    cluster: ollamail-db
+config:
+  OLLAMAIL_AUTH_PUBLIC_URL: https://mail.example.com
+  OLLAMAIL_LLM_PROFILE: gpu-consumer
+  OLLAMAIL_LLM_ENDPOINTS:
+    vllm:
+      provider: openai_compatible
+      base_url: http://vllm.llm.svc.cluster.local:8000/v1
+  OLLAMAIL_SEARCH_ATTACHMENT_MAX_BYTES: 20971520
+extraEnvFrom:
+  - secretRef:
+      name: ollamail-oidc
+extraVolumes:
+  - name: gmail-sa
+    secret:
+      secretName: gmail-service-account
+extraVolumeMounts:
+  - name: gmail-sa
+    mountPath: /run/secrets/gmail
+    readOnly: true
+extraEnv:
+  - name: OLLAMAIL_GMAIL_SERVICE_ACCOUNT_FILE
+    value: /run/secrets/gmail/key.json
+serviceAccount:
+  annotations:
+    example.com/role: ollamail
+api:
+  replicaCount: 2
+  topologySpreadConstraints:
+    - maxSkew: 1
+      topologyKey: kubernetes.io/hostname
+      whenUnsatisfiable: ScheduleAnyway
+      labelSelector:
+        matchLabels:
+          app.kubernetes.io/component: api
+worker:
+  groups:
+    - name: main
+      replicaCount: 2
+      queues: [sync, tts, default]
+    - name: llm
+      queues: [llm]
+      llmMaxConcurrency: 8
+      nodeSelector:
+        node-pool: gpu
+      tolerations:
+        - key: nvidia.com/gpu
+          operator: Exists
+          effect: NoSchedule
+persistence:
+  accessModes: [ReadWriteMany]
+  storageClass: nfs
+ingress:
+  enabled: true
+  className: nginx
+  annotations:
+    nginx.ingress.kubernetes.io/proxy-buffering: "off"
+  hosts: [mail.example.com]
+  certManager:
+    enabled: true
+    issuerName: letsencrypt
+ollama:
+  enabled: true
+  gpu:
+    enabled: true
+  runtimeClassName: nvidia
+  nodeSelector:
+    node-pool: gpu
+  tolerations:
+    - key: nvidia.com/gpu
+      operator: Exists
+      effect: NoSchedule
+networkPolicy:
+  enabled: true
+  frontend:
+    from:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: ingress-nginx
+  egress:
+    enabled: true
+    extraRules:
+      - to:
+          - ipBlock:
+              cidr: 0.0.0.0/0
+        ports:
+          - port: 443
+            protocol: TCP
+          - port: 993
+            protocol: TCP

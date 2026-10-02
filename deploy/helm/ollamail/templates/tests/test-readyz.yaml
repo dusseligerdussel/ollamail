@@ -1,0 +1,48 @@
+{{- if .Values.tests.enabled }}
+# `helm test <release>`: the API must be ready through the same path the browser uses
+# (frontend -> /api -> api -> database).
+apiVersion: v1
+kind: Pod
+metadata:
+  name: {{ include "ollamail.fullname" . }}-test-readyz
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" . "component" "test") | nindent 4 }}
+  annotations:
+    helm.sh/hook: test
+    helm.sh/hook-delete-policy: before-hook-creation,hook-succeeded
+spec:
+  restartPolicy: Never
+  automountServiceAccountToken: false
+  {{- include "ollamail.podCommon" . | nindent 2 }}
+  containers:
+    - name: readyz
+      {{- include "ollamail.backendImage" . | nindent 6 }}
+      securityContext:
+        {{- toYaml .Values.containerSecurityContext | nindent 8 }}
+      env:
+        - name: URL
+          value: "http://{{ include "ollamail.fullname" . }}-frontend:{{ .Values.frontend.service.port }}/api/readyz"
+      command:
+        - python
+        - -c
+        - |
+          import json, os, sys, time, urllib.error, urllib.request
+          url = os.environ["URL"]
+          for attempt in range(30):
+              try:
+                  with urllib.request.urlopen(url, timeout=5) as response:
+                      body = json.load(response)
+                  print(response.status, body)
+                  if body.get("status") == "ok":
+                      sys.exit(0)
+              except (urllib.error.URLError, OSError, ValueError) as exc:
+                  print("attempt", attempt, type(exc).__name__, exc)
+              time.sleep(2)
+          sys.exit(1)
+      resources:
+        requests:
+          cpu: 10m
+          memory: 64Mi
+        limits:
+          memory: 128Mi
+{{- end }}
