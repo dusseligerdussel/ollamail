@@ -14,6 +14,7 @@ from app.audit.router import router as audit_router
 from app.auth.admin_router import router as auth_admin_router
 from app.auth.csrf import CSRFMiddleware
 from app.auth.invitations import router as invitations_router
+from app.auth.mfa.router import router as mfa_router
 from app.auth.providers import AuthProviderRegistry, github, oidc, saml
 from app.auth.providers.ldap.router import login_router as ldap_login_router
 from app.auth.providers.ldap.router import router as ldap_router
@@ -120,6 +121,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(events_router)
     app.include_router(setup_router)
     app.include_router(auth_router)
+    app.include_router(mfa_router)
     app.include_router(ldap_login_router)
     app.include_router(ldap_router)
     app.include_router(users_router)

@@ -26,7 +26,7 @@ describe("app shell", () => {
     const links = within(nav)
       .getAllByRole("link")
       .map((link) => link.textContent);
-    expect(links).toEqual(["Inbox", "Tasks", "Digest", "Search", "Settings", "Admin"]);
+    expect(links).toEqual(["Inbox", "Tasks", "Digest", "Search", "Drafts", "Settings", "Admin"]);
     expect(within(nav).getByRole("link", { name: "Inbox" })).toHaveAttribute(
       "aria-current",
       "page",

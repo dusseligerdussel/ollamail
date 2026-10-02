@@ -12,6 +12,7 @@ import { Route as rootRouteImport } from './routes/__root'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AdminRouteImport } from './routes/admin'
 import { Route as DigestRouteImport } from './routes/digest'
+import { Route as DraftsRouteImport } from './routes/drafts'
 import { Route as InboxRouteImport } from './routes/inbox'
 import { Route as InviteRouteImport } from './routes/invite'
 import { Route as LoginRouteImport } from './routes/login'
@@ -31,6 +32,7 @@ import { Route as AdminUsersRouteImport } from './routes/admin_.users'
 import { Route as DigestSettingsRouteImport } from './routes/digest_.settings'
 import { Route as SettingsCategoriesRouteImport } from './routes/settings_.categories'
 import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
+import { Route as SettingsSecurityRouteImport } from './routes/settings_.security'
 import { Route as SettingsTaskExportRouteImport } from './routes/settings_.task-export'
 import { Route as AdminSharedMailboxesMailboxIdRouteImport } from './routes/admin_.shared-mailboxes_.$mailboxId'
 import { Route as AdminSharedMailboxesNewRouteImport } from './routes/admin_.shared-mailboxes_.new'
@@ -49,6 +51,11 @@ const AdminRoute = AdminRouteImport.update({
 const DigestRoute = DigestRouteImport.update({
   id: '/digest',
   path: '/digest',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const DraftsRoute = DraftsRouteImport.update({
+  id: '/drafts',
+  path: '/drafts',
   getParentRoute: () => rootRouteImport,
 } as any)
 const InboxRoute = InboxRouteImport.update({
@@ -146,6 +153,11 @@ const SettingsMailboxesRoute = SettingsMailboxesRouteImport.update({
   path: '/settings/mailboxes',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsSecurityRoute = SettingsSecurityRouteImport.update({
+  id: '/settings_/security',
+  path: '/settings/security',
+  getParentRoute: () => rootRouteImport,
+} as any)
 const SettingsTaskExportRoute = SettingsTaskExportRouteImport.update({
   id: '/settings_/task-export',
   path: '/settings/task-export',
@@ -172,6 +184,7 @@ export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
+  '/drafts': typeof DraftsRoute
   '/inbox': typeof InboxRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
@@ -191,6 +204,7 @@ export interface FileRoutesByFullPath {
   '/digest/settings': typeof DigestSettingsRoute
   '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/settings/security': typeof SettingsSecurityRoute
   '/settings/task-export': typeof SettingsTaskExportRoute
   '/admin/shared-mailboxes/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
   '/admin/shared-mailboxes/new': typeof AdminSharedMailboxesNewRoute
@@ -200,6 +214,7 @@ export interface FileRoutesByTo {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
+  '/drafts': typeof DraftsRoute
   '/inbox': typeof InboxRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
@@ -219,6 +234,7 @@ export interface FileRoutesByTo {
   '/digest/settings': typeof DigestSettingsRoute
   '/settings/categories': typeof SettingsCategoriesRoute
   '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/settings/security': typeof SettingsSecurityRoute
   '/settings/task-export': typeof SettingsTaskExportRoute
   '/admin/shared-mailboxes/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
   '/admin/shared-mailboxes/new': typeof AdminSharedMailboxesNewRoute
@@ -229,6 +245,7 @@ export interface FileRoutesById {
   '/': typeof IndexRoute
   '/admin': typeof AdminRoute
   '/digest': typeof DigestRoute
+  '/drafts': typeof DraftsRoute
   '/inbox': typeof InboxRoute
   '/invite': typeof InviteRoute
   '/login': typeof LoginRoute
@@ -248,6 +265,7 @@ export interface FileRoutesById {
   '/digest_/settings': typeof DigestSettingsRoute
   '/settings_/categories': typeof SettingsCategoriesRoute
   '/settings_/mailboxes': typeof SettingsMailboxesRoute
+  '/settings_/security': typeof SettingsSecurityRoute
   '/settings_/task-export': typeof SettingsTaskExportRoute
   '/admin_/shared-mailboxes_/$mailboxId': typeof AdminSharedMailboxesMailboxIdRoute
   '/admin_/shared-mailboxes_/new': typeof AdminSharedMailboxesNewRoute
@@ -259,6 +277,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/digest'
+    | '/drafts'
     | '/inbox'
     | '/invite'
     | '/login'
@@ -278,6 +297,7 @@ export interface FileRouteTypes {
     | '/digest/settings'
     | '/settings/categories'
     | '/settings/mailboxes'
+    | '/settings/security'
     | '/settings/task-export'
     | '/admin/shared-mailboxes/$mailboxId'
     | '/admin/shared-mailboxes/new'
@@ -287,6 +307,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/digest'
+    | '/drafts'
     | '/inbox'
     | '/invite'
     | '/login'
@@ -306,6 +327,7 @@ export interface FileRouteTypes {
     | '/digest/settings'
     | '/settings/categories'
     | '/settings/mailboxes'
+    | '/settings/security'
     | '/settings/task-export'
     | '/admin/shared-mailboxes/$mailboxId'
     | '/admin/shared-mailboxes/new'
@@ -315,6 +337,7 @@ export interface FileRouteTypes {
     | '/'
     | '/admin'
     | '/digest'
+    | '/drafts'
     | '/inbox'
     | '/invite'
     | '/login'
@@ -334,6 +357,7 @@ export interface FileRouteTypes {
     | '/digest_/settings'
     | '/settings_/categories'
     | '/settings_/mailboxes'
+    | '/settings_/security'
     | '/settings_/task-export'
     | '/admin_/shared-mailboxes_/$mailboxId'
     | '/admin_/shared-mailboxes_/new'
@@ -344,6 +368,7 @@ export interface RootRouteChildren {
   IndexRoute: typeof IndexRoute
   AdminRoute: typeof AdminRoute
   DigestRoute: typeof DigestRoute
+  DraftsRoute: typeof DraftsRoute
   InboxRoute: typeof InboxRoute
   InviteRoute: typeof InviteRoute
   LoginRoute: typeof LoginRoute
@@ -363,6 +388,7 @@ export interface RootRouteChildren {
   DigestSettingsRoute: typeof DigestSettingsRoute
   SettingsCategoriesRoute: typeof SettingsCategoriesRoute
   SettingsMailboxesRoute: typeof SettingsMailboxesRoute
+  SettingsSecurityRoute: typeof SettingsSecurityRoute
   SettingsTaskExportRoute: typeof SettingsTaskExportRoute
   AdminSharedMailboxesMailboxIdRoute: typeof AdminSharedMailboxesMailboxIdRoute
   AdminSharedMailboxesNewRoute: typeof AdminSharedMailboxesNewRoute
@@ -390,6 +416,13 @@ declare module '@tanstack/react-router' {
       path: '/digest'
       fullPath: '/digest'
       preLoaderRoute: typeof DigestRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/drafts': {
+      id: '/drafts'
+      path: '/drafts'
+      fullPath: '/drafts'
+      preLoaderRoute: typeof DraftsRouteImport
       parentRoute: typeof rootRouteImport
     }
     '/inbox': {
@@ -525,6 +558,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof SettingsMailboxesRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings_/security': {
+      id: '/settings_/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof SettingsSecurityRouteImport
+      parentRoute: typeof rootRouteImport
+    }
     '/settings_/task-export': {
       id: '/settings_/task-export'
       path: '/settings/task-export'
@@ -560,6 +600,7 @@ const rootRouteChildren: RootRouteChildren = {
   IndexRoute: IndexRoute,
   AdminRoute: AdminRoute,
   DigestRoute: DigestRoute,
+  DraftsRoute: DraftsRoute,
   InboxRoute: InboxRoute,
   InviteRoute: InviteRoute,
   LoginRoute: LoginRoute,
@@ -579,6 +620,7 @@ const rootRouteChildren: RootRouteChildren = {
   DigestSettingsRoute: DigestSettingsRoute,
   SettingsCategoriesRoute: SettingsCategoriesRoute,
   SettingsMailboxesRoute: SettingsMailboxesRoute,
+  SettingsSecurityRoute: SettingsSecurityRoute,
   SettingsTaskExportRoute: SettingsTaskExportRoute,
   AdminSharedMailboxesMailboxIdRoute: AdminSharedMailboxesMailboxIdRoute,
   AdminSharedMailboxesNewRoute: AdminSharedMailboxesNewRoute,

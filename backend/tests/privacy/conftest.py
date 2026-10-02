@@ -12,6 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.mfa.models import Passkey, PendingLogin, RecoveryCode, TotpFactor
 from app.auth.models import Invitation
 from app.core.config import get_settings
 from app.digest.models import Digest, DigestLength, DigestStatus, DigestTrigger, DigestUserSettings
@@ -107,6 +108,26 @@ async def seed_user_data(
         session.add(shared)
         await session.flush()
     session.add(MailboxAssignment(mailbox_id=shared.id, user_id=user_id))
+    # Second factors (#96) and a pending login.
+    session.add_all(
+        [
+            TotpFactor(user_id=user_id, secret="JBSWY3DPEHPK3PXP"),
+            Passkey(
+                user_id=user_id,
+                credential_id=f"credential-{marker}".encode(),
+                public_key=b"public-key",
+                sign_count=0,
+                name=f"Passkey {marker}",
+            ),
+            RecoveryCode(user_id=user_id, code_hash=f"code-{marker}".encode().ljust(32, b"-")),
+            PendingLogin(
+                token_hash=f"pending-{marker}".encode().ljust(32, b"-"),
+                purpose="verify",
+                user_id=user_id,
+                expires_at=NOW + timedelta(minutes=5),
+            ),
+        ]
+    )
 
     category = TriageCategory(owner_user_id=user_id, name=f"Category {marker}", description="")
     session.add(category)

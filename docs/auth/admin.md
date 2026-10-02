@@ -141,4 +141,6 @@ docker compose -f deploy/compose.yaml run --rm api python -m app.cli create-admi
 Beide fragen das Passwort verdeckt ab und **schalten die lokale Anmeldung wieder ein**, falls sie
 abgeschaltet war (`idp.config_changed`, `via: cli`). `reset-password` beendet außerdem alle
 Sitzungen des Nutzers, löscht eine offene Einladung und die Login-Sperre; mit `--activate`
-reaktiviert es ein deaktiviertes Konto. Die Rolle ändert es nicht.
+reaktiviert es ein deaktiviertes Konto. Die Rolle ändert es nicht. Passkeys und
+Authenticator-App bleiben bestehen; `--reset-2fa` entfernt sie samt Wiederherstellungscodes
+(Audit `auth.mfa_disabled`, `via: cli`, siehe [`mfa.md`](mfa.md)).

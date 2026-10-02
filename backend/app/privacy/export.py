@@ -2,7 +2,8 @@
 
 Contents (``manifest.json`` lists them):
 
-* ``profile.json``: account, sign-in identities (provider, subject, groups) and sessions
+* ``profile.json``: account, sign-in identities (provider, subject, groups), sessions and
+  second factors (passkey names and dates, whether TOTP is on; never secrets or codes)
 * ``mailboxes.json``: own mailboxes (type, address, settings; never credentials)
 * ``triage.json``: own categories, category preferences, sender rules, corrections and
   the triage results of mails in own mailboxes
@@ -36,6 +37,7 @@ from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.auth.mfa.service import factors as mfa_factors
 from app.auth.models import AuthSession, Identity
 from app.digest.models import Digest, DigestUserSettings
 from app.digest.storage import DigestStorage
@@ -116,6 +118,19 @@ async def _profile(session: AsyncSession, user: User) -> dict[str, Any]:
             _row(item, ("provider", "user_agent", "created_at", "last_seen_at", "expires_at"))
             for item in sessions
         ],
+        "second_factors": await _second_factors(session, user.id),
+    }
+
+
+async def _second_factors(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any]:
+    found = await mfa_factors(session, user_id)
+    return {
+        "totp": found.totp,
+        "passkeys": [
+            _row(passkey, ("name", "backed_up", "created_at", "last_used_at"))
+            for passkey in found.passkeys
+        ],
+        "recovery_codes_remaining": found.recovery_remaining,
     }
 
 

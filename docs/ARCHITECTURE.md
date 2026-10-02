@@ -962,6 +962,8 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
   `send_not_permitted`), 503 bei nicht erreichbarem Server, 409 für Konfigurationsfehler.
 - **Aufbewahrung:** Der tägliche Job `drafts.purge` löscht Entwürfe, die seit
   `OLLAMAIL_DRAFTS_RETENTION_DAYS` (Standard 30, 0 = nie) nicht geändert wurden.
+- **UI** (#93): Editor unter dem Thread, Übersicht `/drafts`; Senden nur per eigener Aktion, ein
+  unveränderter Vorschlag verlangt eine zweite Bestätigung. Details: `frontend/README.md`.
 
 | Endpunkt | Zweck |
 |---|---|
@@ -1094,6 +1096,18 @@ damit Antwort und Laufzeit nichts verraten. Die Schlüssel sind HMACs von IP bzw
 Argon2id (RFC 9106, 64 MiB) läuft in einem Thread, höchstens vier Hashes gleichzeitig; veraltete
 Parameter werden beim Login aktualisiert. Hinter einem Reverse Proxy kommt die Client-IP aus
 `X-Forwarded-For` (uvicorn `--forwarded-allow-ips`).
+
+**Zweiter Faktor** (#96, `app/auth/mfa/`, Details: [`auth/mfa.md`](auth/mfa.md)): Lokale Konten
+können Passkeys (WebAuthn mit `webauthn`, auch ohne Passwort), eine Authenticator-App (TOTP mit
+`pyotp`, QR-Code lokal per `segno`) und einmal nutzbare Wiederherstellungscodes (nur als HMAC
+gespeichert) einrichten. Hat ein Konto einen Faktor, antwortet `POST /api/auth/login` nach dem
+Passwort mit 202 und **ohne Session**; der Zwischenzustand ist ein kurzlebiges, einmal nutzbares
+Cookie (`ollamail_mfa`, Tabelle `auth_mfa_pending`), das an genau diesen Login gebunden ist. Erst
+`/api/auth/mfa/verify*` startet die Session. Für den zweiten Schritt gelten IP-Limit, eine
+eigene Kontosperre und höchstens 5 Versuche je Zwischenzustand. Admins können 2FA für Admins oder
+alle lokalen Konten erzwingen (`auth_policy.mfa_enforcement`); dann wird der Faktor vor der ersten
+Session eingerichtet. RP-ID und Origins kommen aus der Konfiguration
+(`OLLAMAIL_AUTH_WEBAUTHN_*`, sonst `OLLAMAIL_AUTH_PUBLIC_URL`).
 
 **Sessions:** Cookie `ollamail_session` (`HttpOnly`, `Secure`, `SameSite=Lax`, 256 Bit Zufall);
 in der DB steht nur der SHA-256. Gültig bis `expires_at` (Lebensdauer) und solange die letzte

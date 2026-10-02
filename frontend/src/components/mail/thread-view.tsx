@@ -12,7 +12,7 @@ import {
 } from "@/api/mail";
 import { InlineError } from "@/components/inline-error";
 import { MailBodyFrame } from "@/components/mail/mail-body-frame";
-import { MessageTasksSlot, TriageLabelSlot } from "@/components/mail/slots";
+import { MessageTasksSlot, ReplySlot, TriageLabelSlot } from "@/components/mail/slots";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -111,6 +111,7 @@ export function ThreadView({
               />
             ),
           )}
+          <ReplySlot messageId={messageId} mailboxId={thread.mailbox_id} />
           <MessageTasksSlot messageId={messageId} />
         </div>
       </div>
