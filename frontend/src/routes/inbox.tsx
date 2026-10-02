@@ -133,7 +133,8 @@ function InboxPage() {
       !!mailboxes.data?.find((mailbox) => mailbox.id === mailboxId)?.permissions.includes("act"),
     [mailboxes.data],
   );
-  const setSeen = useSetSeen();
+  // `mutate` keeps its identity; the mutation result itself is new on every render.
+  const { mutate: setSeen } = useSetSeen();
   const thread = useQuery({ ...threadQueryOptions(selectedId ?? ""), enabled: !!selectedId });
   const openedMessage = thread.data?.messages.find((message) => message.id === selectedId);
   const listMessage = items.find((message) => message.id === selectedId);
@@ -145,19 +146,21 @@ function InboxPage() {
     if (!openedMessage || markedRead.current === openedMessage.id) return;
     if (!canAct(openedMessage.mailbox_id)) return;
     markedRead.current = openedMessage.id;
-    if (openedMessage.unread) setSeen.mutate({ messageId: openedMessage.id, seen: true });
+    if (openedMessage.unread) setSeen({ messageId: openedMessage.id, seen: true });
   }, [openedMessage, setSeen, canAct]);
 
-  const target = selectedId
-    ? { id: selectedId, unread: openedUnread, mailbox: thread.data?.mailbox_id }
-    : items[activeIndex] && {
-        id: items[activeIndex].id,
-        unread: items[activeIndex].unread,
-        mailbox: items[activeIndex].mailbox_id,
-      };
-  const toggleTarget = target && canAct(target.mailbox) ? target : undefined;
+  // Built from primitives, so loading another page keeps `toggleUnread` and the commands (#115).
+  const activeMessage = items[activeIndex];
+  const targetId = selectedId ?? activeMessage?.id;
+  const targetUnread = selectedId ? openedUnread : activeMessage?.unread;
+  const targetMailbox = selectedId ? thread.data?.mailbox_id : activeMessage?.mailbox_id;
+  const targetActable = canAct(targetMailbox);
+  const toggleTarget = useMemo(
+    () => (targetId && targetActable ? { id: targetId, unread: targetUnread ?? false } : undefined),
+    [targetId, targetUnread, targetActable],
+  );
   const toggleUnread = useCallback(() => {
-    if (toggleTarget) setSeen.mutate({ messageId: toggleTarget.id, seen: toggleTarget.unread });
+    if (toggleTarget) setSeen({ messageId: toggleTarget.id, seen: toggleTarget.unread });
   }, [toggleTarget, setSeen]);
 
   useShortcut(
