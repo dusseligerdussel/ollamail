@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from app.ai.llm import EnvConfigResolver, LLMGateway
 from app.audit.router import router as audit_router
 from app.auth.csrf import CSRFMiddleware
-from app.auth.providers import AuthProviderRegistry, oidc
+from app.auth.providers import AuthProviderRegistry, github, oidc
 from app.auth.providers.ldap.router import login_router as ldap_login_router
 from app.auth.providers.ldap.router import router as ldap_router
 from app.auth.router import router as auth_router
@@ -33,6 +33,7 @@ from app.mail.api.router import router as mailboxes_router
 from app.mail.providers.gmail_connect import router as gmail_connect_router
 from app.mail.providers.graph_router import NOTIFICATIONS_PATH
 from app.mail.providers.graph_router import router as graph_router
+from app.rag.router import router as rag_router
 from app.todos.router import router as todos_router
 from app.triage.router import router as triage_router
 from app.users.router import router as users_router
@@ -101,7 +102,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(graph_router)
     app.include_router(digests_router)
     app.include_router(digest_feed_router)
+    app.include_router(rag_router)
     oidc.install(app, settings)
+    github.install(app)
     return app
 
 

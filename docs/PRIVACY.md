@@ -34,8 +34,9 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Triage | Few-Shot-Beispiele nur aus Korrekturen desselben Nutzers in eigenen Postfächern (doppelt gefiltert, Test `tests/triage/test_isolation.py`); Kategorien anderer Nutzer werden nie angeboten. Prompts, Antworten und Begründungen nie in Logs, Fehlercodes statt Exception-Texten. Zurückschreiben aufs Postfach nur nach Opt-in je Postfach |
 | LDAP/AD | Nur LDAPS oder StartTLS mit Zertifikats- und Hostnamenprüfung; Klartext nur mit `OLLAMAIL_AUTH_LDAP_ALLOW_PLAINTEXT=true`. Keine leeren Passwörter (Unauthenticated Bind), Filterwerte RFC-4515-escaped, Referrals werden nicht verfolgt. Gespeichert werden nur E-Mail-Adresse, Anzeigename und die Verzeichnis-ID (`objectGUID`/`entryUUID`); Gruppen werden bei jedem Login gelesen, nicht gespeichert. Logs enthalten weder Login-Namen noch DNs ([`auth/ldap.md`](auth/ldap.md)) |
 | Anhänge lesen | Textextraktion (PDF, DOCX, TXT, HTML) in einem eigenen Prozess ohne Umgebungsvariablen (keine Secrets), mit Grenzen für Dateigröße, Laufzeit, Speicher und ohne Schreibrechte; Fehler nur als Statuscode |
-| Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/search/access.py`), getestet in `tests/search/test_service.py` |
+| Suche/RAG | Zugriff ausschließlich per SQL-Filter auf die lesbaren Postfächer (`app/search/access.py`), getestet in `tests/search/test_service.py` und `tests/rag/` (Nutzer A erfährt nichts aus Mails von Nutzer B, auch nicht mit dessen Postfach als Filter). Mailinhalte stehen im Prompt nur als markierte Daten, die Antwort führt nichts aus; Zitate können nur auf tatsächlich abgerufene Chunks zeigen. Fragen, Antworten und Prompts nie in Logs (nur IDs, Anzahlen, Zeiten wie `ttft_ms`) |
 | Single Sign-on (OIDC) | Gespeichert werden nur `sub` (Identität), Gruppen-Claims (für das Rollen-Mapping) und beim ersten Login E-Mail-Adresse und Name; IdP-Tokens nie. Client-Secrets verschlüsselt. `state`/`nonce`/PKCE-Verifier nur im verschlüsselten Einmal-Cookie. Logs nur mit Provider und statischem Fehlercode, nie Claims oder Tokens |
+| Login mit GitHub | Gespeichert werden nur die numerische GitHub-Nutzer-ID, die Teams (für das Rollen-Mapping; bei Org-Beschränkung nur Teams der erlaubten Organisationen) und beim ersten Login die verifizierte primäre E-Mail-Adresse und der Name. Das Access-Token wird nur im Callback benutzt, nie gespeichert. Client-Secrets verschlüsselt. Logs nur mit Provider und statischem Fehlercode ([`auth/github.md`](auth/github.md)) |
 | Sprachausgabe (TTS) | Lokal (Piper), keine Texte in Logs oder Job-Argumenten; Logs nur mit Stimme, Sprache, Längen und Zeiten. Der Download der Stimmen sendet keine Nutzerdaten |
 
 ### Logging im Detail
@@ -154,6 +155,13 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   geloggt wird). Wer die Feed-URL kennt, kann Skripte und Audio der Digests abrufen; die UI muss
   darauf hinweisen. Der Feed bittet Verzeichnisse per `itunes:block` und `X-Robots-Tag: noindex`,
   ihn nicht aufzunehmen.
+  Umsetzung „Frag deine Inbox“ (`backend/app/rag/`, #25): Gespräche (`rag_conversations`)
+  hängen per `ON DELETE CASCADE` am Nutzer, Fragen und Antworten (`rag_messages`) am Gespräch.
+  Zitierte Ausschnitte (`rag_citations`) hängen zusätzlich per `ON DELETE CASCADE` an Mail,
+  Anhang und Postfach: Wird eine Mail gelöscht, verschwindet ihr Ausschnitt aus allen
+  Gesprächen. Nutzer löschen einzelne oder alle Gespräche selbst (`DELETE /rag/conversations`);
+  der tägliche Job `rag.purge_conversations` löscht Gespräche, in denen seit
+  `OLLAMAIL_RAG_HISTORY_RETENTION_DAYS` (Standard 90) keine Frage gestellt wurde.
   Umsetzung API (`DELETE /mailboxes/{id}`, `backend/app/mail/api/`): ruft `delete_mailbox` auf und
   bestätigt die Löschung mit der Anzahl gelöschter Mails und Anhänge. Neue Tabellen anderer
   Module (Triage, Suchindex, …) müssen per `ON DELETE CASCADE` an Postfach oder Mail hängen;

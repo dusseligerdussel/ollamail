@@ -203,7 +203,18 @@ describe("login", () => {
           local_login: true,
           local_registration: false,
           providers: [
-            { name: "oidc:entra", display_name: "Microsoft Entra ID", kind: "redirect" },
+            {
+              name: "oidc:entra",
+              display_name: "Microsoft Entra ID",
+              kind: "redirect",
+              login_path: "/auth/oidc/entra/login",
+            },
+            {
+              name: "github:github",
+              display_name: "GitHub",
+              kind: "redirect",
+              login_path: "/auth/github/github/login",
+            },
             { name: "ldap:corp", display_name: "Corporate directory", kind: "password" },
           ],
         },
@@ -213,12 +224,11 @@ describe("login", () => {
 
     const list = await screen.findByRole("list", { name: "Other sign-in methods" });
     const links = within(list).getAllByRole("link");
-    expect(links).toHaveLength(1);
+    expect(links).toHaveLength(2);
     expect(links[0]).toHaveTextContent("Continue with Microsoft Entra ID");
-    expect(links[0]).toHaveAttribute(
-      "href",
-      "/api/auth/providers/oidc%3Aentra/login?redirect=%2Fdigest",
-    );
+    expect(links[0]).toHaveAttribute("href", "/api/auth/oidc/entra/login?return_to=%2Fdigest");
+    expect(links[1]).toHaveTextContent("Continue with GitHub");
+    expect(links[1]).toHaveAttribute("href", "/api/auth/github/github/login?return_to=%2Fdigest");
   });
 
   it("shows no providers section without external providers", async () => {

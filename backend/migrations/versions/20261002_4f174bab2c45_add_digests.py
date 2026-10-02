@@ -1,7 +1,7 @@
 """add digests
 
 Revision ID: 4f174bab2c45
-Revises: 068c341b2ca9
+Revises: 8f4d3018c23f, aebf78960f69
 Create Date: 2026-10-02 05:28:53.317218+00:00
 """
 
@@ -12,7 +12,8 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "4f174bab2c45"
-down_revision: str | Sequence[str] | None = "068c341b2ca9"
+# Also merges the two heads of main (GitHub providers, RAG conversations).
+down_revision: str | Sequence[str] | None = ("8f4d3018c23f", "aebf78960f69")
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
