@@ -44,7 +44,7 @@ from app.mail.providers.base import (
 )
 from app.mail.providers.registry import ProviderFactory, registry
 from app.mail.schemas import SyncSettings
-from app.mail.sync.engine import mailbox_config
+from app.mail.sync.engine import credentials_saver, mailbox_config
 
 log = get_logger(__name__)
 
@@ -178,7 +178,9 @@ class MailboxWatcher:
             mailbox = await session.get(Mailbox, mailbox_id)
             if mailbox is None or not mailbox.sync_enabled:
                 return None
-            return mailbox_config(mailbox)
+            return mailbox_config(
+                mailbox, save_credentials=credentials_saver(self._sessionmaker, mailbox_id)
+            )
 
     async def _request(self, mailbox_id: uuid.UUID) -> None:
         try:
