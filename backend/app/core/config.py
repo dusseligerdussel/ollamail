@@ -260,6 +260,48 @@ class ProcessingSettings(BaseSettings):
     requeue_batch_size: int = Field(default=500, ge=1)
 
 
+class SearchSettings(BaseSettings):
+    """``OLLAMAIL_SEARCH_*`` (hybrid search index, app/search/)"""
+
+    model_config = _config("SEARCH_")
+
+    # Length of the vectors of the embedding model (bge-m3: 1024). Read by the migration
+    # that creates the index; changing it later needs ``python -m app.cli search resize``
+    # (docs/OPERATIONS.md). pgvector's HNSW index supports at most 2000 dimensions.
+    embedding_dimensions: int = Field(default=1024, ge=1, le=2000)
+
+    # Chunking: target size and overlap of neighbouring chunks, in characters.
+    chunk_size: int = Field(default=1200, ge=200, le=8000)
+    chunk_overlap: int = Field(default=200, ge=0, le=2000)
+    # Upper bound per message (body and attachments together); the rest is not indexed.
+    max_chunks_per_message: int = Field(default=200, ge=1)
+
+    # Texts per embedding request and pause between requests (seconds): keeps CPU-only
+    # hosts responsive while a large mailbox is indexed.
+    embed_batch_size: int = Field(default=16, ge=1, le=512)
+    embed_pause_seconds: float = Field(default=0.0, ge=0, le=60)
+    # Chunks per run of the background job that fills in missing embeddings
+    # (model switch, LLM unavailable while indexing).
+    reembed_batch_size: int = Field(default=256, ge=1)
+
+    # Attachment text extraction (PDF, DOCX, TXT, HTML) in a separate process.
+    attachment_max_bytes: int = Field(default=20 * 1024 * 1024, ge=1024)
+    attachment_max_chars: int = Field(default=200_000, ge=1000)
+    extraction_timeout: float = Field(default=30.0, gt=0, le=600)
+    extraction_max_memory_mb: int = Field(default=1024, ge=128)
+
+    # Retrieval: candidates per index (full text, vectors) before Reciprocal Rank Fusion,
+    # and the RRF constant k (score = sum of 1 / (k + rank)).
+    candidates: int = Field(default=50, ge=1, le=1000)
+    rrf_k: int = Field(default=60, ge=1)
+
+    @model_validator(mode="after")
+    def _overlap_below_size(self) -> "SearchSettings":
+        if self.chunk_overlap >= self.chunk_size // 2:
+            raise ValueError("chunk_overlap must be less than half of chunk_size")
+        return self
+
+
 class TodosSettings(BaseSettings):
     """``OLLAMAIL_TODOS_*`` (todo extraction, app/todos/)"""
 
@@ -306,6 +348,15 @@ class WorkerSettings(BaseSettings):
         return value
 
 
+class AuditSettings(BaseSettings):
+    """``OLLAMAIL_AUDIT_*`` (audit log, app/audit/)"""
+
+    model_config = _config("AUDIT_")
+
+    # Days audit events are kept; 0 keeps them forever. Enforced by the retention job (#36).
+    retention_days: int = Field(default=365, ge=0)
+
+
 class Settings(BaseModel):
     """All settings, grouped by concern."""
 
@@ -317,9 +368,12 @@ class Settings(BaseModel):
     mail: MailSettings = Field(default_factory=MailSettings)
     tts: TTSSettings = Field(default_factory=TTSSettings)
     processing: ProcessingSettings = Field(default_factory=ProcessingSettings)
+    search: SearchSettings = Field(default_factory=SearchSettings)
+
     todos: TodosSettings = Field(default_factory=TodosSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
+    audit: AuditSettings = Field(default_factory=AuditSettings)
 
 
 @lru_cache

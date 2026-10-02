@@ -107,9 +107,87 @@
       "serverChecking": "Checking connection"
     },
     "admin": {
-      "emptyTitle": "No admin settings yet",
-      "emptyDescription": "Users, sign-in methods, mail providers and language models will be managed here once these areas are available.",
-      "emptyAction": "Open your settings"
+      "security": "Security",
+      "auditDescription": "Sign-ins, role changes, key rotation and other security events.",
+      "more": "Users, sign-in methods, mail providers and language models will be managed here once these areas are available."
+    },
+    "audit": {
+      "title": "Audit log",
+      "back": "Back to admin",
+      "export": "Export CSV",
+      "filters": "Filters",
+      "action": "Event",
+      "allActions": "All events",
+      "from": "From",
+      "to": "To",
+      "reset": "Reset filters",
+      "loadMore": "Load older entries",
+      "loadingMore": "Loading…",
+      "emptyTitle": "No entries",
+      "emptyDescription": "Security events such as sign-ins and role changes are recorded here.",
+      "emptyFilteredDescription": "No entries match the filters.",
+      "columns": {
+        "time": "Time",
+        "event": "Event",
+        "actor": "By",
+        "target": "Affected",
+        "details": "Details"
+      },
+      "actor": {
+        "system": "System",
+        "anonymous": "Not signed in",
+        "deleted": "Deleted user"
+      },
+      "targets": {
+        "user": "User",
+        "session": "Session",
+        "mailbox": "Mailbox",
+        "idp": "Sign-in provider",
+        "settings": "Settings"
+      },
+      "groups": {
+        "auth": "Sign-in",
+        "users": "Users",
+        "settings": "Settings",
+        "mailboxes": "Mailboxes",
+        "data": "Data",
+        "operations": "Operations"
+      },
+      "actions": {
+        "auth": {
+          "setup_completed": "Instance set up",
+          "login_succeeded": "Signed in",
+          "login_failed": "Sign-in failed",
+          "logout": "Signed out",
+          "session_revoked": "Sessions ended"
+        },
+        "user": {
+          "created": "User created",
+          "role_changed": "Role changed",
+          "deleted": "User deleted"
+        },
+        "idp": {
+          "config_changed": "Sign-in provider changed"
+        },
+        "ai": {
+          "settings_changed": "Language model settings changed"
+        },
+        "mailbox": {
+          "created": "Mailbox added",
+          "shared": "Mailbox shared",
+          "deleted": "Mailbox removed"
+        },
+        "data": {
+          "exported": "Data exported",
+          "deleted": "Data deleted"
+        },
+        "crypto": {
+          "keys_rotated": "Keys rotated"
+        },
+        "audit": {
+          "exported": "Audit log exported"
+        }
+      }
     }
   },
   "notFound": {

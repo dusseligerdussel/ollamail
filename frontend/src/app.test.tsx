@@ -72,11 +72,11 @@ describe("app shell", () => {
     expect(screen.queryByRole("button", { name: /Keyboard shortcuts/ })).not.toBeInTheDocument();
   });
 
-  it("links from the empty admin area to the settings", async () => {
+  it("links from the admin area to the audit log", async () => {
     const user = userEvent.setup();
     await renderApp("/admin");
-    await user.click(screen.getByRole("link", { name: "Open your settings" }));
-    await screen.findByRole("heading", { level: 1, name: "Settings" });
+    await user.click(screen.getByRole("link", { name: /Audit log/ }));
+    await screen.findByRole("heading", { level: 1, name: "Audit log" });
   });
 
   it("uses a bottom bar and a sheet on narrow screens", async () => {

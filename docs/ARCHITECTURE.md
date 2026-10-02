@@ -69,9 +69,10 @@ backend/app/
   triage/        Kategorien, Klassifikation, Feedback/Few-Shot
   todos/         Extraktion, CRUD, (später) CalDAV-Export
   digest/        Tageszusammenfassung, TTS, Podcast-Feed
-  rag/           Hybrid-Retrieval, Chat, Zitate
+  search/        Suchindex: Chunking, Anhangstexte, Embeddings, Hybrid-Suche (RRF)
+  rag/           Chat, Zitate (nutzt search/)
   admin/         Instanz-Einstellungen, Auth-Provider, Audit-Log, Statistiken
-  audit/         Audit-Events
+  audit/         Audit-Log: record(), append-only Tabelle mit Hash-Kette, Admin-API (Liste, CSV)
   worker.py      Procrastinate-App und Task-Registrierung
 ```
 
@@ -461,6 +462,44 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - Filter (Zeitraum, Absender, Ordner, Kategorie) werden aus der Frage extrahiert bzw. im UI gesetzt.
 - Antworten werden gestreamt (SSE) und enthalten **immer Zitate** mit Links auf die Quell-Mails.
 - Strikte Zugriffskontrolle: Retrieval nur über Postfächer, auf die der Nutzer Zugriff hat (Filter in SQL, nicht im Prompt).
+
+**Umsetzung des Index (`backend/app/search/`, #24):**
+
+- **Schritt `index`** (`@registry.step("index", version=1, queue="llm")` in `app.search.tasks`):
+  Chunks aus `body_main` (ohne Zitate/Signatur; leer → `body_text`) und aus Anhangstexten,
+  je Mail höchstens `OLLAMAIL_SEARCH_MAX_CHUNKS_PER_MESSAGE`. Jeder Chunk hat Kopfdaten als
+  Kontext (`From`, `Date`, `Subject`, ggf. `Attachment`), die mit eingebettet und (Gewicht B)
+  volltextindiziert werden. Grenzen folgen Absätzen, Zeilen, Sätzen, Wörtern; benachbarte Chunks
+  überlappen (`OLLAMAIL_SEARCH_CHUNK_SIZE`/`_OVERLAP`). Jede Mail hat mindestens einen Chunk,
+  damit Absender und Betreff immer auffindbar sind. Der Schritt ersetzt die Chunks einer Mail
+  (idempotent).
+- **Anhänge** (`app.search.extract`): PDF (`pypdf`), DOCX (Standardbibliothek: ZIP + XML, DTDs
+  abgelehnt), TXT, HTML. Je Datei ein Kindprozess (`python -m app.search._extract_child`) mit
+  leerer Umgebung (keine Secrets), `RLIMIT_AS`/`RLIMIT_CPU`, ohne Dateischreibrechte, nach
+  `OLLAMAIL_SEARCH_EXTRACTION_TIMEOUT` beendet. Ergebnisse als Statuscodes (`ok`, `too_large`,
+  `timeout`, `unreadable`, `encrypted`, `unsupported`, `missing`). Kein OCR.
+- **Tabellen:** `search_chunks` (Text, `ts_config` `german`/`english`/`simple` aus der erkannten
+  Sprache, generierte `tsvector`-Spalte mit GIN-Index), `search_embeddings` (`chunk_id`, `model`,
+  `embedding vector(n)` mit HNSW-Index, Kosinus), `search_index_state` (aktives Modell). `n` kommt
+  aus `OLLAMAIL_SEARCH_EMBEDDING_DIMENSIONS`; zur Laufzeit gilt die Länge der Datenbankspalte.
+- **Embeddings** über `LLMGateway.embed` (Aufgabe `embeddings`) in Batches
+  (`OLLAMAIL_SEARCH_EMBED_BATCH_SIZE`, optional Pause), auf der Queue `llm` mit deren
+  Parallelität. Schlägt das Einbetten fehl, werden die Chunks ohne Vektor gespeichert; der Job
+  `search.fill_embeddings` ergänzt sie.
+- **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte vom aktiven Modell ab,
+  rechnet `search.fill_embeddings` alle Chunks batchweise neu; Anfragen nutzen bis zum Abschluss
+  das alte Modell (`LLMGateway.embed(model=...)`), dann wird umgeschaltet und aufgeräumt.
+  Dimensionswechsel: `python -m app.cli search resize` (`docs/OPERATIONS.md` 3.7).
+- **Suche:** `search(session, user_id, query, filters, embedder=..., settings=...)` in
+  `app.search.service` liefert Chunks (für #25) oder mit `per_message=True` die beste Stelle je
+  Mail (klassische Suche). Volltext: `websearch_to_tsquery` in allen drei Konfigurationen,
+  ODER-verknüpft, Rang `ts_rank_cd`. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
+  `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
+  (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
+  Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang).
+- **Zugriff:** Jede Abfrage enthält `mailbox_id IN (readable_mailbox_ids(user_id))` aus
+  `app.search.access`, der einzigen Stelle dieser Regel. Heute: eigene Postfächer; Shared
+  Mailboxes werden dort mit #34 ergänzt.
 
 ## 5. Auth & Mandantenmodell
 

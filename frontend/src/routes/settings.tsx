@@ -103,8 +103,7 @@ function TimeZoneSelect() {
     <NativeSelect
       id="settings-timezone"
       size="sm"
-      className="text-ui"
-      wrapperClassName="w-full"
+      className="w-full"
       value={(update.isPending && update.variables.timezone) || user.timezone}
       disabled={update.isPending}
       onChange={(event) => update.mutate({ timezone: event.target.value })}
