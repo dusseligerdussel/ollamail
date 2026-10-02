@@ -67,9 +67,12 @@ export function MessageTasks({ messageId }: { messageId: string }) {
         <h2 id={`message-tasks-${messageId}`} className="text-ui font-medium">
           {t("tasks.fromMail")}
         </h2>
-        <Button asChild variant="link" size="sm" className="ml-auto h-auto px-0 text-xs">
-          <Link to="/tasks">{t("tasks.showAll")}</Link>
-        </Button>
+        <Link
+          to="/tasks"
+          className="ml-auto rounded-sm text-xs text-muted-foreground underline-offset-4 outline-none hover:text-foreground hover:underline focus-visible:ring-[3px] focus-visible:ring-ring/50"
+        >
+          {t("tasks.showAll")}
+        </Link>
       </header>
       <ul>
         {items.map((todo) => (

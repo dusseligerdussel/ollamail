@@ -110,10 +110,12 @@ function DueDateChoices({
           type="button"
           aria-pressed={choice.day === value}
           onClick={() => onChoose(choice.day)}
-          className="flex items-center justify-between rounded-sm px-2 py-1.5 text-left text-ui outline-none hover:bg-accent focus-visible:bg-accent aria-pressed:font-medium"
+          className="group/choice flex items-center justify-between rounded-sm px-2 py-1.5 text-left text-ui outline-none hover:bg-accent focus-visible:bg-accent aria-pressed:font-medium"
         >
           <span>{choice.label}</span>
-          <span className="text-xs text-muted-foreground">{weekday(choice.day)}</span>
+          <span className="text-xs text-muted-foreground group-hover/choice:text-accent-foreground group-focus-visible/choice:text-accent-foreground">
+            {weekday(choice.day)}
+          </span>
         </button>
       ))}
       {value && (
