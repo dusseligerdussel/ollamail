@@ -669,6 +669,14 @@ Presets für Entra ID (`tid`-Prüfung, Multi-Tenant nur mit Tenant-Allowlist), G
 (`hd`), Keycloak, Authentik und generisch. `POST /api/auth/oidc/logout` liefert zusätzlich die
 URL für das RP-initiated Logout.
 
+**GitHub** (`app/auth/providers/github/`, Anleitung: [`auth/github.md`](auth/github.md)): OAuth App
+oder GitHub App, github.com oder GitHub Enterprise Server (`base_url`, API unter `/api/v3`).
+Provider stehen in `auth_github_providers` (Client-Secret als `EncryptedStr`, Admin-API unter
+`/api/admin/auth/github`) und nutzen Redirect-Flow und Provisioning von OIDC. Subject ist die
+numerische GitHub-Nutzer-ID; E-Mail nur die verifizierte primäre Adresse. Org- und
+Team-Beschränkung (`allowed_organizations`, `allowed_teams`) wird serverseitig über die REST-API
+geprüft; Teams (`<org>/<team-slug>`) sind die Gruppen für das Rollen-Mapping (#33).
+
 **LDAP / Active Directory** (`app/auth/providers/ldap/`, Details: [`auth/ldap.md`](auth/ldap.md)):
 Verzeichnisse stehen in `auth_ldap_directories` (Einstellungen als JSONB, Bind-Passwort
 verschlüsselt) und werden über `/api/auth/ldap/directories` (nur Admins) gepflegt und getestet.
