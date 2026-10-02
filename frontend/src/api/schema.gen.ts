@@ -1560,6 +1560,27 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Search
+         * @description Messages matching ``query`` (full text and meaning), best first, one hit per
+         *     message. Only mailboxes the user may read are searched.
+         */
+        post: operations["search_search"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/setup": {
         parameters: {
             query?: never;
@@ -4092,6 +4113,74 @@ export interface components {
              * @default []
              */
             rules: components["schemas"]["RoleMappingRuleFields"][];
+        };
+        /**
+         * SearchFilterParams
+         * @description Filters set in the UI; each one narrows the mailboxes the user may read.
+         */
+        SearchFilterParams: {
+            /** Category Ids */
+            category_ids?: string[] | null;
+            /** Mailbox Ids */
+            mailbox_ids?: string[] | null;
+            /** Sender */
+            sender?: string | null;
+            /** Since */
+            since?: string | null;
+            /** Until */
+            until?: string | null;
+        };
+        /**
+         * SearchHitRead
+         * @description The best matching passage of one message.
+         */
+        SearchHitRead: {
+            /** Attachment Filename */
+            attachment_filename: string | null;
+            /** Attachment Id */
+            attachment_id: string | null;
+            /**
+             * Date
+             * Format: date-time
+             */
+            date: string;
+            /** Excerpt */
+            excerpt: string;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /** Score */
+            score: number;
+            sender: components["schemas"]["AddressRead"] | null;
+            /** Source */
+            source: string;
+            /** Subject */
+            subject: string;
+            /** Thread Id */
+            thread_id: string | null;
+        };
+        /** SearchRequest */
+        SearchRequest: {
+            filters?: components["schemas"]["SearchFilterParams"];
+            /**
+             * Limit
+             * @default 30
+             */
+            limit: number;
+            /** Query */
+            query: string;
+        };
+        /** SearchResults */
+        SearchResults: {
+            /** Hits */
+            hits: components["schemas"]["SearchHitRead"][];
         };
         /** SenderRuleCreate */
         SenderRuleCreate: {
@@ -8954,6 +9043,46 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ReadinessStatus"];
+                };
+            };
+        };
+    };
+    search_search: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SearchRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SearchResults"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
         };

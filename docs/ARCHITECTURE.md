@@ -772,6 +772,10 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   Mailboxes werden dort mit #34 ergänzt.
 - **Kategorie-Filter** (`SearchFilters.category_ids`): Triage-Kategorie der Mail
   (`triage_results.category_id`).
+- **API der klassischen Suche** (`app.search.router`, #26): `POST /search` mit `query`,
+  `filters` (Postfächer, Kategorien, Absender, Zeitraum) und `limit` liefert je Mail den besten
+  Treffer (`per_message=True`) mit Betreff, Absender, Datum und einem Ausschnitt um den ersten
+  Suchbegriff. POST, damit die Suchanfrage nicht in URLs und Access-Logs landet.
 
 **Umsetzung „Frag deine Inbox“ (`backend/app/rag/`, #25):**
 
