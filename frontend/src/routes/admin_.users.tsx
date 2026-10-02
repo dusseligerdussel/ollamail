@@ -11,6 +11,8 @@ import {
   authSettingsQueryOptions,
   type InvitationIssued,
   isAdminLockout,
+  ldapDirectoriesQueryOptions,
+  oidcProvidersQueryOptions,
   providerKind,
   reissueInvitation,
   revokeUserSessions,
@@ -220,6 +222,13 @@ type UserActions = ReturnType<typeof useUserActions>;
 function useFormatters() {
   const { t, i18n } = useTranslation();
   const { timezone } = useCurrentUser();
+  // Already loaded on the sign-in pages; only used for readable provider names.
+  const oidc = useQuery(oidcProvidersQueryOptions);
+  const ldap = useQuery(ldapDirectoriesQueryOptions);
+  const names = new Map<string, string>([
+    ...(oidc.data ?? []).map((p) => [p.provider, p.display_name] as const),
+    ...(ldap.data ?? []).map((d) => [d.provider, d.display_name] as const),
+  ]);
   const date = new Intl.DateTimeFormat(i18n.resolvedLanguage, {
     dateStyle: "medium",
     timeStyle: "short",
@@ -229,10 +238,8 @@ function useFormatters() {
     lastLogin: (user: AdminUser) =>
       user.last_login_at ? date.format(new Date(user.last_login_at)) : t("pages.users.never"),
     provider: (key: string) => {
-      const kind = providerKind(key);
-      return kind === "local"
-        ? t("pages.signIn.kinds.local")
-        : key.split(":").slice(1).join(":") || key;
+      if (providerKind(key) === "local") return t("pages.signIn.kinds.local");
+      return names.get(key) ?? key;
     },
   };
 }

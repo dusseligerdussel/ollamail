@@ -352,7 +352,8 @@
       "testResult": "Rolle: {{role}}",
       "testMatched": "Passende Regeln: {{groups}}",
       "testNoMatch": "Keine Regel passt; Standardrolle.",
-      "testOff": "Rollen-Zuordnung ist aus; Rollen bleiben, wie sie sind."
+      "testOff": "Rollen-Zuordnung ist aus; Rollen bleiben, wie sie sind.",
+      "general": "Allgemein"
     },
     "users": {
       "title": "Nutzer",

@@ -215,6 +215,7 @@ function LocalLoginRow({ enabled, ownProviders }: { enabled: boolean; ownProvide
       <Button
         size="sm"
         variant="outline"
+        className="shrink-0 text-ui"
         disabled={change.isPending}
         onClick={() => {
           change.reset();

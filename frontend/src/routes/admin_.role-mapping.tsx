@@ -137,7 +137,7 @@ function MappingForm({ saved, providers }: { saved: RoleMapping; providers: Prov
 
   return (
     <form onSubmit={onSubmit}>
-      <AdminSection id={`${id}-general`} title={t("pages.roleMapping.title")}>
+      <AdminSection id={`${id}-general`} title={t("pages.roleMapping.general")}>
         <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="min-w-0">
             <div id={`${id}-enabled`} className="text-ui font-medium">
@@ -203,7 +203,7 @@ function MappingForm({ saved, providers }: { saved: RoleMapping; providers: Prov
         {rules.map((rule, index) => (
           <fieldset
             key={rule.id}
-            className="grid grid-cols-2 gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_10rem_8.5rem_auto] sm:items-center"
+            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_10rem_10rem_auto] sm:items-center"
           >
             <legend className="sr-only">
               {t("pages.roleMapping.rules")} {index + 1}
@@ -215,6 +215,17 @@ function MappingForm({ saved, providers }: { saved: RoleMapping; providers: Prov
               value={rule.group}
               onChange={(event) => update(rule.id, { group: event.target.value })}
             />
+            {/* Narrow screens: group and delete in the first row, provider and role below. */}
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              className="sm:order-last"
+              aria-label={t("pages.roleMapping.removeRule")}
+              onClick={() => setRules((current) => current.filter((r) => r.id !== rule.id))}
+            >
+              <Trash2 aria-hidden />
+            </Button>
             <NativeSelect
               aria-label={t("pages.roleMapping.provider")}
               size="sm"
@@ -228,41 +239,19 @@ function MappingForm({ saved, providers }: { saved: RoleMapping; providers: Prov
                 </NativeSelectOption>
               ))}
             </NativeSelect>
-            <div className="flex gap-2">
-              <NativeSelect
-                aria-label={t("pages.roleMapping.role")}
-                size="sm"
-                className="w-full"
-                value={rule.role}
-                onChange={(event) => update(rule.id, { role: event.target.value as Role })}
-              >
-                {roles.map((role) => (
-                  <NativeSelectOption key={role} value={role}>
-                    {t(`account.roles.${role}`)}
-                  </NativeSelectOption>
-                ))}
-              </NativeSelect>
-              <Button
-                type="button"
-                size="icon-sm"
-                variant="ghost"
-                className="sm:hidden"
-                aria-label={t("pages.roleMapping.removeRule")}
-                onClick={() => setRules((current) => current.filter((r) => r.id !== rule.id))}
-              >
-                <Trash2 aria-hidden />
-              </Button>
-            </div>
-            <Button
-              type="button"
-              size="icon-sm"
-              variant="ghost"
-              className="hidden sm:inline-flex"
-              aria-label={t("pages.roleMapping.removeRule")}
-              onClick={() => setRules((current) => current.filter((r) => r.id !== rule.id))}
+            <NativeSelect
+              aria-label={t("pages.roleMapping.role")}
+              size="sm"
+              className="col-span-2 w-full sm:col-span-1"
+              value={rule.role}
+              onChange={(event) => update(rule.id, { role: event.target.value as Role })}
             >
-              <Trash2 aria-hidden />
-            </Button>
+              {roles.map((role) => (
+                <NativeSelectOption key={role} value={role}>
+                  {t(`account.roles.${role}`)}
+                </NativeSelectOption>
+              ))}
+            </NativeSelect>
           </fieldset>
         ))}
         <div className="px-4 py-2.5">

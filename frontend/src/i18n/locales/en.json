@@ -352,7 +352,8 @@
       "testResult": "Role: {{role}}",
       "testMatched": "Matching rules: {{groups}}",
       "testNoMatch": "No rule matches; default role.",
-      "testOff": "Role mapping is off; roles stay as they are."
+      "testOff": "Role mapping is off; roles stay as they are.",
+      "general": "General"
     },
     "users": {
       "title": "Users",

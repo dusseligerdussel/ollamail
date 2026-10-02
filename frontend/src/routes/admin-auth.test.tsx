@@ -259,7 +259,7 @@ describe("admin: users", () => {
     const rows = within(table).getAllByRole("row").slice(1);
     expect(rows).toHaveLength(2);
     expect(within(rows[0] as HTMLElement).getByText("You")).toBeInTheDocument();
-    expect(within(rows[1] as HTMLElement).getByText("microsoft")).toBeInTheDocument();
+    expect(await within(rows[1] as HTMLElement).findByText("Microsoft")).toBeInTheDocument();
   });
 
   it("asks before the own admin role is removed and shows the lockout refusal", async () => {
