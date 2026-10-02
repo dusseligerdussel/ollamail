@@ -19,6 +19,8 @@ import { Route as SettingsRouteImport } from './routes/settings'
 import { Route as SetupRouteImport } from './routes/setup'
 import { Route as TasksRouteImport } from './routes/tasks'
 import { Route as AdminAuditRouteImport } from './routes/admin_.audit'
+import { Route as SettingsMailboxesRouteImport } from './routes/settings_.mailboxes'
+import { Route as SettingsMailboxesNewRouteImport } from './routes/settings_.mailboxes_.new'
 
 const IndexRoute = IndexRouteImport.update({
   id: '/',
@@ -70,6 +72,16 @@ const AdminAuditRoute = AdminAuditRouteImport.update({
   path: '/admin/audit',
   getParentRoute: () => rootRouteImport,
 } as any)
+const SettingsMailboxesRoute = SettingsMailboxesRouteImport.update({
+  id: '/settings_/mailboxes',
+  path: '/settings/mailboxes',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const SettingsMailboxesNewRoute = SettingsMailboxesNewRouteImport.update({
+  id: '/settings_/mailboxes_/new',
+  path: '/settings/mailboxes/new',
+  getParentRoute: () => rootRouteImport,
+} as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -82,6 +94,8 @@ export interface FileRoutesByFullPath {
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
 export interface FileRoutesByTo {
   '/': typeof IndexRoute
@@ -94,6 +108,8 @@ export interface FileRoutesByTo {
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
   '/admin/audit': typeof AdminAuditRoute
+  '/settings/mailboxes': typeof SettingsMailboxesRoute
+  '/settings/mailboxes/new': typeof SettingsMailboxesNewRoute
 }
 export interface FileRoutesById {
   __root__: typeof rootRouteImport
@@ -107,6 +123,8 @@ export interface FileRoutesById {
   '/setup': typeof SetupRoute
   '/tasks': typeof TasksRoute
   '/admin_/audit': typeof AdminAuditRoute
+  '/settings_/mailboxes': typeof SettingsMailboxesRoute
+  '/settings_/mailboxes_/new': typeof SettingsMailboxesNewRoute
 }
 export interface FileRouteTypes {
   fileRoutesByFullPath: FileRoutesByFullPath
@@ -121,6 +139,8 @@ export interface FileRouteTypes {
     | '/setup'
     | '/tasks'
     | '/admin/audit'
+    | '/settings/mailboxes'
+    | '/settings/mailboxes/new'
   fileRoutesByTo: FileRoutesByTo
   to:
     | '/'
@@ -133,6 +153,8 @@ export interface FileRouteTypes {
     | '/setup'
     | '/tasks'
     | '/admin/audit'
+    | '/settings/mailboxes'
+    | '/settings/mailboxes/new'
   id:
     | '__root__'
     | '/'
@@ -145,6 +167,8 @@ export interface FileRouteTypes {
     | '/setup'
     | '/tasks'
     | '/admin_/audit'
+    | '/settings_/mailboxes'
+    | '/settings_/mailboxes_/new'
   fileRoutesById: FileRoutesById
 }
 export interface RootRouteChildren {
@@ -158,6 +182,8 @@ export interface RootRouteChildren {
   SetupRoute: typeof SetupRoute
   TasksRoute: typeof TasksRoute
   AdminAuditRoute: typeof AdminAuditRoute
+  SettingsMailboxesRoute: typeof SettingsMailboxesRoute
+  SettingsMailboxesNewRoute: typeof SettingsMailboxesNewRoute
 }
 
 declare module '@tanstack/react-router' {
@@ -232,6 +258,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AdminAuditRouteImport
       parentRoute: typeof rootRouteImport
     }
+    '/settings_/mailboxes': {
+      id: '/settings_/mailboxes'
+      path: '/settings/mailboxes'
+      fullPath: '/settings/mailboxes'
+      preLoaderRoute: typeof SettingsMailboxesRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/settings_/mailboxes_/new': {
+      id: '/settings_/mailboxes_/new'
+      path: '/settings/mailboxes/new'
+      fullPath: '/settings/mailboxes/new'
+      preLoaderRoute: typeof SettingsMailboxesNewRouteImport
+      parentRoute: typeof rootRouteImport
+    }
   }
 }
 
@@ -246,6 +286,8 @@ const rootRouteChildren: RootRouteChildren = {
   SetupRoute: SetupRoute,
   TasksRoute: TasksRoute,
   AdminAuditRoute: AdminAuditRoute,
+  SettingsMailboxesRoute: SettingsMailboxesRoute,
+  SettingsMailboxesNewRoute: SettingsMailboxesNewRoute,
 }
 export const routeTree = rootRouteImport
   ._addFileChildren(rootRouteChildren)

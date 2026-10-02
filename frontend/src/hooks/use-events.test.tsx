@@ -91,6 +91,16 @@ describe("useEvents", () => {
     expect(invalidate).toHaveBeenCalledTimes(2);
   });
 
+  it("refreshes the inbox while a mailbox syncs", () => {
+    renderHook(() => useEvents(), { wrapper });
+
+    MockEventSource.last.emit("message", { type: "mailbox.sync", status: "progress" });
+
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mailbox"] });
+    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["message", "list"] });
+    expect(invalidate).toHaveBeenCalledTimes(2);
+  });
+
   it("receives named SSE events for registered types", () => {
     const rules: Record<string, InvalidationRule> = { "todo.created": () => [["todo"]] };
     renderHook(() => useEvents({ rules }), { wrapper });
