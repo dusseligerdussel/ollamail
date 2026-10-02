@@ -12,6 +12,7 @@ from httpx import AsyncClient
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.audit.models import audit_events
 from app.core.config import DatabaseSettings, SecuritySettings, Settings
 from app.core.crypto import generate_key, set_keyring
 from app.mail.models import Mailbox, MailboxType
@@ -141,6 +142,15 @@ async def test_connect_flow_creates_the_mailbox(
     assert mailbox.credentials is not None
     assert mailbox.credentials["refresh_token"] == "refresh-new"
     assert mailbox.credentials["access_token"] == "access-new"
+
+    events = (
+        await db_session.execute(
+            select(audit_events.c.action, audit_events.c.target_id, audit_events.c.details).where(
+                audit_events.c.action == "mailbox.created"
+            )
+        )
+    ).all()
+    assert events == [("mailbox.created", str(mailbox.id), {"type": "graph", "shared": False})]
 
 
 async def test_reconnecting_replaces_the_tokens(

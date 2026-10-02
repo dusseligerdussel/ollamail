@@ -38,6 +38,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app import audit
 from app.auth.dependencies import CurrentSessionDep, get_settings_from_app
 from app.auth.keys import derive_key
 from app.auth.sessions import SESSION_COOKIE, resolve_session
@@ -259,6 +260,15 @@ async def save_connected_mailbox(
         db.add(mailbox)
     mailbox.provider_settings = provider_settings
     mailbox.credentials = tokens.to_credentials()
+    if created:
+        await db.flush()
+        await audit.record(
+            db,
+            audit.Actor.user(user_id),
+            audit.AuditAction.MAILBOX_CREATED,
+            audit.Target.of(audit.TargetType.MAILBOX, mailbox.id),
+            {"type": MailboxType.GRAPH.value, "shared": provider_settings.get("user") != "me"},
+        )
     await db.commit()
     return mailbox, created
 
