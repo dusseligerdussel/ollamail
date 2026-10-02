@@ -16,22 +16,25 @@ Liste aller Anmeldeverfahren: lokale Konten, OIDC-Provider (Datenbank und
 **Anbieter hinzufügen** (Assistent in drei Schritten):
 
 1. Typ wählen: Microsoft Entra ID, Google Workspace, GitHub (github.com oder Enterprise Server),
-   OpenID Connect (Keycloak, Authentik, generisch), LDAP / Active Directory. Angeboten wird, was
+   OpenID Connect (Keycloak, Authentik, generisch), SAML 2.0 (Entra ID, AD FS, Okta, Keycloak,
+   generisch), LDAP / Active Directory. Angeboten wird, was
    das Backend in `GET /api/admin/auth/settings` → `provider_kinds` meldet.
 2. Daten eintragen. Entra ID: Tenant-ID, Client-ID, Client-Secret (der Issuer wird daraus
    gebildet). Google: Workspace-Domain (`hd`). LDAP: Server, Verschlüsselung, Dienstkonto,
    Suchbasis; die übrigen Felder kommen aus dem Preset des Verzeichnistyps (siehe
    [`ldap.md`](ldap.md)). GitHub: erlaubte Organisationen, optional Enterprise-Server-URL,
-   Client-ID und -Secret ([`github.md`](github.md)). Der Anbieter wird **deaktiviert**
-   gespeichert.
+   Client-ID und -Secret ([`github.md`](github.md)). SAML: Produkt und IdP-Metadaten (URL oder
+   Datei-Upload, [`saml.md`](saml.md)). Der Anbieter wird **deaktiviert** gespeichert.
 3. Prüfen und aktivieren. OIDC: Redirect-URI anzeigen und kopieren (beim IdP eintragen), dann
    „Verbindung testen“ (`POST /api/admin/auth/oidc/providers/{name}/test`: Discovery-Dokument
    und Signaturschlüssel werden am Cache vorbei geladen; das Client-Secret prüft erst ein echter
    Login). GitHub: Callback-URL kopieren; einen Verbindungstest bietet GitHub nicht, geprüft wird
-   bei der ersten Anmeldung. LDAP: Verbindungstest je Server und optional „Benutzer suchen“.
+   bei der ersten Anmeldung. SAML: SP-Metadaten-URL/Entity-ID und ACS-URL kopieren und beim IdP
+   eintragen; geprüft wird bei der ersten Anmeldung. LDAP: Verbindungstest je Server und optional
+   „Benutzer suchen“.
    Danach „Jetzt aktivieren“ oder später über die Detailansicht.
 
-In der Detailansicht eines Anbieters: Redirect-URI kopieren, Verbindung testen, aktivieren bzw.
+In der Detailansicht eines Anbieters: Redirect-URI kopieren (SAML: SP-Metadaten und ACS-URL, Metadaten neu laden), Verbindung testen, aktivieren bzw.
 deaktivieren, entfernen.
 
 **Lokale Anmeldung abschalten:** `PATCH /api/admin/auth/settings {"local_login_enabled": false}`.
@@ -48,7 +51,7 @@ Prüfung der Admin-Zugänge berücksichtigt sie automatisch, weil sie alle Provi
 Serverseitig gilt: **Mindestens ein aktiver Admin muss sich anmelden können.** Ein Admin hat
 einen funktionierenden Zugang, wenn sein Konto aktiv ist und er eine Identität bei einem gerade
 aktiven Verfahren hat: lokales Passwort bei eingeschalteter lokaler Anmeldung, aktiver
-OIDC-/GitHub-Provider (alles in der `AuthProviderRegistry`) oder aktives LDAP-Verzeichnis
+OIDC-/GitHub-/SAML-Provider (alles in der `AuthProviderRegistry`) oder aktives LDAP-Verzeichnis
 (`app/auth/admin_access.py`).
 
 Jede Änderung, die einen Zugang entfernen kann, wird geprüft und mit **409
@@ -60,6 +63,7 @@ Jede Änderung, die einen Zugang entfernen kann, wird geprüft und mit **409
 | Lokale Anmeldung abschalten | `PATCH /api/admin/auth/settings` |
 | OIDC-Provider deaktivieren/ändern/löschen | `PATCH`/`DELETE /api/admin/auth/oidc/providers/{name}` |
 | GitHub-Provider deaktivieren/ändern/löschen | `PATCH`/`DELETE /api/admin/auth/github/providers/{name}` |
+| SAML-Provider deaktivieren/ändern/löschen, Metadaten neu laden | `PATCH`/`DELETE /api/admin/auth/saml/providers/{name}`, `POST …/{name}/refresh-metadata` |
 | LDAP-Verzeichnis ändern/löschen | `PUT`/`DELETE /api/auth/ldap/directories/{name}` |
 
 Hatte schon vorher kein Admin Zugang (z. B. nach einer Fehlkonfiguration), werden Änderungen
@@ -80,7 +84,7 @@ Admin-Rolle entzieht oder sein Konto deaktiviert. `GET /api/admin/auth/settings`
 
 - **Aus (Standard):** Rollen werden von Hand in der Nutzerliste vergeben. Ein LDAP-Verzeichnis
   mit `admin_groups` setzt die Rolle seiner Nutzer weiterhin selbst.
-- **An:** Bei **jeder** Anmeldung über einen externen Anbieter (OIDC, LDAP, GitHub) wird die Rolle
+- **An:** Bei **jeder** Anmeldung über einen externen Anbieter (OIDC, LDAP, GitHub, SAML) wird die Rolle
   zentral in `app/auth/provisioning.py` → `app.auth.policy.resolve_role` bestimmt: die höchste
   Rolle aller Regeln, deren Gruppe der Nutzer hat; ohne Treffer die **Standardrolle**. Eine
   Rolle, die der Anbieter selbst ableitet (LDAP-`admin_groups`), zählt wie eine passende Regel.
@@ -89,7 +93,7 @@ Admin-Rolle entzieht oder sein Konto deaktiviert. `GET /api/admin/auth/settings`
 - **Regeln:** Gruppe, optional Anbieter (`oidc:entra`, `ldap:ad`; leer = alle), Rolle. Gruppen
   werden ohne Beachtung der Groß-/Kleinschreibung verglichen und so eingetragen, wie der
   Anbieter sie meldet: Entra ID die Objekt-ID der Gruppe (Claim `groups`), LDAP der Gruppen-DN,
-  Keycloak/Authentik der Gruppenname bzw. -pfad, GitHub das Team als `<org>/<team-slug>`. Je Anbieter darf eine Gruppe nur eine Regel
+  Keycloak/Authentik der Gruppenname bzw. -pfad, GitHub das Team als `<org>/<team-slug>`, SAML die Werte des Gruppen-Attributs (Entra: Objekt-ID). Je Anbieter darf eine Gruppe nur eine Regel
   haben (sonst 422).
 - **Ausprobieren:** `POST /api/admin/auth/role-mapping/test {"provider", "groups"}` zeigt, welche
   Rolle eine Anmeldung mit diesen Gruppen bekäme.

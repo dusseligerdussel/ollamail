@@ -10,6 +10,7 @@ from app.auth.mfa import models as mfa_models
 from app.auth.providers.github import models as github_models
 from app.auth.providers.ldap import models as ldap_models
 from app.auth.providers.oidc import models as oidc_models
+from app.auth.providers.saml import models as saml_models
 from app.core.db import Base
 from app.digest import models as digest_models
 from app.drafts import models as drafts_models
@@ -39,6 +40,7 @@ __all__ = [
     "privacy_models",
     "processing_models",
     "rag_models",
+    "saml_models",
     "scim_models",
     "search_models",
     "todo_export_models",

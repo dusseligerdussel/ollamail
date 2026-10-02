@@ -1,6 +1,14 @@
 import { useMutation, useQueries, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute } from "@tanstack/react-router";
-import { ChevronRight, FolderTree, GitFork, KeyRound, Plus, UserRound } from "lucide-react";
+import {
+  ChevronRight,
+  FileKey,
+  FolderTree,
+  GitFork,
+  KeyRound,
+  Plus,
+  UserRound,
+} from "lucide-react";
 import { useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -12,6 +20,7 @@ import {
   isAdminLockout,
   ldapDirectoriesQueryOptions,
   oidcProvidersQueryOptions,
+  samlProvidersQueryOptions,
   updateAuthSettings,
 } from "@/api/admin-auth";
 import { describeApiError } from "@/api/errors";
@@ -65,6 +74,9 @@ function useTypeLabel() {
     if (item.kind === "ldap") {
       return t(`pages.signIn.wizard.directoryTypes.${item.directory.settings.directory_type}`);
     }
+    if (item.kind === "saml") {
+      return `${t("pages.signIn.kinds.saml")} · ${t(`pages.signIn.wizard.presetsSaml.${item.provider.preset}`)}`;
+    }
     if (item.kind === "github") {
       return item.provider.base_url
         ? t("pages.signIn.wizard.presets.githubEnterprise")
@@ -86,21 +98,28 @@ function SignInMethods({
 }) {
   const { t } = useTranslation();
   const typeLabel = useTypeLabel();
-  const [settings, oidc, github, ldap] = useQueries({
+  const [settings, oidc, github, ldap, saml] = useQueries({
     queries: [
       authSettingsQueryOptions,
       oidcProvidersQueryOptions,
       githubProvidersQueryOptions,
       ldapDirectoriesQueryOptions,
+      samlProvidersQueryOptions,
     ],
   });
   const [selected, setSelected] = useState<string>();
 
-  if (settings.isPending || oidc.isPending || github.isPending || ldap.isPending) {
+  if (
+    settings.isPending ||
+    oidc.isPending ||
+    github.isPending ||
+    ldap.isPending ||
+    saml.isPending
+  ) {
     return <ListSkeleton />;
   }
-  const error = settings.error ?? oidc.error ?? github.error ?? ldap.error;
-  if (error || !settings.data || !oidc.data || !github.data || !ldap.data) {
+  const error = settings.error ?? oidc.error ?? github.error ?? ldap.error ?? saml.error;
+  if (error || !settings.data || !oidc.data || !github.data || !ldap.data || !saml.data) {
     return <InlineError error={error} />;
   }
 
@@ -112,6 +131,11 @@ function SignInMethods({
     })),
     ...github.data.map((provider) => ({
       kind: "github" as const,
+      key: provider.provider,
+      provider,
+    })),
+    ...saml.data.map((provider) => ({
+      kind: "saml" as const,
       key: provider.provider,
       provider,
     })),
@@ -132,7 +156,9 @@ function SignInMethods({
           ownProviders={access.own_providers}
         />
         {items.map((item) => {
-          const Icon = { oidc: KeyRound, github: GitFork, ldap: FolderTree }[item.kind];
+          const Icon = { oidc: KeyRound, github: GitFork, saml: FileKey, ldap: FolderTree }[
+            item.kind
+          ];
           const enabled = providerEnabled(item);
           return (
             <button

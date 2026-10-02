@@ -8,17 +8,21 @@ import {
   deleteGitHubProvider,
   deleteLdapDirectory,
   deleteOidcProvider,
+  deleteSamlProvider,
   type GitHubProvider,
   isAdminLockout,
   type LdapDirectory,
   type OidcProvider,
+  type SamlProvider,
   updateGitHubProvider,
   updateLdapDirectory,
   updateOidcProvider,
+  updateSamlProvider,
 } from "@/api/admin-auth";
 import { describeApiError } from "@/api/errors";
 import { Notice } from "@/components/admin/notice";
 import { LdapTestPanel, OidcTestPanel } from "@/components/admin/provider-tests";
+import { SamlEndpoints, SamlMetadataRefresh } from "@/components/admin/saml-endpoints";
 import { CopyField } from "@/components/copy-field";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,6 +37,7 @@ import {
 export type ProviderItem =
   | { kind: "oidc"; key: string; provider: OidcProvider }
   | { kind: "github"; key: string; provider: GitHubProvider }
+  | { kind: "saml"; key: string; provider: SamlProvider }
   | { kind: "ldap"; key: string; directory: LdapDirectory };
 
 export function providerLabel(item: ProviderItem) {
@@ -99,6 +104,7 @@ function ProviderDetails({
       const change = { enabled: !enabled };
       if (item.kind === "oidc") await updateOidcProvider(item.provider.name, change);
       else if (item.kind === "github") await updateGitHubProvider(item.provider.name, change);
+      else if (item.kind === "saml") await updateSamlProvider(item.provider.name, change);
       else await updateLdapDirectory(item.directory, change);
     },
     meta: { errorToast: false },
@@ -111,6 +117,7 @@ function ProviderDetails({
     mutationFn: () => {
       if (item.kind === "oidc") return deleteOidcProvider(apiName(item));
       if (item.kind === "github") return deleteGitHubProvider(apiName(item));
+      if (item.kind === "saml") return deleteSamlProvider(apiName(item));
       return deleteLdapDirectory(apiName(item));
     },
     meta: { errorToast: false },
@@ -155,6 +162,21 @@ function ProviderDetails({
               )}
             </>
           )}
+          {item.kind === "saml" && (
+            <>
+              <Detail
+                label={t("pages.signIn.provider.idpEntityId")}
+                value={item.provider.idp_entity_id}
+              />
+              <Detail label={t("pages.signIn.provider.ssoUrl")} value={item.provider.idp_sso_url} />
+              {item.provider.metadata_url && (
+                <Detail
+                  label={t("pages.signIn.provider.metadataUrl")}
+                  value={item.provider.metadata_url}
+                />
+              )}
+            </>
+          )}
           {item.kind === "ldap" && (
             <>
               <Detail
@@ -168,7 +190,13 @@ function ProviderDetails({
             </>
           )}
         </dl>
-        {item.kind !== "ldap" && (
+        {item.kind === "saml" && (
+          <>
+            <SamlMetadataRefresh provider={item.provider} />
+            <SamlEndpoints provider={item.provider} />
+          </>
+        )}
+        {(item.kind === "oidc" || item.kind === "github") && (
           <CopyField
             label={t("pages.signIn.provider.redirectUri")}
             value={item.provider.redirect_uri}

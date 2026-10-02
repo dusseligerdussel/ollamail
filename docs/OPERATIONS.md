@@ -104,9 +104,9 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 
 Die UI ist unter `http://<host>:8080` erreichbar. Identity-Provider (Entra ID, Google, OIDC,
 LDAP/Active Directory), Rollen-Zuordnung und Nutzer verwaltet der Admin unter Admin → Anmeldung
-bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)).
-Nutzer und Gruppen aus Entra ID oder Okta überträgt SCIM (Admin → SCIM-Provisionierung,
-[`auth/scim.md`](auth/scim.md)).
+bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)) und SAML
+([`auth/saml.md`](auth/saml.md)). Nutzer und Gruppen aus Entra ID oder Okta überträgt SCIM
+(Admin → SCIM-Provisionierung, [`auth/scim.md`](auth/scim.md)).
 
 **Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
@@ -660,7 +660,7 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
 
 worker ──▶ CalDAV-Server des Nutzers: nur mit OLLAMAIL_TODOS_EXPORT_SINKS=caldav (#40)
 
-api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30; GitHub OAuth2 geplant #31)
+api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30), GitHub OAuth2 (#31), SAML 2.0 (#94; Metadaten-URL des IdP)
 api ──▶ login.microsoftonline.com / Graph: nur beim Verbinden eines Microsoft-365-Postfachs (#37)
 api ──▶ Mailserver: SMTP (IMAP-Postfächer) / Gmail API / Graph – nur wenn ein Nutzer eine Antwort sendet (#92)
 Microsoft ──▶ api: Change Notifications nur mit OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL (#37)

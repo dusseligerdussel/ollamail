@@ -302,6 +302,77 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/auth/saml/providers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Saml Providers
+         * @description All SAML providers.
+         */
+        get: operations["admin_list_saml_providers"];
+        put?: never;
+        /**
+         * Create Saml Provider
+         * @description Add a SAML provider from IdP metadata (URL or upload) or explicit IdP settings.
+         */
+        post: operations["admin_create_saml_provider"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/auth/saml/providers/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get Saml Provider */
+        get: operations["admin_get_saml_provider"];
+        put?: never;
+        post?: never;
+        /**
+         * Delete Saml Provider
+         * @description Remove a SAML provider. Users and their linked identities are kept; sessions
+         *     started with the provider stay valid until they expire or are revoked.
+         */
+        delete: operations["admin_delete_saml_provider"];
+        options?: never;
+        head?: never;
+        /**
+         * Update Saml Provider
+         * @description Change a SAML provider. Omitted fields stay as they are.
+         */
+        patch: operations["admin_update_saml_provider"];
+        trace?: never;
+    };
+    "/admin/auth/saml/providers/{name}/refresh-metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Refresh Saml Metadata
+         * @description Load the IdP metadata from ``metadata_url`` again (e.g. after a certificate
+         *     rollover at the IdP).
+         */
+        post: operations["admin_refresh_saml_metadata"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/auth/settings": {
         parameters: {
             query?: never;
@@ -1263,6 +1334,70 @@ export interface paths {
          * @description Create a local account (role ``user``) and sign in, if self-registration is on.
          */
         post: operations["auth_register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/saml/acs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Saml Acs
+         * @description Assertion Consumer Service (HTTP-POST binding): the IdP posts the response here.
+         *
+         *     The provider comes from the encrypted flow cookie, not from the request; responses
+         *     without a matching login started here (IdP-initiated) are rejected.
+         */
+        post: operations["auth_saml_acs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/saml/{name}/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Saml Login
+         * @description Start the login with a SAML provider (browser navigation, not fetch).
+         */
+        get: operations["auth_saml_login"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/saml/{name}/metadata": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Saml Sp Metadata
+         * @description Metadata of ollamail as service provider (entity ID, ACS URL) for the IdP; also
+         *     for disabled providers, so it can be registered before the provider is switched on.
+         */
+        get: operations["auth_saml_sp_metadata"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -5282,6 +5417,187 @@ export interface components {
              */
             rules: components["schemas"]["RoleMappingRuleFields"][];
         };
+        /** SAMLCertificateRead */
+        SAMLCertificateRead: {
+            /** Fingerprint Sha256 */
+            fingerprint_sha256: string;
+            /**
+             * Not Valid After
+             * Format: date-time
+             */
+            not_valid_after: string;
+        };
+        /**
+         * SAMLPreset
+         * @enum {string}
+         */
+        SAMLPreset: "generic" | "entra" | "adfs" | "okta" | "keycloak";
+        /**
+         * SAMLProviderCreate
+         * @description A new SAML provider. The IdP comes from ``metadata_xml`` (upload), from
+         *     ``metadata_url`` (fetched now and on refresh) or from the three ``idp_*`` fields.
+         *
+         *     Attribute names and ``name_id_format`` that are left out come from the preset.
+         */
+        SAMLProviderCreate: {
+            /**
+             * Allowed Domains
+             * @default []
+             */
+            allowed_domains: string[];
+            /**
+             * Auto Provision
+             * @default true
+             */
+            auto_provision: boolean;
+            /** Display Name */
+            display_name: string;
+            /** Display Name Attribute */
+            display_name_attribute?: string | null;
+            /** Email Attribute */
+            email_attribute?: string | null;
+            /**
+             * Enabled
+             * @default true
+             */
+            enabled: boolean;
+            /** Groups Attribute */
+            groups_attribute?: string | null;
+            /**
+             * Idp Certificates
+             * @default []
+             */
+            idp_certificates: string[];
+            /** Idp Entity Id */
+            idp_entity_id?: string | null;
+            /** Idp Sso Url */
+            idp_sso_url?: string | null;
+            /**
+             * Link By Email
+             * @default false
+             */
+            link_by_email: boolean;
+            /** Metadata Url */
+            metadata_url?: string | null;
+            /** Metadata Xml */
+            metadata_xml?: string | null;
+            /** Name */
+            name: string;
+            /** Name Id Format */
+            name_id_format?: ("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified" | "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress" | "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" | "urn:oasis:names:tc:SAML:2.0:nameid-format:transient") | null;
+            /** @default generic */
+            preset: components["schemas"]["SAMLPreset"];
+            /** Sp Entity Id */
+            sp_entity_id?: string | null;
+            /** Subject Attribute */
+            subject_attribute?: string | null;
+            /**
+             * Trust Email
+             * @default false
+             */
+            trust_email: boolean;
+        };
+        /** SAMLProviderRead */
+        SAMLProviderRead: {
+            /** Allowed Domains */
+            allowed_domains: string[];
+            /** Auto Provision */
+            auto_provision: boolean;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Display Name */
+            display_name: string;
+            /** Display Name Attribute */
+            display_name_attribute: string | null;
+            /** Effective Sp Entity Id */
+            effective_sp_entity_id: string;
+            /** Email Attribute */
+            email_attribute: string | null;
+            /** Enabled */
+            enabled: boolean;
+            /** Groups Attribute */
+            groups_attribute: string | null;
+            /** Idp Certificates */
+            idp_certificates: components["schemas"]["SAMLCertificateRead"][];
+            /** Idp Entity Id */
+            idp_entity_id: string;
+            /** Idp Sso Url */
+            idp_sso_url: string;
+            /** Link By Email */
+            link_by_email: boolean;
+            /** Metadata Refreshed At */
+            metadata_refreshed_at: string | null;
+            /** Metadata Url */
+            metadata_url: string | null;
+            /** Name */
+            name: string;
+            /** Name Id Format */
+            name_id_format: string;
+            preset: components["schemas"]["SAMLPreset"];
+            /** Provider */
+            provider: string;
+            /** Redirect Uri */
+            redirect_uri: string;
+            /** Sp Entity Id */
+            sp_entity_id: string | null;
+            /** Sp Metadata Url */
+            sp_metadata_url: string;
+            /** Subject Attribute */
+            subject_attribute: string | null;
+            /** Trust Email */
+            trust_email: boolean;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /**
+         * SAMLProviderUpdate
+         * @description Fields to change; omitted fields stay. ``null`` clears ``metadata_url``,
+         *     ``sp_entity_id`` and the attribute names. A new ``metadata_xml`` or ``metadata_url``
+         *     replaces the IdP settings.
+         */
+        SAMLProviderUpdate: {
+            /** Allowed Domains */
+            allowed_domains?: string[] | null;
+            /** Auto Provision */
+            auto_provision?: boolean | null;
+            /** Display Name */
+            display_name?: string | null;
+            /** Display Name Attribute */
+            display_name_attribute?: string | null;
+            /** Email Attribute */
+            email_attribute?: string | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Groups Attribute */
+            groups_attribute?: string | null;
+            /** Idp Certificates */
+            idp_certificates?: string[] | null;
+            /** Idp Entity Id */
+            idp_entity_id?: string | null;
+            /** Idp Sso Url */
+            idp_sso_url?: string | null;
+            /** Link By Email */
+            link_by_email?: boolean | null;
+            /** Metadata Url */
+            metadata_url?: string | null;
+            /** Metadata Xml */
+            metadata_xml?: string | null;
+            /** Name Id Format */
+            name_id_format?: ("urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified" | "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress" | "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent" | "urn:oasis:names:tc:SAML:2.0:nameid-format:transient") | null;
+            preset?: components["schemas"]["SAMLPreset"] | null;
+            /** Sp Entity Id */
+            sp_entity_id?: string | null;
+            /** Subject Attribute */
+            subject_attribute?: string | null;
+            /** Trust Email */
+            trust_email?: boolean | null;
+        };
         /** ScimSettingsRead */
         ScimSettingsRead: {
             /** Enabled */
@@ -7131,6 +7447,319 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    admin_list_saml_providers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SAMLProviderRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_create_saml_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SAMLProviderCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SAMLProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Name taken */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings or metadata */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_get_saml_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SAMLProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_delete_saml_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_update_saml_provider: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SAMLProviderUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SAMLProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Invalid settings or metadata */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_refresh_saml_metadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SAMLProviderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No administrator could sign in afterwards (admin-lockout) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No metadata URL, or the metadata is unusable */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -9682,6 +10311,100 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content?: never;
+            };
+        };
+    };
+    auth_saml_acs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/x-www-form-urlencoded": {
+                    RelayState: string;
+                    SAMLResponse: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Redirect to return_to (signed in), or to /login?error=<code> */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_saml_login: {
+        parameters: {
+            query?: {
+                return_to?: string | null;
+            };
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Redirect to the IdP, or to /login?error=<code> */
+            303: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_saml_sp_metadata: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description SP metadata */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/samlmetadata+xml": unknown;
+                };
+            };
+            /** @description Unknown provider */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
             };
         };
     };

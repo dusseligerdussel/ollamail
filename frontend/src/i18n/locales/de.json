@@ -372,7 +372,8 @@
         "ldap": "LDAP / Active Directory",
         "github": "GitHub",
         "local": "Lokales Konto",
-        "other": "Sonstige"
+        "other": "Sonstige",
+        "saml": "SAML 2.0"
       },
       "disableLocal": {
         "title": "Lokale Anmeldung deaktivieren?",
@@ -414,7 +415,21 @@
         "removed": "Anbieter entfernt",
         "server": "Server",
         "organizations": "Organisationen",
-        "githubCheck": "GitHub bietet keinen Verbindungstest: Client-ID, Secret und Organisationszugehörigkeit werden bei der ersten Anmeldung geprüft."
+        "githubCheck": "GitHub bietet keinen Verbindungstest: Client-ID, Secret und Organisationszugehörigkeit werden bei der ersten Anmeldung geprüft.",
+        "spMetadataUrl": "SP-Metadaten-URL",
+        "spMetadataUrlHint": "Viele Identity-Provider lesen Entity-ID und ACS-URL direkt hieraus.",
+        "spEntityId": "Entity-ID (Bezeichner)",
+        "acsUrl": "Antwort-URL (Assertion Consumer Service)",
+        "acsUrlHint": "Für alle SAML-Anbieter gleich; Bindung HTTP-POST.",
+        "idpEntityId": "Entity-ID des IdP",
+        "ssoUrl": "Single-Sign-On-URL",
+        "metadataUrl": "Metadaten-URL",
+        "certificates_one": "{{count}} Signaturzertifikat, gültig bis {{date}}",
+        "certificates_other": "{{count}} Signaturzertifikate, gültig bis spätestens {{date}}",
+        "refreshMetadata": "Metadaten neu laden",
+        "refreshingMetadata": "Lade Metadaten…",
+        "metadataRefreshed": "Metadaten neu geladen",
+        "spEntityIdAndMetadataUrl": "Entity-ID und SP-Metadaten-URL"
       },
       "wizard": {
         "title": "Anbieter hinzufügen",
@@ -438,7 +453,9 @@
           "oidcDescription": "Keycloak, Authentik und weitere Anbieter",
           "ldap": "LDAP / Active Directory",
           "ldapDescription": "Anmeldung mit Benutzername und Passwort aus dem Verzeichnis",
-          "githubEnterprise": "GitHub Enterprise Server"
+          "githubEnterprise": "GitHub Enterprise Server",
+          "saml": "SAML 2.0",
+          "samlDescription": "Entra ID, AD FS, Okta, Keycloak und weitere SAML-Anbieter"
         },
         "fields": {
           "displayName": "Name auf der Login-Seite",
@@ -463,7 +480,13 @@
           "organizations": "Erlaubte Organisationen",
           "organizationsHint": "Namen der Organisationen, durch Kommas getrennt. Leer: Jedes GitHub-Konto kann sich anmelden.",
           "baseUrl": "URL des GitHub Enterprise Servers",
-          "baseUrlHint": "Für github.com leer lassen."
+          "baseUrlHint": "Für github.com leer lassen.",
+          "samlNameHint": "Kleinbuchstaben, Ziffern und Bindestriche; Teil der Entity-ID von ollamail. Später nicht änderbar.",
+          "metadataSource": "IdP-Metadaten",
+          "metadataUrl": "Metadaten-URL",
+          "metadataFile": "Metadaten-Datei (XML)",
+          "metadataFileHint": "Die Föderationsmetadaten des Identity-Providers. Zertifikate lassen sich später nur durch erneutes Hochladen tauschen.",
+          "metadataFileMissing": "Wähle die Metadaten-Datei des Identity-Providers aus."
         },
         "presetsOidc": {
           "keycloak": "Keycloak",
@@ -482,7 +505,26 @@
         "verifyOidc": "Trage die Redirect-URI beim Identity-Provider ein und teste dann die Verbindung.",
         "verifyLdap": "Teste die Verbindung und suche optional einen Benutzer, bevor du das Verzeichnis aktivierst.",
         "savedDisabled": "Gespeichert, noch nicht aktiv: Niemand kann sich darüber anmelden, bis du es aktivierst.",
-        "verifyGithub": "Trage die Callback-URL in der OAuth-App bei GitHub ein und aktiviere dann den Anbieter."
+        "verifyGithub": "Trage die Callback-URL in der OAuth-App bei GitHub ein und aktiviere dann den Anbieter.",
+        "presetsSaml": {
+          "entra": "Microsoft Entra ID",
+          "adfs": "AD FS",
+          "okta": "Okta",
+          "keycloak": "Keycloak",
+          "generic": "Anderer SAML-Anbieter"
+        },
+        "metadataSources": {
+          "url": "Von URL laden",
+          "file": "Datei hochladen"
+        },
+        "metadataUrlHints": {
+          "entra": "Enterprise-App → Einmaliges Anmelden → SAML-Zertifikate → „App-Verbundmetadaten-URL“.",
+          "adfs": "Föderationsmetadaten des AD-FS-Servers (HTTPS).",
+          "okta": "App → Sign On → „Metadata URL“.",
+          "keycloak": "Realm-Einstellungen → Endpunkte → „SAML 2.0 Identity Provider Metadata“.",
+          "generic": "HTTPS-Adresse der IdP-Metadaten. Nur von hier werden Zertifikate später erneut geladen."
+        },
+        "verifySaml": "Trage ollamail beim Identity-Provider ein, am einfachsten über die SP-Metadaten-URL, und aktiviere dann den Anbieter."
       },
       "mfa": {
         "title": "Zwei-Faktor-Authentifizierung",
@@ -887,7 +929,7 @@
       "or": "oder",
       "providers": "Weitere Anmeldemethoden",
       "withProvider": "Weiter mit {{provider}}",
-      "noMethods": "Es ist keine Anmeldemethode eingerichtet. Wende dich an einen Admin.",
+      "noMethods": "Es ist keine Anmeldemethode eingerichtet. Wende dich an deine Administration.",
       "passkey": "Mit Passkey anmelden",
       "passkeyFailed": "Mit diesem Passkey ist keine Anmeldung möglich.",
       "passkeyCancelled": "Es wurde kein Passkey verwendet. Versuche es erneut oder melde dich mit Passwort an."
@@ -1181,7 +1223,7 @@
     "removed_one": "Postfach entfernt ({{formatted}} Nachricht gelöscht)",
     "removed_other": "Postfach entfernt ({{formatted}} Nachrichten gelöscht)",
     "cancel": "Abbrechen",
-    "noProviders": "Auf diesem Server sind keine Postfachtypen verfügbar. Wende dich an einen Admin.",
+    "noProviders": "Auf diesem Server sind keine Postfachtypen verfügbar. Wende dich an deine Administration.",
     "providerLabel": "Anbieter",
     "types": {
       "imap": "IMAP",
