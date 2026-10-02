@@ -104,9 +104,9 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 
 Die UI ist unter `http://<host>:8080` erreichbar. Identity-Provider (Entra ID, Google, OIDC,
 LDAP/Active Directory), Rollen-Zuordnung und Nutzer verwaltet der Admin unter Admin → Anmeldung
-bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)).
-Nutzer und Gruppen aus Entra ID oder Okta überträgt SCIM (Admin → SCIM-Provisionierung,
-[`auth/scim.md`](auth/scim.md)).
+bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)) und SAML
+([`auth/saml.md`](auth/saml.md)). Nutzer und Gruppen aus Entra ID oder Okta überträgt SCIM
+(Admin → SCIM-Provisionierung, [`auth/scim.md`](auth/scim.md)).
 
 **Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
 der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
@@ -635,6 +635,7 @@ verarbeitet. Die vollständige Liste aller Tabellen und Dateien mit Löschweg st
 | Audit-Log (Ereignistyp, Zeitpunkt, Nutzer- bzw. Objekt-ID, Codes und Zähler; keine Inhalte, Betreffzeilen oder Adressen) | PostgreSQL: `audit_events`, append-only; Aufbewahrung über Admin → Aufbewahrung bzw. `OLLAMAIL_AUDIT_RETENTION_DAYS` (Job `privacy.retention`) | aktiv |
 | Datenexporte der Nutzer (ZIP mit allen eigenen Daten) | PostgreSQL: `privacy_exports`; Daten-Volume `exports/<user_id>/`; nach `OLLAMAIL_PRIVACY_EXPORT_EXPIRY_HOURS` gelöscht | aktiv (#36) |
 | Aufbewahrungsfristen | PostgreSQL: `privacy_retention_settings` (keine personenbezogenen Daten) | aktiv (#36) |
+| Aufgaben-Export: Ziel, Server-URL, Benutzername, Passwort (verschlüsselt), Liste, Modus je Nutzer; Verweise auf die exportierten Aufgaben | PostgreSQL: `todo_export_targets` (Zugangsdaten verschlüsselt mit `OLLAMAIL_SECRET_KEY`), `todos.external_refs` | aktiv, nur mit `OLLAMAIL_TODOS_EXPORT_SINKS` (#40) |
 | Job-Queue | PostgreSQL | geplant (#7) |
 | Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
@@ -657,7 +658,9 @@ Browser ──HTTPS──▶ Reverse Proxy ──HTTP──▶ frontend (Caddy) 
                          ├──▶ huggingface.co: Download fehlender TTS-Stimmen, sendet keine Daten (#27)
                          └──▶ Cloud-LLM nur bei OLLAMAIL_LLM_CLOUD_ENABLED=true (geplant #17, #18)
 
-api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30; GitHub OAuth2 geplant #31)
+worker ──▶ CalDAV-Server des Nutzers: nur mit OLLAMAIL_TODOS_EXPORT_SINKS=caldav (#40)
+
+api ──▶ Identity-Provider: LDAP/AD (LDAPS/StartTLS, #32), OIDC (#30), GitHub OAuth2 (#31), SAML 2.0 (#94; Metadaten-URL des IdP)
 api ──▶ login.microsoftonline.com / Graph: nur beim Verbinden eines Microsoft-365-Postfachs (#37)
 api ──▶ Mailserver: SMTP (IMAP-Postfächer) / Gmail API / Graph – nur wenn ein Nutzer eine Antwort sendet (#92)
 Microsoft ──▶ api: Change Notifications nur mit OLLAMAIL_MAIL_GRAPH_NOTIFICATION_URL (#37)
@@ -669,6 +672,14 @@ Microsoft ──▶ api: Change Notifications nur mit OLLAMAIL_MAIL_GRAPH_NOTIFI
 - **Cloud-LLMs** sind ein globaler Admin-Schalter, Standard `OLLAMAIL_LLM_CLOUD_ENABLED=false`.
   Wird er aktiviert, gehen Mail-Inhalte an den jeweiligen Anbieter. Das ist dann eine
   Auftragsverarbeitung bzw. Drittlandübermittlung, die der Betreiber vertraglich absichern muss.
+- **Aufgaben-Export** (#40) ist ein Admin-Opt-in: Standard `OLLAMAIL_TODOS_EXPORT_SINKS=`
+  (leer, aus). Mit `caldav` darf jeder Nutzer unter Einstellungen → Aufgaben-Export einen
+  CalDAV-Server eintragen (Nextcloud, Radicale, iCloud, …); der Worker sendet dann Titel,
+  Beschreibung, Fälligkeit, Priorität, Status und einen Link zur Mail dorthin. Der Nutzer sieht
+  das vor dem Einschalten. Liegt der Server außerhalb des eigenen Hauses, ist das eine
+  Übermittlung an einen Dritten. Die Instanz baut dabei Verbindungen zu vom Nutzer eingetragenen
+  Adressen auf, auch im internen Netz (dafür ist der Export lokal gedacht); wer das nicht
+  möchte, lässt den Export aus oder begrenzt ausgehende Verbindungen des Workers per Firewall.
 - **Keine Telemetrie**, keine externen Fonts oder CDNs. Die Content-Security-Policy der UI erlaubt
   nur den eigenen Origin.
 

@@ -122,6 +122,7 @@ export function useTodoMutations() {
         message_id: body.message_id ?? null,
         thread_id: null,
         external_refs: {},
+        export_state: null,
         // A task from a shared mailbox's mail becomes a team task on the server.
         shared: false,
         assignee_id: null,

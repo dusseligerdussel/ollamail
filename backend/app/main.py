@@ -14,7 +14,7 @@ from app.audit.router import router as audit_router
 from app.auth.admin_router import router as auth_admin_router
 from app.auth.csrf import CSRFMiddleware
 from app.auth.invitations import router as invitations_router
-from app.auth.providers import AuthProviderRegistry, github, oidc
+from app.auth.providers import AuthProviderRegistry, github, oidc, saml
 from app.auth.providers.ldap.router import login_router as ldap_login_router
 from app.auth.providers.ldap.router import router as ldap_router
 from app.auth.router import router as auth_router
@@ -49,6 +49,7 @@ from app.scim.admin_router import router as scim_admin_router
 from app.scim.router import CSRF_EXEMPT_PREFIX as SCIM_PATH_PREFIX
 from app.scim.router import router as scim_router
 from app.search.router import router as search_router
+from app.todos.export.router import router as todo_export_router
 from app.todos.router import router as todos_router
 from app.triage.router import router as triage_router
 from app.users.router import router as users_router
@@ -103,12 +104,16 @@ def create_app(settings: Settings | None = None) -> FastAPI:
 
     app.state.auth_providers = AuthProviderRegistry()
     # Provider types the admin UI can configure.
-    app.state.idp_kinds = {"oidc", "ldap", "github"}
+    app.state.idp_kinds = {"oidc", "ldap", "github", "saml"}
 
     install_error_handlers(app)
     # Added first, so it runs inside RequestContextMiddleware (403s carry a request ID).
+    # SAML IdPs post the response cross-site to the ACS; it is protected by the flow
+    # cookie, InResponseTo and the response signature instead.
     app.add_middleware(
-        CSRFMiddleware, settings=settings, exempt_paths=[NOTIFICATIONS_PATH, SCIM_PATH_PREFIX]
+        CSRFMiddleware,
+        settings=settings,
+        exempt_paths=[NOTIFICATIONS_PATH, SCIM_PATH_PREFIX, saml.ACS_PATH],
     )
     app.add_middleware(RequestContextMiddleware)
     app.include_router(health_router)
@@ -121,6 +126,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_admin_router)
     app.include_router(invitations_router)
     app.include_router(todos_router)
+    app.include_router(todo_export_router)
     app.include_router(triage_router)
     app.include_router(audit_router)
     app.include_router(ai_settings_router)
@@ -143,6 +149,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(scim_admin_router)
     oidc.install(app, settings)
     github.install(app)
+    saml.install(app)
     return app
 
 

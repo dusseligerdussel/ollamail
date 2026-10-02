@@ -19,6 +19,7 @@ from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
+from app.todos.export.refs import export_state
 
 
 class TodoStatus(enum.StrEnum):
@@ -96,6 +97,11 @@ class Todo(Base):
     # IDs in external task systems (CalDAV, Microsoft To Do, Google Tasks; #40), e.g.
     # ``{"caldav": {"uid": "..."}}``.
     external_refs: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+
+    @property
+    def export_state(self) -> dict[str, Any] | None:
+        """Where the todo was exported to and how that went (``app.todos.export``)."""
+        return export_state(self.external_refs)
 
     @property
     def shared(self) -> bool:

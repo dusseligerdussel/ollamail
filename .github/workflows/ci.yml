@@ -2,6 +2,8 @@ name: CI
 
 on:
   pull_request:
+    # `labeled`: the label `ci:compose` starts the compose smoke test on any PR.
+    types: [opened, synchronize, reopened, labeled]
   push:
     branches: [main]
 
@@ -24,6 +26,8 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       frontend: ${{ steps.filter.outputs.frontend }}
       api-client: ${{ steps.filter.outputs.api-client }}
+      e2e: ${{ steps.filter.outputs.e2e }}
+      compose: ${{ steps.filter.outputs.compose }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -49,6 +53,19 @@ jobs:
               - 'frontend/package.json'
               - 'frontend/pnpm-lock.yaml'
               - 'frontend/.pnpmfile.cjs'
+              - '.github/workflows/ci.yml'
+            e2e:
+              - 'backend/**'
+              - 'frontend/**'
+              - '.github/workflows/ci.yml'
+            # Images and the Compose stack; the job also runs on every push to main.
+            compose:
+              - 'deploy/**'
+              - 'backend/Dockerfile'
+              - 'backend/.dockerignore'
+              - 'frontend/Dockerfile'
+              - 'frontend/.dockerignore'
+              - 'frontend/caddy/**'
               - '.github/workflows/ci.yml'
 
   backend:
@@ -108,6 +125,13 @@ jobs:
           working-directory: backend
           enable-cache: true
           cache-dependency-glob: backend/uv.lock
+      # Keycloak for the SAML integration tests (tests/auth/saml/test_keycloak.py); it
+      # starts while the dependencies install. Not a service: it needs the start-dev command.
+      - name: Start Keycloak
+        run: >-
+          docker run -d --name keycloak -p 8180:8080
+          -e KC_BOOTSTRAP_ADMIN_USERNAME=admin -e KC_BOOTSTRAP_ADMIN_PASSWORD=admin
+          quay.io/keycloak/keycloak:26.6.0 start-dev
       - name: Install dependencies
         run: uv sync --locked
       # LDAP integration tests start their own slapd (tests/auth/ldap/slapd.py). The package
@@ -125,10 +149,13 @@ jobs:
         run: uv run ruff format --check .
       - name: Typecheck
         run: uv run mypy app
+      - name: Wait for Keycloak
+        run: timeout 180 bash -c 'until curl -sf http://localhost:8180/realms/master >/dev/null; do sleep 2; done'
       - name: Test
         run: uv run pytest
         env:
           OLLAMAIL_TEST_REQUIRE_LDAP: "1"
+          OLLAMAIL_TEST_REQUIRE_KEYCLOAK: "1"
 
   frontend:
     name: Frontend
@@ -205,12 +232,281 @@ jobs:
             exit 1
           fi
 
+  # Playwright suite (frontend/e2e): mocked specs plus the flows against the real backend,
+  # worker, PostgreSQL and the Dovecot test server (setup, login, IMAP mailbox, inbox, tasks,
+  # search). No LLM: triage and embeddings fail fast and are retried later, the full-text
+  # search works without them. Only synthetic data.
+  e2e:
+    name: E2E
+    needs: changes
+    if: needs.changes.outputs.e2e == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ollamail
+          POSTGRES_PASSWORD: ollamail
+          POSTGRES_DB: ollamail_e2e
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ollamail -d ollamail_e2e"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+      dovecot:
+        image: dovecot/dovecot:2.4.5
+        env:
+          USER_PASSWORD: ollamail-test
+        ports:
+          - 31993:31993
+    env:
+      OLLAMAIL_DATABASE_URL: postgresql+asyncpg://ollamail:ollamail@localhost:5432/ollamail_e2e
+      OLLAMAIL_AUTH_COOKIE_SECURE: "false"
+      # The test server uses a self-signed certificate.
+      OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS: "true"
+      # Nothing listens there: LLM calls fail immediately instead of waiting for a timeout.
+      OLLAMAIL_LLM_BASE_URL: http://127.0.0.1:9
+      OLLAMAIL_TTS_DOWNLOAD_VOICES: "false"
+      OLLAMAIL_DIGEST_ENABLED: "false"
+      E2E_API: "1"
+      E2E_IMAP: "1"
+      E2E_PREVIEW: "1"
+      # Frame-time budget of the @perf scroll test; runners render without a GPU (p95 ~130 ms).
+      E2E_FRAME_BUDGET_MS: "200"
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: pnpm/action-setup@ea17c68df8912ef543352723c149a84f56e3d413 # v6.1.0
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      # Generated per run, never stored: master key and setup token of the test instance.
+      - name: Generate test secrets
+        run: |
+          key="$(openssl rand -base64 32)"
+          token="$(openssl rand -hex 16)"
+          echo "::add-mask::$key"
+          echo "::add-mask::$token"
+          {
+            echo "OLLAMAIL_SECRET_KEY=$key"
+            echo "OLLAMAIL_SETUP_TOKEN=$token"
+            echo "E2E_SETUP_TOKEN=$token"
+            echo "OLLAMAIL_DATA_DIR=$RUNNER_TEMP/ollamail-data"
+            echo "E2E_LOGS=$RUNNER_TEMP/e2e-logs"
+          } >> "$GITHUB_ENV"
+      - name: Install backend dependencies
+        working-directory: backend
+        run: uv sync --locked
+      - name: Install frontend dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Get Playwright version
+        id: playwright
+        working-directory: frontend
+        run: echo "version=$(pnpm exec playwright --version | awk '{print $2}')" >> "$GITHUB_OUTPUT"
+      - name: Cache Playwright browser
+        id: playwright-cache
+        uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        with:
+          path: ~/.cache/ms-playwright
+          key: playwright-${{ runner.os }}-${{ steps.playwright.outputs.version }}
+      - name: Install Playwright browser
+        working-directory: frontend
+        env:
+          CACHE_HIT: ${{ steps.playwright-cache.outputs.cache-hit }}
+        run: |
+          if [ "$CACHE_HIT" = "true" ]; then
+            pnpm exec playwright install-deps chromium
+          else
+            pnpm exec playwright install --with-deps --only-shell chromium
+          fi
+      - name: Build frontend
+        working-directory: frontend
+        run: pnpm build
+      - name: Migrate database
+        working-directory: backend
+        run: uv run alembic upgrade head
+      - name: Start API and worker
+        working-directory: backend
+        run: |
+          mkdir -p "$OLLAMAIL_DATA_DIR" "$E2E_LOGS"
+          nohup uv run uvicorn app.main:app --port 8000 > "$E2E_LOGS/api.log" 2>&1 &
+          echo $! > "$E2E_LOGS/api.pid"
+          nohup uv run python -m app.worker > "$E2E_LOGS/worker.log" 2>&1 &
+          echo $! > "$E2E_LOGS/worker.pid"
+      # Polls readiness instead of sleeping a fixed time; gives up after 60 s.
+      - name: Wait for the API
+        run: |
+          timeout 60 bash -c 'until curl -fsS http://localhost:8000/readyz; do sleep 1; done'
+          kill -0 "$(cat "$E2E_LOGS/worker.pid")"
+      - name: Run Playwright
+        working-directory: frontend
+        run: pnpm e2e
+      - name: Check that the worker is still running
+        if: always()
+        run: kill -0 "$(cat "$E2E_LOGS/worker.pid")"
+      # Traces and logs only contain synthetic test data; the secrets are not logged.
+      - name: Upload report and logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: e2e-report
+          path: |
+            frontend/playwright-report/
+            frontend/test-results/
+            ${{ runner.temp }}/e2e-logs/*.log
+          retention-days: 7
+
+  # Builds both images and starts deploy/compose.yaml as in production (no Ollama), then
+  # checks UI, API, migrations and worker. Runs on main, for changes to images or deploy/,
+  # and on PRs with the label `ci:compose`.
+  compose:
+    name: Compose smoke test
+    needs: changes
+    if: >-
+      needs.changes.outputs.compose == 'true' || github.event_name == 'push' ||
+      contains(github.event.pull_request.labels.*.name, 'ci:compose')
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    defaults:
+      run:
+        working-directory: deploy
+    env:
+      COMPOSE_FILE: compose.yaml:compose.build.yaml
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+      # Same cache scopes as the release build (amd64), so main warms the cache for PRs.
+      - name: Build API image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: backend
+          load: true
+          provenance: false
+          sbom: false
+          tags: ollamail-api:local
+          cache-from: type=gha,scope=api
+          cache-to: type=gha,mode=max,scope=api
+      - name: Build frontend image
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          load: true
+          provenance: false
+          sbom: false
+          tags: ollamail-frontend:local
+          cache-from: type=gha,scope=frontend
+          cache-to: type=gha,mode=max,scope=frontend
+      # deploy/.env from .env.example with generated secrets; never stored or uploaded.
+      - name: Write test configuration
+        run: |
+          key="$(openssl rand -base64 32)"
+          db_password="$(openssl rand -hex 16)"
+          token="$(openssl rand -hex 16)"
+          echo "::add-mask::$key"
+          echo "::add-mask::$db_password"
+          echo "::add-mask::$token"
+          sed \
+            -e "s|^OLLAMAIL_SECRET_KEY=.*|OLLAMAIL_SECRET_KEY=$key|" \
+            -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$db_password|" \
+            -e "s|^OLLAMAIL_SETUP_TOKEN=.*|OLLAMAIL_SETUP_TOKEN=$token|" \
+            -e "s|^OLLAMAIL_TTS_DOWNLOAD_VOICES=.*|OLLAMAIL_TTS_DOWNLOAD_VOICES=false|" \
+            -e "s|^OLLAMAIL_HTTP_BIND=.*|OLLAMAIL_HTTP_BIND=127.0.0.1|" \
+            .env.example > .env
+          grep -q '^OLLAMAIL_SECRET_KEY=..*' .env
+          docker compose config --quiet
+      # --wait: until postgres and api are healthy, migrate has exited successfully and
+      # worker/frontend are running; fails if a container exits or stays unhealthy.
+      - name: Start stack
+        run: docker compose up --detach --no-build --wait --wait-timeout 180
+      - name: Check UI, API and worker
+        run: |
+          base=http://127.0.0.1:8080
+          # Polls a condition every 2 s for up to 60 s instead of sleeping a fixed time.
+          wait_for() {
+            local deadline=$((SECONDS + 60))
+            until "${@:2}"; do
+              if [ "$SECONDS" -ge "$deadline" ]; then echo "::error::$1"; return 1; fi
+              sleep 2
+            done
+          }
+          ready() { curl -fsS -o /dev/null "$base/api/readyz"; }
+          # The worker registers itself with a heartbeat once it consumes jobs.
+          worker_registered() {
+            local count
+            count="$(docker compose exec -T postgres sh -c 'psql -U "$POSTGRES_USER" -d "$POSTGRES_DB" -tAc "SELECT count(*) FROM procrastinate_workers WHERE last_heartbeat > now() - interval '\''1 minute'\''"')"
+            [ "$count" -ge 1 ]
+          }
+
+          wait_for "/api/readyz is not ready (database, migrations)" ready
+          health="$(curl -fsS "$base/api/healthz")"
+          echo "healthz: $health"
+          [ "$health" = '{"status":"ok"}' ]
+          for path in / /inbox; do
+            page="$(curl -fsS "$base$path")"
+            grep -q '<div id="root">' <<< "$page" || { echo "::error::$path is not index.html"; exit 1; }
+          done
+          migrate="$(docker compose ps --all --format '{{.ExitCode}}' migrate)"
+          [ "$migrate" = 0 ] || { echo "::error::migrate exited with $migrate"; exit 1; }
+          wait_for "the worker does not report a heartbeat" worker_registered
+          # Running and never restarted (a crash loop also shows up as "running").
+          for service in api worker frontend; do
+            state="$(docker inspect --format '{{.State.Status}} {{.RestartCount}}' "$(docker compose ps -q "$service")")"
+            echo "$service: $state"
+            [ "$state" = "running 0" ] || { echo "::error::$service is not running stably"; exit 1; }
+          done
+      # Guards the check above: the api must refuse to start without a master key.
+      - name: API refuses to start without a master key
+        run: |
+          set +e
+          output="$(timeout 60 docker compose run --rm --no-deps -e OLLAMAIL_SECRET_KEY= api 2>&1)"
+          code=$?
+          set -e
+          echo "exit code: $code"
+          [ "$code" -ne 0 ] && [ "$code" -ne 124 ]
+          grep -q secret_key_invalid <<< "$output"
+      # Container output only (no `docker inspect`, which would include the environment);
+      # the generated secrets are redacted as well in case anything echoes them.
+      - name: Collect container logs
+        if: failure()
+        run: |
+          mkdir -p "$RUNNER_TEMP/compose-logs"
+          docker compose ps --all > "$RUNNER_TEMP/compose-logs/ps.txt" 2>&1 || true
+          docker compose logs --no-color --timestamps > "$RUNNER_TEMP/compose-logs/compose.log" 2>&1 || true
+          for name in OLLAMAIL_SECRET_KEY POSTGRES_PASSWORD OLLAMAIL_SETUP_TOKEN; do
+            value="$(sed -n "s/^$name=//p" .env)"
+            [ -n "$value" ] || continue
+            VALUE="$value" perl -pi -e 's/\Q$ENV{VALUE}\E/[redacted]/g' "$RUNNER_TEMP"/compose-logs/*
+          done
+      - name: Upload container logs
+        if: failure()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: compose-logs
+          path: ${{ runner.temp }}/compose-logs/
+          retention-days: 7
+
   # Single required check: fails if any needed job failed or was cancelled,
   # passes if jobs were skipped by the path filter.
   ci-ok:
     name: ci-ok
     if: always()
-    needs: [changes, backend, frontend, api-client]
+    needs: [changes, backend, frontend, api-client, e2e, compose]
     runs-on: ubuntu-latest
     steps:
       - name: Check job results
@@ -221,6 +517,8 @@ jobs:
             backend=${{ needs.backend.result }}
             frontend=${{ needs.frontend.result }}
             api-client=${{ needs.api-client.result }}
+            e2e=${{ needs.e2e.result }}
+            compose=${{ needs.compose.result }}
         run: |
           echo "Job results: $RESULTS"
           if [ "$FAILED" = "true" ]; then

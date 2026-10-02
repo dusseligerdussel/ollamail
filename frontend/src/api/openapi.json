@@ -957,6 +957,7 @@
           "data.exported",
           "data.deleted",
           "data.retention_changed",
+          "todo_export.changed",
           "crypto.keys_rotated",
           "audit.exported"
         ],
@@ -2780,6 +2781,108 @@
         "title": "DraftUpdate",
         "type": "object"
       },
+      "ExportConnection": {
+        "description": "How to reach the target. ``password`` ``null``: keep the stored one (same server\nand user name).",
+        "properties": {
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "sink": {
+            "const": "caldav",
+            "title": "Sink",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "username": {
+            "default": "",
+            "maxLength": 255,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sink",
+          "url"
+        ],
+        "title": "ExportConnection",
+        "type": "object"
+      },
+      "ExportCounts": {
+        "description": "Todos of this target by export state.",
+        "properties": {
+          "error": {
+            "default": 0,
+            "title": "Error",
+            "type": "integer"
+          },
+          "pending": {
+            "default": 0,
+            "title": "Pending",
+            "type": "integer"
+          },
+          "removed": {
+            "default": 0,
+            "title": "Removed",
+            "type": "integer"
+          },
+          "synced": {
+            "default": 0,
+            "title": "Synced",
+            "type": "integer"
+          }
+        },
+        "title": "ExportCounts",
+        "type": "object"
+      },
+      "ExportMode": {
+        "enum": [
+          "auto",
+          "manual"
+        ],
+        "title": "ExportMode",
+        "type": "string"
+      },
+      "ExportSettingsRead": {
+        "properties": {
+          "available_sinks": {
+            "items": {
+              "const": "caldav",
+              "type": "string"
+            },
+            "title": "Available Sinks",
+            "type": "array"
+          },
+          "target": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ExportTargetRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "target"
+        ],
+        "title": "ExportSettingsRead",
+        "type": "object"
+      },
       "ExportStatus": {
         "enum": [
           "pending",
@@ -2789,6 +2892,152 @@
         ],
         "title": "ExportStatus",
         "type": "string"
+      },
+      "ExportTargetRead": {
+        "properties": {
+          "active": {
+            "title": "Active",
+            "type": "boolean"
+          },
+          "counts": {
+            "$ref": "#/components/schemas/ExportCounts"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "has_password": {
+            "title": "Has Password",
+            "type": "boolean"
+          },
+          "last_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Error"
+          },
+          "last_sync_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sync At"
+          },
+          "list_id": {
+            "title": "List Id",
+            "type": "string"
+          },
+          "list_name": {
+            "title": "List Name",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExportMode"
+          },
+          "sink": {
+            "const": "caldav",
+            "title": "Sink",
+            "type": "string"
+          },
+          "url": {
+            "title": "Url",
+            "type": "string"
+          },
+          "username": {
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sink",
+          "url",
+          "username",
+          "has_password",
+          "list_id",
+          "list_name",
+          "mode",
+          "active",
+          "last_sync_at",
+          "last_error",
+          "counts",
+          "created_at"
+        ],
+        "title": "ExportTargetRead",
+        "type": "object"
+      },
+      "ExportTargetSave": {
+        "description": "Connect (or reconnect) the export: target, list and mode.",
+        "properties": {
+          "list_id": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "List Id",
+            "type": "string"
+          },
+          "mode": {
+            "$ref": "#/components/schemas/ExportMode",
+            "default": "auto"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          },
+          "sink": {
+            "const": "caldav",
+            "title": "Sink",
+            "type": "string"
+          },
+          "url": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Url",
+            "type": "string"
+          },
+          "username": {
+            "default": "",
+            "maxLength": 255,
+            "title": "Username",
+            "type": "string"
+          }
+        },
+        "required": [
+          "sink",
+          "url",
+          "list_id"
+        ],
+        "title": "ExportTargetSave",
+        "type": "object"
+      },
+      "ExportTargetUpdate": {
+        "properties": {
+          "mode": {
+            "$ref": "#/components/schemas/ExportMode"
+          }
+        },
+        "required": [
+          "mode"
+        ],
+        "title": "ExportTargetUpdate",
+        "type": "object"
       },
       "FeedCreated": {
         "properties": {
@@ -6441,6 +6690,663 @@
         "title": "RoleMappingUpdate",
         "type": "object"
       },
+      "SAMLCertificateRead": {
+        "properties": {
+          "fingerprint_sha256": {
+            "title": "Fingerprint Sha256",
+            "type": "string"
+          },
+          "not_valid_after": {
+            "format": "date-time",
+            "title": "Not Valid After",
+            "type": "string"
+          }
+        },
+        "required": [
+          "fingerprint_sha256",
+          "not_valid_after"
+        ],
+        "title": "SAMLCertificateRead",
+        "type": "object"
+      },
+      "SAMLPreset": {
+        "enum": [
+          "generic",
+          "entra",
+          "adfs",
+          "okta",
+          "keycloak"
+        ],
+        "title": "SAMLPreset",
+        "type": "string"
+      },
+      "SAMLProviderCreate": {
+        "description": "A new SAML provider. The IdP comes from ``metadata_xml`` (upload), from\n``metadata_url`` (fetched now and on refresh) or from the three ``idp_*`` fields.\n\nAttribute names and ``name_id_format`` that are left out come from the preset.",
+        "properties": {
+          "allowed_domains": {
+            "default": [],
+            "items": {
+              "maxLength": 254,
+              "type": "string"
+            },
+            "maxItems": 100,
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "auto_provision": {
+            "default": true,
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "display_name": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Display Name",
+            "type": "string"
+          },
+          "display_name_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name Attribute"
+          },
+          "email_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Attribute"
+          },
+          "enabled": {
+            "default": true,
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "groups_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Attribute"
+          },
+          "idp_certificates": {
+            "default": [],
+            "items": {
+              "maxLength": 16384,
+              "type": "string"
+            },
+            "maxItems": 10,
+            "title": "Idp Certificates",
+            "type": "array"
+          },
+          "idp_entity_id": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Entity Id"
+          },
+          "idp_sso_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Sso Url"
+          },
+          "link_by_email": {
+            "default": false,
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "metadata_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Url"
+          },
+          "metadata_xml": {
+            "anyOf": [
+              {
+                "maxLength": 2097152,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Xml"
+          },
+          "name": {
+            "maxLength": 32,
+            "pattern": "^[a-z0-9](?:[a-z0-9-]{0,30}[a-z0-9])?$",
+            "title": "Name",
+            "type": "string"
+          },
+          "name_id_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+                  "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+                  "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+                  "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Id Format"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/SAMLPreset",
+            "default": "generic"
+          },
+          "sp_entity_id": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sp Entity Id"
+          },
+          "subject_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Attribute"
+          },
+          "trust_email": {
+            "default": false,
+            "title": "Trust Email",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "name",
+          "display_name"
+        ],
+        "title": "SAMLProviderCreate",
+        "type": "object"
+      },
+      "SAMLProviderRead": {
+        "properties": {
+          "allowed_domains": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Allowed Domains",
+            "type": "array"
+          },
+          "auto_provision": {
+            "title": "Auto Provision",
+            "type": "boolean"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "display_name": {
+            "title": "Display Name",
+            "type": "string"
+          },
+          "display_name_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name Attribute"
+          },
+          "effective_sp_entity_id": {
+            "title": "Effective Sp Entity Id",
+            "type": "string"
+          },
+          "email_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Attribute"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "groups_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Attribute"
+          },
+          "idp_certificates": {
+            "items": {
+              "$ref": "#/components/schemas/SAMLCertificateRead"
+            },
+            "title": "Idp Certificates",
+            "type": "array"
+          },
+          "idp_entity_id": {
+            "title": "Idp Entity Id",
+            "type": "string"
+          },
+          "idp_sso_url": {
+            "title": "Idp Sso Url",
+            "type": "string"
+          },
+          "link_by_email": {
+            "title": "Link By Email",
+            "type": "boolean"
+          },
+          "metadata_refreshed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Refreshed At"
+          },
+          "metadata_url": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Url"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "name_id_format": {
+            "title": "Name Id Format",
+            "type": "string"
+          },
+          "preset": {
+            "$ref": "#/components/schemas/SAMLPreset"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "redirect_uri": {
+            "title": "Redirect Uri",
+            "type": "string"
+          },
+          "sp_entity_id": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sp Entity Id"
+          },
+          "sp_metadata_url": {
+            "title": "Sp Metadata Url",
+            "type": "string"
+          },
+          "subject_attribute": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Attribute"
+          },
+          "trust_email": {
+            "title": "Trust Email",
+            "type": "boolean"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "name",
+          "provider",
+          "display_name",
+          "preset",
+          "metadata_url",
+          "metadata_refreshed_at",
+          "idp_entity_id",
+          "idp_sso_url",
+          "idp_certificates",
+          "sp_entity_id",
+          "effective_sp_entity_id",
+          "redirect_uri",
+          "sp_metadata_url",
+          "name_id_format",
+          "subject_attribute",
+          "email_attribute",
+          "display_name_attribute",
+          "groups_attribute",
+          "trust_email",
+          "enabled",
+          "auto_provision",
+          "link_by_email",
+          "allowed_domains",
+          "created_at",
+          "updated_at"
+        ],
+        "title": "SAMLProviderRead",
+        "type": "object"
+      },
+      "SAMLProviderUpdate": {
+        "description": "Fields to change; omitted fields stay. ``null`` clears ``metadata_url``,\n``sp_entity_id`` and the attribute names. A new ``metadata_xml`` or ``metadata_url``\nreplaces the IdP settings.",
+        "properties": {
+          "allowed_domains": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 254,
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Allowed Domains"
+          },
+          "auto_provision": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Auto Provision"
+          },
+          "display_name": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "display_name_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name Attribute"
+          },
+          "email_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Email Attribute"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "groups_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups Attribute"
+          },
+          "idp_certificates": {
+            "anyOf": [
+              {
+                "items": {
+                  "maxLength": 16384,
+                  "type": "string"
+                },
+                "maxItems": 10,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Certificates"
+          },
+          "idp_entity_id": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Entity Id"
+          },
+          "idp_sso_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Idp Sso Url"
+          },
+          "link_by_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Link By Email"
+          },
+          "metadata_url": {
+            "anyOf": [
+              {
+                "maxLength": 2048,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Url"
+          },
+          "metadata_xml": {
+            "anyOf": [
+              {
+                "maxLength": 2097152,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Metadata Xml"
+          },
+          "name_id_format": {
+            "anyOf": [
+              {
+                "enum": [
+                  "urn:oasis:names:tc:SAML:1.1:nameid-format:unspecified",
+                  "urn:oasis:names:tc:SAML:1.1:nameid-format:emailAddress",
+                  "urn:oasis:names:tc:SAML:2.0:nameid-format:persistent",
+                  "urn:oasis:names:tc:SAML:2.0:nameid-format:transient"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Name Id Format"
+          },
+          "preset": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/SAMLPreset"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "sp_entity_id": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sp Entity Id"
+          },
+          "subject_attribute": {
+            "anyOf": [
+              {
+                "maxLength": 255,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject Attribute"
+          },
+          "trust_email": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Trust Email"
+          }
+        },
+        "title": "SAMLProviderUpdate",
+        "type": "object"
+      },
       "ScimSettingsRead": {
         "properties": {
           "enabled": {
@@ -7380,6 +8286,24 @@
         "title": "TaskAssignmentUpdate",
         "type": "object"
       },
+      "TaskListRead": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "TaskListRead",
+        "type": "object"
+      },
       "TaskSettingRead": {
         "properties": {
           "blocked": {
@@ -7547,6 +8471,56 @@
         "title": "TodoCreate",
         "type": "object"
       },
+      "TodoExportState": {
+        "description": "Export of a todo to the user's task system (#40).",
+        "properties": {
+          "error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error"
+          },
+          "sink": {
+            "title": "Sink",
+            "type": "string"
+          },
+          "state": {
+            "enum": [
+              "pending",
+              "synced",
+              "error",
+              "removed"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "synced_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Synced At"
+          }
+        },
+        "required": [
+          "sink",
+          "state",
+          "synced_at",
+          "error"
+        ],
+        "title": "TodoExportState",
+        "type": "object"
+      },
       "TodoPriority": {
         "enum": [
           "high",
@@ -7624,6 +8598,16 @@
               }
             ],
             "title": "Due Date"
+          },
+          "export_state": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/TodoExportState"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "external_refs": {
             "additionalProperties": true,
@@ -7714,6 +8698,7 @@
           "message_id",
           "thread_id",
           "external_refs",
+          "export_state",
           "shared",
           "assignee_id",
           "created_at",
@@ -9325,6 +10310,281 @@
           }
         },
         "summary": "Test Role Mapping",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/saml/providers": {
+      "get": {
+        "description": "All SAML providers.",
+        "operationId": "admin_list_saml_providers",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/SAMLProviderRead"
+                  },
+                  "title": "Response Admin List Saml Providers",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "List Saml Providers",
+        "tags": [
+          "admin"
+        ]
+      },
+      "post": {
+        "description": "Add a SAML provider from IdP metadata (URL or upload) or explicit IdP settings.",
+        "operationId": "admin_create_saml_provider",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SAMLProviderCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SAMLProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "409": {
+            "description": "Name taken"
+          },
+          "422": {
+            "description": "Invalid settings or metadata"
+          }
+        },
+        "summary": "Create Saml Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/saml/providers/{name}": {
+      "delete": {
+        "description": "Remove a SAML provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "operationId": "admin_delete_saml_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Delete Saml Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "get": {
+        "operationId": "admin_get_saml_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SAMLProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Saml Provider",
+        "tags": [
+          "admin"
+        ]
+      },
+      "patch": {
+        "description": "Change a SAML provider. Omitted fields stay as they are.",
+        "operationId": "admin_update_saml_provider",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SAMLProviderUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SAMLProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
+          },
+          "422": {
+            "description": "Invalid settings or metadata"
+          }
+        },
+        "summary": "Update Saml Provider",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/auth/saml/providers/{name}/refresh-metadata": {
+      "post": {
+        "description": "Load the IdP metadata from ``metadata_url`` again (e.g. after a certificate\nrollover at the IdP).",
+        "operationId": "admin_refresh_saml_metadata",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SAMLProviderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "409": {
+            "description": "No administrator could sign in afterwards (admin-lockout)"
+          },
+          "422": {
+            "description": "No metadata URL, or the metadata is unusable"
+          }
+        },
+        "summary": "Refresh Saml Metadata",
         "tags": [
           "admin"
         ]
@@ -11452,6 +12712,138 @@
           }
         },
         "summary": "Register",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/saml/acs": {
+      "post": {
+        "description": "Assertion Consumer Service (HTTP-POST binding): the IdP posts the response here.\n\nThe provider comes from the encrypted flow cookie, not from the request; responses\nwithout a matching login started here (IdP-initiated) are rejected.",
+        "operationId": "auth_saml_acs",
+        "requestBody": {
+          "content": {
+            "application/x-www-form-urlencoded": {
+              "schema": {
+                "properties": {
+                  "RelayState": {
+                    "type": "string"
+                  },
+                  "SAMLResponse": {
+                    "type": "string"
+                  }
+                },
+                "required": [
+                  "SAMLResponse",
+                  "RelayState"
+                ],
+                "type": "object"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "303": {
+            "description": "Redirect to return_to (signed in), or to /login?error=<code>"
+          }
+        },
+        "summary": "Saml Acs",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/saml/{name}/login": {
+      "get": {
+        "description": "Start the login with a SAML provider (browser navigation, not fetch).",
+        "operationId": "auth_saml_login",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "return_to",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maxLength": 2048,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Return To"
+            }
+          }
+        ],
+        "responses": {
+          "303": {
+            "description": "Redirect to the IdP, or to /login?error=<code>"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Saml Login",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/saml/{name}/metadata": {
+      "get": {
+        "description": "Metadata of ollamail as service provider (entity ID, ACS URL) for the IdP; also\nfor disabled providers, so it can be registered before the provider is switched on.",
+        "operationId": "auth_saml_sp_metadata",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "name",
+            "required": true,
+            "schema": {
+              "title": "Name",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/samlmetadata+xml": {}
+            },
+            "description": "SP metadata"
+          },
+          "404": {
+            "description": "Unknown provider"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Saml Sp Metadata",
         "tags": [
           "auth"
         ]
@@ -14873,6 +16265,249 @@
         ]
       }
     },
+    "/todo-export": {
+      "delete": {
+        "description": "Stop exporting and delete the stored credentials. Tasks already exported stay in\nthe target system.",
+        "operationId": "todos_disconnect_export",
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Export not connected"
+          }
+        },
+        "summary": "Disconnect Export",
+        "tags": [
+          "todos"
+        ]
+      },
+      "get": {
+        "description": "Own export settings and the target types the admin allows.",
+        "operationId": "todos_get_export_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Export Settings",
+        "tags": [
+          "todos"
+        ]
+      },
+      "patch": {
+        "description": "Switch between automatic and manual export.",
+        "operationId": "todos_update_export_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportTargetUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Export not connected"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Update Export Settings",
+        "tags": [
+          "todos"
+        ]
+      },
+      "put": {
+        "description": "Connect the export (or change server, account, list or mode). The connection is\nchecked and the list must be one of those the server offers. Open todos are exported\nright away in mode ``auto``.",
+        "operationId": "todos_save_export_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportTargetSave"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Target not allowed, invalid URL, credentials rejected, no list"
+          },
+          "502": {
+            "description": "Target not reachable"
+          }
+        },
+        "summary": "Save Export Settings",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/lists": {
+      "post": {
+        "description": "Connect to the target with the given credentials and list the lists that can hold\ntodos (CalDAV: calendars with tasks). Nothing is stored.",
+        "operationId": "todos_list_task_lists",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ExportConnection"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/TaskListRead"
+                  },
+                  "title": "Response Todos List Task Lists",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Target not allowed, invalid URL, credentials rejected, no list"
+          },
+          "502": {
+            "description": "Target not reachable"
+          }
+        },
+        "summary": "List Task Lists",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/sync": {
+      "post": {
+        "description": "Sync now, including the status check of exported todos.",
+        "operationId": "todos_sync_now",
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {}
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "Export not connected"
+          }
+        },
+        "summary": "Sync Now",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
+    "/todo-export/todos/{todo_id}": {
+      "post": {
+        "description": "Export one todo (manual mode), or export it again after it was deleted in the\ntarget system.",
+        "operationId": "todos_export_todo",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "todo_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Todo Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TodoRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such todo or export not connected"
+          },
+          "422": {
+            "description": "Todo of somebody else (team todo assigned to another person)"
+          }
+        },
+        "summary": "Export Todo",
+        "tags": [
+          "todos"
+        ]
+      }
+    },
     "/todos": {
       "get": {
         "description": "Own todos, earliest due date first (todos without due date last).",
@@ -15080,6 +16715,7 @@
     },
     "/todos/{todo_id}": {
       "delete": {
+        "description": "Delete a todo; an exported copy is deleted in the target system with the next sync.",
         "operationId": "todos_delete_todo",
         "parameters": [
           {

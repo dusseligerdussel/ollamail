@@ -37,6 +37,7 @@ const actionGroups = {
   "data.exported": "data",
   "data.deleted": "data",
   "data.retention_changed": "data",
+  "todo_export.changed": "data",
   "crypto.keys_rotated": "operations",
   "audit.exported": "operations",
 } as const satisfies Record<AuditAction, string>;

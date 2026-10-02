@@ -7,6 +7,8 @@ Contents (``manifest.json`` lists them):
 * ``triage.json``: own categories, category preferences, sender rules, corrections and
   the triage results of mails in own mailboxes
 * ``todos.json``: own todos
+* ``todo_export.json``: todo export settings (target, server, user name, list, mode; never
+  the password), ``null`` if not connected
 * ``digests.json`` and ``digests/<digest_id>.<format>``: digest settings (without the
   feed token), digests with scripts, and their audio files
 * ``conversations.json``: "ask your inbox" conversations with answers and citations
@@ -40,6 +42,7 @@ from app.digest.storage import DigestStorage
 from app.drafts.models import DraftSettings, ReplyDraft
 from app.mail.models import Mailbox, Message
 from app.rag.models import RagConversation, RagMessage
+from app.todos.export.models import TodoExportTarget
 from app.todos.models import Todo
 from app.triage.models import (
     TriageCategory,
@@ -224,6 +227,22 @@ async def _todos(session: AsyncSession, user_id: uuid.UUID) -> list[dict[str, An
     ]
 
 
+async def _todo_export(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any] | None:
+    target = await session.scalar(
+        select(TodoExportTarget).where(TodoExportTarget.user_id == user_id)
+    )
+    if target is None:
+        return None
+    row = _row(
+        target,
+        ("sink", "list_name", "mode", "last_sync_at", "last_error", "created_at", "updated_at"),
+    )
+    # Server and account, never the password.
+    row["url"] = target.config.get("url")
+    row["username"] = target.config.get("username")
+    return row
+
+
 async def _digests(
     session: AsyncSession, user_id: uuid.UUID, storage: DigestStorage, content: ExportContent
 ) -> dict[str, Any]:
@@ -378,6 +397,7 @@ async def collect(
         session, user_id, [mailbox.id for mailbox in mailboxes]
     )
     content.documents["todos.json"] = await _todos(session, user_id)
+    content.documents["todo_export.json"] = await _todo_export(session, user_id)
     content.documents["digests.json"] = await _digests(session, user_id, digest_storage, content)
     content.documents["conversations.json"] = await _conversations(session, user_id)
     content.documents["reply_drafts.json"] = await _reply_drafts(session, user_id)
