@@ -125,6 +125,24 @@ test("a failed send is explained and the draft stays", async ({ page }) => {
   await expect(replyText(page)).toHaveValue("Danke, ist notiert.");
 });
 
+test("a suggestion that takes too long is explained and the text stays", async ({ page }) => {
+  await mockDrafts(page, { generateError: "llm_timeout" });
+  await openMail(page);
+  await page.keyboard.press("r");
+  await expect(replyText(page)).toBeFocused();
+  await page.keyboard.type("Mein Text");
+  await editor(page).getByRole("button", { name: "Suggest draft" }).click();
+  await page.getByRole("button", { name: "Suggest", exact: true }).click();
+
+  const alert = editor(page).getByRole("alert");
+  await expect(alert).toContainText("No draft created");
+  await expect(alert).toContainText(
+    "The language model took too long. Please try again or write the reply yourself.",
+  );
+  await expect(alert).not.toContainText("cannot be reached");
+  await expect(replyText(page)).toHaveValue("Mein Text");
+});
+
 test("the drafts overview opens a draft in its thread", async ({ page }) => {
   await mockDrafts(page, { drafts: overviewDrafts() });
   await page.goto("/drafts");

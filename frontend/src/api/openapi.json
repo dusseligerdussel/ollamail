@@ -14780,7 +14780,7 @@
                       "type": "object"
                     },
                     {
-                      "description": "Last event on failure; nothing is stored. Codes: ``llm_unavailable``,\n``llm_cloud_disabled``, ``llm_error``, ``internal``.",
+                      "description": "Last event on failure; nothing is stored. Codes: ``llm_unavailable``,\n``llm_timeout``, ``llm_cloud_disabled``, ``llm_error``, ``internal``.",
                       "properties": {
                         "code": {
                           "title": "Code",
@@ -16895,7 +16895,7 @@
                       "type": "object"
                     },
                     {
-                      "description": "Last event if no answer could be generated; nothing is stored.",
+                      "description": "Last event if no answer could be generated; nothing is stored. Codes:\n``llm_unavailable``, ``llm_timeout``, ``llm_cloud_disabled``, ``llm_error``, ``internal``.",
                       "properties": {
                         "code": {
                           "title": "Code",

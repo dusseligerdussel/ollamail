@@ -361,7 +361,7 @@ API und Query-Keys in `src/api/drafts.ts`, Komponenten in `src/components/drafts
 - **Entwurf vorschlagen:** optionale Kurzanweisung, dann `POST /drafts/generate` mit `draft_id`
   (POST-SSE wie die Suche, `generateDraft()`); der Text läuft in den Editor, der währenddessen
   schreibgeschützt ist. `Esc`/„Abbrechen“ bricht ab, der vorherige Text kommt zurück (der Server
-  speichert dann nichts). Fehler (`llm_unavailable` …) stehen im Editor.
+  speichert dann nichts). Fehler (`llm_unavailable`, `llm_timeout` …) stehen im Editor.
 - **Senden** nur über „Senden“ bzw. `⌘Enter`. Ist der Text noch genau der Vorschlag, verlangt der
   Editor eine zweite Bestätigung („Trotzdem senden“). Der Vorschlag wird dafür nur im Speicher der
   Seite gehalten (`src/lib/reply-draft.ts`), nie in `localStorage`. Vor dem Senden wird gespeichert.

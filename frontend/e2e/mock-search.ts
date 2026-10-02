@@ -9,7 +9,7 @@ import { mailboxIds, NOW } from "./mock-mail";
  * The answer stream (`POST /api/rag/ask`) is produced inside the page by a wrapped `fetch`,
  * so it really arrives piece by piece (Playwright can only fulfil whole responses).
  */
-export type AnswerScenario = "answered" | "no_evidence" | "error" | "hang";
+export type AnswerScenario = "answered" | "no_evidence" | "error" | "timeout" | "hang";
 
 export interface MockSearch {
   answer?: AnswerScenario;
@@ -205,6 +205,8 @@ function streamEvents(scenario: AnswerScenario, ocr = false) {
       ];
     case "error":
       return [start, filters, { type: "error", code: "llm_unavailable" }];
+    case "timeout":
+      return [start, filters, { type: "error", code: "llm_timeout" }];
     case "hang":
       return [start, filters, { type: "sources", sources }];
   }

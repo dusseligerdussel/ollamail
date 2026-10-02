@@ -207,7 +207,9 @@ Doppelte). Ein Verarbeitungsschritt, der für dieselbe Mail
 `OLLAMAIL_PROCESSING_LLM_TIMEOUT_ATTEMPTS`-mal (Standard 2) in die Frist läuft, gilt als
 fehlgeschlagen (`llm_timeout_error`) und blockiert den LLM-Slot nicht weiter. Häufen sich solche
 Timeouts in den `llm_call`-Logs (`error_type=LLMTimeoutError`), ist das Modell für die Hardware zu
-groß oder die Frist zu knapp.
+groß oder die Frist zu knapp. „Frag deine Inbox“ und Antwortentwürfe melden einen Timeout als
+eigenen Fehlercode `llm_timeout` („hat zu lange gebraucht“), getrennt von `llm_unavailable`
+(Server nicht erreichbar).
 
 ### 3.2 CPU-only (Profil `ollama-cpu`)
 

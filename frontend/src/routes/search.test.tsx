@@ -293,6 +293,17 @@ describe("search", () => {
     );
   });
 
+  it("reports a timeout separately from an outage", async () => {
+    mockSearchApi({ answer: () => sse([start, { type: "error", code: "llm_timeout" }]) });
+    await renderApp("/search");
+    await type("Wer kommt morgen?{Enter}");
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "The language model took too long. Please try again or ask a shorter question.",
+    );
+    expect(alert).not.toHaveTextContent("not reachable");
+  });
+
   it("lists the history and deletes entries", async () => {
     const { deletes } = mockSearchApi({
       conversations: [
