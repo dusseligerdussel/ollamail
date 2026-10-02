@@ -1,6 +1,6 @@
-import AxeBuilder from "@axe-core/playwright";
 import { expect, type Page, test } from "@playwright/test";
 
+import { expectNoA11yViolations } from "./a11y";
 import { mockApi } from "./mock-api";
 import { messageId, mockMail } from "./mock-mail";
 
@@ -8,19 +8,6 @@ import { messageId, mockMail } from "./mock-mail";
 test.beforeEach(async ({ page }) => {
   await mockApi(page);
 });
-
-async function expectNoA11yViolations(page: Page) {
-  // The mail itself is third-party content in a script-less sandbox, where axe cannot run.
-  const results = await new AxeBuilder({ page })
-    .exclude("iframe")
-    .withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa", "wcag22aa"])
-    .analyze();
-  const summary = results.violations.map(
-    (violation) =>
-      `${violation.impact}: ${violation.id} – ${violation.nodes.map((node) => node.target.join(" ")).join(", ")}`,
-  );
-  expect(summary).toEqual([]);
-}
 
 async function overflow(page: Page) {
   return page.evaluate(
@@ -278,9 +265,9 @@ for (const colorScheme of ["light", "dark"] as const) {
       await expectNoA11yViolations(page);
 
       await page.goto("/settings/mailboxes");
-      // (Open Radix menus hide the page with aria-hidden while the skip link stays focusable;
-      // axe flags that for every menu of the app, so the open menu itself is not checked.)
       await page.getByRole("button", { name: "Actions for Arbeit" }).click();
+      await expect(page.getByRole("menu")).toBeVisible();
+      await expectNoA11yViolations(page);
       await page.getByRole("menuitem", { name: "Folders" }).click();
       await expect(page.getByRole("dialog", { name: "Folders" })).toBeVisible();
       await expect(page.getByRole("menu")).toHaveCount(0);
