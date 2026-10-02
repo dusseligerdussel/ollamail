@@ -18,6 +18,7 @@ import {
   testRoleMapping,
 } from "@/api/admin-auth";
 import { describeApiError, isApiError } from "@/api/errors";
+import { SCIM_PROVIDER } from "@/api/scim";
 import { AdminSection, AdminSubPage } from "@/components/admin/admin-page";
 import { Notice } from "@/components/admin/notice";
 import { Forbidden } from "@/components/forbidden";
@@ -51,6 +52,7 @@ function RoleMappingPage() {
 }
 
 function RoleMappingContent() {
+  const { t } = useTranslation();
   const [mapping, oidc, github, ldap] = useQueries({
     queries: [
       roleMappingQueryOptions,
@@ -69,6 +71,7 @@ function RoleMappingContent() {
     ...(oidc.data ?? []).map((p) => ({ key: p.provider, label: p.display_name })),
     ...(github.data ?? []).map((p) => ({ key: p.provider, label: p.display_name })),
     ...(ldap.data ?? []).map((d) => ({ key: d.provider, label: d.display_name })),
+    { key: SCIM_PROVIDER, label: t("pages.scim.providerLabel") },
   ];
   // Re-mount the form when the saved mapping changes (after saving).
   return (
