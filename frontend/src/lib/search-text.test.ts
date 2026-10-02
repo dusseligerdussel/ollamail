@@ -10,8 +10,12 @@ import {
 } from "./search-text";
 
 describe("queryTerms", () => {
-  it("keeps words, drops operators and duplicates, longest first", () => {
+  it("keeps words, drops operators, short words and duplicates, longest first", () => {
     expect(queryTerms('Rechnung OR "Angebot" -x rechnung')).toEqual(["rechnung", "angebot"]);
+    expect(queryTerms("Bis wann muss die Rechnung bezahlt werden?")).toEqual([
+      "rechnung",
+      "bezahlt",
+    ]);
   });
 });
 

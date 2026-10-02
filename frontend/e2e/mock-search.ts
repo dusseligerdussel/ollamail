@@ -94,7 +94,7 @@ const hits = searchMails.map((mail, index) => ({
 }));
 
 function thread(index: number) {
-  const mail = searchMails[index] ?? searchMails[0];
+  const mail = searchMails[index] as SyntheticMail;
   const message = {
     id: searchMessageId(index),
     mailbox_id: hits[index]?.mailbox_id ?? mailboxIds.work,
@@ -133,7 +133,7 @@ function thread(index: number) {
 }
 
 const heading = (index: number) => {
-  const mail = searchMails[index] ?? searchMails[0];
+  const mail = searchMails[index] as SyntheticMail;
   return `From: ${mail.sender[0]} <${mail.sender[1]}>\nDate: ${mail.date.slice(0, 10)}\nSubject: ${mail.subject}`;
 };
 
@@ -253,7 +253,8 @@ export async function mockSearch(
             const next = () => {
               if (signal.aborted) return;
               if (index >= limit) {
-                if (limit >= events.length) controller.close();
+                // Paused streams stay open (writing state, cancel).
+                if (pauseAfter === undefined) controller.close();
                 return;
               }
               const event = events[index] as { type: string };
@@ -273,7 +274,11 @@ export async function mockSearch(
         return new Response(body, { headers: { "Content-Type": "text/event-stream" } });
       };
     },
-    { events: streamEvents(answer), step, pauseAfter: answer === "hang" ? 3 : pauseAfter },
+    {
+      events: streamEvents(answer),
+      step,
+      pauseAfter: answer === "hang" ? streamEvents("hang").length : pauseAfter,
+    },
   );
 
   await page.route(

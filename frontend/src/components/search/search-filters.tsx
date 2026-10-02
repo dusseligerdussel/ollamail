@@ -116,37 +116,38 @@ function SenderChip({
     if (editing) input.current?.focus();
   }, [editing]);
 
+  const apply = () => {
+    onChange(draft.trim() || undefined);
+    setEditing(false);
+  };
+
   if (editing) {
     return (
-      <form
-        className="flex h-7 shrink-0 items-center"
-        onSubmit={(event) => {
-          event.preventDefault();
-          onChange(draft.trim() || undefined);
-          setEditing(false);
-        }}
-      >
+      // No nested <form>: the chips sit inside the search form.
+      <div className="flex h-7 shrink-0 items-center">
         <Input
           ref={input}
           value={draft}
           onChange={(event) => setDraft(event.target.value)}
           onKeyDown={(event) => {
-            if (event.key === "Escape") {
+            if (event.key === "Enter") {
+              event.preventDefault();
+              event.stopPropagation();
+              apply();
+            } else if (event.key === "Escape") {
               event.preventDefault();
               event.stopPropagation();
               setEditing(false);
             }
           }}
-          onBlur={() => {
-            onChange(draft.trim() || undefined);
-            setEditing(false);
-          }}
+          onBlur={apply}
           aria-label={label}
           placeholder={t("search.filters.senderPlaceholder")}
           maxLength={200}
+          enterKeyHint="done"
           className="h-7 w-48 rounded-full px-3 text-xs md:text-xs"
         />
-      </form>
+      </div>
     );
   }
 

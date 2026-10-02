@@ -240,8 +240,15 @@ function SearchPage() {
     if (index >= 0) setActiveIndex(index);
   }, [params.message, hitItems, setActiveIndex]);
 
+  // Only after `j`/`k` chose a hit: otherwise Enter belongs to the focused control.
   useShortcut(
-    { id: "search.openHit", keys: "enter", group: "list", description: t("search.shortcuts.open") },
+    {
+      id: "search.openHit",
+      keys: "enter",
+      group: "list",
+      description: t("search.shortcuts.open"),
+      enabled: activeIndex >= 0,
+    },
     () => {
       const hit = hitItems[activeIndex];
       if (hit)
@@ -339,7 +346,10 @@ function SearchPage() {
   }, [conversation.data, params.conversation, stream.answer]);
 
   const noMailboxes = mailboxes.data?.length === 0;
-  const showHits = !!submitted && !(submitted.question && turns.length === 0);
+  // Below an answer, hits are extra context: left out while loading or when there are none.
+  const showHits =
+    !!submitted &&
+    (!submitted.question || (turns.length > 0 && (hits.isError || hitItems.length > 0)));
 
   let answers: ReactNode = null;
   if (params.conversation && conversation.isPending && turns.length === 0) {
@@ -470,7 +480,7 @@ function SearchPage() {
           ) : undefined
         }
       />
-      <search className="shrink-0 border-b">
+      <search className="shrink-0 border-b" onFocus={() => setActiveIndex(-1)}>
         <form
           className="flex flex-col gap-2 px-4 py-3 md:px-5"
           onSubmit={(event) => {

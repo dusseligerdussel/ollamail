@@ -167,6 +167,30 @@ API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
   E2E_API=1 E2E_IMAP=1 E2E_SETUP_TOKEN=e2e pnpm e2e e2e/mailbox.spec.ts
   ```
 
+### Suche und Antworten (#26)
+
+API in `src/api/search.ts`, Komponenten in `src/components/search/`, Seite `/search`.
+
+- **Eine Oberfläche:** Stichwörter → Trefferliste (`POST /api/search`, ein Treffer je Mail,
+  Suchbegriffe markiert). Fragen (endet auf „?“ oder beginnt mit einem Fragewort, `isQuestion()`
+  in `src/lib/search-text.ts`; erzwingen mit `mod+Enter` bzw. „Als Frage beantworten“) →
+  gestreamte Antwort über `POST /api/rag/ask`, darunter die Treffer als Kontext. Eine Frage, während
+  ein Gespräch offen ist, ist eine Nachfrage im selben Gespräch.
+- **Stream:** POST-SSE, gelesen mit `fetch` (`askQuestion()`, Parser `src/lib/sse.ts`);
+  „Abbrechen“ bzw. `Esc` bricht den Request ab (der Server speichert dann nichts).
+- **Quellen:** Zitatmarker `[n]` werden zu Schaltflächen, darunter die zitierten Quellen
+  nummeriert. Ein Klick öffnet die Mail rechts (`?message=`) und markiert die Fundstelle
+  (`ThreadView`-Prop `focus`; in HTML-Mails per CSS Custom Highlight API, ohne das Mail-DOM zu
+  ändern; `src/lib/find-passage.ts`). Bei Treffern aus Anhängen wird der Anhang hervorgehoben.
+- **Filter-Chips:** Zeitraum, Absender (inline editierbar), Postfach, Kategorie; gelten für
+  Treffer und Fragen.
+- **Datenschutz:** In der URL stehen nur IDs (`message`, `conversation`), nie die Suchanfrage.
+- **Verlauf:** gespeicherte Gespräche (`/rag/conversations`), einzeln oder alle löschbar.
+- **Tastatur:** `/` öffnet die Suche bzw. setzt den Cursor ins Feld, `Enter` sucht,
+  `mod+Enter` fragt, `j`/`k` + `o`/`Enter` öffnen Treffer, `Esc` bricht ab bzw. schließt die Mail.
+- **E2E:** `e2e/search.spec.ts` mit `e2e/mock-search.ts`; der Antwort-Stream wird im Browser
+  erzeugt (umhülltes `fetch`), damit er wirklich stückweise ankommt.
+
 ## Design-System und App-Shell
 
 Grundlage ist `docs/DESIGN.md`.

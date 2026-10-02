@@ -63,6 +63,20 @@ test("keyboard only: search, filter, open a hit at the matching passage", async 
   await expect.poll(() => searches.length).toBe(2);
   expect(searches[1]).toMatchObject({ query: "rechnung", filters: { since: expect.any(String) } });
 
+  // Sender chip (after the clear button of the date chip): edited inline; Enter applies it.
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Remove filter “Date”" })).toBeFocused();
+  await page.keyboard.press("Tab");
+  await expect(page.getByRole("button", { name: "Sender" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("textbox", { name: "Sender" })).toBeFocused();
+  await page.keyboard.type("billing");
+  await page.keyboard.press("Enter");
+  await expect(page.getByRole("button", { name: "Sender: billing" })).toBeVisible();
+  await expect.poll(() => searches.length).toBe(3);
+  expect(searches[2]).toMatchObject({ filters: { sender: "billing" } });
+  await expect(hits.getByRole("listitem")).toHaveCount(4);
+
   // j / o open the first hit (Enter would act on the focused chip); the passage is marked.
   await page.keyboard.press("j");
   await page.keyboard.press("o");

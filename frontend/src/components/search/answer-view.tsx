@@ -180,6 +180,18 @@ export function AnswerView({ turn, onOpenSource, onCancel }: AnswerViewProps) {
   );
 }
 
+/** The day of a source (`YYYY-MM-DD`) like the dates of the hit list: "30. Sept.". */
+function formatSourceDate(value: string | undefined, locale: string, now = new Date()) {
+  if (!value || Number.isNaN(Date.parse(value))) return value;
+  const date = new Date(value);
+  return new Intl.DateTimeFormat(locale, {
+    day: "numeric",
+    month: "short",
+    ...(date.getUTCFullYear() !== now.getFullYear() && { year: "numeric" }),
+    timeZone: "UTC",
+  }).format(date);
+}
+
 function SourceItem({
   source,
   onOpen,
@@ -189,12 +201,7 @@ function SourceItem({
 }) {
   const { t, i18n } = useTranslation();
   const heading = parseSourceHeading(source.heading);
-  const date =
-    heading.date && !Number.isNaN(Date.parse(heading.date))
-      ? new Intl.DateTimeFormat(i18n.language, { dateStyle: "medium", timeZone: "UTC" }).format(
-          new Date(heading.date),
-        )
-      : heading.date;
+  const date = formatSourceDate(heading.date, i18n.language);
   return (
     <li>
       <button

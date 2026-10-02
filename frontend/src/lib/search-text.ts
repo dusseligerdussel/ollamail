@@ -1,14 +1,24 @@
 /** Text helpers of the search page: query terms, highlighting, citations, question detection. */
 
 const WORD = /[\p{L}\p{N}]{2,}/gu;
-// Operators of the search syntax (websearch_to_tsquery), not words to highlight.
-const OPERATORS = new Set(["or", "and", "not"]);
+// Search operators (websearch_to_tsquery) and frequent short words of questions, which
+// would mark half of every excerpt.
+const SKIPPED = new Set(
+  (
+    "or and not the a an of to in on at for is are was were be do does did what when where " +
+    "who why how which my me i you it this that with from by about " +
+    "der die das den dem des ein eine einen einem einer und oder nicht ist sind war wird " +
+    "werden wurde muss soll kann im in am an auf aus bei bis mit von vom zu zum zur für " +
+    "über wer wen wem was wann wo wie warum welche welcher welches ich mir mich du dir es " +
+    "er sie wir ihr uns mein meine dein deine hat habe hatte gibt es"
+  ).split(" "),
+);
 
 /** Words of a query worth highlighting, longest first (so longer matches win). */
 export function queryTerms(query: string): string[] {
   const terms = new Set<string>();
   for (const match of query.toLocaleLowerCase().matchAll(WORD)) {
-    if (!OPERATORS.has(match[0])) terms.add(match[0]);
+    if (!SKIPPED.has(match[0])) terms.add(match[0]);
   }
   return [...terms].sort((a, b) => b.length - a.length);
 }

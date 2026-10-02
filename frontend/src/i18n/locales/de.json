@@ -597,9 +597,9 @@
   },
   "search": {
     "inputLabel": "Suchbegriff oder Frage",
-    "placeholder": "Mails durchsuchen oder eine Frage stellen",
+    "placeholder": "Suchen oder Frage stellen",
     "followUpPlaceholder": "Nachfrage stellen oder neu suchen",
-    "keyHint": "<0></0> Suchen · <1></1> Als Frage stellen. Fragen (z. B. mit „?“) werden mit Quellen beantwortet.",
+    "keyHint": "<0></0> Suchen · <1></1> Als Frage stellen",
     "new": "Neue Suche",
     "hits": "Treffer",
     "askInstead": "Als Frage beantworten",

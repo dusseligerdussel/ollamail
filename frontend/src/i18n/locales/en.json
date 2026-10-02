@@ -597,9 +597,9 @@
   },
   "search": {
     "inputLabel": "Search terms or question",
-    "placeholder": "Search mail or ask a question",
+    "placeholder": "Search or ask a question",
     "followUpPlaceholder": "Ask a follow-up or search again",
-    "keyHint": "<0></0> Search · <1></1> Ask as a question. Questions (e.g. ending with “?”) are answered with sources.",
+    "keyHint": "<0></0> Search · <1></1> Ask as a question",
     "new": "New search",
     "hits": "Results",
     "askInstead": "Answer as a question",
