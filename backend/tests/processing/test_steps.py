@@ -5,7 +5,7 @@ from procrastinate import RetryStrategy
 from procrastinate.jobs import Job
 from typer.testing import CliRunner
 
-from app.ai.llm.errors import LLMUnavailableError
+from app.ai.llm.errors import LLMTimeoutError, LLMUnavailableError
 from app.cli import cli
 from app.core.config import ProcessingSettings, Settings
 from app.processing import tasks
@@ -132,6 +132,22 @@ def test_step_retry_uses_the_strategy_of_the_step() -> None:
         assert retry.get_retry_decision(exception=RuntimeError(), job=_job("triage", 2)) is None
         permanent = StepError("unsupported", permanent=True)
         assert retry.get_retry_decision(exception=permanent, job=_job("triage", 0)) is None
+
+
+def test_llm_timeout_is_retried_only_a_few_times(monkeypatch: pytest.MonkeyPatch) -> None:
+    settings = Settings(processing=ProcessingSettings(llm_timeout_attempts=2))
+    monkeypatch.setattr(tasks, "get_settings", lambda: settings)
+    step = ProcessingStep(name="todos", version=1, queue="llm", handler=_noop)
+    retry = StepRetry()
+    timeout = LLMTimeoutError("LLM call exceeded its deadline of 180 s")
+    with registry.isolated(step):
+        assert retry.get_retry_decision(exception=timeout, job=_job("todos", 0)) is not None
+        # Second attempt timed out as well: the step fails for this mail.
+        assert retry.get_retry_decision(exception=timeout, job=_job("todos", 1)) is None
+        # Other errors (server unreachable) keep the normal backoff.
+        unreachable = LLMUnavailableError("LLM endpoint unreachable")
+        assert retry.get_retry_decision(exception=unreachable, job=_job("todos", 1)) is not None
+    assert error_code(timeout) == "llm_timeout_error"
 
 
 def test_new_mail_has_the_highest_priority() -> None:

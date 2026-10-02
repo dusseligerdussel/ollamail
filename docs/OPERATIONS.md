@@ -200,6 +200,15 @@ Standardmodelle der Profile (`OLLAMAIL_LLM_PROFILE`, überschreibbar mit
 Empfehlung für CPU-only: Triage und Aufgaben-Extraktion mit einem kleinen Modell laufen lassen,
 den Daily Digest in die Nacht legen.
 
+Jeder LLM-Aufruf ist begrenzt: in der Länge der Antwort (`OLLAMAIL_LLM_MAX_OUTPUT_TOKENS`, je
+Aufgabe `OLLAMAIL_LLM_TASK_<TASK>_MAX_TOKENS`) und in der Dauer (`OLLAMAIL_LLM_CALL_TIMEOUT`,
+Standard im Profil `cpu` 180 s, auf GPU 60 s; Digest, „Frag deine Inbox“ und Antwortentwürfe das
+Doppelte). Ein Verarbeitungsschritt, der für dieselbe Mail
+`OLLAMAIL_PROCESSING_LLM_TIMEOUT_ATTEMPTS`-mal (Standard 2) in die Frist läuft, gilt als
+fehlgeschlagen (`llm_timeout_error`) und blockiert den LLM-Slot nicht weiter. Häufen sich solche
+Timeouts in den `llm_call`-Logs (`error_type=LLMTimeoutError`), ist das Modell für die Hardware zu
+groß oder die Frist zu knapp.
+
 ### 3.2 CPU-only (Profil `ollama-cpu`)
 
 ```sh

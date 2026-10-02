@@ -400,13 +400,27 @@ Das Gateway erledigt pro Aufruf:
    (konservative Schätzung ≈ 3 Zeichen/Token, Platz für die Antwort wird reserviert). Gekürzt wird die
    längste Nicht-System-Nachricht vom Ende her, weil neue Inhalte in Mails oben stehen.
    Bei Ollama wird `num_ctx` gesetzt, weil Ollama sonst stillschweigend auf ein kleines Fenster kürzt.
-4. **Structured Output:** Das JSON-Schema geht nativ an den Server (Ollama `format`, OpenAI
+4. **Antwortlimit und Frist (#132):** Jeder Aufruf hat ein Limit für erzeugte Tokens (Ollama
+   `num_predict`, OpenAI-kompatibel `max_tokens`). Setzt das Feature keins, gilt
+   `OLLAMAIL_LLM_TASK_<TASK>_MAX_TOKENS` → `OLLAMAIL_LLM_MAX_OUTPUT_TOKENS` (falls gesetzt) →
+   eingebauter Task-Default (1024, `todos` 800). Feste Werte setzen u. a. Triage (200),
+   RAG-Query-Analyse (256) und Reranking (32 + 4 je Kandidat). Abgeschnittenes JSON läuft in die
+   Retry-/`LLMOutputError`-Behandlung (Punkt 5). Zusätzlich hat jeder Generierungsaufruf eine
+   **Gesamtfrist** (`OLLAMAIL_LLM_TASK_<TASK>_CALL_TIMEOUT` → `OLLAMAIL_LLM_CALL_TIMEOUT` → Profil:
+   `cpu` 180 s, GPU-Profile 60 s; Digest, RAG-Chat und Antwortentwürfe das Doppelte). Sie gilt ab
+   dem LLM-Slot, umfasst alle Structured-Output-Versuche und bei Streams die ganze Antwort, nicht
+   nur die Pause zwischen zwei Bytes wie der HTTP-Timeout (`OLLAMAIL_LLM_TIMEOUT`). Bei Streams
+   wird nur das Warten auf den nächsten Chunk abgebrochen, nie Code des Aufrufers. Ablauf der Frist
+   und HTTP-Lese-Timeouts ergeben `LLMTimeoutError` (Unterklasse von `LLMUnavailableError`), in
+   Metriken und Logs als eigener `error_type` sichtbar; ein Verbindungs-Timeout bleibt
+   `LLMUnavailableError` („nicht erreichbar“). Embeddings haben keine Gesamtfrist.
+5. **Structured Output:** Das JSON-Schema geht nativ an den Server (Ollama `format`, OpenAI
    `response_format`) und zusätzlich in den System-Prompt. Ungültige Antworten werden mit einem
    Korrekturhinweis erneut angefragt (`OLLAMAIL_LLM_STRUCTURED_OUTPUT_RETRIES`, Standard 2). Danach
    folgt `LLMOutputError`. Lehnt ein Server den Schema-Parameter ab (HTTP 400/422), fällt das
    Gateway für dieses Modell dauerhaft auf reines Prompting zurück. Das lässt sich pro Endpunkt
    auch fest einstellen (`structured_output=prompt`).
-5. **Metriken:** Task, Endpunkt, Modell, Prompt-Version, Dauer, Token-Zahlen, Versuche und
+6. **Metriken:** Task, Endpunkt, Modell, Prompt-Version, Dauer, Token-Zahlen, Versuche und
    Fehlertyp. Prompts und Antworten werden **nie** erfasst. Fehlermeldungen enthalten keine
    Response-Bodies, weil manche Server die Anfrage darin zurückspiegeln.
 
@@ -442,11 +456,11 @@ lädt die API fehlende Modelle beim Start im Hintergrund aus Ollama.
 **Profil-Defaults** (`profiles.py`). Die Modellnamen sind **Beispiele** und lassen sich per Env
 überschreiben:
 
-| Profil | Chat-Modell (Beispiel) | Embeddings (Beispiel) | Kontext |
-|---|---|---|---|
-| `cpu` (Standard) | `qwen2.5:3b` | `bge-m3` | 8192 |
-| `gpu-consumer` | `qwen2.5:14b` | `bge-m3` | 16384 |
-| `gpu-server` | `qwen2.5:32b` | `bge-m3` | 32768 |
+| Profil | Chat-Modell (Beispiel) | Embeddings (Beispiel) | Kontext | Gesamtfrist |
+|---|---|---|---|---|
+| `cpu` (Standard) | `qwen2.5:3b` | `bge-m3` | 8192 | 180 s |
+| `gpu-consumer` | `qwen2.5:14b` | `bge-m3` | 16384 | 60 s |
+| `gpu-server` | `qwen2.5:32b` | `bge-m3` | 32768 | 60 s |
 
 ### 3.3 TTS
 
@@ -490,7 +504,9 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   `OLLAMAIL_LLM_CONCURRENCY`) gleichzeitig an das Modell lässt; alle anderen Queues teilen sich
   `OLLAMAIL_WORKER_CONCURRENCY`.
 - **Task-Konventionen:** idempotent; Argumente nur IDs; Retry mit exponentiellem Backoff
-  (`DEFAULT_RETRY`); Lock-Keys pro Ressource (`resource_lock("mailbox", id)` als `lock`/`queueing_lock`);
+  (`DEFAULT_RETRY`; Verarbeitungsschritte, deren LLM-Aufruf mit `LLMTimeoutError` endet, nur
+  `OLLAMAIL_PROCESSING_LLM_TIMEOUT_ATTEMPTS` Versuche, Standard 2, danach `failed` mit Code
+  `llm_timeout_error`); Lock-Keys pro Ressource (`resource_lock("mailbox", id)` als `lock`/`queueing_lock`);
   Periodic Tasks per `@app.periodic(cron=...)`. Task-Module werden in `TASK_MODULES` eingetragen.
 - **Housekeeping:** täglicher Job `worker.remove_old_jobs` löscht abgeschlossene Jobs nach 7 Tagen.
   Aufbewahrungsfristen setzen `privacy.retention` (täglich), `digest.cleanup` (stündlich) und
