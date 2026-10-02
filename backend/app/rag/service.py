@@ -8,7 +8,7 @@
    question; combined with the UI filters (``app.rag.query``). On failure the question is
    searched as typed.
 3. **Retrieval** with ``app.search.service.search``: access control happens there, in SQL
-   (``readable_mailbox_ids``), never in the prompt. Optionally reranked.
+   (``accessible_mailbox_ids``), never in the prompt. Optionally reranked.
 4. **Answer** (LLM stream): the chunks that fit the context window become numbered
    sources in random-tagged data blocks. :class:`CitationFilter` drops every citation that
    does not name one of them. Without sources no model is called.
@@ -43,6 +43,7 @@ from app.ai.llm.context import CHARS_PER_TOKEN
 from app.core.config import Settings
 from app.core.ids import uuid7
 from app.core.logging import get_logger
+from app.mail.access import accessible_mailbox_ids
 from app.mail.language import detect_language
 from app.mail.models import Message
 from app.rag.citations import CitationFilter, DataBlock, data_tag, render_blocks
@@ -74,7 +75,6 @@ from app.rag.schemas import (
     StartEvent,
     TokenEvent,
 )
-from app.search.access import readable_mailbox_ids
 from app.search.embedder import Embedder
 from app.search.service import SearchHit, search
 from app.users.models import User
@@ -149,7 +149,28 @@ async def own_conversation(
     return conversation
 
 
-async def _history(session: AsyncSession, conversation_id: uuid.UUID, turns: int) -> list[Turn]:
+async def withheld_answers(
+    session: AsyncSession, user_id: uuid.UUID, answer_ids: Sequence[uuid.UUID]
+) -> set[uuid.UUID]:
+    """Answers that cite a mailbox ``user_id`` can no longer read. Their text was written
+    from those mails, so it is withheld like the citations (access rule in SQL)."""
+    if not answer_ids:
+        return set()
+    return set(
+        await session.scalars(
+            select(RagCitation.answer_id)
+            .where(
+                RagCitation.answer_id.in_(list(answer_ids)),
+                RagCitation.mailbox_id.not_in(accessible_mailbox_ids(user_id)),
+            )
+            .distinct()
+        )
+    )
+
+
+async def _history(
+    session: AsyncSession, user_id: uuid.UUID, conversation_id: uuid.UUID, turns: int
+) -> list[Turn]:
     if turns < 1:
         return []
     rows = list(
@@ -161,12 +182,15 @@ async def _history(session: AsyncSession, conversation_id: uuid.UUID, turns: int
         )
     )
     rows.reverse()
+    withheld = await withheld_answers(
+        session, user_id, [row.id for row in rows if row.role is RagRole.ASSISTANT]
+    )
     history: list[Turn] = []
     question: str | None = None
     for row in rows:
         if row.role is RagRole.USER:
             question = row.content
-        elif question is not None:
+        elif question is not None and row.id not in withheld:
             history.append(Turn(question, row.content))
             question = None
     return history[-turns:]
@@ -378,7 +402,9 @@ class RagService:
             if conversation_id is not None:
                 if await own_conversation(session, user_id, conversation_id) is None:
                     raise ConversationNotFoundError
-                history = await _history(session, conversation_id, self._settings.rag.history_turns)
+                history = await _history(
+                    session, user_id, conversation_id, self._settings.rag.history_turns
+                )
             context = await query_context(session, user_id, user.timezone if user else None)
         language = _language(question, user.language if user else None)
         display_name = user.display_name if user else ""
@@ -513,7 +539,8 @@ async def read_conversation(
     session: AsyncSession, user_id: uuid.UUID, conversation_id: uuid.UUID
 ) -> ConversationRead | None:
     """A conversation with its messages. Citations of mailboxes the user can no longer read
-    are left out (the access rule is applied in SQL, as for the search)."""
+    are left out, and so is the text of answers that cite them (``withheld``); the access
+    rule is applied in SQL, as for the search."""
     conversation = await own_conversation(session, user_id, conversation_id)
     if conversation is None:
         return None
@@ -529,11 +556,14 @@ async def read_conversation(
         select(RagCitation)
         .where(
             RagCitation.answer_id.in_([m.id for m in messages]),
-            RagCitation.mailbox_id.in_(readable_mailbox_ids(user_id)),
+            RagCitation.mailbox_id.in_(accessible_mailbox_ids(user_id)),
         )
         .order_by(RagCitation.answer_id, RagCitation.number)
     ):
         citations.setdefault(citation.answer_id, []).append(CitationRead.model_validate(citation))
+    withheld = await withheld_answers(
+        session, user_id, [m.id for m in messages if m.role is RagRole.ASSISTANT]
+    )
     return ConversationRead(
         id=conversation.id,
         title=conversation.title,
@@ -543,13 +573,14 @@ async def read_conversation(
             ConversationMessage(
                 id=message.id,
                 role=message.role,
-                content=message.content,
+                content="" if message.id in withheld else message.content,
+                withheld=message.id in withheld,
                 created_at=message.created_at,
                 filters=(
                     AppliedFilters.model_validate(message.filters) if message.filters else None
                 ),
                 status=message.status,
-                citations=citations.get(message.id, []),
+                citations=[] if message.id in withheld else citations.get(message.id, []),
             )
             for message in messages
         ],

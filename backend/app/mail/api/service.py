@@ -14,9 +14,10 @@ from typing import Any
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.events import Event, publish
+from app.core.events import Event
 from app.core.ids import uuid7
 from app.core.logging import get_logger
+from app.mail.access import MailboxPermission, permissions, publish_to_readers
 from app.mail.api.schemas import (
     ConnectionTestResult,
     FolderRead,
@@ -97,10 +98,14 @@ def updated_config(mailbox: Mailbox, body: MailboxUpdate) -> MailboxConfig | Non
 # -- create / update ------------------------------------------------------------------
 
 
-async def find_duplicate(session: AsyncSession, user_id: uuid.UUID, body: MailboxCreate) -> bool:
+async def find_duplicate(
+    session: AsyncSession, user_id: uuid.UUID | None, body: MailboxCreate
+) -> bool:
+    """Whether ``user_id`` (``None``: the shared mailboxes) has this mailbox already."""
+    owner = Mailbox.is_shared if user_id is None else Mailbox.owner_user_id == user_id
     duplicate = await session.scalar(
         select(Mailbox.id).where(
-            Mailbox.owner_user_id == user_id,
+            owner,
             Mailbox.type == body.type,
             func.lower(Mailbox.address) == body.address.lower(),
         )
@@ -108,14 +113,17 @@ async def find_duplicate(session: AsyncSession, user_id: uuid.UUID, body: Mailbo
     return duplicate is not None
 
 
-def create_mailbox(session: AsyncSession, user_id: uuid.UUID, body: MailboxCreate) -> Mailbox:
+def create_mailbox(
+    session: AsyncSession, user_id: uuid.UUID | None, body: MailboxCreate
+) -> Mailbox:
+    """A mailbox of ``user_id``, or a shared mailbox for ``None``."""
     mailbox = Mailbox(
         id=uuid7(),
         type=body.type,
         display_name=body.display_name or body.address,
         address=body.address,
         owner_user_id=user_id,
-        is_shared=False,
+        is_shared=user_id is None,
         provider_settings=dict(body.provider_settings),
         credentials=dict(body.credentials) or None,
         sync_enabled=body.sync_enabled,
@@ -144,11 +152,10 @@ def apply_update(mailbox: Mailbox, body: MailboxUpdate) -> None:
 
 
 async def notify(session: AsyncSession, mailbox: Mailbox, status: str) -> None:
-    """Tell the owner's other sessions (tabs, devices) that the mailbox changed; delivered
-    on commit."""
-    if mailbox.owner_user_id is not None:
-        event = Event(type="mailbox.changed", ids={"mailbox_id": mailbox.id}, status=status)
-        await publish(session, mailbox.owner_user_id, event)
+    """Tell the owner's other sessions (tabs, devices), or the users of a shared mailbox,
+    that the mailbox changed; delivered on commit."""
+    event = Event(type="mailbox.changed", ids={"mailbox_id": mailbox.id}, status=status)
+    await publish_to_readers(session, mailbox, event)
 
 
 # -- status ---------------------------------------------------------------------------
@@ -293,14 +300,21 @@ async def statuses(
     return result
 
 
-def mailbox_read(mailbox: Mailbox, status: MailboxSyncStatus) -> MailboxRead:
+def mailbox_read(
+    mailbox: Mailbox,
+    status: MailboxSyncStatus,
+    permissions: frozenset[MailboxPermission] = frozenset(MailboxPermission),
+) -> MailboxRead:
+    """``permissions`` of the reader; connection settings only for those who manage it."""
+    manage = MailboxPermission.MANAGE in permissions
     return MailboxRead(
         id=mailbox.id,
         type=mailbox.type,
         display_name=mailbox.display_name,
         address=mailbox.address,
         is_shared=mailbox.is_shared,
-        provider_settings=dict(mailbox.provider_settings or {}),
+        permissions=sorted(permissions),
+        provider_settings=dict(mailbox.provider_settings or {}) if manage else {},
         has_credentials=bool(mailbox.credentials),
         sync_enabled=mailbox.sync_enabled,
         sync_settings=SyncSettings.model_validate(mailbox.sync_settings or {}),
@@ -310,9 +324,15 @@ def mailbox_read(mailbox: Mailbox, status: MailboxSyncStatus) -> MailboxRead:
     )
 
 
-async def mailbox_reads(session: AsyncSession, mailboxes: Sequence[Mailbox]) -> list[MailboxRead]:
+async def mailbox_reads(
+    session: AsyncSession, mailboxes: Sequence[Mailbox], user_id: uuid.UUID
+) -> list[MailboxRead]:
+    """Reads for ``user_id``, who may read all ``mailboxes``."""
     by_id = await statuses(session, mailboxes)
-    return [mailbox_read(mailbox, by_id[mailbox.id]) for mailbox in mailboxes]
+    return [
+        mailbox_read(mailbox, by_id[mailbox.id], permissions(mailbox, user_id))
+        for mailbox in mailboxes
+    ]
 
 
 # -- folders --------------------------------------------------------------------------

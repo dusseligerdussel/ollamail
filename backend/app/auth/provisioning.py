@@ -117,8 +117,8 @@ class ProvisioningPolicy:
     link_by_email: bool = False
     # Lower-case e-mail domains allowed to sign in; empty allows all.
     allowed_domains: frozenset[str] = field(default_factory=frozenset)
-    # Store the identity's groups for the role mapping (#33). Providers that map roles at
-    # login time (LDAP) and do not keep groups turn this off.
+    # Store the identity's groups for the role mapping (#33) and the group assignments of
+    # shared mailboxes (#34). Off for providers whose groups must not be kept.
     store_groups: bool = True
 
 

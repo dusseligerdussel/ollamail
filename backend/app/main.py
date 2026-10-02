@@ -37,6 +37,7 @@ from app.digest.router import router as digests_router
 from app.mail.api.messages import providers_router as mailbox_providers_router
 from app.mail.api.messages import router as messages_router
 from app.mail.api.router import router as mailboxes_router
+from app.mail.api.shared import router as shared_mailboxes_router
 from app.mail.providers.gmail_connect import router as gmail_connect_router
 from app.mail.providers.graph_router import NOTIFICATIONS_PATH
 from app.mail.providers.graph_router import router as graph_router
@@ -118,6 +119,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # Before the mailbox router: ``/mailboxes/providers`` must not match ``/{mailbox_id}``.
     app.include_router(mailbox_providers_router)
     app.include_router(mailboxes_router)
+    app.include_router(shared_mailboxes_router)
     app.include_router(messages_router)
     app.include_router(gmail_connect_router)
     app.include_router(graph_router)

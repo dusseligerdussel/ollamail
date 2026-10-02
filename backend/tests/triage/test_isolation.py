@@ -6,6 +6,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import TriageSettings
+from app.mail.models import Folder, Mailbox, MailboxType
 from app.triage.categories import effective_categories
 from app.triage.feedback import suggest_sender_rules
 from app.triage.models import TriageCategory, TriageFeedback
@@ -104,3 +105,43 @@ async def test_rule_suggestions_are_per_user(
         ("news@example.org", 3, 3)
     ]
     assert await suggest_sender_rules(db_session, uuid.uuid4(), min_corrections=1) == []
+
+
+async def test_shared_mailboxes_learn_only_from_their_own_corrections(
+    db_session: AsyncSession, account: Account, other_account: Account, fake_llm: FakeLLM
+) -> None:
+    """Corrections in a shared mailbox (#34) apply mailbox-wide: they are examples for
+    that mailbox, whoever made them, and never for personal mailboxes; personal
+    corrections never reach the shared mailbox."""
+    team_box = Mailbox(
+        type=MailboxType.IMAP, display_name="Team", address="team@example.org", is_shared=True
+    )
+    db_session.add(team_box)
+    await db_session.flush()
+    team_inbox = Folder(mailbox_id=team_box.id, remote_id="INBOX", name="Inbox")
+    db_session.add(team_inbox)
+    await db_session.flush()
+    team = Account(db_session, other_account.user, team_box, team_inbox)
+    organisation = await effective_categories(db_session, None)
+    spam = next(c.id for c in organisation if c.key == "spam")
+    for i in range(2):
+        shared_message = await team.message(f"Team example {i}", sender="team@example.net")
+        await correct(db_session, other_account.user.id, shared_message.id, spam, 3)
+        await _correct(account, f"Private example {i}", "newsletter", "own@example.org")
+
+    fresh_team_mail = await team.message("Fresh team mail")
+    fake_llm.answer(answer("info"))
+    await triage_message(
+        db_session, fresh_team_mail.id, llm=fake_llm.gateway, settings=TriageSettings()
+    )
+    fresh_own_mail = await account.message("Fresh own mail")
+    fake_llm.answer(answer("info"))
+    await triage_message(
+        db_session, fresh_own_mail.id, llm=fake_llm.gateway, settings=TriageSettings()
+    )
+
+    team_prompt, own_prompt = fake_llm.prompts()
+    assert "Subject: Team example" in team_prompt
+    assert "Private example" not in team_prompt
+    assert "Subject: Private example" in own_prompt
+    assert "Team example" not in own_prompt

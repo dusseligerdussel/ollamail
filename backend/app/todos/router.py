@@ -1,5 +1,6 @@
-"""Todo API. Users only ever see and change their own todos; todos are linked only to
-mails in their own mailboxes."""
+"""Todo API. Users only ever see and change their own todos and the team todos of shared
+mailboxes they may read; todos are linked only to mails the user may read. Team todos can
+be assigned to anybody who may read their mailbox (``GET /mailboxes/{id}/members``)."""
 
 import uuid
 from datetime import date
@@ -11,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth.dependencies import CurrentSessionDep
 from app.core.db import get_db
 from app.core.errors import ProblemError
+from app.mail.access import can_read
 from app.todos import service
 from app.todos.models import Todo, TodoStatus
 from app.todos.schemas import TodoCreate, TodoRead, TodoUpdate
@@ -64,11 +66,13 @@ async def list_todos(
 async def create_todo(body: TodoCreate, current: CurrentSessionDep, db: DbDep) -> TodoRead:
     """Create a todo by hand, optionally linked to one of the user's mails."""
     source = None
+    shared = False
     if body.message_id is not None:
-        source = await service.own_message(db, current.user_id, body.message_id)
-        if source is None:
+        found = await service.readable_message(db, current.user_id, body.message_id)
+        if found is None:
             raise ProblemError(404, detail="Message not found.")
-    todo = service.create_todo(db, current.user_id, body, source)
+        source, shared = found[0], found[1].is_shared
+    todo = service.create_todo(db, current.user_id, body, source, shared=shared)
     await db.commit()
     await db.refresh(todo)
     return TodoRead.model_validate(todo)
@@ -79,12 +83,30 @@ async def get_todo(todo_id: uuid.UUID, current: CurrentSessionDep, db: DbDep) ->
     return TodoRead.model_validate(await _todo(db, current.user_id, todo_id))
 
 
-@router.patch("/{todo_id}", responses=NOT_FOUND)
+@router.patch(
+    "/{todo_id}", responses={**NOT_FOUND, 422: {"description": "Invalid value or assignee"}}
+)
 async def update_todo(
     todo_id: uuid.UUID, body: TodoUpdate, current: CurrentSessionDep, db: DbDep
 ) -> TodoRead:
-    """Edit a todo or change its status (open, done, dismissed)."""
+    """Edit a todo or change its status (open, done, dismissed). ``assignee_id`` assigns
+    a team todo of a shared mailbox to one of its readers (``null``: nobody)."""
     todo = await _todo(db, current.user_id, todo_id)
+    if "assignee_id" in body.model_fields_set:
+        if todo.user_id is not None:
+            raise ProblemError(
+                422,
+                detail="Only todos of shared mailboxes can be assigned.",
+                error_code="not_assignable",
+            )
+        assignee = body.assignee_id
+        if assignee is not None and (
+            todo.mailbox_id is None or not await can_read(db, assignee, todo.mailbox_id)
+        ):
+            raise ProblemError(
+                422, detail="This person cannot read the mailbox.", error_code="invalid_assignee"
+            )
+        todo.assignee_id = assignee
     service.update_todo(todo, body)
     await db.commit()
     await db.refresh(todo)

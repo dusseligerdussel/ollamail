@@ -47,6 +47,7 @@ from app.core.config import MailSettings
 from app.core.events import Event, publish
 from app.core.ids import uuid7
 from app.core.logging import get_logger
+from app.mail.access import publish_to_readers
 from app.mail.hooks import message_stored
 from app.mail.models import Folder, FolderRole, Mailbox, Message, SyncState
 from app.mail.models import message_folders as message_folders_table
@@ -457,9 +458,11 @@ async def _sync_state(
 async def _publish(
     session: AsyncSession, mailbox_id: uuid.UUID, owner_user_id: uuid.UUID | None, status: str
 ) -> None:
+    event = Event(type="mailbox.sync", ids={"mailbox_id": mailbox_id}, status=status)
     if owner_user_id is not None:
-        event = Event(type="mailbox.sync", ids={"mailbox_id": mailbox_id}, status=status)
         await publish(session, owner_user_id, event)
+    else:
+        await publish_to_readers(session, mailbox_id, event)
 
 
 async def _finish(

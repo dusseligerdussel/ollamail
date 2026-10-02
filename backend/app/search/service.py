@@ -38,10 +38,10 @@ from app.ai.llm import LLMError
 from app.core.config import SearchSettings
 from app.core.ids import uuid7
 from app.core.logging import get_logger
+from app.mail.access import accessible_mailbox_ids
 from app.mail.language import detect_language
 from app.mail.models import Attachment, Message, message_folders
 from app.mail.storage import AttachmentStorage
-from app.search.access import readable_mailbox_ids
 from app.search.chunking import Chunk, chunk_text, heading, ts_config_for
 from app.search.chunking import clean as clean_text
 from app.search.embedder import Embedder, EmbeddingDimensionError, check_dimensions
@@ -400,7 +400,7 @@ def _escape_like(value: str) -> str:
 def _conditions(user_id: uuid.UUID, filters: SearchFilters) -> list[ColumnElement[bool]]:
     """WHERE clauses on ``SearchChunk`` joined with ``Message``. Access control first."""
     conditions: list[ColumnElement[bool]] = [
-        SearchChunk.mailbox_id.in_(readable_mailbox_ids(user_id))
+        SearchChunk.mailbox_id.in_(accessible_mailbox_ids(user_id))
     ]
     if filters.mailbox_ids is not None:
         conditions.append(SearchChunk.mailbox_id.in_(list(filters.mailbox_ids)))

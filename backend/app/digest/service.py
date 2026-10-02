@@ -18,7 +18,7 @@ from datetime import UTC, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import any_, delete, func, select, update
+from sqlalchemy import ColumnElement, and_, any_, delete, exists, func, select, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -40,6 +40,7 @@ from app.digest.models import (
 )
 from app.digest.storage import DigestStorage
 from app.digest.summarize import PROMPT_VERSION, Summarizer
+from app.mail.access import accessible_mailbox_ids
 from app.mail.models import Mailbox
 from app.users.models import User
 
@@ -391,12 +392,22 @@ async def synthesize_audio(
 # -- reading and deleting ----------------------------------------------------------------
 
 
+def readable_by(user_id: uuid.UUID) -> ColumnElement[bool]:
+    """Digests of ``user_id`` whose mailboxes the user may all still read. A digest holds
+    summaries of mails, so it disappears with the access to any of its mailboxes."""
+    mailbox = func.unnest(Digest.mailbox_ids).table_valued("id").render_derived("digest_mailbox")
+    unreadable = exists(
+        select(mailbox.c.id).where(mailbox.c.id.not_in(accessible_mailbox_ids(user_id)))
+    )
+    return and_(Digest.user_id == user_id, ~unreadable)
+
+
 async def list_digests(
     session: AsyncSession, user_id: uuid.UUID, *, limit: int, offset: int
 ) -> Sequence[Digest]:
     result = await session.scalars(
         select(Digest)
-        .where(Digest.user_id == user_id)
+        .where(readable_by(user_id))
         .order_by(Digest.created_at.desc(), Digest.id.desc())
         .limit(limit)
         .offset(offset)
@@ -407,9 +418,7 @@ async def list_digests(
 async def get_digest(
     session: AsyncSession, user_id: uuid.UUID, digest_id: uuid.UUID
 ) -> Digest | None:
-    return await session.scalar(
-        select(Digest).where(Digest.id == digest_id, Digest.user_id == user_id)
-    )
+    return await session.scalar(select(Digest).where(Digest.id == digest_id, readable_by(user_id)))
 
 
 async def delete_digest(session: AsyncSession, digest: Digest, storage: DigestStorage) -> None:
@@ -462,7 +471,7 @@ async def feed_digests(session: AsyncSession, user_id: uuid.UUID, limit: int) ->
     result = await session.scalars(
         select(Digest)
         .where(
-            Digest.user_id == user_id,
+            readable_by(user_id),
             Digest.status == DigestStatus.READY,
             Digest.duration_seconds.is_not(None),
         )
