@@ -240,6 +240,83 @@ async def fail_step(
     return _ready(rows, steps)
 
 
+@dataclass(frozen=True)
+class StepCounts:
+    """Step rows of one mailbox by state; counts only, no message IDs or content."""
+
+    # Not run yet: waiting for dependencies, a job or a retry.
+    pending: int = 0
+    running: int = 0
+    # Gave up; ``reset_failed_steps`` runs them again.
+    failed: int = 0
+
+
+async def count_steps_by_mailbox(
+    session: AsyncSession, mailbox_ids: Collection[uuid.UUID] | None = None
+) -> dict[uuid.UUID, StepCounts]:
+    """Pending, running and failed steps per mailbox (default: all mailboxes).
+
+    Mailboxes without such steps are missing from the result; use ``StepCounts()`` as
+    the default. Done steps are not counted.
+    """
+    status = MessageProcessing.status
+    query = (
+        select(
+            Message.mailbox_id,
+            func.count().filter(status == StepStatus.PENDING),
+            func.count().filter(status == StepStatus.RUNNING),
+            func.count().filter(status == StepStatus.FAILED),
+        )
+        .join(Message, Message.id == MessageProcessing.message_id)
+        .where(status != StepStatus.DONE)
+        .group_by(Message.mailbox_id)
+    )
+    if mailbox_ids is not None:
+        if not mailbox_ids:
+            return {}
+        query = query.where(Message.mailbox_id.in_(mailbox_ids))
+    return {
+        mailbox_id: StepCounts(pending, running, failed)
+        for mailbox_id, pending, running, failed in await session.execute(query)
+    }
+
+
+async def reset_failed_steps(
+    session: AsyncSession, mailbox_id: uuid.UUID | None = None
+) -> list[uuid.UUID]:
+    """Set all failed steps (of one mailbox, default: all) back to ``pending``; returns
+    the IDs of the affected messages, which the caller queues again
+    (``app.processing.tasks.requeue_messages``). Mailboxes with processing disabled
+    are left out."""
+    failed = select(MessageProcessing.message_id).where(
+        MessageProcessing.status == StepStatus.FAILED
+    )
+    query = (
+        select(Message.id)
+        .where(_enabled_mailbox(), Message.id.in_(failed))
+        .order_by(Message.id.desc())
+    )
+    if mailbox_id is not None:
+        query = query.where(Message.mailbox_id == mailbox_id)
+    message_ids = list(await session.scalars(query))
+    if message_ids:
+        await session.execute(
+            update(MessageProcessing)
+            .where(
+                MessageProcessing.message_id.in_(message_ids),
+                MessageProcessing.status == StepStatus.FAILED,
+            )
+            .values(
+                status=StepStatus.PENDING,
+                error_code=None,
+                attempts=0,
+                started_at=None,
+                finished_at=None,
+            )
+        )
+    return message_ids
+
+
 def _message_time() -> ColumnElement[datetime]:
     return func.coalesce(Message.received_at, Message.sent_at, Message.created_at)
 
@@ -305,68 +382,3 @@ async def outdated_messages(
         .limit(limit)
     )
     return list(await session.scalars(query))
-
-
-@dataclass(frozen=True)
-class StepCounts:
-    """Step rows of one mailbox by status; counts only, never which mails."""
-
-    pending: int = 0
-    running: int = 0
-    failed: int = 0
-
-
-async def step_counts_by_mailbox(
-    session: AsyncSession, mailbox_ids: Sequence[uuid.UUID] | None = None
-) -> dict[uuid.UUID, StepCounts]:
-    """Pending, running and failed steps per mailbox (all mailboxes by default). Mailboxes
-    without such steps are missing from the result."""
-    query = (
-        select(Message.mailbox_id, MessageProcessing.status, func.count())
-        .join(Message, Message.id == MessageProcessing.message_id)
-        .where(
-            MessageProcessing.status.in_(
-                (StepStatus.PENDING, StepStatus.RUNNING, StepStatus.FAILED)
-            )
-        )
-        .group_by(Message.mailbox_id, MessageProcessing.status)
-    )
-    if mailbox_ids is not None:
-        query = query.where(Message.mailbox_id.in_(mailbox_ids))
-    counts: dict[uuid.UUID, dict[str, int]] = {}
-    for mailbox_id, status, count in (await session.execute(query)).all():
-        counts.setdefault(mailbox_id, {})[StepStatus(status).value] = count
-    return {mailbox_id: StepCounts(**values) for mailbox_id, values in counts.items()}
-
-
-async def reset_failed_steps(session: AsyncSession, mailbox_id: uuid.UUID) -> list[uuid.UUID]:
-    """Set the failed steps of a mailbox back to ``pending``; returns the affected
-    messages (newest first), which the caller queues again. Done steps are left alone."""
-    message_ids = list(
-        await session.scalars(
-            select(MessageProcessing.message_id)
-            .join(Message, Message.id == MessageProcessing.message_id)
-            .where(
-                Message.mailbox_id == mailbox_id,
-                MessageProcessing.status == StepStatus.FAILED,
-            )
-            .distinct()
-            .order_by(MessageProcessing.message_id.desc())
-        )
-    )
-    if message_ids:
-        await session.execute(
-            update(MessageProcessing)
-            .where(
-                MessageProcessing.message_id.in_(message_ids),
-                MessageProcessing.status == StepStatus.FAILED,
-            )
-            .values(
-                status=StepStatus.PENDING,
-                error_code=None,
-                attempts=0,
-                started_at=None,
-                finished_at=None,
-            )
-        )
-    return message_ids

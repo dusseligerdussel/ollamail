@@ -133,7 +133,7 @@ async def get_system_overview(
     ).all()
     mailboxes = [mailbox for mailbox, _ in rows]
     sync = await statuses(db, mailboxes)
-    counts = await processing.step_counts_by_mailbox(db)
+    counts = await processing.count_steps_by_mailbox(db)
     disabled = set(
         await db.scalars(
             select(MailboxProcessingSettings.mailbox_id).where(

@@ -447,7 +447,7 @@ sechsmal im Abstand von 10 s erneut.
 - `GET /api/admin/system/overview`: Fakten für die Erste-Schritte-Checkliste (Anzahl Postfächer,
   eigener Digest an und Scheduler an, `OLLAMAIL_AUTH_PUBLIC_URL` gesetzt) und je Postfach
   Anzeigename, Besitzername, Sync-Phase mit Fehlercode und die Zahl ausstehender, laufender und
-  fehlgeschlagener Verarbeitungsschritte (`processing.service.step_counts_by_mailbox`).
+  fehlgeschlagener Verarbeitungsschritte (`processing.service.count_steps_by_mailbox`).
 - `POST /api/admin/system/mailboxes/{id}/retry-failed`: setzt nur die fehlgeschlagenen Schritte
   des Postfachs auf `pending` (`processing.service.reset_failed_steps`) und reiht die Mails mit
   `Priority.REPROCESS` ein, also hinter neuen Mails.
