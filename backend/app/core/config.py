@@ -559,8 +559,29 @@ class AuditSettings(BaseSettings):
 
     model_config = _config("AUDIT_")
 
-    # Days audit events are kept; 0 keeps them forever. Enforced by the retention job (#36).
+    # Days audit events are kept; 0 keeps them forever. Enforced by ``privacy.retention``.
     retention_days: int = Field(default=365, ge=0)
+
+
+class PrivacySettings(BaseSettings):
+    """``OLLAMAIL_PRIVACY_*`` (retention, data export and account deletion, app/privacy/)"""
+
+    model_config = _config("PRIVACY_")
+
+    # Default retention in days, by age of the mail (received, else sent, else imported);
+    # 0 keeps the data. Admins override them (and the digest, conversation and audit
+    # retention) in the admin area; the daily job ``privacy.retention`` enforces them.
+    # Mails, with attachments, search index, triage results and citations.
+    mail_retention_days: int = Field(default=0, ge=0, le=36500)
+    # Attachment files only (the mail stays).
+    attachment_retention_days: int = Field(default=0, ge=0, le=36500)
+    # Search index (text chunks and embeddings) only; the mail stays but is no longer
+    # found by search or "ask your inbox".
+    search_index_retention_days: int = Field(default=0, ge=0, le=36500)
+    # Hours a finished data export can be downloaded before it is deleted.
+    export_expiry_hours: int = Field(default=24, ge=1, le=24 * 30)
+    # Users may delete their own account (Art. 17). Off: only admins delete users.
+    self_delete_enabled: bool = True
 
 
 class Settings(BaseModel):
@@ -585,6 +606,7 @@ class Settings(BaseModel):
     auth: AuthSettings = Field(default_factory=AuthSettings)
     triage: TriageSettings = Field(default_factory=TriageSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)
+    privacy: PrivacySettings = Field(default_factory=PrivacySettings)
 
 
 @lru_cache
