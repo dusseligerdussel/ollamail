@@ -1,7 +1,10 @@
 """Write and query the hybrid index.
 
 * :func:`index_message`: chunks of a message (body + attachment text) with full-text
-  vector and embeddings; replaces the previous chunks of that message.
+  vector and embeddings; replaces the previous chunks of that message. Attachments that
+  need OCR are reported (``IndexResult.ocr_pending``) instead of being recognised here.
+* :func:`ocr_attachment`: replaces the chunks of one attachment by its text including OCR
+  (job on the ``ocr`` queue); ``fill_embeddings`` adds their vectors.
 * :func:`fill_embeddings`: embeds chunks that have no vector of the current model yet
   (model switch, LLM unavailable while indexing) and switches the active model once the
   new index is complete.
@@ -45,7 +48,7 @@ from app.mail.storage import AttachmentStorage
 from app.search.chunking import Chunk, chunk_text, heading, ts_config_for
 from app.search.chunking import clean as clean_text
 from app.search.embedder import Embedder, EmbeddingDimensionError, check_dimensions
-from app.search.extract import Extraction, detect_kind, extract_text
+from app.search.extract import Extraction, Kind, Ocr, detect_kind, extract_text
 from app.search.models import (
     TS_CONFIGS,
     ChunkSource,
@@ -143,21 +146,38 @@ class IndexResult:
     embedded: bool = False
     # Extraction status per attachment (``ok``, ``too_large``, ``unsupported``, ...).
     extraction: Counter[str] = field(default_factory=Counter)
+    # Attachments with scanned pages or images: OCR runs in a job of its own.
+    ocr_pending: list[uuid.UUID] = field(default_factory=list)
+
+
+def ocr_mode_for(kind: Kind, attachment: Attachment, settings: SearchSettings) -> bool:
+    """Whether OCR is enabled for this attachment (``OLLAMAIL_SEARCH_OCR_MODE``)."""
+    if kind is Kind.PDF:
+        return settings.ocr_mode != "off"
+    # Inline images are logos and signatures, not documents.
+    return kind is Kind.IMAGE and settings.ocr_mode == "all" and not attachment.is_inline
 
 
 async def _attachment_text(
-    attachment: Attachment, storage: AttachmentStorage, settings: SearchSettings
+    attachment: Attachment,
+    storage: AttachmentStorage,
+    settings: SearchSettings,
+    ocr: Ocr = Ocr.DETECT,
 ) -> Extraction:
     kind = detect_kind(attachment.content_type, attachment.filename)
     if kind is None:
         return Extraction("unsupported")
+    if not ocr_mode_for(kind, attachment, settings):
+        if kind is Kind.IMAGE:
+            return Extraction("unsupported")
+        ocr = Ocr.OFF
     if attachment.size > settings.attachment_max_bytes:
         return Extraction("too_large")
     path = attachment.storage_path
     if not await asyncio.to_thread(storage.exists, path):
         return Extraction("missing")
     data = await asyncio.to_thread(storage.read, path)
-    return await extract_text(data, kind, settings)
+    return await extract_text(data, kind, settings, ocr)
 
 
 async def _message_chunks(
@@ -179,6 +199,8 @@ async def _message_chunks(
             break
         extraction = await _attachment_text(attachment, storage, settings)
         result.extraction[extraction.status] += 1
+        if extraction.status == "ocr_pending":
+            result.ocr_pending.append(attachment.id)
         if extraction.text is None:
             continue
         attachment_context = heading(
@@ -260,6 +282,83 @@ async def index_message(
     result.chunks = len(rows)
     result.embedded = current in vectors
     return result
+
+
+@dataclass(frozen=True)
+class OcrResult:
+    # Extraction status (``ok``, ``empty``, ``timeout``, ``ocr_failed``, ...) or
+    # ``gone`` (attachment deleted) / ``disabled`` (OCR switched off meanwhile).
+    status: str
+    chunks: int = 0
+
+
+async def ocr_attachment(
+    session: AsyncSession,
+    attachment_id: uuid.UUID,
+    *,
+    storage: AttachmentStorage,
+    settings: SearchSettings,
+) -> OcrResult:
+    """Replace the chunks of one attachment by its text including OCR (source
+    ``attachment_ocr``). Idempotent. On failure the existing chunks (text layer) stay.
+    Vectors are added by ``fill_embeddings``. Does not commit."""
+    attachment = await session.scalar(
+        select(Attachment)
+        .where(Attachment.id == attachment_id)
+        .options(selectinload(Attachment.message))
+    )
+    if attachment is None:
+        return OcrResult("gone")
+    kind = detect_kind(attachment.content_type, attachment.filename)
+    if kind is None or not ocr_mode_for(kind, attachment, settings):
+        return OcrResult("disabled")
+    extraction = await _attachment_text(attachment, storage, settings, Ocr.RUN)
+    if extraction.text is None:
+        return OcrResult(extraction.status)
+
+    message = attachment.message
+    others = (
+        await session.execute(
+            select(func.count(), func.max(SearchChunk.ordinal)).where(
+                SearchChunk.message_id == message.id,
+                (SearchChunk.attachment_id != attachment.id) | SearchChunk.attachment_id.is_(None),
+            )
+        )
+    ).one()
+    room = settings.max_chunks_per_message - int(others[0])
+    date = message.sent_at or message.received_at
+    context = heading(
+        sender=message.sender,
+        date=date,
+        subject=message.subject,
+        attachment=attachment.filename or "",
+    )
+    config = ts_config_for(detect_language(extraction.text) or message.language)
+    chunks = chunk_text(
+        extraction.text,
+        context=context,
+        size=settings.chunk_size,
+        overlap=settings.chunk_overlap,
+    )[: max(room, 0)]
+    source = ChunkSource.ATTACHMENT_OCR if extraction.ocr else ChunkSource.ATTACHMENT
+    first = (others[1] if others[1] is not None else -1) + 1
+    await session.execute(delete(SearchChunk).where(SearchChunk.attachment_id == attachment.id))
+    session.add_all(
+        SearchChunk(
+            id=uuid7(),
+            message_id=message.id,
+            mailbox_id=message.mailbox_id,
+            attachment_id=attachment.id,
+            source=source,
+            ordinal=first + offset,
+            heading=chunk.heading,
+            content=chunk.content,
+            ts_config=config,
+        )
+        for offset, chunk in enumerate(chunks)
+    )
+    await session.flush()
+    return OcrResult(extraction.status, len(chunks))
 
 
 # --- embedding maintenance -----------------------------------------------------------
@@ -372,7 +471,7 @@ class SearchFilters:
     # Date of the message (sent, else received): ``since <= date < until``.
     since: datetime | None = None
     until: datetime | None = None
-    # ``ChunkSource.BODY`` or ``ChunkSource.ATTACHMENT``.
+    # ``ChunkSource.BODY`` or ``ChunkSource.ATTACHMENT`` (with or without OCR).
     source: str | None = None
     # Triage categories of the message (``TriageResult.category_id``).
     category_ids: Sequence[uuid.UUID] | None = None
@@ -422,7 +521,10 @@ def _conditions(user_id: uuid.UUID, filters: SearchFilters) -> list[ColumnElemen
             Message.sender["address"].astext.ilike(pattern, escape="\\")
             | Message.sender["name"].astext.ilike(pattern, escape="\\")
         )
-    if filters.source is not None:
+    if filters.source == ChunkSource.ATTACHMENT:
+        sources = (ChunkSource.ATTACHMENT, ChunkSource.ATTACHMENT_OCR)
+        conditions.append(SearchChunk.source.in_(sources))
+    elif filters.source is not None:
         conditions.append(SearchChunk.source == filters.source)
     if filters.category_ids is not None:
         conditions.append(

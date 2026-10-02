@@ -107,7 +107,7 @@ class RagCitation(Base):
     attachment_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("mail_attachments.id", ondelete="CASCADE")
     )
-    # ``body`` or ``attachment`` (``app.search.models.ChunkSource``).
+    # ``body``, ``attachment`` or ``attachment_ocr`` (``app.search.models.ChunkSource``).
     source: Mapped[str] = mapped_column(String(16))
     # Header context of the chunk (sender, date, subject) and the excerpt shown to the user.
     heading: Mapped[str] = mapped_column(Text)

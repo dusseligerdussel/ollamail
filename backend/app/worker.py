@@ -5,13 +5,15 @@ The job tables live in PostgreSQL; their schema is an Alembic migration
 (``migrations/versions/*_procrastinate_schema.py``), never ``procrastinate schema --apply``.
 
 Queues
-    ``sync`` (mail provider I/O), ``llm`` (LLM calls), ``tts`` (speech synthesis) and
-    ``default`` (everything else, periodic housekeeping). ``OLLAMAIL_WORKER_QUEUES``
+    ``sync`` (mail provider I/O), ``llm`` (LLM calls), ``tts`` (speech synthesis), ``ocr``
+    (text recognition of scanned attachments) and ``default`` (everything else, periodic
+    housekeeping). ``OLLAMAIL_WORKER_QUEUES``
     selects the queues of one worker process, so e.g. a second container can run only
     ``llm``. The ``llm`` queue runs with its own parallelism (``OLLAMAIL_LLM_MAX_CONCURRENCY``
     job slots, of which the LLM gateway lets the admin-set ``concurrency`` call the model at
     once) so CPU-only hosts are not overloaded; all other queues share
-    ``OLLAMAIL_WORKER_CONCURRENCY``.
+    ``OLLAMAIL_WORKER_CONCURRENCY``. ``ocr`` also has its own slots
+    (``OLLAMAIL_SEARCH_OCR_CONCURRENCY``), so long OCR jobs never hold up mail sync.
 
 Task conventions
     * Register tasks with ``@app.task(name="<module>.<action>", queue=..., retry=DEFAULT_RETRY)``
@@ -130,13 +132,15 @@ class WorkerGroup:
 def worker_groups(settings: Settings) -> list[WorkerGroup]:
     queues = tuple(q for q in QUEUES if q in settings.worker.queues)
     groups = []
-    shared = tuple(q for q in queues if q != "llm")
+    shared = tuple(q for q in queues if q not in ("llm", "ocr"))
     if shared:
         groups.append(WorkerGroup("main", shared, settings.worker.concurrency))
     if "llm" in queues:
         # Slots up to the maximum; the gateway enforces the admin setting (app/ai/settings).
         slots = max(settings.llm.concurrency, settings.llm.max_concurrency)
         groups.append(WorkerGroup("llm", ("llm",), slots))
+    if "ocr" in queues:
+        groups.append(WorkerGroup("ocr", ("ocr",), settings.search.ocr_concurrency))
     return groups
 
 
