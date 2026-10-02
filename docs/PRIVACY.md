@@ -22,7 +22,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 |---|---|
 | Secrets | IMAP-Passwörter, OAuth-Tokens, IdP-Client-Secrets, LDAP-Bind-Passwörter: AES-256-GCM, Envelope-Encryption mit Master-Key aus `OLLAMAIL_SECRET_KEY` (Key-Rotation unterstützt) |
 | At rest | Empfehlung: verschlüsseltes Volume/Dateisystem. Optional: Verschlüsselung von Mail-Bodies/Anhängen auf Anwendungsebene (Feature-Flag) |
-| In transit | TLS für IMAP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting), HTTPS hinter Reverse Proxy |
+| In transit | TLS für IMAP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting, IMAP: `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS`), HTTPS hinter Reverse Proxy |
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
 | Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
 | Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
@@ -85,7 +85,14 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
   (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).
   Ein periodischer Job setzt sie durch.
-- **Mails, die am Server gelöscht wurden**, werden beim nächsten Sync auch lokal gelöscht.
+- **Mails, die am Server gelöscht wurden**, werden beim nächsten Sync auch lokal gelöscht
+  (`app/mail/sync/engine.py`, inkl. Anhangsdateien). Das gilt auch für Ordner, die am Server
+  gelöscht wurden, und für Ordner, deren `UIDVALIDITY` sich geändert hat (Neuimport).
+- **Mail-Sync:** Importiert werden nur Ordner, deren Rolle nicht ausgeschlossen ist (Standard:
+  Papierkorb und Spam werden nicht synchronisiert), und beim Erstimport nur der eingestellte
+  Zeitraum. Abrufe ändern keine Flags am Server (`EXAMINE`, `BODY.PEEK`). Sync-Logs und
+  `SyncState.last_error` enthalten nur IDs, Zähler und Fehlercodes – keine Ordnernamen,
+  Betreffzeilen, Adressen oder Server-Meldungen.
 
 ## Dokumentation für Betreiber
 
