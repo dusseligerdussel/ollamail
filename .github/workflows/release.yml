@@ -123,6 +123,8 @@ jobs:
           tags: ${{ env.IMAGE_TAGS }}
           labels: |
             org.opencontainers.image.title=ollamail-${{ matrix.image }}
+          annotations: |
+            org.opencontainers.image.title=ollamail-${{ matrix.image }}
 
       # Scan before anything is pushed: build the image into the local Docker daemon and fail
       # on fixable critical CVEs. The build below reuses the cache.
@@ -220,6 +222,8 @@ jobs:
           images: ${{ steps.name.outputs.image }}
           tags: ${{ env.IMAGE_TAGS }}
           labels: |
+            org.opencontainers.image.title=ollamail-${{ matrix.image }}
+          annotations: |
             org.opencontainers.image.title=ollamail-${{ matrix.image }}
 
       - name: Planned tags
