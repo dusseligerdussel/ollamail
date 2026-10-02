@@ -19,6 +19,7 @@ import { RecoveryCodeList } from "@/components/account/security/recovery-code-li
 import { TotpSetup } from "@/components/account/security/totp-setup";
 import { FormError, FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { isWebauthnAbort, webauthnSupported } from "@/lib/webauthn";
 
 function usableMethods(challenge: MfaChallenge): MfaMethod[] {
@@ -35,6 +36,7 @@ function stepError(error: unknown, t: TFunction, passkey: boolean) {
 }
 
 function StepHeader({ title, description }: { title: string; description: string }) {
+  useDocumentTitle(title);
   return (
     <div className="flex flex-col gap-1">
       <h1 className="text-lg font-semibold tracking-tight">{title}</h1>

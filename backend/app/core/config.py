@@ -75,6 +75,14 @@ class SecuritySettings(BaseSettings):
     # derived from ``secret_key`` and logged at start-up while no user exists.
     setup_token: SecretStr | None = None
 
+    @field_validator("setup_token", mode="before")
+    @classmethod
+    def _empty_is_unset(cls, value: object) -> object:
+        # deploy/.env.example ships `OLLAMAIL_SETUP_TOKEN=`: empty means "derive one".
+        if isinstance(value, str) and not value.strip():
+            return None
+        return value
+
     @field_validator("secret_keys_old", mode="before")
     @classmethod
     def _split_keys(cls, value: object) -> object:
@@ -230,6 +238,14 @@ class GraphSettings(BaseSettings):
         value = value.strip().rstrip("/")
         if not value.startswith(("https://", "http://")):
             raise ValueError("must be an http(s) URL")
+        return value
+
+    @field_validator("client_id", "client_secret", mode="before")
+    @classmethod
+    def _empty_is_unset(cls, value: object) -> object:
+        # deploy/.env.example ships both variables empty.
+        if isinstance(value, str) and not value.strip():
+            return None
         return value
 
     @property

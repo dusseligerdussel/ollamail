@@ -207,7 +207,9 @@ API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
   `unread`, `message`). Die Liste ist mit TanStack Virtual virtualisiert (Zeilenhöhe `h-row`, auf
   Handys zweizeilig) und lädt Seiten nach, solange gescrollt wird; `total` sorgt für die richtige
   Scrollhöhe. Öffnen markiert als gelesen (einmal je Öffnen), `u` schaltet um. Tasten: `j`/`k`,
-  `Enter`/`o`, `Esc`, `u`; Aktionen auch in der Command Palette.
+  `Enter`/`o`, `Esc`, `u`; Aktionen auch in der Command Palette. Nur eine Zeile ist im Tab-Fokus
+  (Roving Tabindex), damit `Tab` die Liste verlässt; darin bewegen `↑`/`↓`/`Pos1`/`Ende` und
+  `j`/`k` den Fokus.
 - **Mail-HTML** zeigt `MailBodyFrame`: `iframe` mit `srcdoc`, `sandbox` **ohne** `allow-scripts`
   (`allow-same-origin` nur, damit die Höhe gemessen und `cid:`-Bilder mit Cookie geladen werden
   können), eigene CSP (`default-src 'none'`, Bilder nur `'self'`/`data:`), kein Referrer, Links in
@@ -273,7 +275,7 @@ API und Query-Keys in `src/api/todos.ts`, Komponenten in `src/components/tasks/`
   einem Datumsfeld. Das Feld „Neue Aufgabe“ legt per Enter an und bleibt für die nächste offen.
 - **Optimistisch:** `useTodoMutations()` ändert alle gecachten Listen sofort (Seite und Mail),
   verschiebt Aufgaben zwischen offen/erledigt und rollt bei Fehlern zurück; danach wird neu geladen.
-- **Tasten** (nur auf `/tasks`): `j`/`k` (setzt auch den Fokus), `x` erledigt/wieder offen,
+- **Tasten** (nur auf `/tasks`): `j`/`k` (setzt auch den Fokus), `e` erledigt, `x` erledigt/wieder offen,
   `d` Datum, `n` neue Aufgabe, `o` zur Mail, Enter Titel bearbeiten. Alle Aktionen auch in der
   Command Palette.
 - **Mail-Detail:** `MessageTasksSlot` zeigt „Aufgaben aus dieser Mail“ (Query-Key
@@ -406,11 +408,22 @@ useShortcut(
 
 - `keys`: Kombination (`mod+k`, `shift+e`) oder Sequenz (`g i`). `mod` ist ⌘ auf macOS, sonst Strg.
 - In Textfeldern und Dialogen greifen nur Shortcuts mit `allowInInput: true`.
+- `Enter` und `Leertaste` auf einem fokussierten Button, Link oder Schalter lösen dessen eigene
+  Aktion aus, nie einen Shortcut.
 - Tastenhinweise (`KeyHint`) und die Shortcut-Übersicht werden nur angeboten, wenn eine Tastatur
   wahrscheinlich ist (`mediaQueries.keyboard`: ab 768 px und mit feinem Zeiger). Auf Handys und
   Touch-Tablets fehlen sie; die Shortcuts selbst funktionieren weiterhin.
 - Listen nutzen `useListNavigation({ count, onOpen })` für `j`/`k`/`o`.
 - Neue Gruppen in `shortcutGroups` (`src/lib/shortcuts.ts`) und in den Übersetzungen ergänzen.
+
+### Fokus und Seitentitel
+
+- Dialoge und Sheets (`components/ui/dialog.tsx`, `sheet.tsx`) geben den Fokus beim Schließen an
+  das Element zurück, das ihn vorher hatte (`returnFocus`, `src/lib/return-focus.ts`), auch wenn
+  sie per Shortcut, Command Palette oder Menüeintrag geöffnet wurden.
+- `PageHeader` mit `h1` setzt den Seitentitel („Aufgaben – ollamail“, `useDocumentTitle`). Im
+  Detailbereich einer Split-Ansicht ist die Überschrift ein `h2`. Betreffzeilen kommen nie in den
+  Titel (Browser-Verlauf, `docs/PRIVACY.md`).
 
 ### Command Palette
 

@@ -8,6 +8,7 @@ import { setSignedIn } from "@/api/auth";
 import { describeApiError, isApiError } from "@/api/errors";
 import { FormError, FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
+import { useDocumentTitle } from "@/hooks/use-document-title";
 import { supportedLanguages } from "@/i18n";
 
 /**
@@ -23,6 +24,7 @@ const PASSWORD_TOO_SHORT = "urn:ollamail:problem:password-too-short";
 
 function InvitePage() {
   const { t } = useTranslation();
+  useDocumentTitle(t("auth.invite.title"));
   const [token] = useState(() => window.location.hash.slice(1));
   const invitation = useQuery({
     queryKey: ["invitation", token],

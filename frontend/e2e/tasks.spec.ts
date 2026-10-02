@@ -56,7 +56,7 @@ test("check off a task, change its date and jump to its mail", async ({ page }) 
   // Jump to the source mail.
   await page.getByRole("link", { name: `Open message of “${offer}”` }).click();
   await expect(page).toHaveURL(new RegExp(`/inbox\\?message=${offerMessage}`));
-  await expect(page.getByRole("heading", { level: 1, name: "Entwurf Angebot" })).toBeVisible();
+  await expect(page.getByRole("heading", { level: 2, name: "Entwurf Angebot" })).toBeVisible();
   // The mail lists its task.
   const tasks = page.getByRole("region", { name: "Tasks from this message" });
   await expect(tasks.getByRole("button", { name: offer, exact: true })).toBeVisible();
