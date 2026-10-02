@@ -17,9 +17,12 @@ import {
   updateTodo,
 } from "@/api/todos";
 
-/** Every cached todo list: the task page (`["todo", "list", status]`) and mails. */
+/**
+ * Every cached todo list: the task page (`["todo", "list", status]`) and mails. Not all of
+ * `["todo"]`: other data lives there as well (export settings, `["todo", "export"]`).
+ */
 const listFilters: { queryKey: QueryKey }[] = [
-  { queryKey: todoKeys.all },
+  { queryKey: [...todoKeys.all, "list"] },
   { queryKey: ["message", "todos"] },
 ];
 
