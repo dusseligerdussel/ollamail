@@ -19,10 +19,16 @@ class AuditAction(enum.StrEnum):
     SESSION_REVOKED = "auth.session_revoked"
     # Users
     USER_CREATED = "user.created"
-    USER_ROLE_CHANGED = "user.role_changed"  # LDAP group sync; user administration (#33)
-    USER_DELETED = "user.deleted"  # planned: user administration (#33)
+    USER_ROLE_CHANGED = "user.role_changed"  # group mapping at login; user administration
+    USER_DEACTIVATED = "user.deactivated"
+    USER_REACTIVATED = "user.reactivated"
+    USER_INVITED = "user.invited"
+    # Local password set: invitation accepted, CLI reset-password.
+    USER_PASSWORD_SET = "user.password_set"
+    USER_DELETED = "user.deleted"  # planned: account deletion
     # Sign-in providers
-    IDP_CONFIG_CHANGED = "idp.config_changed"  # LDAP (#32), OIDC (#30)
+    # LDAP (#32), OIDC (#30), local login switch and group → role mapping (#33)
+    IDP_CONFIG_CHANGED = "idp.config_changed"
     # AI settings, including enabling cloud providers
     AI_SETTINGS_CHANGED = "ai.settings_changed"  # planned: admin LLM settings
     # Mailboxes

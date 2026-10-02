@@ -34,14 +34,15 @@ async def add_local_user(
     *,
     email: str,
     display_name: str,
-    password_hash: str,
+    password_hash: str | None,
     role: UserRole,
     language: str = "en",
     timezone: str = "UTC",
 ) -> User:
     """Insert a user with a local identity (caller commits). 409 if the e-mail is taken.
 
-    ``email`` must be normalised (``app.users.schemas.normalize_email``).
+    ``email`` must be normalised (``app.users.schemas.normalize_email``). Without
+    ``password_hash`` the account cannot sign in until an invitation is accepted.
     """
     if await get_user_by_email(db, email) is not None:
         raise _email_taken()
