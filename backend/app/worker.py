@@ -60,6 +60,7 @@ TASK_MODULES: list[str] = [
     "app.auth.tasks",
     "app.mail.sync.tasks",
     "app.processing.tasks",
+    "app.todos.steps",
 ]
 
 # Waits 2, 4, 8, ... 128 seconds between attempts (8 attempts, ~4 minutes in total).

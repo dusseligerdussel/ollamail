@@ -360,6 +360,10 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   `@registry.step("triage", version=1, queue="llm", depends_on=("normalize",))`. Ein Handler
   bekommt `StepContext(session, message_id, mailbox_id)`, schreibt über die Session und committet
   nicht – Ergebnis und Status werden gemeinsam committet. Handler müssen idempotent sein.
+- **Optionale Vorgänger:** `after=("triage",)` ordnet einen Schritt hinter einen anderen, ohne ihn
+  vorauszusetzen. Ist der Vorgänger registriert, wartet der Schritt, bis er `done` **oder** `failed`
+  ist; ist er nicht registriert, wird er ignoriert. So laufen Todos nach der Triage, wenn es sie
+  gibt, und ohne Triage-Ergebnis sonst trotzdem. `depends_on` bleibt die harte Abhängigkeit.
 - **Ablauf:** `processing.plan_message` (Queue `default`) legt je Schritt eine Zeile in
   `message_processing` an (`pending`) und reiht die Schritte ohne offene Abhängigkeiten als
   `processing.run_step` in der Queue des Schritts ein. Ist ein Schritt `done`, werden seine
@@ -395,6 +399,51 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 
 - Extraktion: Titel, Beschreibung, Fälligkeit (falls genannt), Priorität, Link zur Quell-Mail/zum Thread.
 - Status: offen / erledigt / verworfen. Duplikaterkennung innerhalb eines Threads.
+
+**Umsetzung (`backend/app/todos/`, #22):**
+
+- **Schritt** `todos` (`steps.py`, Queue `llm`, `after=("triage",)`): läuft nicht für Mails, deren
+  Triage-Kategorie in `OLLAMAIL_TODOS_SKIP_CATEGORIES` steht (Standard `newsletter,notification,spam`).
+  Ohne Triage-Ergebnis (Triage nicht installiert, fehlgeschlagen) läuft er immer. Die Kategorie liest
+  `extraction.message_category`; die Triage (#20) installiert ihren Lookup mit
+  `extraction.set_category_lookup(...)`. Geteilte Postfächer werden bis #34 übersprungen.
+  `OLLAMAIL_TODOS_EXTRACTION_ENABLED=false` schaltet den Schritt ab.
+- **Prompt** `todos_extract@1` (`app/ai/prompts/todos.py`, DE/EN) über `LLMGateway.complete_structured`
+  mit `LLMTask.TODOS`. Das Modell bekommt Absender, Empfänger, Betreff, Text ohne Zitate, das
+  Sendedatum (Wochentag + Datum in der Zeitzone des Nutzers), ob der Nutzer die Mail selbst
+  geschrieben hat, und die offenen Todos des Threads (nummeriert).
+- **Antwort** (`TodoExtraction`): je Aufgabe Titel, Beschreibung, `due_phrase` (Frist wörtlich aus
+  der Mail), `due_date` (Schätzung des Modells), Priorität `high|normal|low`, Konfidenz und optional
+  `updates` (Nummer eines offenen Todos); dazu `done` (Nummern erledigter Todos). Zu lange Texte werden
+  gekürzt, Konfidenz und Priorität normalisiert, statt die Antwort zu verwerfen.
+- **Nachbearbeitung** (`plan_extraction`, ohne DB):
+  - Aufgaben unter `OLLAMAIL_TODOS_MIN_CONFIDENCE` werden verworfen.
+  - Mails, die der Nutzer selbst geschrieben hat (Absender = Postfachadresse), erzeugen keine neuen
+    Todos, können aber „erledigt“ vorschlagen.
+  - **Fälligkeit** (`dates.py`): Die Frist wird deterministisch aus `due_phrase` berechnet,
+    Bezugstag ist das Sendedatum in der Zeitzone des Nutzers. Die Schätzung des Modells gilt nur,
+    wenn die Phrase unbekannt ist, und nur, wenn sie nicht vor dem Bezugstag und höchstens zwei
+    Jahre danach liegt. Bei Mehrdeutigkeit gilt das frühere Datum: „nächsten Freitag“ ist der
+    nächste Freitag nach dem Bezugstag, „Freitag nächster Woche“ der Freitag der Folgewoche.
+  - **Duplikate:** Verweist eine Aufgabe auf ein offenes Todo des Threads (`updates`) oder hat sie
+    denselben Titel, wird das Todo aktualisiert statt neu angelegt. Vom Nutzer bearbeitete Todos
+    (`is_edited`) behalten Titel, Beschreibung und Fälligkeit.
+  - **„Erledigt“** wird nur vorgeschlagen (`done_suggested`); der Status bleibt `open`.
+- **Idempotenz:** Ein erneuter Lauf für dieselbe Mail löscht zuerst die Todos, die ein früherer Lauf
+  aus ihr erzeugt hat, sofern der Nutzer sie nicht angefasst hat (offen, nicht bearbeitet, kein
+  Vorschlag).
+- **Modell** `Todo` (`models.py`, Tabelle `todos`): Nutzer, Quelle (Postfach, Mail, Thread),
+  Status `open|done|dismissed`, `is_manual`, `is_edited`, Konfidenz, `done_suggested`,
+  `completed_at` und `external_refs` (JSON, für den Export in #40).
+- **API** (`/todos`, nur eigene Todos): `GET /todos` (Filter `status` mehrfach, `mailbox_id`,
+  `due_before`, `due_after`; früheste Fälligkeit zuerst, ohne Fälligkeit zuletzt; `limit`/`offset`),
+  `POST /todos` (manuell, optional mit `message_id` einer eigenen Mail), `GET|PATCH|DELETE /todos/{id}`.
+  `PATCH` bearbeitet Felder und den Status (`done` setzt `completed_at`, jede Statusänderung löscht
+  den Vorschlag); `done_suggested: false` verwirft nur den Vorschlag.
+- **Evaluierung:** `python -m app.todos.evaluation [--model NAME ...]` läuft mit dem echten Prompt
+  gegen den konfigurierten Endpunkt über `app/todos/eval_cases.json` (synthetische DE/EN-Mails mit
+  erwarteten Todos, Fristen, Updates und Erledigt-Vorschlägen) und gibt je Modell Precision, Recall
+  und Trefferquote der Fristen aus. Neue Fälle im selben Format ergänzen.
 - **Ziel (dokumentiert, später):** Export/Sync via CalDAV (VTODO), Microsoft To Do (Graph), Google Tasks.
 
 ### 4.4 Daily Digest (Audio)

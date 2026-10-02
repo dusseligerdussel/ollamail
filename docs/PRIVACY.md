@@ -81,6 +81,11 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
   Schritt) und `processing_mailbox_settings` (Opt-out je Postfach) hängen per `ON DELETE CASCADE`
   an Mail bzw. Postfach. Gespeichert werden nur Schrittname, Version, Status und ein
   Fehlercode (`StepError.code` oder Name der Exception-Klasse), nie Exception-Texte.
+  Umsetzung Todos (`backend/app/todos/`): `todos` hängt per `ON DELETE CASCADE` an Nutzer und
+  Postfach; Quell-Mail und Thread werden beim Löschen einer einzelnen Mail auf `NULL` gesetzt
+  (das Todo gehört dem Nutzer und bleibt, bis er es löscht). Die Extraktion protokolliert nur
+  Anzahlen, nie Titel oder Beschreibungen. Die API liefert ausschließlich eigene Todos; ein
+  fremdes Todo verhält sich wie ein nicht vorhandenes (404).
 - **Nutzer löschen:** `users` → `auth_identities`, `auth_sessions` und eigene Postfächer
   (`mail_mailboxes.owner_user_id`, und damit alle Mail-Daten) per `ON DELETE CASCADE`.
 - **Aufbewahrungsfristen:** Pro Instanz konfigurierbar (Mails, Audio-Digests, Chat-Verläufe, Audit-Log).
