@@ -26,6 +26,7 @@ dependencies = [
     "pydantic-settings>=2.3",
     "pypdf>=5",
     "pypdfium2>=5",
+    "python3-saml>=1.16",
     "sqlalchemy[asyncio]>=2.0.30",
     "structlog>=26.1.0",
     "typer>=0.12",
@@ -40,6 +41,7 @@ dev = [
     "pillow>=11",
     "pytest>=8.2",
     "pytest-asyncio>=0.23",
+    "radicale>=3.5",
     "respx>=0.23.1",
     "ruff>=0.5",
     "types-ldap3>=2.9.13.20260827",
@@ -61,7 +63,7 @@ strict = true
 plugins = ["pydantic.mypy"]
 
 [[tool.mypy.overrides]]
-module = ["authlib.*", "num2words.*", "py3langid.*", "pypdfium2.*"]
+module = ["authlib.*", "num2words.*", "onelogin.*", "py3langid.*", "pypdfium2.*"]
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]
@@ -75,5 +77,6 @@ markers = [
     "imap: needs an IMAP test server (Dovecot, skipped if unreachable, see tests/mail/imap_server.py)",
     "smtp: needs an SMTP test server (Mailpit, skipped if unreachable, see tests/mail/smtp_server.py)",
     "ldap: needs slapd (OpenLDAP server binary; skipped if not installed)",
+    "keycloak: needs Keycloak at OLLAMAIL_TEST_KEYCLOAK_URL (skipped if unreachable)",
     "piper: needs piper-tts and a voice in OLLAMAIL_TEST_PIPER_VOICES (skipped otherwise)",
 ]

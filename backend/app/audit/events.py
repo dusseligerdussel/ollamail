@@ -52,6 +52,8 @@ class AuditAction(enum.StrEnum):
     DATA_EXPORTED = "data.exported"  # personal data export: requested, downloaded
     DATA_DELETED = "data.deleted"  # retention job (counts only)
     RETENTION_CHANGED = "data.retention_changed"  # admin retention settings
+    # Todo export (#40) connected, changed or disconnected: todos go to a third party.
+    TODO_EXPORT_CHANGED = "todo_export.changed"
     # Instance operations
     KEYS_ROTATED = "crypto.keys_rotated"
     AUDIT_EXPORTED = "audit.exported"

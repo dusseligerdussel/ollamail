@@ -212,6 +212,9 @@
           "deleted": "Data deleted",
           "retention_changed": "Retention changed"
         },
+        "todo_export": {
+          "changed": "Task export changed"
+        },
         "crypto": {
           "keys_rotated": "Keys rotated"
         },
@@ -366,7 +369,8 @@
         "ldap": "LDAP / Active Directory",
         "github": "GitHub",
         "local": "Local account",
-        "other": "Other"
+        "other": "Other",
+        "saml": "SAML 2.0"
       },
       "disableLocal": {
         "title": "Disable local sign-in?",
@@ -408,7 +412,21 @@
         "removed": "Provider removed",
         "server": "Server",
         "organizations": "Organisations",
-        "githubCheck": "GitHub has no connection test: client ID, secret and organisation membership are checked at the first sign-in."
+        "githubCheck": "GitHub has no connection test: client ID, secret and organisation membership are checked at the first sign-in.",
+        "spMetadataUrl": "SP metadata URL",
+        "spMetadataUrlHint": "Many identity providers read the entity ID and ACS URL from here.",
+        "spEntityId": "Entity ID (identifier)",
+        "acsUrl": "Reply URL (Assertion Consumer Service)",
+        "acsUrlHint": "The same for all SAML providers; HTTP-POST binding.",
+        "idpEntityId": "IdP entity ID",
+        "ssoUrl": "Single sign-on URL",
+        "metadataUrl": "Metadata URL",
+        "certificates_one": "{{count}} signing certificate, valid until {{date}}",
+        "certificates_other": "{{count}} signing certificates, valid until {{date}} at the latest",
+        "refreshMetadata": "Reload metadata",
+        "refreshingMetadata": "Loading metadata…",
+        "metadataRefreshed": "Metadata reloaded",
+        "spEntityIdAndMetadataUrl": "Entity ID and SP metadata URL"
       },
       "wizard": {
         "title": "Add provider",
@@ -432,7 +450,9 @@
           "oidcDescription": "Keycloak, Authentik and other providers",
           "ldap": "LDAP / Active Directory",
           "ldapDescription": "Sign-in with directory user name and password",
-          "githubEnterprise": "GitHub Enterprise Server"
+          "githubEnterprise": "GitHub Enterprise Server",
+          "saml": "SAML 2.0",
+          "samlDescription": "Entra ID, AD FS, Okta, Keycloak and other SAML providers"
         },
         "fields": {
           "displayName": "Name on the login page",
@@ -457,7 +477,13 @@
           "organizations": "Allowed organisations",
           "organizationsHint": "Organisation names, separated by commas. Empty: every GitHub account can sign in.",
           "baseUrl": "GitHub Enterprise Server URL",
-          "baseUrlHint": "Leave empty for github.com."
+          "baseUrlHint": "Leave empty for github.com.",
+          "samlNameHint": "Lower-case letters, digits and hyphens; part of the ollamail entity ID. Cannot be changed later.",
+          "metadataSource": "IdP metadata",
+          "metadataUrl": "Metadata URL",
+          "metadataFile": "Metadata file (XML)",
+          "metadataFileHint": "The identity provider's federation metadata. To replace certificates later, upload it again.",
+          "metadataFileMissing": "Choose the identity provider's metadata file."
         },
         "presetsOidc": {
           "keycloak": "Keycloak",
@@ -476,7 +502,26 @@
         "verifyOidc": "Register the redirect URI at the identity provider, then test the connection.",
         "verifyLdap": "Test the connection and, optionally, look up a user before enabling the directory.",
         "savedDisabled": "Saved, not enabled yet: nobody can sign in with it until you enable it.",
-        "verifyGithub": "Register the callback URL in the OAuth app at GitHub, then enable the provider."
+        "verifyGithub": "Register the callback URL in the OAuth app at GitHub, then enable the provider.",
+        "presetsSaml": {
+          "entra": "Microsoft Entra ID",
+          "adfs": "AD FS",
+          "okta": "Okta",
+          "keycloak": "Keycloak",
+          "generic": "Other SAML provider"
+        },
+        "metadataSources": {
+          "url": "Load from URL",
+          "file": "Upload file"
+        },
+        "metadataUrlHints": {
+          "entra": "Enterprise app → Single sign-on → SAML certificates → \"App Federation Metadata Url\".",
+          "adfs": "Federation metadata of the AD FS server (HTTPS).",
+          "okta": "App → Sign On → \"Metadata URL\".",
+          "keycloak": "Realm settings → Endpoints → \"SAML 2.0 Identity Provider Metadata\".",
+          "generic": "HTTPS address of the IdP metadata. Certificates are reloaded from here later."
+        },
+        "verifySaml": "Register ollamail at the identity provider, most easily with the SP metadata URL, then enable the provider."
       }
     },
     "roleMapping": {
@@ -970,6 +1015,14 @@
       "new": "New task",
       "toggleDone": "Mark task as done or open",
       "date": "Change due date"
+    },
+    "export": {
+      "synced": "Exported",
+      "pending": "Being exported",
+      "error": "Export failed",
+      "removed": "Deleted in the target list",
+      "export": "Export to “{{list}}”",
+      "exportTask": "Export “{{title}}” to “{{list}}”"
     }
   },
   "mail": {
@@ -1368,6 +1421,80 @@
       "deleteAll": "Clear history",
       "confirmAll": "Delete all questions and answers?",
       "keep": "Keep"
+    }
+  },
+  "taskExport": {
+    "title": "Task export",
+    "back": "Back to settings",
+    "manage": "Export tasks",
+    "linkDescription": "Send tasks to Nextcloud or another CalDAV task list.",
+    "intro": "Sends your tasks to the task list you already work with. What you complete there is completed here as well.",
+    "loading": "Loading settings",
+    "disabledTitle": "Export not enabled",
+    "disabledDescription": "Task export is switched off on this server. Your administrator can enable it.",
+    "privacy": {
+      "sent": "The export sends the title, description, due date, priority and status of your tasks, plus a link to the message, to the server you enter here.",
+      "notSent": "The messages themselves are not sent. Use an app password instead of your main password where possible."
+    },
+    "target": "Target",
+    "sinks": {
+      "caldav": {
+        "title": "CalDAV",
+        "description": "Nextcloud, Radicale, Baïkal, iCloud and other CalDAV servers"
+      }
+    },
+    "url": "Server URL",
+    "urlHint": "Address of the server, an account or a list.",
+    "username": "User name",
+    "password": "Password",
+    "passwordHint": "Stored encrypted and never shown again.",
+    "passwordKept": "Leave empty to keep the stored password.",
+    "connect": "Connect",
+    "connecting": "Connecting…",
+    "noLists": "This account has no list for tasks. Create one first.",
+    "list": "List",
+    "mode": {
+      "label": "Export",
+      "auto": "Automatic",
+      "autoDescription": "All open tasks, new ones right away.",
+      "manual": "Manual",
+      "manualDescription": "Only tasks you export one by one in the task list."
+    },
+    "enable": "Turn on export",
+    "enabled": "Task export turned on",
+    "save": "Save",
+    "saved": "Task export saved",
+    "cancel": "Cancel",
+    "connection": "Connection",
+    "status": "Status",
+    "tasks": "Tasks",
+    "counts_one": "{{count}} exported",
+    "counts_other": "{{count}} exported",
+    "pendingCount_one": "{{count}} waiting",
+    "pendingCount_other": "{{count}} waiting",
+    "errorCount_one": "{{count}} failed",
+    "errorCount_other": "{{count}} failed",
+    "lastSync": "Last synced {{time}}",
+    "neverSynced": "Not synced yet",
+    "inactive": "Switched off by the administrator",
+    "syncNow": "Sync now",
+    "syncQueued": "Sync started",
+    "change": "Change",
+    "disconnect": "Disconnect",
+    "disconnectTitle": "Disconnect task export?",
+    "disconnectDescription": "The stored credentials are deleted. Tasks already exported stay in the list and are no longer synced.",
+    "disconnected": "Task export disconnected",
+    "errors": {
+      "auth_failed": "The server rejected the user name or password.",
+      "unavailable": "The server cannot be reached.",
+      "timeout": "The server did not answer in time.",
+      "not_found": "No calendar was found at this address.",
+      "invalid_url": "The server URL is invalid.",
+      "insecure_url": "The server URL must start with https://.",
+      "sink_not_available": "This target is not enabled on this server.",
+      "unknown_list": "The list no longer exists on the server.",
+      "list_not_found": "The list no longer exists on the server.",
+      "other": "The server sent an unexpected answer."
     }
   }
 }

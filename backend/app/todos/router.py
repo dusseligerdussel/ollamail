@@ -9,11 +9,13 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Depends, Query, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.dependencies import CurrentSessionDep
+from app.auth.dependencies import CurrentSessionDep, SettingsDep
 from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.mail.access import can_read
 from app.todos import service
+from app.todos.export import service as export_service
+from app.todos.export.router import EnqueuerDep, sync_soon
 from app.todos.models import Todo, TodoStatus
 from app.todos.schemas import TodoCreate, TodoRead, TodoUpdate
 
@@ -67,7 +69,13 @@ async def list_todos(
     status_code=status.HTTP_201_CREATED,
     responses={404: {"description": "Linked message not found"}},
 )
-async def create_todo(body: TodoCreate, current: CurrentSessionDep, db: DbDep) -> TodoRead:
+async def create_todo(
+    body: TodoCreate,
+    current: CurrentSessionDep,
+    db: DbDep,
+    settings: SettingsDep,
+    enqueue: EnqueuerDep,
+) -> TodoRead:
     """Create a todo by hand, optionally linked to one of the user's mails."""
     source = None
     shared = False
@@ -79,6 +87,7 @@ async def create_todo(body: TodoCreate, current: CurrentSessionDep, db: DbDep) -
     todo = service.create_todo(db, current.user_id, body, source, shared=shared)
     await db.commit()
     await db.refresh(todo)
+    await sync_soon(db, settings, enqueue, [todo.user_id, todo.assignee_id])
     return TodoRead.model_validate(todo)
 
 
@@ -91,7 +100,12 @@ async def get_todo(todo_id: uuid.UUID, current: CurrentSessionDep, db: DbDep) ->
     "/{todo_id}", responses={**NOT_FOUND, 422: {"description": "Invalid value or assignee"}}
 )
 async def update_todo(
-    todo_id: uuid.UUID, body: TodoUpdate, current: CurrentSessionDep, db: DbDep
+    todo_id: uuid.UUID,
+    body: TodoUpdate,
+    current: CurrentSessionDep,
+    db: DbDep,
+    settings: SettingsDep,
+    enqueue: EnqueuerDep,
 ) -> TodoRead:
     """Edit a todo or change its status (open, done, dismissed). ``assignee_id`` assigns
     a team todo of a shared mailbox to one of its readers (``null``: nobody)."""
@@ -114,12 +128,19 @@ async def update_todo(
     service.update_todo(todo, body)
     await db.commit()
     await db.refresh(todo)
+    await sync_soon(db, settings, enqueue, [todo.user_id, todo.assignee_id])
     return TodoRead.model_validate(todo)
 
 
 @router.delete("/{todo_id}", status_code=status.HTTP_204_NO_CONTENT, responses=NOT_FOUND)
-async def delete_todo(todo_id: uuid.UUID, current: CurrentSessionDep, db: DbDep) -> Response:
+async def delete_todo(
+    todo_id: uuid.UUID, current: CurrentSessionDep, db: DbDep, enqueue: EnqueuerDep
+) -> Response:
+    """Delete a todo; an exported copy is deleted in the target system with the next sync."""
     todo = await _todo(db, current.user_id, todo_id)
+    target_id = await export_service.queue_deletion(db, todo)
     await db.delete(todo)
     await db.commit()
+    if target_id is not None:
+        await enqueue(target_id)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

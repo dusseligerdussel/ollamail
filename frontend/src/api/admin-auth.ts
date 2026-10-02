@@ -13,6 +13,9 @@ export type OidcPreset = Schemas["OIDCPreset"];
 export type OidcConnectionTest = Schemas["OIDCConnectionTest"];
 export type GitHubProvider = Schemas["GitHubProviderRead"];
 export type GitHubProviderCreate = Schemas["GitHubProviderCreate"];
+export type SamlProvider = Schemas["SAMLProviderRead"];
+export type SamlProviderCreate = Schemas["SAMLProviderCreate"];
+export type SamlPreset = Schemas["SAMLPreset"];
 export type LdapDirectory = Schemas["LdapDirectoryRead"];
 export type LdapDirectoryCreate = Schemas["LdapDirectoryCreate"];
 export type LdapDirectorySettings = Schemas["LdapDirectorySettings"];
@@ -52,6 +55,12 @@ export const oidcProvidersQueryOptions = queryOptions({
 export const githubProvidersQueryOptions = queryOptions({
   queryKey: ["admin", "auth", "github"],
   queryFn: ({ signal }) => unwrap(api.GET("/admin/auth/github/providers", { signal })),
+  meta: { errorToast: false },
+});
+
+export const samlProvidersQueryOptions = queryOptions({
+  queryKey: ["admin", "auth", "saml"],
+  queryFn: ({ signal }) => unwrap(api.GET("/admin/auth/saml/providers", { signal })),
   meta: { errorToast: false },
 });
 
@@ -98,6 +107,29 @@ export function updateGitHubProvider(name: string, body: Schemas["GitHubProvider
 
 export function deleteGitHubProvider(name: string) {
   return unwrap(api.DELETE("/admin/auth/github/providers/{name}", { params: { path: { name } } }));
+}
+
+export function createSamlProvider(body: SamlProviderCreate) {
+  return unwrap(api.POST("/admin/auth/saml/providers", { body }));
+}
+
+export function updateSamlProvider(name: string, body: Schemas["SAMLProviderUpdate"]) {
+  return unwrap(
+    api.PATCH("/admin/auth/saml/providers/{name}", { params: { path: { name } }, body }),
+  );
+}
+
+export function deleteSamlProvider(name: string) {
+  return unwrap(api.DELETE("/admin/auth/saml/providers/{name}", { params: { path: { name } } }));
+}
+
+/** Load the IdP metadata from its URL again (certificate rollover at the IdP). */
+export function refreshSamlMetadata(name: string) {
+  return unwrap(
+    api.POST("/admin/auth/saml/providers/{name}/refresh-metadata", {
+      params: { path: { name } },
+    }),
+  );
 }
 
 export function createLdapDirectory(body: LdapDirectoryCreate) {
@@ -209,9 +241,11 @@ export function acceptInvitation(token: string, password: string) {
 }
 
 /** Provider key (`oidc:entra`, `ldap:corp`) → kind for labels. */
-export function providerKind(key: string): "local" | "oidc" | "ldap" | "github" | "other" {
+export function providerKind(key: string): "local" | "oidc" | "ldap" | "github" | "saml" | "other" {
   if (key === "local") return "local";
   const prefix = key.split(":", 1)[0];
-  if (prefix === "oidc" || prefix === "ldap" || prefix === "github") return prefix;
+  if (prefix === "oidc" || prefix === "ldap" || prefix === "github" || prefix === "saml") {
+    return prefix;
+  }
   return "other";
 }

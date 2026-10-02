@@ -212,6 +212,9 @@
           "deleted": "Daten gelöscht",
           "retention_changed": "Aufbewahrung geändert"
         },
+        "todo_export": {
+          "changed": "Aufgaben-Export geändert"
+        },
         "crypto": {
           "keys_rotated": "Schlüssel rotiert"
         },
@@ -366,7 +369,8 @@
         "ldap": "LDAP / Active Directory",
         "github": "GitHub",
         "local": "Lokales Konto",
-        "other": "Sonstige"
+        "other": "Sonstige",
+        "saml": "SAML 2.0"
       },
       "disableLocal": {
         "title": "Lokale Anmeldung deaktivieren?",
@@ -408,7 +412,21 @@
         "removed": "Anbieter entfernt",
         "server": "Server",
         "organizations": "Organisationen",
-        "githubCheck": "GitHub bietet keinen Verbindungstest: Client-ID, Secret und Organisationszugehörigkeit werden bei der ersten Anmeldung geprüft."
+        "githubCheck": "GitHub bietet keinen Verbindungstest: Client-ID, Secret und Organisationszugehörigkeit werden bei der ersten Anmeldung geprüft.",
+        "spMetadataUrl": "SP-Metadaten-URL",
+        "spMetadataUrlHint": "Viele Identity-Provider lesen Entity-ID und ACS-URL direkt hieraus.",
+        "spEntityId": "Entity-ID (Bezeichner)",
+        "acsUrl": "Antwort-URL (Assertion Consumer Service)",
+        "acsUrlHint": "Für alle SAML-Anbieter gleich; Bindung HTTP-POST.",
+        "idpEntityId": "Entity-ID des IdP",
+        "ssoUrl": "Single-Sign-On-URL",
+        "metadataUrl": "Metadaten-URL",
+        "certificates_one": "{{count}} Signaturzertifikat, gültig bis {{date}}",
+        "certificates_other": "{{count}} Signaturzertifikate, gültig bis spätestens {{date}}",
+        "refreshMetadata": "Metadaten neu laden",
+        "refreshingMetadata": "Lade Metadaten…",
+        "metadataRefreshed": "Metadaten neu geladen",
+        "spEntityIdAndMetadataUrl": "Entity-ID und SP-Metadaten-URL"
       },
       "wizard": {
         "title": "Anbieter hinzufügen",
@@ -432,7 +450,9 @@
           "oidcDescription": "Keycloak, Authentik und weitere Anbieter",
           "ldap": "LDAP / Active Directory",
           "ldapDescription": "Anmeldung mit Benutzername und Passwort aus dem Verzeichnis",
-          "githubEnterprise": "GitHub Enterprise Server"
+          "githubEnterprise": "GitHub Enterprise Server",
+          "saml": "SAML 2.0",
+          "samlDescription": "Entra ID, AD FS, Okta, Keycloak und weitere SAML-Anbieter"
         },
         "fields": {
           "displayName": "Name auf der Login-Seite",
@@ -457,7 +477,13 @@
           "organizations": "Erlaubte Organisationen",
           "organizationsHint": "Namen der Organisationen, durch Kommas getrennt. Leer: Jedes GitHub-Konto kann sich anmelden.",
           "baseUrl": "URL des GitHub Enterprise Servers",
-          "baseUrlHint": "Für github.com leer lassen."
+          "baseUrlHint": "Für github.com leer lassen.",
+          "samlNameHint": "Kleinbuchstaben, Ziffern und Bindestriche; Teil der Entity-ID von ollamail. Später nicht änderbar.",
+          "metadataSource": "IdP-Metadaten",
+          "metadataUrl": "Metadaten-URL",
+          "metadataFile": "Metadaten-Datei (XML)",
+          "metadataFileHint": "Die Föderationsmetadaten des Identity-Providers. Zertifikate lassen sich später nur durch erneutes Hochladen tauschen.",
+          "metadataFileMissing": "Wähle die Metadaten-Datei des Identity-Providers aus."
         },
         "presetsOidc": {
           "keycloak": "Keycloak",
@@ -476,7 +502,26 @@
         "verifyOidc": "Trage die Redirect-URI beim Identity-Provider ein und teste dann die Verbindung.",
         "verifyLdap": "Teste die Verbindung und suche optional einen Benutzer, bevor du das Verzeichnis aktivierst.",
         "savedDisabled": "Gespeichert, noch nicht aktiv: Niemand kann sich darüber anmelden, bis du es aktivierst.",
-        "verifyGithub": "Trage die Callback-URL in der OAuth-App bei GitHub ein und aktiviere dann den Anbieter."
+        "verifyGithub": "Trage die Callback-URL in der OAuth-App bei GitHub ein und aktiviere dann den Anbieter.",
+        "presetsSaml": {
+          "entra": "Microsoft Entra ID",
+          "adfs": "AD FS",
+          "okta": "Okta",
+          "keycloak": "Keycloak",
+          "generic": "Anderer SAML-Anbieter"
+        },
+        "metadataSources": {
+          "url": "Von URL laden",
+          "file": "Datei hochladen"
+        },
+        "metadataUrlHints": {
+          "entra": "Enterprise-App → Einmaliges Anmelden → SAML-Zertifikate → „App-Verbundmetadaten-URL“.",
+          "adfs": "Föderationsmetadaten des AD-FS-Servers (HTTPS).",
+          "okta": "App → Sign On → „Metadata URL“.",
+          "keycloak": "Realm-Einstellungen → Endpunkte → „SAML 2.0 Identity Provider Metadata“.",
+          "generic": "HTTPS-Adresse der IdP-Metadaten. Nur von hier werden Zertifikate später erneut geladen."
+        },
+        "verifySaml": "Trage ollamail beim Identity-Provider ein, am einfachsten über die SP-Metadaten-URL, und aktiviere dann den Anbieter."
       }
     },
     "roleMapping": {
@@ -970,6 +1015,14 @@
       "new": "Neue Aufgabe",
       "toggleDone": "Aufgabe erledigen oder wieder öffnen",
       "date": "Fälligkeitsdatum ändern"
+    },
+    "export": {
+      "synced": "Exportiert",
+      "pending": "Wird exportiert",
+      "error": "Export fehlgeschlagen",
+      "removed": "In der Zielliste gelöscht",
+      "export": "Nach „{{list}}“ exportieren",
+      "exportTask": "„{{title}}“ nach „{{list}}“ exportieren"
     }
   },
   "mail": {
@@ -1368,6 +1421,80 @@
       "deleteAll": "Verlauf löschen",
       "confirmAll": "Alle Fragen und Antworten löschen?",
       "keep": "Behalten"
+    }
+  },
+  "taskExport": {
+    "title": "Aufgaben-Export",
+    "back": "Zurück zu den Einstellungen",
+    "manage": "Aufgaben exportieren",
+    "linkDescription": "Aufgaben in Nextcloud oder eine andere CalDAV-Aufgabenliste übertragen.",
+    "intro": "Überträgt deine Aufgaben in die Aufgabenliste, mit der du ohnehin arbeitest. Was du dort erledigst, wird hier ebenfalls erledigt.",
+    "loading": "Einstellungen werden geladen",
+    "disabledTitle": "Export nicht freigegeben",
+    "disabledDescription": "Auf diesem Server ist der Aufgaben-Export ausgeschaltet. Die Administration kann ihn freigeben.",
+    "privacy": {
+      "sent": "Beim Export gehen Titel, Beschreibung, Fälligkeit, Priorität und Status deiner Aufgaben sowie ein Link zur Mail an den Server, den du hier angibst.",
+      "notSent": "Die Mails selbst werden nicht übertragen. Verwende nach Möglichkeit ein App-Passwort statt deines Hauptpassworts."
+    },
+    "target": "Ziel",
+    "sinks": {
+      "caldav": {
+        "title": "CalDAV",
+        "description": "Nextcloud, Radicale, Baïkal, iCloud und andere CalDAV-Server"
+      }
+    },
+    "url": "Server-URL",
+    "urlHint": "Adresse des Servers, eines Kontos oder direkt einer Liste.",
+    "username": "Benutzername",
+    "password": "Passwort",
+    "passwordHint": "Wird verschlüsselt gespeichert und nie wieder angezeigt.",
+    "passwordKept": "Leer lassen, um das gespeicherte Passwort zu behalten.",
+    "connect": "Verbinden",
+    "connecting": "Verbinde …",
+    "noLists": "Auf diesem Konto gibt es keine Liste für Aufgaben. Lege zuerst eine an.",
+    "list": "Liste",
+    "mode": {
+      "label": "Export",
+      "auto": "Automatisch",
+      "autoDescription": "Alle offenen Aufgaben, neue sofort.",
+      "manual": "Manuell",
+      "manualDescription": "Nur Aufgaben, die du in der Aufgabenliste einzeln exportierst."
+    },
+    "enable": "Export einschalten",
+    "enabled": "Aufgaben-Export eingeschaltet",
+    "save": "Speichern",
+    "saved": "Aufgaben-Export gespeichert",
+    "cancel": "Abbrechen",
+    "connection": "Verbindung",
+    "status": "Status",
+    "tasks": "Aufgaben",
+    "counts_one": "{{count}} exportiert",
+    "counts_other": "{{count}} exportiert",
+    "pendingCount_one": "{{count}} wartet",
+    "pendingCount_other": "{{count}} warten",
+    "errorCount_one": "{{count}} Fehler",
+    "errorCount_other": "{{count}} Fehler",
+    "lastSync": "Zuletzt abgeglichen {{time}}",
+    "neverSynced": "Noch nicht abgeglichen",
+    "inactive": "Von der Administration ausgeschaltet",
+    "syncNow": "Jetzt abgleichen",
+    "syncQueued": "Abgleich gestartet",
+    "change": "Ändern",
+    "disconnect": "Trennen",
+    "disconnectTitle": "Aufgaben-Export trennen?",
+    "disconnectDescription": "Die gespeicherten Zugangsdaten werden gelöscht. Bereits exportierte Aufgaben bleiben in der Liste und werden nicht mehr abgeglichen.",
+    "disconnected": "Aufgaben-Export getrennt",
+    "errors": {
+      "auth_failed": "Der Server hat Benutzername oder Passwort abgelehnt.",
+      "unavailable": "Der Server ist nicht erreichbar.",
+      "timeout": "Der Server hat nicht rechtzeitig geantwortet.",
+      "not_found": "Unter dieser Adresse wurde kein Kalender gefunden.",
+      "invalid_url": "Die Server-URL ist ungültig.",
+      "insecure_url": "Die Server-URL muss mit https:// beginnen.",
+      "sink_not_available": "Dieses Ziel ist auf diesem Server nicht freigegeben.",
+      "unknown_list": "Die Liste gibt es auf dem Server nicht mehr.",
+      "list_not_found": "Die Liste gibt es auf dem Server nicht mehr.",
+      "other": "Der Server hat unerwartet geantwortet."
     }
   }
 }
