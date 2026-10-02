@@ -17,6 +17,7 @@ from app.triage.tasks import TRIAGE_STEP_VERSION, use_llm
 from app.triage.writeback import set_write_back_mode
 from app.worker import app
 from tests.processing.conftest import Pipeline, pipeline  # noqa: F401
+from tests.processing.test_pipeline import notifications  # noqa: F401
 from tests.triage.conftest import FakeLLM, answer
 
 RAW = b"From: a@example.org\r\nSubject: Test\r\n\r\nHello\r\n"
@@ -58,6 +59,7 @@ async def test_new_message_is_triaged_and_labelled(
     triage_steps: None,
     fake_llm: FakeLLM,
     server: FakeMailProvider,
+    notifications: list[dict[str, object]],  # noqa: F811
 ) -> None:
     message_id = await pipeline.add_message()
     remote_ref = server.add_message("INBOX", RAW)
@@ -98,3 +100,12 @@ async def test_new_message_is_triaged_and_labelled(
         False,
     )
     assert "ollamail/action_required" in server.messages[remote_ref].flags
+    # The UI hears about the category as soon as it is known.
+    assert {
+        "user_id": str(pipeline.owner_id),
+        "event": {
+            "type": "message.triaged",
+            "ids": {"message_id": str(message_id), "mailbox_id": str(pipeline.mailbox_id)},
+            "status": None,
+        },
+    } in notifications
