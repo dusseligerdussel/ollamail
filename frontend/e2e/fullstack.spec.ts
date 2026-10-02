@@ -65,15 +65,28 @@ test("a synced mail is found by the full-text search", async ({ page }) => {
   });
   expect(created.status()).toBe(201);
 
+  // Sync and indexing run in the worker: wait until the API finds the mail. (Repeating the
+  // search in the UI would not help, it keeps results of the same query for 30 s.)
+  await expect
+    .poll(
+      async () => {
+        const response = await page.request.post("/api/search", {
+          headers: await csrfHeaders(page),
+          data: { query: term },
+        });
+        expect(response.status()).toBe(200);
+        return (await response.json()).hits.length;
+      },
+      { timeout: 90_000 },
+    )
+    .toBe(1);
+
   await page.goto("/search");
   const searchbox = page.getByRole("searchbox", { name: "Search terms or question" });
+  await searchbox.fill(term);
+  await searchbox.press("Enter");
   const hits = page.getByRole("list", { name: "Results" });
-  // Sync and indexing run in the worker: repeat the search until the mail is indexed.
-  await expect(async () => {
-    await searchbox.fill(term);
-    await searchbox.press("Enter");
-    await expect(hits.getByRole("listitem")).toHaveCount(1, { timeout: 2_000 });
-  }).toPass({ timeout: 90_000 });
+  await expect(hits.getByRole("listitem")).toHaveCount(1);
   await expect(hits.getByText(subject)).toBeVisible();
 
   await hits.getByText(subject).click();

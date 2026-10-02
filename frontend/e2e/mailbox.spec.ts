@@ -38,6 +38,8 @@ test("add a mailbox on the IMAP test server → its mails appear in the inbox", 
   await page.goto("/settings/mailboxes/new");
   await page.getByLabel("Email address").fill(address);
   await page.getByLabel("Password", { exact: true }).fill(imap.password);
+  // Leaving the address field starts autodiscovery; wait for its guess before overriding it.
+  await expect(page.getByText("Settings guessed from the domain.")).toBeVisible();
   await page.getByLabel("IMAP server").fill(imap.host);
   await page.getByLabel("Port").fill(String(imap.port));
   await page.getByLabel("Accept any server certificate").check();
