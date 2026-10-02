@@ -14,9 +14,9 @@ import {
   isDate,
 } from "@/api/audit";
 import { EmptyState } from "@/components/empty-state";
+import { Forbidden } from "@/components/forbidden";
 import { InlineError } from "@/components/inline-error";
 import { ListSkeleton } from "@/components/list-skeleton";
-import { NotFound } from "@/components/not-found";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -41,7 +41,7 @@ function AuditLogPage() {
   const { t } = useTranslation();
   const { isAdmin } = useCurrentUser();
   const filters = Route.useSearch();
-  if (!isAdmin) return <NotFound />;
+  if (!isAdmin) return <Forbidden />;
 
   return (
     <>

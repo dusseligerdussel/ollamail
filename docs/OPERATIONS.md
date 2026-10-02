@@ -101,10 +101,11 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Heute wird nur `database` geprüft; Prüfungen für Queue und LLM kommen mit #7 und #17. |
 
-Die UI ist unter `http://<host>:8080` erreichbar. Der Setup-Assistent der UI ist **geplant (#12)**,
-externe Identity-Provider (OIDC, GitHub, LDAP) **geplant (#30–#33)**.
+Die UI ist unter `http://<host>:8080` erreichbar. Externe Identity-Provider (OIDC, GitHub, LDAP)
+sind **geplant (#30–#33)**.
 
-**Erst-Admin:** Solange kein Nutzer existiert, legt `POST /api/setup` den ersten Admin an. Dafür
+**Erst-Admin:** Solange kein Nutzer existiert, leitet die UI auf den Setup-Assistenten (`/setup`),
+der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
 ist ein Setup-Token nötig – `OLLAMAIL_SETUP_TOKEN` oder, falls leer, ein aus `OLLAMAIL_SECRET_KEY`
 abgeleiteter Wert. Die API schreibt ihn beim Start ins Log (Event `setup_pending`, Feld
 `setup_code`), solange die Instanz nicht eingerichtet ist:

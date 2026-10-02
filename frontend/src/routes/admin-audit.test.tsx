@@ -1,16 +1,12 @@
 import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it } from "vitest";
 
 import type { AuditEvent } from "@/api/audit";
-import type { CurrentUser } from "@/hooks/use-current-user";
 import i18n from "@/i18n";
-import { json, mockFetch, problem } from "@/test/fetch";
+import { backend, json, mockFetch, problem, testUser } from "@/test/fetch";
 import { setViewportWidth } from "@/test/media";
 import { renderApp } from "@/test/render-app";
-
-const currentUser = vi.hoisted(() => ({ value: { id: "test", isAdmin: true } as CurrentUser }));
-vi.mock("@/hooks/use-current-user", () => ({ useCurrentUser: () => currentUser.value }));
 
 const USER_ID = "0199a0b4-0000-7000-8000-000000000001";
 const MAILBOX_ID = "0199a0b4-1111-7000-8000-000000000002";
@@ -61,9 +57,10 @@ const events: AuditEvent[] = [
 /** Serves `GET /api/audit/events` from `pages` (by `before` cursor) and records the queries. */
 function mockAuditApi(pages: Record<string, { items: AuditEvent[]; next_before: number | null }>) {
   const queries: URLSearchParams[] = [];
+  const api = backend();
   mockFetch((request) => {
     const url = new URL(request.url);
-    if (url.pathname !== "/api/audit/events") return problem(404);
+    if (url.pathname !== "/api/audit/events") return api(request);
     queries.push(url.searchParams);
     return json(pages[url.searchParams.get("before") ?? ""] ?? { items: [], next_before: null });
   });
@@ -71,15 +68,14 @@ function mockAuditApi(pages: Record<string, { items: AuditEvent[]; next_before: 
 }
 
 beforeEach(async () => {
-  currentUser.value = { id: "test", isAdmin: true };
   await i18n.changeLanguage("en");
 });
 
 describe("audit log", () => {
   it("is not shown to non-admins", async () => {
-    currentUser.value = { id: "test", isAdmin: false };
+    mockFetch(backend({ user: testUser }));
     await renderApp("/admin/audit");
-    expect(screen.getByRole("heading", { name: "Page not found" })).toBeInTheDocument();
+    expect(screen.getByRole("heading", { level: 1, name: "No access" })).toBeInTheDocument();
   });
 
   it("lists events with readable actors and targets", async () => {
@@ -162,7 +158,12 @@ describe("audit log", () => {
   });
 
   it("shows API errors inline", async () => {
-    mockFetch(() => problem(403, { request_id: "req-7" }));
+    const api = backend();
+    mockFetch((request) =>
+      new URL(request.url).pathname === "/api/audit/events"
+        ? problem(403, { request_id: "req-7" })
+        : api(request),
+    );
     await renderApp("/admin/audit");
 
     const alert = await screen.findByRole("alert", {}, { timeout: 5000 });
