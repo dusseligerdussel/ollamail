@@ -11,6 +11,8 @@ cursor and applies the events:
 * ``MessageChanged``  → like ``MessageUpdated`` for known messages, otherwise the source
   is loaded and stored like ``MessageFetched``,
 * ``MessageDeleted``  → ``delete_messages`` (hard delete incl. attachment files),
+* ``FlagsReported``   → flags of many stored messages, compared in bulk in a temporary
+  table; only rows whose flags differ are written (IMAP without CONDSTORE, #147),
 * ``CursorAdvanced``  → everything above plus the new cursor is committed in one
   transaction. A sync that breaks off resumes at the last committed cursor.
 
@@ -33,13 +35,14 @@ stored, never server messages. The owner receives ``mailbox.sync`` events (``pro
 while new messages arrive, then ``done`` or ``failed``).
 """
 
+import json
 import uuid
-from collections.abc import Callable, Iterable
+from collections.abc import Callable, Iterable, Mapping
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import delete, exists, select, update
+from sqlalchemy import delete, exists, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 from sqlalchemy.orm import aliased, selectinload
 
@@ -58,6 +61,7 @@ from app.mail.providers.base import (
     ConnectionFailedError,
     CursorAdvanced,
     CursorInvalidError,
+    FlagsReported,
     MailboxConfig,
     MailProvider,
     MessageChanged,
@@ -81,6 +85,25 @@ log = get_logger(__name__)
 # Errors that affect every folder: the sync of the mailbox stops.
 MAILBOX_ERRORS = (AuthenticationError, ConnectionFailedError, ConfigurationError)
 _UPDATE_CHUNK = 500
+
+# ``FlagsReported`` (#147): reported flags, one row per message, dropped with the commit.
+_FLAG_SCAN_TABLE = (
+    "CREATE TEMPORARY TABLE IF NOT EXISTS mail_flag_scan"
+    " (remote_ref text PRIMARY KEY, flags text[] NOT NULL) ON COMMIT DROP"
+)
+# From one JSON object ``{remote_ref: [flag, ...]}``; the lists are sorted like
+# ``Message.flags``, so comparing arrays compares sets.
+_FLAG_SCAN_LOAD = (
+    "INSERT INTO mail_flag_scan (remote_ref, flags)"
+    " SELECT key, ARRAY(SELECT jsonb_array_elements_text(value))"
+    " FROM jsonb_each(CAST(:flags AS jsonb))"
+)
+_FLAG_SCAN_APPLY = (
+    "UPDATE mail_messages AS m SET flags = s.flags, updated_at = now()"
+    " FROM mail_flag_scan AS s"
+    " WHERE m.mailbox_id = :mailbox_id AND m.remote_ref = s.remote_ref"
+    " AND m.flags IS DISTINCT FROM s.flags"
+)
 
 
 @dataclass(slots=True)
@@ -329,6 +352,8 @@ class MailboxSync:
             elif isinstance(event, MessageDeleted):
                 updates.pop(event.remote_ref, None)
                 deletes.append(event.remote_ref)
+            elif isinstance(event, FlagsReported):
+                self.stats.updated += await self._apply_flags(event.flags)
             elif isinstance(event, CursorAdvanced):
                 deletes.extend(await self._apply_updates(updates.values(), folders))
                 if reconcile:
@@ -421,6 +446,20 @@ class MailboxSync:
                         changed = True
                 self.stats.updated += changed
         return unsynced
+
+    async def _apply_flags(self, flags: Mapping[str, frozenset[str]]) -> int:
+        """``FlagsReported``: load the reported flags into a temporary table and update the
+        stored messages whose flags differ, in one statement. Returns how many changed.
+        Committed with the next ``CursorAdvanced``."""
+        if not flags:
+            return 0
+        await self.session.execute(text(_FLAG_SCAN_TABLE))
+        await self.session.execute(text("TRUNCATE mail_flag_scan"))
+        payload = json.dumps({ref: sorted(value) for ref, value in flags.items()})
+        await self.session.execute(text(_FLAG_SCAN_LOAD), {"flags": payload})
+        await self.session.execute(text("ANALYZE mail_flag_scan"))
+        result = await self.session.execute(text(_FLAG_SCAN_APPLY), {"mailbox_id": self.mailbox_id})
+        return int(result.rowcount)  # type: ignore[attr-defined]
 
     def _release_messages(self) -> None:
         """Keep the session small during long imports: drop committed messages."""

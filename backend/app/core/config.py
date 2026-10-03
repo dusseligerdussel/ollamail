@@ -285,6 +285,11 @@ class MailSettings(BaseSettings):
     imap_timeout: float = Field(default=60.0, gt=0)
     # Messages fetched (and committed) per batch; an interrupted sync resumes per batch.
     sync_batch_size: int = Field(default=50, ge=1, le=1000)
+    # IMAP servers without CONDSTORE (#147): each sync checks the flags of the newest N known
+    # messages per folder; the flags of all of them only every few hours. Deletions and
+    # moves are found on every sync either way.
+    imap_flag_window: int = Field(default=1000, ge=1)
+    imap_full_flag_scan_hours: float = Field(default=24, gt=0)
     # Keep one push connection (IMAP IDLE) per mailbox in the worker; otherwise poll only.
     watch_enabled: bool = True
     # Mail servers (IMAP/SMTP) users may reach on internal addresses (loopback, RFC 1918,
