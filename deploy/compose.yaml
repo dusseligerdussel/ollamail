@@ -62,6 +62,22 @@ services:
       POSTGRES_USER: ${POSTGRES_USER:-ollamail}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD in deploy/.env}
       POSTGRES_DB: ${POSTGRES_DB:-ollamail}
+    # Tuning for the pgvector search index (docs/OPERATIONS.md, section 8.2): the
+    # PostgreSQL defaults (128 MB shared_buffers, 64 MB maintenance_work_mem) make HNSW
+    # index builds very slow. Parallel index builds need /dev/shm >= maintenance_work_mem.
+    command:
+      - postgres
+      - -c
+      - max_connections=${POSTGRES_MAX_CONNECTIONS:-200}
+      - -c
+      - shared_buffers=${POSTGRES_SHARED_BUFFERS:-512MB}
+      - -c
+      - effective_cache_size=${POSTGRES_EFFECTIVE_CACHE_SIZE:-2GB}
+      - -c
+      - maintenance_work_mem=${POSTGRES_MAINTENANCE_WORK_MEM:-512MB}
+      - -c
+      - work_mem=${POSTGRES_WORK_MEM:-16MB}
+    shm_size: ${POSTGRES_SHM_SIZE:-1g}
     volumes:
       - postgres-data:/var/lib/postgresql/data
     healthcheck:
@@ -99,6 +115,14 @@ services:
     <<: *backend
     command: ["python", "-m", "app.worker"]
     stop_grace_period: 45s
+    # Fails once the worker's heartbeat file is older than four intervals
+    # (OLLAMAIL_WORKER_HEARTBEAT_INTERVAL_SECONDS): blocked event loop or crashed job worker.
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.core.heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
 
   frontend:
     image: ${OLLAMAIL_FRONTEND_IMAGE:-ghcr.io/dusseligerdussel/ollamail-frontend:${OLLAMAIL_VERSION:-latest}}

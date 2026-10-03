@@ -83,6 +83,12 @@ config:
   # OLLAMAIL_PROCESSING_AUTO_RETRY_TIMEOUT_ATTEMPTS: "1"
   # OLLAMAIL_PROCESSING_LLM_BREAKER_THRESHOLD: "3"
   # OLLAMAIL_PROCESSING_LLM_BREAKER_COOLDOWN_SECONDS: "30"
+  # Database connections per process (docs/OPERATIONS.md, section 8.2); defaults shown.
+  # Size max_connections of PostgreSQL for all api and worker pods together.
+  # OLLAMAIL_DATABASE_POOL_SIZE: "5"
+  # OLLAMAIL_DATABASE_MAX_OVERFLOW: "10"
+  # Worker liveness (worker.livenessProbe); default shown:
+  # OLLAMAIL_WORKER_HEARTBEAT_INTERVAL_SECONDS: "30"
   # Peers whose X-Forwarded-For/-Proto the api trusts (the frontend pods). Default: loopback
   # and private networks; add the pod CIDR if it lies outside them, e.g.:
   # OLLAMAIL_FORWARDED_ALLOW_IPS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10"
@@ -183,8 +189,16 @@ worker:
       memory: 512Mi
     limits:
       memory: 2Gi
-  # The worker has no HTTP endpoint; set an exec probe here if needed.
-  livenessProbe: {}
+  # Heartbeat file of the worker (python -m app.core.heartbeat): fails after four missed
+  # intervals of OLLAMAIL_WORKER_HEARTBEAT_INTERVAL_SECONDS (default 30 s), i.e. when the
+  # event loop is blocked or a job worker crashed. `{}` disables the probe.
+  livenessProbe:
+    exec:
+      command: ["python", "-m", "app.core.heartbeat"]
+    initialDelaySeconds: 30
+    periodSeconds: 30
+    timeoutSeconds: 10
+    failureThreshold: 3
   podAnnotations: {}
   podLabels: {}
   nodeSelector: {}
@@ -209,6 +223,23 @@ worker:
     - name: all
       replicaCount: 1
       queues: [sync, llm, tts, ocr, default]
+
+# -----------------------------------------------------------------------------
+# Prometheus metrics (OLLAMAIL_METRICS_*, docs/OPERATIONS.md, section 8.3)
+# -----------------------------------------------------------------------------
+# api: <release>-api:8000/metrics (process and database metrics; the frontend does not
+# forward /api/metrics). Workers: port `metrics` (workerPort) of every worker pod. Only IDs,
+# codes and counts, never mail content. A bearer token (OLLAMAIL_METRICS_TOKEN) belongs in
+# secrets.existingSecret.
+metrics:
+  enabled: false
+  workerPort: 9464
+  # Peers (NetworkPolicyPeer) allowed to scrape api and workers when networkPolicy.enabled,
+  # e.g. the namespace of Prometheus. Empty: no extra peers (scraping is then blocked).
+  from: []
+  #  - namespaceSelector:
+  #      matchLabels:
+  #        kubernetes.io/metadata.name: monitoring
 
 # -----------------------------------------------------------------------------
 # frontend (static UI + reverse proxy /api -> api, Caddy)

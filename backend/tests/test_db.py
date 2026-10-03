@@ -117,3 +117,48 @@ async def test_get_db_dependency_uses_test_session(
     stored = await probe_session.scalar(select(Probe).where(Probe.name == "via-api"))
     assert stored is not None
     assert str(stored.id) == response.json()["id"]
+
+
+async def test_process_database_is_shared_and_disposed(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core import db
+
+    monkeypatch.setattr(db, "_process_database", None)
+    first = db.process_database()
+
+    assert db.process_database() is first
+    await db.dispose_process_database()
+    assert db._process_database is None
+    await db.dispose_process_database()  # nothing to do
+
+
+async def test_bound_process_database_is_restored(monkeypatch: pytest.MonkeyPatch) -> None:
+    from app.core import db
+    from app.core.config import get_settings
+
+    monkeypatch.setattr(db, "_process_database", None)
+    bound = db.Database(get_settings().database)
+
+    with db.bind_process_database(bound):
+        assert db.process_database() is bound
+    assert db._process_database is None
+    await bound.dispose()
+
+
+async def test_worker_tasks_share_one_engine(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Jobs of all modules use the process database instead of engines of their own."""
+    from app.ai.settings import runtime
+    from app.core import db
+    from app.mail.sync import tasks as sync_tasks
+    from app.processing import tasks as processing_tasks
+
+    monkeypatch.setattr(db, "_process_database", None)
+    monkeypatch.setattr(runtime, "_resolver", None)
+    shared = db.process_database()
+    try:
+        assert processing_tasks.get_database() is shared
+        assert sync_tasks._database() is shared
+        assert runtime.worker_resolver()._sessionmaker is shared.sessionmaker
+    finally:
+        await runtime.worker_resolver().aclose()
+        monkeypatch.setattr(runtime, "_resolver", None)
+        await db.dispose_process_database()
