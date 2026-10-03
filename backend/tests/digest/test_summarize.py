@@ -48,9 +48,9 @@ async def test_maps_in_small_batches_and_reduces_once(fake_llm: FakeLLM) -> None
     # Every call runs as task "digest" (own model assignable), with a prompt version.
     assert {record.task for record in fake_llm.sink.records} == {LLMTask.DIGEST.value}
     assert [record.prompt_version for record in fake_llm.sink.records] == [
-        "digest_map@1",
-        "digest_map@1",
-        "digest_map@1",
+        "digest_map@2",
+        "digest_map@2",
+        "digest_map@2",
         "digest_reduce@1",
     ]
 

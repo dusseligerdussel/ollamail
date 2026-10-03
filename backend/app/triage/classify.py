@@ -3,16 +3,22 @@ reason. Pure prompt building plus one gateway call; no database access.
 
 The answer schema is built per request with the allowed category keys as ``enum``, so
 endpoints with native structured output can only answer with a valid key.
+
+Prompt injection (#170): the mail goes into a data block with a random tag, and passages
+addressed to an AI assistant are removed before the call (``app.ai.injection``). A mail
+that contained such passages never gets priority 1, and its reason tells the user to
+check the category, so the instructions cannot lift it to the top of the inbox.
 """
 
 import re
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime
 from typing import Annotated, Any, Literal, Protocol
 
 from pydantic import AfterValidator, BaseModel, Field, create_model
 
+from app.ai import injection
 from app.ai.llm import ChatMessage, GenerationOptions, LLMTask
 from app.triage.categories import EffectiveCategory
 from app.triage.prompts import (
@@ -20,6 +26,7 @@ from app.triage.prompts import (
     BUILTIN_EXAMPLES_HEADING,
     BUILTIN_RULES,
     EXAMPLES_HEADING,
+    REVIEW_REASON,
     RULES_HEADING,
     TRIAGE_PROMPT,
 )
@@ -73,6 +80,8 @@ class LLMDecision:
     category: EffectiveCategory
     priority: int
     reason: str
+    # Passages addressed to an AI assistant that were removed before the call.
+    injected_passages: int = 0
 
 
 def clean_text(text: str, limit: int) -> str:
@@ -138,8 +147,18 @@ def render_mail(view: MailView) -> str:
     return "\n".join(lines)
 
 
+def protect(view: MailView) -> tuple[MailView, int]:
+    """``view`` without passages addressed to an AI assistant, and how many there were."""
+    subject = injection.neutralize(view.subject)
+    body = injection.neutralize(view.body)
+    passages = subject.passages + body.passages
+    if not passages:
+        return view, 0
+    return replace(view, subject=subject.text, body=body.text), passages
+
+
 def _render_example(example: Example) -> str:
-    mail = example.mail
+    mail, _ = protect(example.mail)
     excerpt = mail.body.replace("\n", " ")
     return (
         f"- From: {mail.sender_address or 'unknown'} | Subject: {mail.subject} | "
@@ -152,8 +171,13 @@ def build_messages(
     categories: Sequence[EffectiveCategory],
     examples: Sequence[Example],
     language: str | None,
+    *,
+    tag: str | None = None,
 ) -> list[ChatMessage]:
+    """Prompt for ``view``; the mail goes into a data block named ``tag`` (random per
+    call unless given)."""
     lang = TRIAGE_PROMPT.language_for(language)
+    tag = tag or injection.data_tag()
     category_lines = "\n".join(
         f"- {c.key}: {c.name}" + (f". {clean_text(c.description, 500)}" if c.description else "")
         for c in categories
@@ -167,7 +191,8 @@ def build_messages(
         categories=category_lines,
         rules=_render_rules(categories, lang),
         examples=examples_text,
-        mail=render_mail(view),
+        tag=tag,
+        mail=injection.data_block(tag, render_mail(view)),
     )
 
 
@@ -227,6 +252,8 @@ async def classify(
         raise ValueError("no categories to choose from")
     by_key = {category.key: category for category in categories}
     schema = decision_schema(list(by_key))
+    view, injected = protect(view)
+    injection.count("triage", injected)
     messages = build_messages(view, categories, examples, language)
     answer = await llm.complete_structured(
         LLMTask.TRIAGE,
@@ -238,4 +265,10 @@ async def classify(
     )
     values = answer.model_dump()
     reason = clean_text(str(values["assessment"]), REASON_MAX_LENGTH).replace("\n", " ")
-    return LLMDecision(by_key[values["category"]], int(values["priority"]), reason)
+    priority = int(values["priority"])
+    if injected:
+        # Plausibility: a mail that tries to steer the assistant is never urgent, and
+        # the user is asked to check where it landed.
+        priority = max(priority, 2)
+        reason = REVIEW_REASON[TRIAGE_PROMPT.language_for(language)]
+    return LLMDecision(by_key[values["category"]], priority, reason, injected)

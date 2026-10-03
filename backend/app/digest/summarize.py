@@ -21,6 +21,7 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
+from app.ai import injection
 from app.ai.llm import GenerationOptions, LLMGateway, LLMOutputError, LLMTask
 from app.ai.llm.context import estimate_messages_tokens, estimate_tokens, truncate_to_tokens
 from app.core.config import DigestSettings
@@ -148,16 +149,24 @@ class Summarizer:
 
     # -- map -----------------------------------------------------------------------------
 
-    def _mail_block(self, ref: int, mail: MailItem, max_tokens: int) -> str:
-        header = f"[{ref}] From: {mail.sender}\nSubject: {mail.subject}\n"
+    def _mail_block(
+        self, ref: int, mail: MailItem, max_tokens: int, tag: str = "mail", *, record: bool = False
+    ) -> str:
+        """One mail as a data block; passages addressed to an AI assistant are removed
+        (#170) and, with ``record``, counted."""
+        subject = injection.neutralize(mail.subject)
+        text = injection.neutralize(mail.body.strip())
+        if record:
+            injection.count("digest", subject.passages + text.passages)
+        header = f"[{ref}] From: {mail.sender}\nSubject: {subject.text}\n"
         if mail.category:
             header += f"Category: {mail.category}\n"
-        body = truncate_to_tokens(mail.body.strip(), max(50, max_tokens - estimate_tokens(header)))
-        return header + "\n" + body
+        body = truncate_to_tokens(text.text, max(50, max_tokens - estimate_tokens(header)))
+        return injection.data_block(tag, header + "\n" + body, n=ref)
 
     def _map_budget(self, context: int) -> tuple[int, int]:
         """Prompt tokens for the mails of one batch, and at most per mail."""
-        system = DIGEST_MAP.render(self.language, user=self.user_label, mails="")
+        system = DIGEST_MAP.render(self.language, user=self.user_label, tag="mail", mails="")
         fixed = estimate_messages_tokens(system) + 400  # plus JSON schema instructions
         size = self.settings.map_batch_size
         budget = int(context * SAFETY) - fixed - MAP_TOKENS_PER_MAIL * size
@@ -186,8 +195,11 @@ class Summarizer:
         return texts.fallback_sentence(mail.sender, mail.subject, self.language)
 
     async def _map(self, batch: list[tuple[int, MailItem]], per_mail: int) -> dict[int, str]:
-        mails = "\n\n---\n\n".join(self._mail_block(ref, mail, per_mail) for ref, mail in batch)
-        messages = DIGEST_MAP.render(self.language, user=self.user_label, mails=mails)
+        tag = injection.data_tag()
+        mails = "\n\n".join(
+            self._mail_block(ref, mail, per_mail, tag, record=True) for ref, mail in batch
+        )
+        messages = DIGEST_MAP.render(self.language, user=self.user_label, tag=tag, mails=mails)
         options = GenerationOptions(
             temperature=0.2, max_tokens=MAP_TOKENS_PER_MAIL * len(batch) + 100
         )

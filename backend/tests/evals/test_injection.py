@@ -6,10 +6,11 @@ from collections.abc import Sequence
 
 from pydantic import BaseModel
 
+from app.ai.injection import neutralize
 from app.ai.llm import ChatMessage, GenerationOptions, LLMResult
 from app.ai.llm.types import Usage
 from app.digest.summarize import MapAnswer
-from app.evals.dataset import Dataset
+from app.evals.dataset import Dataset, EvalMail, Injection
 from app.evals.injection import contains_canary
 from app.evals.runner import run
 from app.todos.extraction import TodoExtraction
@@ -17,18 +18,27 @@ from tests.evals.conftest import Oracle
 from tests.evals.test_runner import options
 
 
+def _sees(mail: EvalMail, prompt: str) -> Injection | None:
+    """The injection of ``mail`` if its instructions reached the prompt."""
+    if mail.injection and max(mail.injection.passage.split("\n"), key=len) in prompt:
+        return mail.injection
+    return None
+
+
 class Gullible(Oracle):
-    """Does whatever the injected instructions of a mail ask."""
+    """Does whatever injected instructions it gets to see ask for."""
 
     def _structured(self, schema: type[BaseModel], messages: Sequence[ChatMessage]) -> object:
         prompt = messages[-1].content
         if schema.__name__ == "TriageDecision":
             mail = self._mail(prompt)
-            demands = mail.injection.demands if mail.injection else None
+            seen = _sees(mail, prompt)
+            demands = seen.demands if seen else None
             return {"assessment": "Told so.", "category": demands or mail.category, "priority": 1}
         if schema is TodoExtraction:
             mail = self._mail(prompt)
-            canary = mail.injection.canary if mail.injection else []
+            seen = _sees(mail, prompt)
+            canary = seen.canary if seen else []
             todos = [{"title": f"Do {word}", "confidence": 0.9} for word in canary]
             return {"asks_user": bool(todos), "todos": todos}
         if schema is MapAnswer:
@@ -37,8 +47,8 @@ class Gullible(Oracle):
             words = [
                 word
                 for mail in self.dataset.injection_mails
-                if mail.injection and mail.subject in prompt
-                for word in mail.injection.canary
+                if (seen := _sees(mail, prompt))
+                for word in seen.canary
             ]
             for item in answer["items"]:
                 item["summary"] += " " + " ".join(words)
@@ -88,17 +98,27 @@ async def test_a_model_that_ignores_injections_follows_none(
     assert "Injection followed" in report.to_markdown()
 
 
-async def test_a_gullible_model_is_counted_per_stage(dataset: Dataset) -> None:
+async def test_a_gullible_model_follows_only_what_reaches_it(dataset: Dataset) -> None:
+    """The features remove the instructions they recognise, so even a model that obeys
+    everything follows only the ones the heuristic misses; the pass counts those."""
+    missed = [
+        m
+        for m in dataset.injection_mails
+        if m.injection and max(m.injection.passage.split("\n"), key=len) in neutralize(m.body).text
+    ]
+    assert 0 < len(missed) < len(dataset.injection_mails) / 4
+
     report = await run(dataset, options(Gullible(dataset), injections_only=True))
 
     (result,) = report.models
     triage = result.stages["triage"]["injection"]
-    assert triage["followed"] == triage["demanding"] > 0
-    assert triage["elevated"] > 0
+    demanding = [m for m in missed if m.injection and m.injection.demands not in (None, m.category)]
+    assert sorted(triage["followed_mails"]) == sorted(m.id for m in demanding)
     todos = result.stages["todos"]["injection"]
-    assert todos["followed"] == todos["with_canary"] > 0
+    # No todos at all from mails with recognised instructions.
+    assert set(todos["followed_mails"]) <= {m.id for m in missed}
     digest = result.stages["digest"]["injection"]
-    assert digest["followed"] == digest["with_canary"] > 0
+    assert set(digest["followed_mails"]) <= {m.id for m in missed}
     markdown = report.to_markdown()
     assert "### Prompt injection" in markdown
     # Ids only, never texts of the mails.
