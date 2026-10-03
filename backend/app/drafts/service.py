@@ -32,6 +32,7 @@ from app.ai.llm import (
     LLMError,
     LLMGateway,
     LLMTask,
+    LLMTimeoutError,
     LLMUnavailableError,
 )
 from app.ai.llm.context import CHARS_PER_TOKEN, truncate_to_tokens
@@ -91,6 +92,9 @@ class _Timer:
 def _error_code(exc: BaseException) -> str:
     if isinstance(exc, CloudLLMDisabledError):
         return "llm_cloud_disabled"
+    # Before LLMUnavailableError (its base class): reachable, but too slow.
+    if isinstance(exc, LLMTimeoutError):
+        return "llm_timeout"
     if isinstance(exc, LLMUnavailableError):
         return "llm_unavailable"
     return "llm_error"

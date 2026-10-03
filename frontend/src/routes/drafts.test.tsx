@@ -153,6 +153,24 @@ describe("reply drafts in the thread", () => {
     expect(body).toHaveValue("Mein Text");
   });
 
+  it("reports a timeout separately from an outage", async () => {
+    mockReplyApi({ generateError: "llm_timeout" });
+    await openThread();
+    await userEvent.click(await screen.findByRole("button", { name: /^Reply(R)?$/ }));
+    const body = await screen.findByRole("textbox", { name: "Reply text" });
+    await typeInto(body, "Mein Text");
+    await userEvent.click(within(editor()).getByRole("button", { name: "Suggest draft" }));
+    await typeInto(screen.getByRole("textbox", { name: /Short instruction/ }), "{Enter}");
+
+    const alert = await within(editor()).findByRole("alert");
+    expect(alert).toHaveTextContent("No draft created");
+    expect(alert).toHaveTextContent(
+      "The language model took too long. Please try again or write the reply yourself.",
+    );
+    expect(alert).not.toHaveTextContent("cannot be reached");
+    expect(body).toHaveValue("Mein Text");
+  });
+
   it("shows why sending failed and keeps the draft open", async () => {
     mockReplyApi({ sendError: [502, "recipients_refused"] });
     await openThread();

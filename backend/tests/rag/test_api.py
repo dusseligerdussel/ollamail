@@ -178,6 +178,19 @@ async def test_llm_outage_is_reported_in_the_stream(
     assert (await http.get("/rag/conversations")).json() == []
 
 
+async def test_llm_timeout_is_reported_in_the_stream(
+    http: AsyncClient, db_session: AsyncSession, inbox: Inbox, fake_llm: FakeLLM
+) -> None:
+    user = await signed_in(http, db_session, "erika@example.org")
+    await inbox.add(await inbox.mail.mailbox(user.id), FLIGHT)
+    fake_llm.hang_until_deadline()
+
+    events = await ask(http, question="flight")
+
+    assert events[-1] == ("error", {"type": "error", "code": "llm_timeout"})
+    assert (await http.get("/rag/conversations")).json() == []
+
+
 async def test_question_is_validated(http: AsyncClient, db_session: AsyncSession) -> None:
     await signed_in(http, db_session, "erika@example.org")
 

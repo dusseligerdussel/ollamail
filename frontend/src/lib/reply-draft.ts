@@ -27,6 +27,7 @@ export function isUnchangedSuggestion(text: string, suggestion: string | undefin
 /** Error codes of the generation stream, plus `interrupted` for a stream that just ends. */
 export const generateErrors = [
   "llm_unavailable",
+  "llm_timeout",
   "llm_cloud_disabled",
   "llm_error",
   "internal",

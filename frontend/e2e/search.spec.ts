@@ -127,6 +127,18 @@ test("says when the mails do not back an answer", async ({ page }) => {
   await expect(page.getByRole("region", { name: "Sources" })).toHaveCount(0);
 });
 
+test("a model that takes too long is not reported as unreachable", async ({ page }) => {
+  await mockSearch(page, { answer: "timeout" });
+  await page.goto("/search");
+  await searchbox(page).fill(QUESTION);
+  await searchbox(page).press("Enter");
+
+  const alert = page.getByRole("article", { name: QUESTION }).getByRole("alert");
+  await expect(alert).toHaveText(
+    "The language model took too long. Please try again or ask a shorter question.",
+  );
+});
+
 test("history: reopen and delete conversations", async ({ page }) => {
   await mockSearch(page);
   await page.goto("/search");

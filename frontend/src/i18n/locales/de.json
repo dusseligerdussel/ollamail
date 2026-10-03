@@ -1538,6 +1538,7 @@
       "noEvidenceDescription": "In deinen Mails wurde nichts gefunden, das diese Frage belegt beantwortet.",
       "errors": {
         "llm_unavailable": "Das Sprachmodell ist gerade nicht erreichbar. Bitte später erneut versuchen.",
+        "llm_timeout": "Das Sprachmodell hat zu lange gebraucht. Bitte erneut versuchen oder eine kürzere Frage stellen.",
         "llm_cloud_disabled": "Das eingestellte Sprachmodell läuft in der Cloud, Cloud-Modelle sind aber abgeschaltet.",
         "llm_error": "Das Sprachmodell konnte keine Antwort erzeugen.",
         "internal": "Die Antwort konnte nicht erstellt werden.",
@@ -1588,6 +1589,7 @@
     "generateFailed": "Kein Entwurf erstellt",
     "generateErrors": {
       "llm_unavailable": "Das Sprachmodell ist gerade nicht erreichbar. Bitte später erneut versuchen.",
+      "llm_timeout": "Das Sprachmodell hat zu lange gebraucht. Bitte erneut versuchen oder die Antwort selbst schreiben.",
       "llm_cloud_disabled": "Das eingestellte Sprachmodell läuft in der Cloud, Cloud-Modelle sind aber abgeschaltet.",
       "llm_error": "Das Sprachmodell konnte keinen Text erzeugen.",
       "internal": "Der Entwurf konnte nicht erstellt werden.",

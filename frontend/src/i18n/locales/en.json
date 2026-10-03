@@ -1538,6 +1538,7 @@
       "noEvidenceDescription": "Nothing in your mail answers this question with evidence.",
       "errors": {
         "llm_unavailable": "The language model is not reachable right now. Please try again later.",
+        "llm_timeout": "The language model took too long. Please try again or ask a shorter question.",
         "llm_cloud_disabled": "The configured language model runs in the cloud, but cloud models are turned off.",
         "llm_error": "The language model could not produce an answer.",
         "internal": "The answer could not be created.",
@@ -1588,6 +1589,7 @@
     "generateFailed": "No draft created",
     "generateErrors": {
       "llm_unavailable": "The language model cannot be reached right now. Please try again later.",
+      "llm_timeout": "The language model took too long. Please try again or write the reply yourself.",
       "llm_cloud_disabled": "The configured language model runs in the cloud, but cloud models are switched off.",
       "llm_error": "The language model could not write a text.",
       "internal": "The draft could not be created.",
