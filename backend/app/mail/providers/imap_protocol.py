@@ -398,6 +398,17 @@ class UidSet:
     def max(self) -> int:
         return self._ranges[-1][1]
 
+    def newest(self, count: int) -> "UidSet":
+        """The ``count`` highest UIDs (all if there are fewer)."""
+        ranges: list[tuple[int, int]] = []
+        for start, end in reversed(self._ranges):
+            if count <= 0:
+                break
+            first = max(start, end - count + 1)
+            ranges.append((first, end))
+            count -= end - first + 1
+        return UidSet(ranges)
+
     def union(self, other: "UidSet | Iterable[int]") -> "UidSet":
         extra = other._ranges if isinstance(other, UidSet) else ((u, u) for u in other)
         return UidSet((*self._ranges, *extra))

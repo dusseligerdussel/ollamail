@@ -17,6 +17,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import AuditAction
 from app.drafts.models import ReplyDraft
+from app.mail import deletion
+from app.mail.deletion import PurgeResult
 from app.mail.models import Attachment, Mailbox, Message, Thread
 from app.mail.storage import AttachmentStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
@@ -120,6 +122,8 @@ async def test_delete_removes_all_rows_and_files(
     server: FakeServer,
     storage: AttachmentStorage,
     db_session: AsyncSession,
+    deletion_requests: list[uuid.UUID],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dependent = dependent_tables(await foreign_keys(db_session))
     # Another user's mailbox with data must survive.
@@ -186,18 +190,37 @@ async def test_delete_removes_all_rows_and_files(
 
     response = await erika.delete(f"/mailboxes/{mailbox_id}")
 
-    assert response.status_code == 200
+    # Accepted: the data is hidden at once and deleted by the background job (#147).
+    assert response.status_code == 202
     assert response.json() == {
         "mailbox_id": str(mailbox_id),
         "deleted": True,
         "messages": messages,
         "attachments": len(paths),
     }
-    db_session.expunge_all()
-    assert await db_session.get(Mailbox, mailbox_id) is None
+    assert deletion_requests == [mailbox_id]
     [entry] = await audit_rows(db_session, AuditAction.MAILBOX_DELETED)
     assert (entry.actor_kind, entry.actor_id) == ("user", mailbox.owner_user_id)
     assert entry.target_id == str(mailbox_id)
+    [listed] = [m for m in (await erika.get("/mailboxes")).json() if m["id"] == str(mailbox_id)]
+    assert listed["status"]["phase"] == "deleting"
+    assert listed["sync_enabled"] is False
+    assert (await erika.get(f"/mailboxes/{mailbox_id}")).status_code == 404
+    assert (await erika.get("/messages", params={"mailbox_id": str(mailbox_id)})).json()[
+        "items"
+    ] == []
+    assert (await erika.get(f"/messages/{message.id}/thread")).status_code == 404
+    assert (await erika.delete(f"/mailboxes/{mailbox_id}")).status_code == 404
+
+    # The job, in batches smaller than the mailbox.
+    monkeypatch.setattr(deletion, "MESSAGE_BATCH", 2)
+    monkeypatch.setattr(deletion, "THREAD_BATCH", 1)
+    result = await deletion.purge_mailbox(db_session, mailbox_id, storage)
+
+    assert (result.messages, result.deleted) == (messages, True)
+    assert messages > 2 and result.threads > 1
+    db_session.expunge_all()
+    assert await db_session.get(Mailbox, mailbox_id) is None
     assert await row_counts(db_session, dependent) == baseline
     assert (
         await db_session.scalar(
@@ -210,8 +233,9 @@ async def test_delete_removes_all_rows_and_files(
     # The other user's mailbox and files are untouched.
     assert storage.mailbox_dir(other_id).exists()
     assert (await bob.get(f"/mailboxes/{other_id}")).status_code == 200
-    assert (await erika.get(f"/mailboxes/{mailbox_id}")).status_code == 404
-    assert (await erika.delete(f"/mailboxes/{mailbox_id}")).status_code == 404
+    assert str(mailbox_id) not in [m["id"] for m in (await erika.get("/mailboxes")).json()]
+    # A second run (retry, ``mail.resume_deletions``) finds nothing left.
+    assert await deletion.purge_mailbox(db_session, mailbox_id, storage) == PurgeResult()
 
 
 def test_discovery_flags_rows_that_would_stay_behind() -> None:
@@ -224,3 +248,15 @@ def test_discovery_flags_rows_that_would_stay_behind() -> None:
 
     assert dependent_tables(keys) == {"mail_messages", "summaries", "labels"}
     assert cascading_tables(keys) == {"mail_messages"}
+
+
+async def test_a_mailbox_being_removed_can_be_added_again(erika: AsyncClient) -> None:
+    mailbox_id = (await add_mailbox(erika))["id"]
+    assert (await erika.delete(f"/mailboxes/{mailbox_id}")).status_code == 202
+
+    added = await add_mailbox(erika)
+
+    assert added["id"] != mailbox_id
+    phases = {m["id"]: m["status"]["phase"] for m in (await erika.get("/mailboxes")).json()}
+    assert phases[mailbox_id] == "deleting"
+    assert phases[added["id"]] != "deleting"

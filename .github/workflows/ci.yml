@@ -506,6 +506,36 @@ jobs:
           grep -q '^# TYPE ollamail_queue_jobs gauge$' <<< "$api"
           [ "$(scrape worker http://127.0.0.1:9464/metrics none)" = 401 ] || { echo "::error::worker metrics without token"; exit 1; }
           grep -q '^python_info' <<< "$(scrape worker http://127.0.0.1:9464/metrics token)"
+      # #147: JSON under /api is compressed; Server-Sent Events are neither compressed nor
+      # buffered by the internal Caddy.
+      - name: API compression spares Server-Sent Events
+        run: |
+          base=http://127.0.0.1:8080
+          # JSON is compressed (Caddy skips bodies under 512 bytes; the OpenAPI schema is large).
+          headers="$(curl -fsS -o /dev/null -D - -H 'Accept-Encoding: zstd, gzip' "$base/api/openapi.json")"
+          grep -qi '^content-encoding: \(zstd\|gzip\)' <<< "$headers" || { echo "::error::API JSON is not compressed"; exit 1; }
+          # Server-Sent Events need a session: the first admin of this throwaway stack.
+          jar="$RUNNER_TEMP/admin-cookies.txt"
+          curl -fsS -o /dev/null -c "$jar" "$base/api/healthz"
+          csrf="$(awk '$6 == "ollamail_csrf" { print $7 }' "$jar")"
+          token="$(sed -n 's/^OLLAMAIL_SETUP_TOKEN=//p' .env)"
+          curl -fsS -o /dev/null -b "$jar" -c "$jar" "$base/api/setup" \
+            -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' \
+            --data "{\"setup_token\":\"$token\",\"email\":\"smoke-admin@example.org\",\"display_name\":\"Smoke\",\"password\":\"smoke-test-password\"}"
+          # Neither compressed nor buffered: the first line (`retry:`) arrives at once. curl
+          # ends with 28 (timeout) on the open stream.
+          set +e
+          curl -sS -N --max-time 5 -D "$RUNNER_TEMP/sse-headers.txt" -o "$RUNNER_TEMP/sse-body.txt" \
+            -b "$jar" -H 'Accept-Encoding: zstd, gzip' "$base/api/events"
+          code=$?
+          set -e
+          cat "$RUNNER_TEMP/sse-headers.txt"
+          [ "$code" = 28 ] || { echo "::error::the event stream ended early (curl $code)"; exit 1; }
+          grep -qi '^content-type: text/event-stream' "$RUNNER_TEMP/sse-headers.txt" || { echo "::error::no event stream"; exit 1; }
+          if grep -qi '^content-encoding:' "$RUNNER_TEMP/sse-headers.txt"; then
+            echo "::error::the event stream is compressed"; exit 1
+          fi
+          grep -q '^retry:' "$RUNNER_TEMP/sse-body.txt" || { echo "::error::the event stream is buffered"; exit 1; }
       # #137: the runner acts as an outer proxy that appends the real client IP to a value
       # the client forged. Varying the forged part must not yield a fresh IP bucket.
       - name: Forged X-Forwarded-For does not bypass the login IP limit

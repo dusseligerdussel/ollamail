@@ -159,7 +159,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `ai.settings_changed` | KI-Einstellungen im Admin-Bereich: Provider anlegen/ändern/löschen (`details.change`, `provider`, `is_cloud`), Modell-Zuordnung, Profil, Parallelität, Cloud-Freigabe (`details.cloud_enabled`) | aktiv |
 | `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
 | `mailbox.shared`, `mailbox.unshared` | Admin weist ein Shared Mailbox einem Nutzer oder einer Gruppe zu bzw. entzieht es (`/api/admin/shared-mailboxes/{id}/assignments`; je Eintrag `principal`, Nutzer-ID bzw. Gruppenname – nur wenn kurz und ohne `@`, sonst die Zuweisungs-ID – und `provider`; bei `mailbox.shared` das Recht `permission` (`read`/`act`), auch wenn sich nur das Recht ändert); Anlegen eines Shared Mailbox als `mailbox.created` mit `shared: true` | aktiv |
-| `mailbox.deleted` | `app.mail.service.delete_mailbox`; über die Postfach-API mit dem Nutzer als Akteur | aktiv |
+| `mailbox.deleted` | Entfernen angefordert (`app.mail.deletion.request_deletion`, Postfach-API mit dem Nutzer bzw. Admin als Akteur) oder `app.mail.service.delete_mailbox` | aktiv |
 | `mail.sent` | Antwort gesendet (`POST /api/drafts/{id}/send`): Ziel ist das Postfach; `details` nur `draft_id`, `message_id` (beantwortete Mail), `reply_all`, `recipient_count`, `refused` (abgelehnte Empfänger) und `sent_copy` (Kopie in „Gesendet“ abgelegt) | aktiv |
 | `mail.moved` | Mail archiviert, verschoben oder in den Papierkorb gelegt (`POST /api/messages/{id}/actions`, #148): Ziel ist das Postfach; `details` nur `message_id`, `action` (`archive`, `move`, `trash`) und `folder_id` (Ziel) | aktiv |
 | `mail.flagged` | Mail markiert bzw. Markierung entfernt (`PATCH /api/messages/{id}`): `details` `message_id`, `flagged` | aktiv |
@@ -255,8 +255,14 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   `OLLAMAIL_DRAFTS_RETENTION_DAYS` (Standard 30) nicht geändert wurden; Nutzer löschen einzelne
   Entwürfe selbst (`DELETE /drafts/{id}`). Gesendete Mails selbst liegen beim Mail-Anbieter
   (Ordner „Gesendet“) und kommen per Sync wie jede andere Mail in `mail_messages`.
-  Umsetzung API (`DELETE /mailboxes/{id}`, `backend/app/mail/api/`): ruft `delete_mailbox` auf und
-  bestätigt die Löschung mit der Anzahl gelöschter Mails und Anhänge. Neue Tabellen anderer
+  Umsetzung API (`DELETE /mailboxes/{id}`, `backend/app/mail/api/`, #147): markiert das Postfach
+  (`deletion_requested_at`) und antwortet sofort (202) mit der Anzahl der Mails und Anhänge. Ab
+  diesem Commit blendet `app.mail.access` das Postfach und alles daraus (Inbox, Suche, Todos,
+  Triage, RAG, Digest) für alle aus; nur die Postfachliste zeigt es als „Wird gelöscht“. Der Job
+  `mail.delete_mailbox` (`backend/app/mail/deletion.py`) löscht die Mails samt Anhängen, Chunks
+  und Embeddings in Batches zu 500 (je Batch ein Commit, Dateien danach), dann Threads, Postfach
+  und Anhangsverzeichnis. Bricht er ab, setzt ein Retry bzw. der Job `mail.resume_deletions`
+  (alle 15 Minuten) fort; liegen bleibt nichts. Neue Tabellen anderer
   Module (Triage, Suchindex, …) müssen per `ON DELETE CASCADE` an Postfach oder Mail hängen;
   `tests/mail/api/test_mailbox_deletion.py` ermittelt alle Tabellen mit Bezug zum Postfach aus
   dem Schema und schlägt an, wenn eine davon beim Löschen Zeilen zurücklassen würde.

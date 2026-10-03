@@ -103,15 +103,24 @@ def _readable(user_id: uuid.UUID | SQLColumnExpression[uuid.UUID]) -> ColumnElem
 
 
 def accessible_mailbox_ids(user_id: uuid.UUID) -> Select[uuid.UUID]:
-    """Subquery of the IDs of all mailboxes ``user_id`` may read.
+    """Subquery of the IDs of all mailboxes ``user_id`` may read. Mailboxes being removed
+    (``deletion_requested_at``, #147) are excluded: their data disappears at once, while the
+    background job deletes it.
 
     Use it as ``<table>.mailbox_id.in_(accessible_mailbox_ids(user_id))``."""
-    return select(Mailbox.id).where(_readable(user_id))
+    return select(Mailbox.id).where(_readable(user_id), Mailbox.deletion_requested_at.is_(None))
 
 
 def visible_to(user_id: uuid.UUID) -> ColumnElement[bool]:
     """Filter on ``Mailbox`` for the mailboxes ``user_id`` may read."""
     return Mailbox.id.in_(accessible_mailbox_ids(user_id))
+
+
+def listed_to(user_id: uuid.UUID) -> ColumnElement[bool]:
+    """Like ``visible_to``, but including mailboxes being removed: the mailbox list shows
+    them with the status ``deleting`` until the removal is finished. Nothing else may use
+    it."""
+    return Mailbox.id.in_(select(Mailbox.id).where(_readable(user_id)))
 
 
 def permissions(

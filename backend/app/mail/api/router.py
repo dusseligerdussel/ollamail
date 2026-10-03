@@ -2,10 +2,11 @@
 
 Access goes through ``app.mail.access``: owners hold every permission, users assigned to
 a shared mailbox may only read it; any other mailbox answers 404. Connection tests use the
-provider registry, syncing the existing sync job (``app.mail.sync``), removal
-``app.mail.service.delete_mailbox``.
+provider registry, syncing the existing sync job (``app.mail.sync``), removal the
+background job of ``app.mail.deletion``.
 Progress arrives as SSE events: ``mailbox.sync`` from the sync (``progress``, ``done``,
-``failed``) and ``mailbox.changed`` from this API (``created``, ``updated``, ``deleted``).
+``failed``) and ``mailbox.changed`` from this API (``created``, ``updated``, ``deleting``) and
+the removal job (``deleted``).
 """
 
 import uuid
@@ -22,8 +23,7 @@ from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.jobs import JobQueue
 from app.core.logging import get_logger
-from app.mail import access
-from app.mail import service as mail_service
+from app.mail import access, deletion
 from app.mail.access import MailboxPermission
 from app.mail.api import autodiscovery, service
 from app.mail.api.schemas import (
@@ -57,6 +57,7 @@ router = APIRouter(
 )
 
 SyncRequester = Callable[[uuid.UUID], Awaitable[bool]]
+DeletionRequester = Callable[[uuid.UUID], Awaitable[bool]]
 
 
 def get_provider_registry() -> ProviderRegistry:
@@ -78,10 +79,22 @@ def get_sync_requester(request: Request) -> SyncRequester:
     return request_mailbox_sync
 
 
+def get_deletion_requester(request: Request) -> DeletionRequester:
+    """Queues the background removal of a mailbox marked for deletion."""
+    queue: JobQueue = request.app.state.job_queue
+
+    async def request_mailbox_deletion(mailbox_id: uuid.UUID) -> bool:
+        await queue.ensure_open()
+        return await deletion.defer_deletion(mailbox_id)
+
+    return request_mailbox_deletion
+
+
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 RegistryDep = Annotated[ProviderRegistry, Depends(get_provider_registry)]
 StorageDep = Annotated[AttachmentStorage, Depends(get_attachment_storage)]
 SyncRequesterDep = Annotated[SyncRequester, Depends(get_sync_requester)]
+DeletionRequesterDep = Annotated[DeletionRequester, Depends(get_deletion_requester)]
 
 NOT_FOUND: dict[int | str, dict[str, Any]] = {404: {"description": "No such mailbox"}}
 CONNECTION_FAILED: dict[int | str, dict[str, Any]] = {
@@ -123,6 +136,19 @@ async def _request_sync(requester: SyncRequester, mailbox_id: uuid.UUID) -> None
     except Exception as exc:
         log.warning(
             "mail_sync_request_failed", mailbox_id=str(mailbox_id), error_type=type(exc).__name__
+        )
+
+
+async def _request_deletion(remover: DeletionRequester, mailbox_id: uuid.UUID) -> None:
+    """Queue the removal after the commit; ``mail.resume_deletions`` catches up if this
+    fails."""
+    try:
+        await remover(mailbox_id)
+    except Exception as exc:
+        log.warning(
+            "mail_mailbox_deletion_request_failed",
+            mailbox_id=str(mailbox_id),
+            error_type=type(exc).__name__,
         )
 
 
@@ -175,7 +201,7 @@ async def list_mailboxes(current: CurrentSessionDep, db: DbDep) -> list[MailboxR
     mailboxes = list(
         await db.scalars(
             select(Mailbox)
-            .where(access.visible_to(current.user_id))
+            .where(access.listed_to(current.user_id))
             .order_by(Mailbox.display_name, Mailbox.id)
         )
     )
@@ -264,21 +290,23 @@ async def update_mailbox(
     return await _read(db, mailbox, current.user_id)
 
 
-@router.delete("/{mailbox_id}", responses=NOT_FOUND)
+@router.delete("/{mailbox_id}", status_code=status.HTTP_202_ACCEPTED, responses=NOT_FOUND)
 async def delete_mailbox(
-    mailbox_id: uuid.UUID, current: CurrentSessionDep, db: DbDep, storage: StorageDep
+    mailbox_id: uuid.UUID, current: CurrentSessionDep, db: DbDep, remover: DeletionRequesterDep
 ) -> MailboxDeleted:
     """Remove the mailbox and everything derived from it: mails, attachments (including
     the files), threads, folders, sync state, processing results, todos, triage results
-    and the search index. Hard delete; returns what was removed as confirmation."""
+    and the search index. Hard delete in the background (#147): from this response on the
+    mailbox and its data are hidden everywhere; the mailbox list shows it with the status
+    ``deleting`` until the job is done (``mailbox.changed`` ``deleted``). Returns what is
+    being removed as confirmation."""
     mailbox = await _mailbox(db, current.user_id, mailbox_id, MailboxPermission.MANAGE)
     messages, attachments = await service.data_counts(db, mailbox.id)
-    await service.notify(db, mailbox, "deleted")
-    # Records ``mailbox.deleted`` in the audit log, commits (sending the event), then
-    # removes the attachment directory.
-    await mail_service.delete_mailbox(
-        db, mailbox.id, storage, actor=audit.Actor.user(current.user_id)
-    )
+    # Marks the mailbox, records ``mailbox.deleted`` in the audit log, notifies readers.
+    await deletion.request_deletion(db, mailbox, audit.Actor.user(current.user_id))
+    await db.commit()
+    log.info("mail_mailbox_deletion_requested", mailbox_id=str(mailbox_id))
+    await _request_deletion(remover, mailbox_id)
     return MailboxDeleted(mailbox_id=mailbox_id, messages=messages, attachments=attachments)
 
 

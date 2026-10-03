@@ -194,7 +194,8 @@
           "importing": "Importing",
           "syncing": "Syncing",
           "idle": "Up to date",
-          "error": "Sync error"
+          "error": "Sync error",
+          "deleting": "Being removed"
         },
         "pending_one": "{{count}} pending",
         "pending_other": "{{count}} pending",
@@ -869,7 +870,7 @@
       "removeTitle": "Remove shared mailbox?",
       "removeDescription_one": "“{{name}}” and its {{formatted}} message are deleted for everybody, with triage, tasks, search index and access. The mails on the server stay.",
       "removeDescription_other": "“{{name}}” and its {{formatted}} messages are deleted for everybody, with triage, tasks, search index and access. The mails on the server stay.",
-      "removed": "Shared mailbox removed",
+      "removed": "Removing shared mailbox",
       "cancel": "Cancel",
       "notFound": "This shared mailbox does not exist (any more).",
       "permissions": {
@@ -1384,8 +1385,8 @@
     "removeTitle": "Remove mailbox?",
     "removeDescription_one": "{{name}} and its {{formatted}} message, with attachments, tasks and search index, are deleted from ollamail. The mail server is not changed.",
     "removeDescription_other": "{{name}} and its {{formatted}} messages, with attachments, tasks and search index, are deleted from ollamail. The mail server is not changed.",
-    "removed_one": "Mailbox removed ({{formatted}} message deleted)",
-    "removed_other": "Mailbox removed ({{formatted}} messages deleted)",
+    "removed_one": "Removing mailbox ({{formatted}} message)",
+    "removed_other": "Removing mailbox ({{formatted}} messages)",
     "cancel": "Cancel",
     "noProviders": "No mailbox types are available on this server. Ask your administrator.",
     "providerLabel": "Provider",
@@ -1456,6 +1457,7 @@
       "duplicate": "This mailbox has already been added."
     },
     "status": {
+      "deleting": "Being removed",
       "paused": "Paused",
       "error": "Error: {{error}}",
       "pending": "Waiting for the first sync",

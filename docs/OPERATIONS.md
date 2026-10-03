@@ -506,6 +506,11 @@ Anforderungen an den Proxy:
   Antwort-Pufferung abschalten und lange Verbindungen erlauben. Der interne Caddy nutzt dafür
   bereits `flush_interval -1` und 1 h Timeout – der äußere Proxy muss mindestens genauso großzügig
   sein.
+- **Kompression:** Der interne Caddy komprimiert JSON-Antworten der API (`zstd`, `gzip`) und die
+  statischen Dateien, Server-Sent Events (`text/event-stream`) bewusst nicht: komprimierte
+  Streams würden gepuffert. Der äußere Proxy muss nichts komprimieren; wer es dort einschaltet,
+  nimmt `text/event-stream` aus (nginx: nicht in `gzip_types` aufnehmen; Caddy: `encode` mit
+  `match` auf `application/json*`, siehe `frontend/caddy/Caddyfile`).
 
 Die folgenden Beispiele verwenden `mail.example.org` als Hostnamen.
 
@@ -873,6 +878,10 @@ Mailserver mit selbstsigniertem Zertifikat: das CA-Zertifikat dem Container übe
 auch unverschlüsselt) nur in Testumgebungen. Mailserver im eigenen Netz (private oder
 Loopback-Adressen) müssen in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` stehen, sonst lehnt ollamail die
 Verbindung ab ([6.6](#66-upgrade-hinweise-sichere-standardwerte-143)).
+IMAP-Server ohne CONDSTORE (z. B. manche Hoster) melden nicht, welche Flags sich geändert haben;
+ollamail prüft dann je Sync nur die neuesten `OLLAMAIL_MAIL_IMAP_FLAG_WINDOW` Mails (Standard
+1000) und alle Mails einmal in `OLLAMAIL_MAIL_IMAP_FULL_FLAG_SCAN_HOURS` (Standard 24).
+Gelöschte und verschobene Mails werden trotzdem bei jedem Sync erkannt.
 
 **Mail-Sync (Microsoft 365):** Keine dauerhafte Verbindung; der Worker pollt per Delta Query
 (`poll_interval_seconds`, Standard 5 Minuten). Change Notifications sind optional und brauchen
@@ -917,6 +926,11 @@ Der Worker erholt sich selbst von den häufigsten Störungen; manuelles SQL ist 
   ungültige Modellausgabe nach dem Korrektur-Retry, `llm_output_error`/`llm_output_invalid`)
   bleiben fehlgeschlagen. Ein fehlendes Modell also einfach nachladen (`ollama pull …`); die
   betroffenen Mails laufen danach von selbst durch.
+- **Postfach entfernen.** Das Entfernen läuft als Job `mail.delete_mailbox` im Hintergrund
+  (Batches zu 500 Mails, gemessen rund 6 s je 100k Mails ohne Embeddings); bis dahin zeigt die
+  Postfachliste „Wird gelöscht“, die Daten sind schon für niemanden mehr sichtbar. Im Log:
+  `mail_mailbox_deletion_requested` und am Ende `mail_mailbox_deleted`. Bricht der Job ab, setzt
+  `mail.resume_deletions` (alle 15 Minuten) fort.
 - **Von Hand neu verarbeiten:** `python -m app.cli processing reprocess [--mailbox ID]` setzt
   auch dauerhafte Fehler zurück.
 

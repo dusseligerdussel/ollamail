@@ -28,15 +28,15 @@ from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.events import Event, publish
 from app.core.logging import get_logger
-from app.mail import access
-from app.mail import service as mail_service
+from app.mail import access, deletion
 from app.mail.api import service
 from app.mail.api.router import (
     CONNECTION_FAILED,
+    DeletionRequesterDep,
     RegistryDep,
-    StorageDep,
     SyncRequesterDep,
     _connection_failed,
+    _request_deletion,
     _request_sync,
     _require_type,
 )
@@ -74,7 +74,14 @@ _AUDIT_GROUP_LENGTH = 128
 
 
 async def _shared(db: AsyncSession, mailbox_id: uuid.UUID) -> Mailbox:
-    mailbox = await db.scalar(select(Mailbox).where(Mailbox.id == mailbox_id, Mailbox.is_shared))
+    # A mailbox being removed only shows up in the list (status ``deleting``).
+    mailbox = await db.scalar(
+        select(Mailbox).where(
+            Mailbox.id == mailbox_id,
+            Mailbox.is_shared,
+            Mailbox.deletion_requested_at.is_(None),
+        )
+    )
     if mailbox is None:
         raise ProblemError(404, detail="Shared mailbox not found.")
     return mailbox
@@ -340,18 +347,18 @@ async def set_shared_mailbox_assignments(
     return await _read(db, mailbox)
 
 
-@router.delete("/{mailbox_id}", responses=NOT_FOUND)
+@router.delete("/{mailbox_id}", status_code=status.HTTP_202_ACCEPTED, responses=NOT_FOUND)
 async def delete_shared_mailbox(
-    mailbox_id: uuid.UUID, admin: AdminSessionDep, db: DbDep, storage: StorageDep
+    mailbox_id: uuid.UUID, admin: AdminSessionDep, db: DbDep, remover: DeletionRequesterDep
 ) -> MailboxDeleted:
-    """Remove the shared mailbox with all its data (as ``DELETE /mailboxes/{id}``) and
-    its assignments."""
+    """Remove the shared mailbox with all its data and its assignments, in the background
+    (as ``DELETE /mailboxes/{id}``)."""
     mailbox = await _shared(db, mailbox_id)
     messages, attachments = await service.data_counts(db, mailbox.id)
-    await service.notify(db, mailbox, "deleted")
-    await mail_service.delete_mailbox(
-        db, mailbox.id, storage, actor=audit.Actor.user(admin.user_id)
-    )
+    await deletion.request_deletion(db, mailbox, audit.Actor.user(admin.user_id))
+    await db.commit()
+    log.info("mail_mailbox_deletion_requested", mailbox_id=str(mailbox_id))
+    await _request_deletion(remover, mailbox_id)
     return MailboxDeleted(mailbox_id=mailbox_id, messages=messages, attachments=attachments)
 
 

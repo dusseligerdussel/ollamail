@@ -29,10 +29,13 @@ Sync (``fetch_since``), cursor ``{"v": 1, "uidvalidity", "high", "modseq", "know
 * ``modseq``: ``HIGHESTMODSEQ`` at the last sync if the server supports CONDSTORE.
 * ``import``: pending initial import ``{"since": date | None, "below": uid}``: UIDs below
   ``below`` received after ``since`` still have to be fetched.
+* ``flags_at``: last check of the flags of all known messages (servers without CONDSTORE).
 
 Order of one sync: (1) changes of known messages: with QRESYNC one ``UID FETCH ...
 (CHANGEDSINCE m VANISHED)``, with CONDSTORE ``CHANGEDSINCE`` plus a UID search for
-deletions, otherwise all flags of the known range; (2) new messages, oldest first;
+deletions, otherwise the flags of the newest ``imap_flag_window`` known messages and, every
+``imap_full_flag_scan_hours``, of the whole known range, reported in bulk
+(``FlagsReported``, #147); (2) new messages, oldest first;
 (3) the initial import, newest first. Every batch ends with ``CursorAdvanced``, so an
 interrupted import continues where it stopped.
 """
@@ -42,7 +45,7 @@ import ssl
 from collections.abc import AsyncIterator, Awaitable, Callable, Iterable, Iterator
 from contextlib import contextmanager
 from dataclasses import dataclass, field, replace
-from datetime import date, datetime
+from datetime import UTC, date, datetime, timedelta
 from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError
@@ -58,6 +61,7 @@ from app.mail.providers.base import (
     ConnectionFailedError,
     CursorAdvanced,
     CursorInvalidError,
+    FlagsReported,
     MailboxConfig,
     MessageDeleted,
     MessageFetched,
@@ -102,6 +106,8 @@ log = get_logger(__name__)
 CURSOR_VERSION = 1
 # Bytes of message sources fetched per round trip (bounds memory per batch).
 FETCH_BYTES = 16 * 1024 * 1024
+# Flags per ``FlagsReported`` event: bounds one bulk comparison in the database.
+FLAG_REPORT_SIZE = 10_000
 # IDLE is re-issued well before the 29-minute server timeout (RFC 2177); a short cycle also
 # detects connections that NAT gateways dropped silently.
 IDLE_RESTART_SECONDS = 10 * 60
@@ -200,6 +206,8 @@ class _Cursor:
     known: UidSet = field(default_factory=UidSet)
     import_since: date | None = None
     import_below: int | None = None
+    # Last check of the flags of all known messages (without CONDSTORE).
+    flags_at: datetime | None = None
 
     @classmethod
     def load(cls, cursor: SyncCursor) -> "_Cursor":
@@ -209,6 +217,7 @@ class _Cursor:
                 raise ValueError
             pending = data.get("import")
             since = pending.get("since") if pending else None
+            flags_at = data.get("flags_at")
             return cls(
                 uidvalidity=int(data["uidvalidity"]),
                 high=int(data["high"]),
@@ -216,6 +225,7 @@ class _Cursor:
                 known=UidSet.parse(str(data.get("known", ""))),
                 import_since=date.fromisoformat(since) if since else None,
                 import_below=int(pending["below"]) if pending else None,
+                flags_at=datetime.fromisoformat(flags_at) if flags_at else None,
             )
         except (KeyError, TypeError, ValueError):
             raise CursorInvalidError() from None
@@ -233,6 +243,8 @@ class _Cursor:
                 "since": self.import_since.isoformat() if self.import_since else None,
                 "below": self.import_below,
             }
+        if self.flags_at is not None:
+            data["flags_at"] = self.flags_at.isoformat()
         return SyncCursor(data)
 
 
@@ -270,6 +282,8 @@ class ImapProvider:
         self._allow_insecure = instance.allow_insecure_connections
         self._timeout = instance.imap_timeout
         self._batch_size = batch_size or instance.sync_batch_size
+        self._flag_window = instance.imap_flag_window
+        self._full_flag_scan = timedelta(hours=instance.imap_full_flag_scan_hours)
         self._token_provider = token_provider
         self._disabled = frozenset(e.upper() for e in disabled_extensions)
         self._conn: ImapConnection | None = None
@@ -492,9 +506,9 @@ class ImapProvider:
             present = UidSet.of(await self._search(conn, "UID", span))
             vanished = UidSet.of(uid for uid in state.known if uid not in present)
         else:
-            result = await conn.command("UID FETCH", span, "(UID FLAGS)")
-            present = UidSet.of(uid for uid, _ in _flag_updates(result))
-            vanished = UidSet.of(uid for uid in state.known if uid not in present)
+            async for event in self._scan_flags(conn, folder, state, info):
+                yield event
+            return
 
         deleted = [uid for uid in state.known if uid in vanished]
         for uid in deleted:
@@ -503,6 +517,40 @@ class ImapProvider:
             if uid in state.known and uid not in vanished:
                 yield MessageUpdated(make_ref(folder, info.uidvalidity, uid), flags=flags)
         state.known = state.known.difference(deleted)
+
+    async def _scan_flags(
+        self, conn: ImapConnection, folder: str, state: _Cursor, info: SelectInfo
+    ) -> AsyncIterator[SyncEvent]:
+        """Without CONDSTORE the server cannot say what changed, only list the flags of a
+        UID range: one response per message, 200k for a large folder. Each sync checks the
+        flags of the newest ``imap_flag_window`` known messages (where changes happen) and
+        finds deletions and moves with one UID search; the flags of all known messages are
+        checked every ``imap_full_flag_scan_hours`` (#147). Flags go out in bulk
+        (``FlagsReported``), the caller only writes the differences."""
+        now = datetime.now(UTC)
+        due = state.flags_at is None or now - state.flags_at >= self._full_flag_scan
+        scope = state.known if due else state.known.newest(self._flag_window)
+        full = scope.min == state.known.min
+        result = await conn.command("UID FETCH", f"{scope.min}:{scope.max}", "(UID FLAGS)")
+        flags = {uid: value for uid, value in _flag_updates(result) if uid in scope}
+        if full:
+            present: set[int] | dict[int, frozenset[str]] = flags
+        else:
+            span = f"{state.known.min}:{state.known.max}"
+            present = set(await self._search(conn, "UID", span))
+        deleted = [uid for uid in state.known if uid not in present]
+        for uid in deleted:
+            yield MessageDeleted(make_ref(folder, info.uidvalidity, uid))
+        refs = [
+            (make_ref(folder, info.uidvalidity, uid), value)
+            for uid, value in flags.items()
+            if uid in present
+        ]
+        for start in range(0, len(refs), FLAG_REPORT_SIZE):
+            yield FlagsReported(dict(refs[start : start + FLAG_REPORT_SIZE]))
+        state.known = state.known.difference(deleted)
+        if full:
+            state.flags_at = now
 
     async def _new_messages(
         self, conn: ImapConnection, folder: str, state: _Cursor, info: SelectInfo

@@ -86,7 +86,7 @@ class MailProvider(Protocol):  # app/mail/providers/base.py
     capabilities: ProviderCapabilities  # labels, push, server_threads, keywords
     async def list_folders(self) -> list[RemoteFolder]: ...
     def fetch_since(self, folder_id: str, cursor: SyncCursor | None, *, since: datetime | None = None
-                    ) -> AsyncIterator[SyncEvent]: ...  # MessageFetched | MessageUpdated | MessageChanged | MessageDeleted | CursorAdvanced
+                    ) -> AsyncIterator[SyncEvent]: ...  # MessageFetched | MessageUpdated | MessageChanged | MessageDeleted | FlagsReported | CursorAdvanced
     def watch(self, folder_id: str | None = None) -> AsyncIterator[ChangeEvent]: ...  # IMAP IDLE / Graph Webhooks / Gmail Push
     async def move(self, remote_ref: str, target_folder_id: str) -> str: ...  # neue Referenz (IMAP-UIDs ändern sich)
     async def set_flags(self, remote_ref: str, flags: frozenset[str]) -> None: ...
@@ -196,11 +196,18 @@ entfernt sie der nächste Sync; „Rückgängig“ wirkt dort nur bis zu diesem 
   Server (modified UTF-7), `name` dekodiert.
 - **Referenzen:** `remote_ref = "<UIDVALIDITY>:<UID>:<Ordner>"`.
 - **Cursor** pro Ordner: `uidvalidity`, `high` (höchste gesehene UID), `modseq`
-  (HIGHESTMODSEQ), `known` (gespeicherte UIDs als kompaktes Sequence-Set) und `import`
-  (offener Initialimport: `since`, `below`).
+  (HIGHESTMODSEQ), `known` (gespeicherte UIDs als kompaktes Sequence-Set), `import`
+  (offener Initialimport: `since`, `below`) und `flags_at` (letzter vollständiger Flag-Abgleich
+  ohne CONDSTORE).
 - **Ablauf von `fetch_since`:** (1) Änderungen bekannter Mails – mit QRESYNC ein
   `UID FETCH … (CHANGEDSINCE m VANISHED)`, mit CONDSTORE `CHANGEDSINCE` plus UID-Suche für
-  Löschungen, sonst die Flags des bekannten Bereichs; (2) neue Mails (UID > `high`);
+  Löschungen, sonst (#147) die Flags der neuesten `OLLAMAIL_MAIL_IMAP_FLAG_WINDOW` (Standard 1000)
+  bekannten Mails plus eine UID-Suche für Löschungen und Verschiebungen; alle Flags nur alle
+  `OLLAMAIL_MAIL_IMAP_FULL_FLAG_SCAN_HOURS` (Standard 24, Zeitpunkt im Cursor als `flags_at`).
+  Die Flags gehen gebündelt als `FlagsReported` (je 10 000) an die Engine, die sie in einer
+  temporären Tabelle mit dem Bestand vergleicht und nur Abweichungen schreibt – statt eines
+  Events und einer Abfrage je Mail. Älteres als das Fenster, das in einem anderen Client
+  gelesen/markiert wurde, erscheint so spätestens nach einem Tag; (2) neue Mails (UID > `high`);
   (3) Initialimport: `SINCE` = Zeitraum (Standard 90 Tage), **neueste zuerst**, in Batches
   (`OLLAMAIL_MAIL_SYNC_BATCH_SIZE`), Abruf zusätzlich nach Größe gestückelt (max. 16 MB je
   Roundtrip). Nach jedem Batch kommt `CursorAdvanced`, daher setzt ein abgebrochener Import
@@ -274,6 +281,7 @@ Design und Einrichtung: [`providers/gmail.md`](providers/gmail.md). Kurzfassung:
   `SyncSettings.excluded_roles` – Standard Papierkorb und Spam – werden angelegt, aber nicht
   synchronisiert), dann je Ordner (INBOX zuerst) `fetch_since` anwenden: `MessageFetched` →
   `store_message`, `MessageUpdated` → Flags/Ordner, `MessageDeleted` → `delete_messages`,
+  `FlagsReported` → Flags vieler Mails im Block über eine temporäre Tabelle abgleichen,
   `MessageChanged` (Provider kann neu/geändert nicht unterscheiden, z. B. Graph Delta) → bekannt:
   wie `MessageUpdated`, unbekannt: Quelle über `event.load()` laden und speichern. Liegt eine Mail
   in keinem synchronisierten Ordner mehr (z. B. in den Papierkorb verschoben), wird sie gelöscht.
@@ -316,14 +324,14 @@ Design und Einrichtung: [`providers/gmail.md`](providers/gmail.md). Kurzfassung:
 #### Postfach-API (`backend/app/mail/api/`)
 
 Nutzer verwalten ihre eigenen Postfächer unter `/mailboxes`. Die API nutzt Registry, Sync-Job
-und `delete_mailbox`; sie baut nichts davon nach.
+und den Lösch-Job (`app/mail/deletion.py`); sie baut nichts davon nach.
 
 | Endpunkt | Zweck |
 |---|---|
 | `POST /mailboxes/autodiscover` | Host/Port-Vorschläge zur Adresse (bekannte Anbieter, sonst `imap.<domain>`/`mail.<domain>`). Offline, keine DNS-/HTTP-Abfragen; Adresse im Body, damit sie nicht in Access-Logs landet. Hinweise als Codes (`app_password`, `enable_imap`, `oauth_required`, …) |
 | `POST /mailboxes/test` | Verbindungstest ohne Speichern (Provider aus der Registry, `list_folders`). Ergebnis `ok`, Fehlercode oder Ordnerliste für die Ordnerauswahl vor dem Anlegen. Rate-Limit pro Nutzer (`OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS` je 10 Minuten, gemeinsam mit Anlegen und Verbindungsänderung; darüber 429) |
 | `GET/POST /mailboxes` | Eigene Postfächer mit Sync-Status; Anlegen testet die Verbindung (422 mit `error_code`), lehnt Duplikate ab (409) und stößt den Initialimport an |
-| `GET/PATCH/DELETE /mailboxes/{id}` | Details; Umbenennen, Verbindung/Zugangsdaten (vor dem Speichern getestet), Importzeitraum, ausgeschlossene Rollen, Pausieren/Fortsetzen (`sync_enabled`); Entfernen |
+| `GET/PATCH/DELETE /mailboxes/{id}` | Details; Umbenennen, Verbindung/Zugangsdaten (vor dem Speichern getestet), Importzeitraum, ausgeschlossene Rollen, Pausieren/Fortsetzen (`sync_enabled`); Entfernen (202, im Hintergrund, siehe unten) |
 | `GET /mailboxes/{id}/status` | Nur der Sync-Status |
 | `POST /mailboxes/{id}/sync` | Sync sofort anstoßen (202, `queued`); 409, wenn pausiert |
 | `GET/PATCH /mailboxes/{id}/folders` | Ordner mit Auswahl und Status je Ordner; Auswahl setzen |
@@ -349,12 +357,27 @@ und `delete_mailbox`; sie baut nichts davon nach.
   gespeicherten Mails. Ordner mit ausgeschlossener Rolle (Papierkorb, Spam) bleiben aus, bis die
   Rolle aus `excluded_roles` entfernt wird. Der Importzeitraum gilt für Ordner, deren Import noch
   nicht begonnen hat.
+- **Entfernen im Hintergrund** (#147): Ein Postfach kann 200k Mails mit Anhängen, Chunks und
+  Embeddings haben; eine Kaskade in einem Statement hielt den Request minutenlang offen.
+  `DELETE` setzt deshalb nur `deletion_requested_at`, pausiert den Sync, schreibt
+  `mailbox.deleted` ins Audit-Log und reiht den Job `mail.delete_mailbox` ein (Queue `default`,
+  eigener Lock `mailbox_deletion:<id>`, damit ein laufender Import ihn nicht aufhält; ein noch
+  laufender Sync scheitert spätestens am fehlenden Postfach). `access.accessible_mailbox_ids`
+  schließt markierte Postfächer aus, also verschwinden ihre Daten sofort überall; nur
+  `GET /mailboxes` (`access.listed_to`) und die Admin-Liste zeigen sie mit `status.phase =
+  deleting`, alle anderen Endpunkte antworten 404. Der Job löscht Mails in Batches zu 500,
+  neueste zuerst, per Keyset über den Index `(mailbox_id, sort_date, id)` (ohne Keyset müsste jeder
+  Batch die Indexeinträge der schon gelöschten Zeilen überspringen: 42 s statt 6 s für 100k
+  Mails), dann Threads, dann die Postfachzeile mit dem Rest und das Anhangsverzeichnis.
+  `mail.resume_deletions` (alle 15 Minuten) reiht verlorene Löschungen erneut ein. Dasselbe
+  Postfach kann sofort wieder hinzugefügt werden; die Duplikatprüfung ignoriert markierte.
 - **Events:** Neben `mailbox.sync` aus dem Sync sendet die API `mailbox.changed`
-  (`created`, `updated`, `deleted`) an den Besitzer.
+  (`created`, `updated`, `deleting`) an den Besitzer bzw. die Leser, der Lösch-Job am Ende
+  `deleted`.
 - **Jobs aus der API:** `app/core/jobs.py` öffnet die Procrastinate-App beim ersten Einreihen
   (der Start der API hängt nicht an der Queue) und schließt sie beim Shutdown.
-- **Audit:** `mailbox.created` und `mailbox.deleted` (über `delete_mailbox`) mit dem Nutzer als
-  Akteur, in derselben Transaktion wie die Änderung.
+- **Audit:** `mailbox.created` und `mailbox.deleted` (beim Anfordern der Löschung) mit dem Nutzer
+  als Akteur, in derselben Transaktion wie die Änderung.
 
 #### Mail-Lese-API (`backend/app/mail/api/messages.py`)
 
@@ -382,6 +405,9 @@ synthetischen Mails: `backend/tests/perf/` (`OLLAMAIL_TEST_PERF=1`, in der CI ak
 | `GET /messages/{id}/attachments/{attachment_id}` | Download (`Content-Disposition: attachment`, `application/octet-stream`, `nosniff`, CSP `sandbox`). `?inline=true` nur für PNG/JPEG/GIF/WebP (`cid:`-Bilder im HTML) |
 
 - **HTML:** immer serverseitig mit `sanitize_html` bereinigt; das Roh-HTML verlässt den Server nie.
+  Das Bereinigen (bis zu 100 Bodies je Thread) läuft per `asyncio.to_thread` außerhalb des
+  Event-Loops, damit es andere Requests nicht blockiert (#147); ebenso `normalize_message`
+  (MIME-Parsing) beim Speichern im Worker.
   `cid:`-Bilder zeigen auf `/api/messages/{id}/attachments/{aid}?inline=true`.
 - **Gelesen/ungelesen:** Quelle ist der gespeicherte Flag-Satz. `mail.write_flags` (Queue `sync`,
   Lock je Mail) schreibt beim Ausführen den aktuellen Stand per `MailProvider.set_flags`; dauerhafte
@@ -610,6 +636,8 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   gesendet hat (Procrastinate `get_stalled_jobs`/`retry_job`); so gibt ein abgestürzter Worker
   auch die Locks seiner Jobs frei.
 - **Housekeeping:** täglicher Job `worker.remove_old_jobs` löscht abgeschlossene Jobs nach 7 Tagen.
+  `mail.resume_deletions` (alle 15 Minuten) reiht das Entfernen markierter Postfächer erneut ein,
+  falls dessen Job verloren ging (`mail.delete_mailbox`, siehe Postfach-API).
   Aufbewahrungsfristen setzen `privacy.retention` (täglich), `digest.cleanup` (stündlich) und
   `rag.purge_conversations` (täglich) mit den Werten aus Admin → Aufbewahrung durch
   (`app/privacy/policy.py`, sonst Umgebung); `privacy.cleanup_exports` löscht abgelaufene Exporte.
@@ -1330,7 +1358,7 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
   nicht mehr abrufbar. Getestet für jedes Feature in `backend/tests/shared/test_access.py`.
 - **Admin-API** (`/admin/shared-mailboxes`, nur Admins, `app/mail/api/shared.py`): anlegen
   (Verbindungstest, Zugangsdaten verschlüsselt), umbenennen, Zugangsdaten/Sync-Einstellungen,
-  pausieren, Ordner, Sync anstoßen, entfernen (`delete_mailbox`), Zuweisungen ersetzen
+  pausieren, Ordner, Sync anstoßen, entfernen (im Hintergrund wie oben), Zuweisungen ersetzen
   (`PUT …/assignments`, `{"users": [...], "act_users": [...], "groups": [{"group", "provider",
   "permission"}]}`; `act_users` erhalten `act`). Antworten enthalten
   nur Metadaten (Status, Anzahlen, Zuweisungen, `reader_count`), nie Mails. Admins lesen ein
