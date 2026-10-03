@@ -678,10 +678,14 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   Nutzers (Adresse vor Domain), dann `Auto-Submitted` ≠ `no` und Roboter-Absender (`no-reply@`, …) →
   Benachrichtigung, `Precedence: junk` → Spam, `List-Unsubscribe`/`Precedence: bulk|list` → Newsletter,
   Priorität 3. Gespeichert wird der Regelname (`rule`), keine Begründung.
-- **LLM** (`classify.py`, Prompt `triage@1` in `prompts.py`): `LLMGateway.complete_structured` mit
+- **LLM** (`classify.py`, Prompt `triage@2` in `prompts.py`): `LLMGateway.complete_structured` mit
   Task `triage`, Temperatur 0. Das Antwortschema wird je Aufruf gebaut, die erlaubten
-  Kategorie-Schlüssel stehen als `enum` darin. Ergebnis: Kategorie, Priorität 1–3 (1 = hoch), ein Satz
-  Begründung in der UI-Sprache des Nutzers. Die Mail steht als Daten zwischen `<<<`/`>>>`, Text gekürzt
+  Kategorie-Schlüssel stehen als `enum` darin. Ergebnis: Begründung (ein Satz in der UI-Sprache des
+  Nutzers), Kategorie, Priorität 1–3 (1 = hoch) – die Begründung steht im Schema vorn, damit das
+  Modell erst das entscheidende Merkmal nennt und dann wählt. Für die sichtbaren eingebauten
+  Kategorien enthält der Prompt Entscheidungsregeln (`BUILTIN_RULES`, DE/EN), z. B. Antworten auf
+  eigene Anfragen → „Warten auf“, Phishing/Gewinnspiele und Mails, die die Einordnung vorschreiben
+  wollen → Spam (#158, Messung in `docs/operations/model-evals.md` §4.5). Die Mail steht als Daten zwischen `<<<`/`>>>`, Text gekürzt
   auf `OLLAMAIL_TRIAGE_MAX_BODY_CHARS`.
 - **Lernen aus Korrekturen** (`feedback.py`): `PUT /triage/messages/{id}` speichert die Korrektur als
   Ergebnis und als Beispiel (`triage_feedback`). In den Prompt kommen bis zu
@@ -738,16 +742,22 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   `extraction.set_category_lookup(...)`. Mails aus Shared Mailboxes ergeben Team-Todos (siehe
   unten), angesprochen mit dem Namen des Postfachs, Bezugstag in UTC.
   `OLLAMAIL_TODOS_EXTRACTION_ENABLED=false` schaltet den Schritt ab.
-- **Prompt** `todos_extract@1` (`app/ai/prompts/todos.py`, DE/EN) über `LLMGateway.complete_structured`
+- **Prompt** `todos_extract@2` (`app/ai/prompts/todos.py`, DE/EN) über `LLMGateway.complete_structured`
   mit `LLMTask.TODOS`. Das Modell bekommt Absender, Empfänger, Betreff, Text ohne Zitate, das
   Sendedatum (Wochentag + Datum in der Zeitzone des Nutzers), ob der Nutzer die Mail selbst
   geschrieben hat, und die offenen Todos des Threads (nummeriert).
-- **Antwort** (`TodoExtraction`): je Aufgabe Titel, Beschreibung, `due_phrase` (Frist wörtlich aus
+- **Antwort** (`TodoExtraction`): zuerst `asks_user` (bittet die Mail den Nutzer ausdrücklich um
+  etwas?), dann je Aufgabe Titel, Beschreibung, `due_phrase` (Frist wörtlich aus
   der Mail), `due_date` (Schätzung des Modells), Priorität `high|normal|low`, Konfidenz und optional
   `updates` (Nummer eines offenen Todos); dazu `done` (Nummern erledigter Todos). Zu lange Texte werden
-  gekürzt, Konfidenz und Priorität normalisiert, statt die Antwort zu verwerfen.
+  gekürzt, Konfidenz und Priorität normalisiert, statt die Antwort zu verwerfen. Das JSON-Schema
+  koppelt die Liste an `asks_user` (`false` → leere Liste, `true` → 1 bis 5 Einträge); Endpunkte mit
+  nativer strukturierter Ausgabe setzen das als Grammatik durch. Ohne diese Grenze hängten kleine
+  Modelle Einträge an, bis das Tokenlimit erreicht war (#158).
 - **Nachbearbeitung** (`plan_extraction`, ohne DB):
-  - Aufgaben unter `OLLAMAIL_TODOS_MIN_CONFIDENCE` werden verworfen.
+  - Aufgaben unter `OLLAMAIL_TODOS_MIN_CONFIDENCE` werden verworfen, ebenso alle neuen Aufgaben,
+    wenn `asks_user` `false` ist. Von den übrigen bleiben die `OLLAMAIL_TODOS_MAX_PER_MAIL`
+    (Standard 3) mit der höchsten Konfidenz.
   - Mails, die der Nutzer selbst geschrieben hat (Absender = Postfachadresse), erzeugen keine neuen
     Todos, können aber „erledigt“ vorschlagen.
   - **Fälligkeit** (`dates.py`): Die Frist wird deterministisch aus `due_phrase` berechnet,

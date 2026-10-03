@@ -102,7 +102,7 @@ async def test_report_renders_json_and_markdown(dataset: Dataset, oracle: Oracle
     data = json.loads(report.to_json())
     assert [m["model"] for m in data["models"]] == ["a:1b", "b:3b"]
     assert data["run"]["host"]["cpu_count"]
-    assert data["run"]["prompt_versions"]["triage"] == "triage@1"
+    assert data["run"]["prompt_versions"]["triage"] == "triage@2"
     markdown = report.to_markdown()
     assert "| `a:1b` | 100.0 %" in markdown
     assert "## `b:3b`" in markdown

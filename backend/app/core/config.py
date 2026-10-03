@@ -706,6 +706,9 @@ class TodosSettings(BaseSettings):
     )
     # Extracted todos below this model confidence (0-1) are discarded.
     min_confidence: float = Field(default=0.5, ge=0, le=1)
+    # New todos taken from one mail at most (the most confident ones). Mails rarely ask
+    # for more than two things; small models tend to split one request into steps.
+    max_per_mail: int = Field(default=3, ge=1, le=5)
     # Export targets users may connect (app/todos/export/), comma-separated: ``caldav``,
     # ``mstodo`` (Microsoft To Do, needs the Entra app of ``OLLAMAIL_MAIL_GRAPH_*``),
     # ``gtasks`` (Google Tasks, needs the OAuth client of ``OLLAMAIL_GMAIL_*``).

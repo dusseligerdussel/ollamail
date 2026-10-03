@@ -161,6 +161,7 @@ async def run_todos(
             reference=reference,
             min_confidence=settings.min_confidence,
             outgoing=is_outgoing(message, mailbox),
+            max_todos=settings.max_per_mail,
         )
         predicted = [PredictedTodo(p.item.title, p.item.description, p.due) for p in plan.todos]
         report.outcomes.append(

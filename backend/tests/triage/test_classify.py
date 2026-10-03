@@ -133,11 +133,11 @@ def test_decision_schema_restricts_category_and_priority() -> None:
         "important",
         "newsletter",
     ]
-    assert schema.model_validate({"category": "important", "priority": 1, "reason": "r"})
+    assert schema.model_validate({"category": "important", "priority": 1, "assessment": "r"})
     for invalid in (
-        {"category": "other", "priority": 1, "reason": "r"},
-        {"category": "important", "priority": 4, "reason": "r"},
-        {"category": "important", "priority": 2, "reason": ""},
+        {"category": "other", "priority": 1, "assessment": "r"},
+        {"category": "important", "priority": 4, "assessment": "r"},
+        {"category": "important", "priority": 2, "assessment": ""},
     ):
         with pytest.raises(ValidationError):
             schema.model_validate(invalid)
@@ -180,3 +180,52 @@ async def test_classify_needs_categories(fake_llm: FakeLLM) -> None:
 def test_answer_helper_matches_schema() -> None:
     schema = decision_schema(["important"])
     assert schema.model_validate(json.loads(answer("important")))
+
+
+def _builtin(key: str) -> EffectiveCategory:
+    return EffectiveCategory(
+        id=uuid.uuid4(),
+        key=key,
+        name=key.title(),
+        description="",
+        builtin_key=key,
+        owner_user_id=None,
+        position=0,
+        hidden=False,
+    )
+
+
+def test_prompt_has_rules_only_for_visible_builtin_categories() -> None:
+    categories = [_builtin("spam"), _builtin("waiting_for"), _category("project_x", "Project X.")]
+
+    system, _ = build_messages(VIEW, categories, [], "en")
+
+    assert "Check in this order and choose the first category that fits:" in system.content
+    assert "1. spam: unsolicited offers" in system.content
+    assert "2. waiting_for: no request" in system.content
+    assert "action_required:" not in system.content.split("Check in this order")[-1]
+    assert "- project_x:" not in system.content.split("Check in this order")[1]
+
+
+def test_prompt_without_builtin_categories_has_no_rules() -> None:
+    system, _ = build_messages(VIEW, CATEGORIES, [], "de")
+
+    assert "Prüfe in dieser Reihenfolge" not in system.content
+
+
+def test_decision_schema_asks_for_the_reason_first() -> None:
+    # Ollama orders the grammar by property name, so the name has to sort first, too.
+    schema = decision_schema(["important"])
+
+    assert list(schema.model_json_schema()["properties"]) == ["assessment", "category", "priority"]
+
+
+def test_builtin_examples_use_the_category_keys() -> None:
+    categories = [_builtin("spam"), _builtin("info")]
+
+    system, _ = build_messages(VIEW, categories, [], "de")
+
+    examples = system.content.split("Beispiele:\n")[1]
+    assert "Passwort ein. → category=spam" in examples
+    assert "das Parkhaus wird gereinigt. → category=info" in examples
+    assert "category=waiting_for" not in examples
