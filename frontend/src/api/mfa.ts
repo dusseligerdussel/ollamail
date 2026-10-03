@@ -29,6 +29,11 @@ export const mfaStatusQueryOptions = queryOptions({
 export const MFA_EXPIRED = "urn:ollamail:problem:mfa-expired";
 export const MFA_REQUIRED = "urn:ollamail:problem:mfa-required";
 
+/** `POST /auth/login` (and accepting an invitation) answered 202: a second step follows. */
+export function isMfaChallenge(result: object): result is MfaChallenge {
+  return "status" in result && "methods" in result;
+}
+
 export function isMfaExpired(error: unknown) {
   return isApiError(error) && error.problem?.type === MFA_EXPIRED;
 }

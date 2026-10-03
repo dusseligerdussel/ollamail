@@ -72,6 +72,9 @@ config:
   OLLAMAIL_LOG_FORMAT: json
   # Public URL of the web UI (OIDC redirect URIs), e.g. https://mail.example.com
   # OLLAMAIL_AUTH_PUBLIC_URL: ""
+  # Minutes a confirmation before sensitive actions (removing 2FA, data export, account
+  # deletion) stays valid (1-1440, default 10), see docs/auth/mfa.md
+  # OLLAMAIL_AUTH_REAUTH_MINUTES: "10"
   # External LLM endpoint instead of the bundled Ollama, e.g. vLLM:
   # OLLAMAIL_LLM_PROVIDER: openai_compatible
   # OLLAMAIL_LLM_BASE_URL: http://vllm.llm.svc.cluster.local:8000/v1

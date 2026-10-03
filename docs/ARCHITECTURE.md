@@ -1220,13 +1220,19 @@ Cookie (`ollamail_mfa`, Tabelle `auth_mfa_pending`), das an genau diesen Login g
 `/api/auth/mfa/verify*` startet die Session. Für den zweiten Schritt gelten IP-Limit, eine
 eigene Kontosperre und höchstens 5 Versuche je Zwischenzustand. Admins können 2FA für Admins oder
 alle lokalen Konten erzwingen (`auth_policy.mfa_enforcement`); dann wird der Faktor vor der ersten
-Session eingerichtet. RP-ID und Origins kommen aus der Konfiguration
+Session eingerichtet – auch nach einer Einladung oder Selbstregistrierung, die denselben
+Schrittfluss wie der Login nutzen. RP-ID und Origins kommen aus der Konfiguration
 (`OLLAMAIL_AUTH_WEBAUTHN_*`, sonst `OLLAMAIL_AUTH_PUBLIC_URL`).
 
 **Sessions:** Cookie `ollamail_session` (`HttpOnly`, `Secure`, `SameSite=Lax`, 256 Bit Zufall);
 in der DB steht nur der SHA-256. Gültig bis `expires_at` (Lebensdauer) und solange die letzte
 Anfrage weniger als das Idle-Timeout zurückliegt (`last_seen_at`, höchstens minütlich
-geschrieben). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort
+geschrieben). `authenticated_at` hält fest, wann sich der Nutzer in dieser Session zuletzt
+ausgewiesen hat (Login oder Bestätigung); sensible Endpunkte (Faktor entfernen, neue
+Wiederherstellungscodes, Datenexport, Konto löschen) verlangen über `RecentAuthDep`
+(`app/auth/reauth.py`) eine Bestätigung innerhalb von `OLLAMAIL_AUTH_REAUTH_MINUTES` per
+Passwort, TOTP, Passkey oder erneuter (SSO-)Anmeldung, sonst 403 `reauth-required`
+(Details: [`auth/mfa.md`](auth/mfa.md#bestätigung-vor-sensiblen-aktionen-144)). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort
 den Zugriff. Login ersetzt eine vorhandene Session (keine Session Fixation). Endpunkte:
 `GET /api/auth/me`, `PATCH /api/auth/me` (Name, Sprache, Zeitzone), `POST /api/auth/logout`,
 `GET /api/auth/sessions`, `DELETE /api/auth/sessions/{id}`, `DELETE /api/auth/sessions`

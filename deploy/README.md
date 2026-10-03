@@ -158,6 +158,11 @@ Key wechseln:
    verschlüsselt alle gespeicherten Secrets mit dem neuen Key (in einer Transaktion).
 4. `OLLAMAIL_SECRET_KEYS_OLD` leeren und neu starten.
 
+Wiederherstellungscodes für die Zwei-Faktor-Anmeldung sind nur als HMAC gespeichert und lassen
+sich nicht umschlüsseln. Sie funktionieren nach der Rotation weiter, solange der alte Key in
+`OLLAMAIL_SECRET_KEYS_OLD` steht; nach Schritt 4 nicht mehr. Vor Schritt 4 die Nutzer bitten,
+neue Codes zu erzeugen, oder den alten Key dort belassen (`docs/auth/mfa.md`).
+
 ## TLS / Reverse Proxy
 
 Der `frontend`-Container spricht nur HTTP und ist standardmäßig nur unter `127.0.0.1` veröffentlicht

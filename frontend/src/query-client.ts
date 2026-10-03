@@ -3,6 +3,7 @@ import i18n from "i18next";
 import { toast } from "sonner";
 
 import { describeApiError, isApiError } from "@/api/errors";
+import { isReauthCancelled } from "@/api/reauth";
 
 declare module "@tanstack/react-query" {
   interface Register {
@@ -23,6 +24,8 @@ export interface ErrorHandlingMeta extends Record<string, unknown> {
 /** Central error toast for API failures; 401 is handled by the API client (login redirect). */
 export function showErrorToast(error: unknown) {
   if (isApiError(error) && error.isUnauthorized) return;
+  // The user closed the confirmation sheet (components/auth/reauth.tsx): nothing failed.
+  if (isReauthCancelled(error)) return;
   const { title, description } = describeApiError(error, i18n.t);
   // One toast per message: repeated failures replace instead of stacking.
   toast.error(title, { id: title, description });

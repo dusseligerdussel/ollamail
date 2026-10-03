@@ -88,9 +88,14 @@ export function setSignedIn(queryClient: QueryClient, user: User) {
  * Ends the session and loads the login page from scratch, so that no data of the signed-out
  * user stays in memory (query cache, router state).
  */
-export async function logout() {
+export function logout() {
+  return logoutTo("/login");
+}
+
+/** Like `logout`, but continues at `url` (e.g. the login page with a `redirect`). */
+export async function logoutTo(url: string) {
   await unwrap(authApi.POST("/auth/logout"));
-  pageNavigation.assign("/login");
+  pageNavigation.assign(url);
 }
 
 /** Full page navigation (replaceable in tests; jsdom does not navigate). */
