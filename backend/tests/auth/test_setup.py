@@ -90,6 +90,22 @@ async def test_setup_requires_the_token(
     assert await db_session.scalar(select(func.count()).select_from(User)) == 0
 
 
+async def test_setup_attempts_are_rate_limited_per_ip(
+    db_client: AsyncClient, db_session: AsyncSession, settings: Settings
+) -> None:
+    settings.auth.ip_max_attempts = 2
+    for _ in range(2):
+        guess = await db_client.post("/setup", json=_setup_body(settings, setup_token="guess"))
+        assert guess.status_code == 403
+
+    # Blocked before the token check, even with the right token.
+    throttled = await db_client.post("/setup", json=_setup_body(settings))
+
+    assert throttled.status_code == 429
+    assert throttled.json()["type"] == "urn:ollamail:problem:too-many-attempts"
+    assert await db_session.scalar(select(func.count()).select_from(User)) == 0
+
+
 async def test_configured_setup_token_is_used(settings: Settings) -> None:
     settings.security.setup_token = SecretStr("from-the-environment")
 

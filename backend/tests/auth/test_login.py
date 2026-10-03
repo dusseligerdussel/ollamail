@@ -146,6 +146,27 @@ async def test_ip_rate_limit(
     assert response.status_code == 429
 
 
+async def test_forged_forwarded_for_does_not_bypass_ip_rate_limit(
+    db_client: AsyncClient, db_session: AsyncSession, settings: Settings
+) -> None:
+    # An outer proxy appends the real client IP; the client varies the part in front of it.
+    settings.auth.ip_max_attempts = 3
+    for index in range(3):
+        await db_client.post(
+            "/auth/login",
+            json={"email": f"user{index}@example.org", "password": PASSWORD},
+            headers={"X-Forwarded-For": f"6.6.6.{index}, 198.51.100.7"},
+        )
+
+    response = await db_client.post(
+        "/auth/login",
+        json={"email": "another@example.org", "password": PASSWORD},
+        headers={"X-Forwarded-For": "6.6.6.99, 198.51.100.7"},
+    )
+
+    assert response.status_code == 429
+
+
 async def test_inactive_user_cannot_sign_in_and_loses_sessions(
     db_client: AsyncClient, db_session: AsyncSession
 ) -> None:
