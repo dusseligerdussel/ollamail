@@ -43,7 +43,8 @@ export function useTriageInbox({ mailbox, unread, category }: TriageInboxOptions
     () => query.data?.pages.flatMap((page) => page.items) ?? [],
     [query.data],
   );
-  const groups = query.data?.pages[0]?.groups;
+  // Counts come with the first page only.
+  const groups = query.data?.pages[0]?.groups ?? undefined;
   const total = query.data?.pages[0]?.total ?? 0;
 
   const groupName = useCallback(

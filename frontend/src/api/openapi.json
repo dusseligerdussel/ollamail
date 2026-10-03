@@ -5326,8 +5326,15 @@
             "title": "Next Cursor"
           },
           "total": {
-            "title": "Total",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
           }
         },
         "required": [
@@ -9906,11 +9913,18 @@
       "TriagedMessagePage": {
         "properties": {
           "groups": {
-            "items": {
-              "$ref": "#/components/schemas/CategoryCount"
-            },
-            "title": "Groups",
-            "type": "array"
+            "anyOf": [
+              {
+                "items": {
+                  "$ref": "#/components/schemas/CategoryCount"
+                },
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Groups"
           },
           "items": {
             "items": {
@@ -9919,7 +9933,18 @@
             "title": "Items",
             "type": "array"
           },
-          "next_offset": {
+          "next_cursor": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Next Cursor"
+          },
+          "total": {
             "anyOf": [
               {
                 "type": "integer"
@@ -9928,16 +9953,12 @@
                 "type": "null"
               }
             ],
-            "title": "Next Offset"
-          },
-          "total": {
-            "title": "Total",
-            "type": "integer"
+            "title": "Total"
           }
         },
         "required": [
           "items",
-          "next_offset",
+          "next_cursor",
           "total",
           "groups"
         ],
@@ -16792,7 +16813,7 @@
     },
     "/messages": {
       "get": {
-        "description": "Messages of the user's mailboxes, newest first, one row per message. Pages with\n``cursor``; ``total`` counts all matching messages.",
+        "description": "Messages of the user's mailboxes, newest first, one row per message. Pages with\n``cursor``; ``total`` counts all matching messages and comes only with the first page\n(without ``cursor``).",
         "operationId": "messages_list_messages",
         "parameters": [
           {
@@ -19183,7 +19204,7 @@
     },
     "/triage/inbox/messages": {
       "get": {
-        "description": "Inbox messages ordered by category (user's order, uncategorised last), then\npriority, then newest first; with the number of messages per category.",
+        "description": "Inbox messages ordered by category (user's order, uncategorised last), then\npriority, then newest first. Pages with ``cursor``; the first page (without ``cursor``)\nalso carries the total and the number of messages per category.",
         "operationId": "triage_list_inbox_messages",
         "parameters": [
           {
@@ -19246,13 +19267,19 @@
           },
           {
             "in": "query",
-            "name": "offset",
+            "name": "cursor",
             "required": false,
             "schema": {
-              "default": 0,
-              "minimum": 0,
-              "title": "Offset",
-              "type": "integer"
+              "anyOf": [
+                {
+                  "maxLength": 500,
+                  "type": "string"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Cursor"
             }
           },
           {
@@ -19283,7 +19310,7 @@
             "description": "Not signed in"
           },
           "422": {
-            "description": "Unknown or hidden category"
+            "description": "Unknown or hidden category, invalid cursor"
           }
         },
         "summary": "List Inbox Messages",
