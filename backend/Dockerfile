@@ -46,9 +46,14 @@ FROM base AS runtime-base
 # (piper-tts wheels for amd64 and arm64); voices are downloaded into /data at runtime.
 # Tesseract with German and English data recognises scanned attachments (app/search/,
 # OLLAMAIL_SEARCH_OCR_MODE); Debian packages exist for amd64 and arm64.
+# `apt-get upgrade` pulls in Debian security fixes for packages of the base image, so the
+# image does not depend on when Docker Hub rebuilds python:*-slim (e.g. CVE-2026-103111 in
+# libpcre2-8-0, issue #159). It only upgrades installed packages and adds no new ones.
 RUN apt-get update \
-    && apt-get install -y --no-install-recommends ffmpeg \
+    && DEBIAN_FRONTEND=noninteractive apt-get upgrade -y \
+    && DEBIAN_FRONTEND=noninteractive apt-get install -y --no-install-recommends ffmpeg \
        tesseract-ocr tesseract-ocr-deu tesseract-ocr-eng \
+    && apt-get clean \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system --gid 10001 ollamail \
