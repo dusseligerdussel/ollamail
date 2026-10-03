@@ -9,6 +9,7 @@ from app.ai.llm.config import (
 )
 from app.ai.llm.errors import (
     CloudLLMDisabledError,
+    LLMCircuitOpenError,
     LLMError,
     LLMNotReadyError,
     LLMOutputError,
@@ -27,6 +28,7 @@ __all__ = [
     "EndpointConfig",
     "EnvConfigResolver",
     "GenerationOptions",
+    "LLMCircuitOpenError",
     "LLMConfigResolver",
     "LLMError",
     "LLMGateway",

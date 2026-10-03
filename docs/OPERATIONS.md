@@ -848,6 +848,43 @@ Worker HTTPS zu `gmail.googleapis.com` und `oauth2.googleapis.com` (bei Pub/Sub 
 `pubsub.googleapis.com`). Die Service-Account-Schlüsseldatei (`OLLAMAIL_GMAIL_SERVICE_ACCOUNT_FILE`)
 als Docker-Secret einbinden, nie ins Image oder Repo.
 
+### 8.1 Ausfälle: hängende Jobs, LLM nicht erreichbar, fehlgeschlagene Schritte
+
+Der Worker erholt sich selbst von den häufigsten Störungen; manuelles SQL ist nicht nötig.
+
+- **Hängende Jobs.** Wird ein Worker mitten in einem Job beendet (OOM, `SIGKILL` nach der
+  Grace-Period), bliebe der Job für immer „läuft“ – und mit ihm der Lock, etwa der des Postfachs,
+  der jeden weiteren Sync blockiert. Der periodische Job `worker.retry_stalled_jobs` (alle
+  5 Minuten) reiht Jobs erneut ein, deren Worker seit `OLLAMAIL_WORKER_STALLED_AFTER_SECONDS`
+  (Standard 120) keinen Heartbeat mehr gesendet hat (Worker senden alle 10 s einen). Im Log:
+  `worker_stalled_job_retried` mit Job-ID, Task-Name und Queue.
+- **LLM nicht erreichbar.** Scheitern `OLLAMAIL_PROCESSING_LLM_BREAKER_THRESHOLD` (Standard 3)
+  Aufrufe in Folge, weil der Endpunkt nicht antwortet (Verbindungsfehler, HTTP 5xx/429), pausiert
+  der Worker diesen Endpunkt für `OLLAMAIL_PROCESSING_LLM_BREAKER_COOLDOWN_SECONDS` (Standard 30 s;
+  bleibt er unten, jeweils doppelt so lange, höchstens das 16-Fache). Danach testet genau ein
+  Aufruf, ob er wieder da ist. Verarbeitungsschritte warten in dieser Zeit, ohne Versuche zu
+  verbrauchen; es entsteht kein Retry-Sturm gegen den toten Endpunkt. Im Log: `llm_circuit_open`
+  und `llm_circuit_closed`, `processing_step_postponed`. Jeder Worker-Prozess entscheidet für sich.
+- **Fehlgeschlagene Schritte.** Ein Schritt, dessen Versuche aufgebraucht sind, steht auf `failed`.
+  Ist der Grund vorübergehend – LLM nicht erreichbar (`llm_unavailable_error`), Modell fehlt
+  (`model_not_available_error`, wird nicht sofort wiederholt) –, plant der periodische Job
+  `processing.retry_failed` (alle 5 Minuten) ihn automatisch neu ein: nach
+  `OLLAMAIL_PROCESSING_AUTO_RETRY_DELAY_MINUTES` (Standard 15), danach jeweils doppelt so lange
+  (höchstens ein Tag), insgesamt `OLLAMAIL_PROCESSING_AUTO_RETRY_ATTEMPTS`-mal (Standard 6, deckt
+  rund 16 Stunden ab). Zeitüberschreitungen (`llm_timeout_error`) nur
+  `OLLAMAIL_PROCESSING_AUTO_RETRY_TIMEOUT_ATTEMPTS`-mal (Standard 1). Dauerhafte Fehler (z. B.
+  ungültige Modellausgabe nach dem Korrektur-Retry, `llm_output_error`/`llm_output_invalid`)
+  bleiben fehlgeschlagen. Ein fehlendes Modell also einfach nachladen (`ollama pull …`); die
+  betroffenen Mails laufen danach von selbst durch.
+- **Von Hand neu verarbeiten:** `python -m app.cli processing reprocess [--mailbox ID]` setzt
+  auch dauerhafte Fehler zurück.
+
+Für die Statusanzeige zählt `app.processing.service.count_steps_by_mailbox` ausstehende,
+laufende und fehlgeschlagene Schritte (davon: automatische Wiederholung geplant) je Postfach;
+`reset_failed_steps` setzt die fehlgeschlagenen eines Postfachs zurück.
+
+### 8.2 Datenbankverbindungen
+
 Was heute schon gilt: Jeder API- bzw. Worker-Prozess öffnet bis zu
 `OLLAMAIL_DATABASE_POOL_SIZE + OLLAMAIL_DATABASE_MAX_OVERFLOW` Datenbankverbindungen (Standard
 5 + 10). Beim Hochskalieren darauf achten, dass die Summe unter `max_connections` von PostgreSQL
@@ -983,6 +1020,8 @@ curl http://localhost:8080/api/readyz
 | `error from registry: unauthorized` / `pull access denied` für `ghcr.io/dusseligerdussel/ollamail-*` | Kein Zugriff auf die GHCR-Images oder es gibt noch kein Release für `OLLAMAIL_VERSION` (`latest` erst ab dem ersten Release). Lokal bauen ([2.3](#23-starten), Weg A) oder `docker login ghcr.io` ([`deploy/README.md`](../deploy/README.md#zugriff-auf-die-images)). |
 | Setup meldet einen falschen Code oder die Anmeldung schlägt über `http://<ip>:8080` fehl, Hinweis „Unverschlüsselte Verbindung“; API antwortet `403` mit `csrf_failed` | Browser verwerfen die `Secure`-Cookies über HTTP. HTTPS einrichten oder nur zum Testen `OLLAMAIL_AUTH_COOKIE_SECURE=false`, siehe [2.6](#26-http-ohne-tls-testbetrieb). |
 | `setup_pending` im Log ohne `setup_code` | `OLLAMAIL_SETUP_TOKEN` ist gesetzt; diesen Wert im Setup-Assistenten eingeben. |
+| Sync eines Postfachs hängt nach einem Worker-Absturz | Löst sich nach spätestens 5 Minuten plus `OLLAMAIL_WORKER_STALLED_AFTER_SECONDS` von selbst (Abschnitt 8.1). Im Log `worker_stalled_job_retried`. |
+| Viele Mails ohne Triage/Aufgaben, Log `llm_circuit_open` | LLM-Endpunkt nicht erreichbar oder Modell fehlt. Ollama prüfen bzw. Modell laden; die Mails werden automatisch erneut verarbeitet (Abschnitt 8.1). |
 | `setup_token … must be at least 32 characters` (api startet nicht) | `OLLAMAIL_SETUP_TOKEN` zu kurz: `openssl rand -hex 16` eintragen oder leeren. |
 | `uses the placeholder password 'change-me'` (api/migrate starten nicht) | Datenbank-Passwort ändern, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
 | UI aus dem LAN nicht mehr erreichbar | Port ist standardmäßig nur an `127.0.0.1` gebunden; `OLLAMAIL_HTTP_BIND` setzen, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
