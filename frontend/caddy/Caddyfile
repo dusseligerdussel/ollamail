@@ -32,6 +32,14 @@
 
 	# API: strip the /api prefix and forward to FastAPI.
 	handle_path /api/* {
+		# Compress JSON only (#147). Server-Sent Events (text/event-stream) must reach the
+		# browser unbuffered; attachments, audio and exports pass through unchanged.
+		encode zstd gzip {
+			match {
+				header Content-Type application/json*
+				header Content-Type application/problem+json*
+			}
+		}
 		reverse_proxy {$OLLAMAIL_API_UPSTREAM:api:8000} {
 			# Exactly one value: the client IP determined above. Rate limits key on it.
 			header_up X-Forwarded-For {client_ip}

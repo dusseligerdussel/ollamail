@@ -16,7 +16,11 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import MailSettings, Settings, StorageSettings
 from app.core.crypto import configure_keyring, set_keyring
 from app.core.db import get_db
-from app.mail.api.router import get_provider_registry, get_sync_requester
+from app.mail.api.router import (
+    get_deletion_requester,
+    get_provider_registry,
+    get_sync_requester,
+)
 from app.mail.models import FolderRole, MailboxType
 from app.mail.providers.base import AuthenticationError, MailboxConfig, RemoteFolder
 from app.mail.providers.fake import FakeMailProvider
@@ -104,9 +108,24 @@ async def app(
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_provider_registry] = lambda: providers
     app.dependency_overrides[get_sync_requester] = lambda: record_sync
+
+    # Queued removals (``deletion_requests``); the jobs do not run.
+    app.state.deletion_requests = []
+
+    async def record_deletion(mailbox_id: uuid.UUID) -> bool:
+        app.state.deletion_requests.append(mailbox_id)
+        return True
+
+    app.dependency_overrides[get_deletion_requester] = lambda: record_deletion
     yield app
     set_keyring(None)
     await app.state.database.dispose()
+
+
+@pytest.fixture
+def deletion_requests(app: FastAPI) -> list[uuid.UUID]:
+    requests: list[uuid.UUID] = app.state.deletion_requests
+    return requests
 
 
 @pytest.fixture
