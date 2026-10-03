@@ -149,6 +149,20 @@ def oracle(dataset: Dataset) -> Oracle:
     return Oracle(dataset)
 
 
+@dataclass
+class SteppingClock:
+    """Monotonic nanosecond clock that advances by ``step_ns`` on every reading: the
+    gateway reads it once before and once after a call, so every (sequential) call
+    takes exactly ``step_ns`` regardless of how fast the test machine is."""
+
+    step_ns: int = 50_000_000
+    now_ns: int = 0
+
+    def __call__(self) -> int:
+        self.now_ns += self.step_ns
+        return self.now_ns
+
+
 def factory(oracle: Oracle) -> Callable[[EndpointConfig], Oracle]:
     def create(endpoint: EndpointConfig) -> Oracle:
         return oracle

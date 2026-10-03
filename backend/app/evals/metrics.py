@@ -265,11 +265,11 @@ class CallStats:
 
 
 def call_stats(calls: Sequence[LLMCallMetrics]) -> CallStats:
-    seconds = [c.duration_ms / 1000 for c in calls]
+    seconds = [c.seconds for c in calls]
     with_tokens = [c for c in calls if c.success and c.completion_tokens]
     generated = sum(c.completion_tokens or 0 for c in with_tokens)
     processed = generated + sum(c.prompt_tokens or 0 for c in with_tokens)
-    busy = sum(c.duration_ms for c in with_tokens) / 1000
+    busy = sum(c.seconds for c in with_tokens)
     return CallStats(
         calls=len(calls),
         failed=sum(not c.success for c in calls),
