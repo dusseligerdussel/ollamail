@@ -273,7 +273,9 @@ bzw. nicht gestoppt (`exec` und `logs` auf einen laufenden Dienst gehen auch ohn
 
 Auf CPU mit `qwen2.5:3b` brauchen Triage und Aufgaben zusammen etwa **20–60 s pro Mail**
 (Messung auf 4 vCPUs, [`operations/model-evals.md`](operations/model-evals.md), Abschnitt 4.1:
-Triage im Mittel 9,5 s, Aufgaben 46,3 s, Median 14,1 s). Würde jede importierte Mail
+Triage im Mittel 9,5 s, Aufgaben 46,3 s, Median 14,1 s). Seit #158 (Abschnitt 4.5: Triage 8,2 s,
+Aufgaben 8,3 s, keine Timeouts) sind es im Mittel rund 16 s; die Angaben unten bleiben als obere
+Abschätzung stehen. Würde jede importierte Mail
 klassifiziert, dauerte der Standard-Import (90 Tage, oft 5.000–10.000 Mails) **1–4 Tage**. Der
 Suchindex ist dagegen billig: Embeddings für 200 Mails brauchten 35 s, für 10.000 Mails also
 rund eine halbe Stunde. Deshalb gilt:

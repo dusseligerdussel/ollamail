@@ -1,0 +1,330 @@
+{
+  "run": {
+    "started_at": "2026-10-03T09:55:51+00:00",
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+      "cpu_count": 4,
+      "description": "Intel(R) Xeon(R) Processor @ 2.80GHz, 4 logical CPUs, Linux x86_64"
+    },
+    "endpoint": {
+      "provider": "ollama",
+      "base_url": "http://localhost:11434"
+    },
+    "profile": "cpu",
+    "stages": [
+      "triage",
+      "todos"
+    ],
+    "dataset": {
+      "mails": 43,
+      "questions": 21,
+      "languages": [
+        "de",
+        "en"
+      ]
+    },
+    "prefilter": true,
+    "call_timeouts": {
+      "triage": 180.0,
+      "todos": 180.0,
+      "digest": 360.0,
+      "rag_chat": 360.0
+    },
+    "judge_model": null,
+    "prompt_versions": {
+      "triage": "triage@2",
+      "todos_extract": "todos_extract@2",
+      "digest_map": "digest_map@1",
+      "digest_condense": "digest_condense@1",
+      "digest_reduce": "digest_reduce@1",
+      "rag_query": "rag_query@1",
+      "rag_rerank": "rag_rerank@1",
+      "rag_answer": "rag_answer@1",
+      "eval_judge": "eval_judge@1"
+    },
+    "finished_at": "2026-10-03T10:04:39+00:00"
+  },
+  "models": [
+    {
+      "model": "qwen2.5:3b",
+      "seconds": 527.3,
+      "error": null,
+      "timeouts": {
+        "calls": 67,
+        "timed_out": 0,
+        "rate": 0.0
+      },
+      "stages": {
+        "triage": {
+          "mails": 43,
+          "accuracy": 0.6047,
+          "accuracy_model_only": 0.575,
+          "priority_accuracy": 0.5116,
+          "decided_by_rule": 3,
+          "rule_correct": 3,
+          "errors": 0,
+          "recall_per_category": {
+            "important": 0.6667,
+            "action_required": 0.4444,
+            "waiting_for": 0.25,
+            "info": 0.375,
+            "newsletter": 1.0,
+            "notification": 1.0,
+            "spam": 0.3333
+          },
+          "confusion": {
+            "important": {
+              "important": 4,
+              "action_required": 0,
+              "waiting_for": 2,
+              "info": 0,
+              "newsletter": 0,
+              "notification": 0,
+              "spam": 0
+            },
+            "action_required": {
+              "important": 1,
+              "action_required": 4,
+              "waiting_for": 4,
+              "info": 0,
+              "newsletter": 0,
+              "notification": 0,
+              "spam": 0
+            },
+            "waiting_for": {
+              "important": 0,
+              "action_required": 1,
+              "waiting_for": 1,
+              "info": 1,
+              "newsletter": 0,
+              "notification": 1,
+              "spam": 0
+            },
+            "info": {
+              "important": 1,
+              "action_required": 0,
+              "waiting_for": 2,
+              "info": 3,
+              "newsletter": 0,
+              "notification": 2,
+              "spam": 0
+            },
+            "newsletter": {
+              "important": 0,
+              "action_required": 0,
+              "waiting_for": 0,
+              "info": 0,
+              "newsletter": 7,
+              "notification": 0,
+              "spam": 0
+            },
+            "notification": {
+              "important": 0,
+              "action_required": 0,
+              "waiting_for": 0,
+              "info": 0,
+              "newsletter": 0,
+              "notification": 6,
+              "spam": 0
+            },
+            "spam": {
+              "important": 0,
+              "action_required": 1,
+              "waiting_for": 0,
+              "info": 0,
+              "newsletter": 0,
+              "notification": 1,
+              "spam": 1
+            }
+          },
+          "misclassified": [
+            {
+              "mail": "de-a-005",
+              "expected": "important",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "de-a-010",
+              "expected": "info",
+              "predicted": "notification"
+            },
+            {
+              "mail": "de-a-024",
+              "expected": "info",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "de-a-042",
+              "expected": "important",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "de-a-047",
+              "expected": "info",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "de-b-002",
+              "expected": "action_required",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "de-b-006",
+              "expected": "spam",
+              "predicted": "notification"
+            },
+            {
+              "mail": "de-b-016",
+              "expected": "action_required",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "de-b-020",
+              "expected": "waiting_for",
+              "predicted": "info"
+            },
+            {
+              "mail": "de-b-025",
+              "expected": "waiting_for",
+              "predicted": "action_required"
+            },
+            {
+              "mail": "de-b-048",
+              "expected": "action_required",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "en-a-007",
+              "expected": "spam",
+              "predicted": "action_required"
+            },
+            {
+              "mail": "en-a-045",
+              "expected": "info",
+              "predicted": "important"
+            },
+            {
+              "mail": "en-b-013",
+              "expected": "waiting_for",
+              "predicted": "notification"
+            },
+            {
+              "mail": "en-b-018",
+              "expected": "info",
+              "predicted": "notification"
+            },
+            {
+              "mail": "en-b-027",
+              "expected": "action_required",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "en-b-037",
+              "expected": "action_required",
+              "predicted": "important"
+            }
+          ]
+        },
+        "todos": {
+          "mails": 27,
+          "expected_todos": 18,
+          "predicted_todos": 14,
+          "precision": 0.9286,
+          "recall": 0.7222,
+          "f1": 0.8125,
+          "due_date_accuracy": 0.6923,
+          "due_dates_checked": 13,
+          "errors": 0,
+          "skipped_mails": 16,
+          "skipped_expected_todos": 0,
+          "mistakes": [
+            {
+              "mail": "de-a-042",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-002",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 1
+            },
+            {
+              "mail": "de-b-016",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-020",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-048",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 1
+            },
+            {
+              "mail": "en-a-012",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-049",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-027",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 1
+            },
+            {
+              "mail": "en-b-032",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 1
+            }
+          ]
+        }
+      },
+      "calls": {
+        "triage": {
+          "calls": 40,
+          "failed": 0,
+          "timeouts": 0,
+          "seconds_mean": 7.95,
+          "seconds_p50": 7.27,
+          "seconds_p95": 10.17,
+          "prompt_tokens": 41854,
+          "completion_tokens": 1711,
+          "tokens_per_second": 5.38,
+          "processed_tokens_per_second": 137.04,
+          "tokens_estimated": false
+        },
+        "todos": {
+          "calls": 27,
+          "failed": 0,
+          "timeouts": 0,
+          "seconds_mean": 7.75,
+          "seconds_p50": 4.99,
+          "seconds_p95": 19.02,
+          "prompt_tokens": 36147,
+          "completion_tokens": 1211,
+          "tokens_per_second": 5.79,
+          "processed_tokens_per_second": 178.53,
+          "tokens_estimated": false
+        }
+      }
+    }
+  ]
+}

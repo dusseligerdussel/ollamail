@@ -201,7 +201,8 @@ Geschwindigkeit (Mittel je Aufruf; „verarbeitet“ = Prompt- und Antwort-Token
 
 - Mit 4 vCPUs ist `qwen2.5:3b` für alle Tasks zusammen grenzwertig: Die Prompt-Verarbeitung
   (≈ 70–75 Tokens/s) dominiert, eine Mail braucht für Triage und Todos zusammen im Mittel fast
-  eine Minute, RAG-Antworten etwa eine Minute. Für die Triage allein reicht es.
+  eine Minute, RAG-Antworten etwa eine Minute. Für die Triage allein reicht es. Seit #158 (4.5)
+  braucht eine Mail für Triage und Todos zusammen im Mittel rund 16 s.
 - **Antwortlimit und Frist gesetzt lassen** (#133: `OLLAMAIL_LLM_TASK_TODOS_MAX_TOKENS`,
   `OLLAMAIL_LLM_CALL_TIMEOUT`); ohne sie blockierten im Test 30 % der Todo-Aufrufe den Worker.
 - **Kürzerer Kontext** (`OLLAMAIL_LLM_CONTEXT_TOKENS=4096`) senkt Speicherbedarf und die Zeit pro
@@ -221,3 +222,102 @@ Geschwindigkeit (Mittel je Aufruf; „verarbeitet“ = Prompt- und Antwort-Token
 - Der LLM-Judge und das Reranking (im Profil `cpu` aus).
 - RAG mit allen 60 Fragen und `llama3.2:1b` auf dem vollen Datensatz.
 - Vorher/Nachher von #133: #134.
+
+### 4.5 Prompt-Verbesserungen aus #158 (3. Oktober 2026, nur CPU)
+
+**Umgebung:** wie 4.1 (Agent-Container, 4 vCPUs Intel Xeon @ 2,80 GHz, 16 GB RAM, keine GPU),
+Ollama 0.35.1 in Docker, `qwen2.5:3b` (Q4_K_M, GGUF aus `ai/qwen2.5` von Docker Hub), Profil `cpu`
+mit dessen Standardfristen (180 s je Aufruf, Code-Stand nach #133). Berichte:
+[`model-evals/2026-10-03-cpu-158/`](model-evals/2026-10-03-cpu-158/).
+
+**Vorgehen:** Iteriert wurde auf einer festen Stichprobe von 43 Mails (`--limit 43`, alle sieben
+Kategorien, 18 erwartete Aufgaben); die Stichprobe mit 40 Mails enthält zufällig weder „wichtig“ noch
+„Warten auf“ und taugt nicht. Am Ende ein Lauf auf dem vollen Datensatz. Messzeit insgesamt
+etwa 2,5 Stunden.
+
+| Metrik (`qwen2.5:3b`) | vorher, voll (4.1, vor #133) | vorher, Stichprobe 43 | nachher, Stichprobe 43 | **nachher, voll** | Ziel |
+|---|---|---|---|---|---|
+| Triage: Accuracy | 61,0 % | 58,1 % | 72,1 % | **69,0 %** | ≥ 80 % |
+| Triage: nur Modell | 56,4 % | 55,0 % | 70,0 % | **65,4 %** | – |
+| Triage: Priorität richtig | 58,0 % | 60,5 % | 44,2 % | **41,0 %** | – |
+| Todos: Precision | 24,4 % | 25,0 % | 92,9 % | **68,1 %** | ≥ 60 % |
+| Todos: Recall | 63,3 % | 50,0 % | 72,2 % | **78,3 %** | ≥ 60 % |
+| Todos: F1 | 35,2 % | 33,3 % | 81,3 % | **72,9 %** | – |
+| Todos: erkannt / erwartet | 156 / 60 | 36 / 18 | 14 / 18 | **69 / 60** | – |
+| Todos: Frist richtig | 52,6 % | 88,9 % | 69,2 % | **74,5 %** | – |
+| Todos: Timeouts | 38 von 124 | 2 von 27 | 0 | **0 von 124** | – |
+| Triage: s je Aufruf (p95) | 9,5 (12,3) | 7,0 (8,6) | 8,7 (12,2) | **8,2 (11,0)** | – |
+| Todos: s je Aufruf (p95) | 46,3 (120) | 37,1 (180) | 7,8 (19,0) | **8,3 (19,9)** | – |
+
+„Nachher, Stichprobe“: Todos aus dem Lauf mit Todo-Prompt v2 (`after-todos-sample-43`), Triage aus
+dem Lauf mit dem endgültigen Triage-Prompt (`after-triage-sample-43`). Die Baseline-Stichprobe lief
+auf `main` mit #133 (Antwortlimit), die volle Baseline aus 4.1 noch ohne.
+
+Recall je Kategorie, voller Datensatz:
+
+| Kategorie | vorher | nachher |
+|---|---|---|
+| notification | 96 % | 82 % |
+| newsletter | 86 % | 96 % |
+| action_required | 75 % | **93 %** |
+| info | 75 % | **84 %** |
+| important | 46 % | 43 % |
+| waiting_for | 4 % | **29 %** |
+| spam | 15 % | 25 % |
+
+**Was gewirkt hat:**
+
+- **Todos, Schema-Gate** (`asks_user`): Das Modell beantwortet zuerst, ob die Mail den Nutzer
+  ausdrücklich um etwas bittet. Das JSON-Schema koppelt die Liste daran (`false` → leer,
+  `true` → 1–5 Einträge), Ollama setzt das als Grammatik durch. Ursache der Timeouts und eines
+  großen Teils der falschen Aufgaben war, dass `qwen2.5:3b` auch bei Mails ohne Aufgabe Einträge
+  anhängte (`"updates": 1, 2, 3, …`), bis das Tokenlimit erreicht war; danach folgte ein Retry. Mit
+  dem Gate sind Antworten ohne Aufgabe rund 16 Tokens lang. Ergebnis: keine Timeouts mehr, ein
+  Todo-Aufruf dauert im Mittel 8 s statt 37–46 s; Triage und Todos über alle 200 Mails brauchten
+  zusammen 42 Minuten.
+- **Todo-Prompt v2:** Kriterien, was eine Aufgabe ist und was nicht (Bestätigungen, Infos, was
+  andere tun, „nichts zu tun“), „keine Aufgabe“ als häufige, richtige Antwort, zwei synthetische
+  Beispiele. Höchstens `OLLAMAIL_TODOS_MAX_PER_MAIL` (Standard 3) Aufgaben je Mail, die mit der
+  höchsten Konfidenz.
+- **Triage, Few-shot:** je eingebauter Kategorie ein kurzes synthetisches Beispiel. Das brachte auf
+  der Stichprobe den größten Sprung (62,8 % → 72,1 %).
+- **Triage, Begründung zuerst:** Ollama legt die Felder im Schema alphabetisch an; das Feld
+  `reason` kam deshalb nach der Kategorie. Es heißt im Schema jetzt `assessment` und steht vorn
+  (Stichprobe 58,1 % → 62,8 %).
+
+**Was nicht gewirkt hat:**
+
+- Entscheidungsregeln allein (ohne Beispiele, als Liste oder als Prüfreihenfolge): Stichprobe
+  58–60 %, die Fehler verschoben sich nur zwischen „Warten auf“, „Info“ und „Aktion nötig“.
+- **Priorität in den Beispielen bzw. eine Zeile „übliche Priorität je Kategorie“:** Die Priorität
+  stieg auf der Stichprobe auf 72–74 %, die Kategorie fiel aber auf 65 %. Beide Varianten sind
+  verworfen.
+
+**Ziel und Gründe:**
+
+- **Aufgaben-Erkennung: erreicht** (Precision 68,1 % bei Recall 78,3 %).
+- **Triage: nicht erreicht** (69,0 % statt ≥ 80 %). Die verbleibenden Fehler:
+  - Spam (5 von 20 richtig; 13 als „Aktion nötig“): Phishing und Gewinnspiele fordern zu einer
+    Handlung auf, und das 3B-Modell gewichtet „verlangt etwas“ höher als die Spam-Regel. Das
+    betrifft auch die 4 Prompt-Injection-Mails (eigenes Issue).
+  - „Warten auf“ (7 von 24): Ob eine Antwort zu einer eigenen Anfrage gehört, steht oft nur
+    implizit in der Mail; der Prompt kennt die früheren Mails nicht. Ein Signal aus dem Thread
+    (Antwort auf eine gesendete Mail des Nutzers) wäre verlässlicher als jede Formulierung.
+  - „Wichtig“ (12 von 28): Grenze zu „Info“ und „Aktion nötig“ ist auch inhaltlich unscharf.
+  - Mit 43 Mails schwankt die Stichprobe um ± 2,3 Punkte je Mail; der volle Lauf liegt 3 Punkte
+    unter ihr.
+- **Priorität: verschlechtert** (58 % → 41 %). Die Prompt-Änderungen verschieben die Priorität
+  zu „normal“; Versuche, das im Prompt zu korrigieren, kosteten Kategorie-Genauigkeit (siehe oben).
+  Die Kategorie bestimmt Sortierung, Todos und Digest stärker als die Priorität; deshalb ist die
+  Kategorie hier vorgezogen.
+
+**Nicht umgesetzt bzw. nicht gemessen:**
+
+- Zitate und Signaturen entfernt die Pipeline bereits beim Normalisieren (`app.mail.quotes`,
+  `body_main`); der Datensatz enthält keine zitierten Verläufe. Disclaimer-Erkennung: nicht
+  umgesetzt, auf dem Datensatz ohne messbare Wirkung.
+- Weitere Vorfilter-Regeln (Spam-Heuristiken ohne Header): nicht umgesetzt, das Risiko falsch
+  aussortierter persönlicher Mails ist ohne realistischere Daten nicht abschätzbar.
+- Andere Modelle je Profil (z. B. `qwen2.5:7b` für die Triage auf CPU): nicht gemessen; der
+  Profil-Standard bleibt `qwen2.5:3b`.
+- Digest und RAG sind von den Änderungen nicht betroffen und nicht neu gemessen.

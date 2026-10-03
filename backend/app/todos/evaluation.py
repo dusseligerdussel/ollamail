@@ -215,6 +215,7 @@ async def run_case(
         reference=data.reference,
         min_confidence=settings.min_confidence,
         outgoing=is_outgoing(data.message, data.mailbox),
+        max_todos=settings.max_per_mail,
     )
     score = score_case(case, plan)
     score.seconds = time.perf_counter() - started
