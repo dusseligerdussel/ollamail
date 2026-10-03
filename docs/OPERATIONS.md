@@ -417,7 +417,7 @@ Länge, alte und neue Vektoren können nicht nebeneinander liegen.
    2000, Grenze des HNSW-Index).
 2. Worker stoppen: `docker compose -f deploy/compose.yaml stop worker`.
 3. Spalte umstellen: `docker compose -f deploy/compose.yaml run --rm api python -m app.cli search resize`.
-   Das löscht alle Vektoren, ändert die Spalte auf `vector(<n>)` und legt den HNSW-Index neu an
+   Das löscht alle Vektoren, ändert die Spalte auf `halfvec(<n>)` und legt den HNSW-Index neu an
    (in einer Transaktion).
 4. Worker starten. `search.fill_embeddings` baut die Vektoren im Hintergrund neu auf. Bis dahin
    findet die Suche Mails nur per Volltext bzw. mit den schon neu berechneten Vektoren.
@@ -1030,18 +1030,17 @@ der Aufbau des HNSW-Index für die Embeddings sehr lange, sobald er nicht mehr i
 | `POSTGRES_SHM_SIZE` | 1g | `/dev/shm` des Containers; ≥ `maintenance_work_mem`, sonst scheitern parallele Index-Builds |
 
 Die Standardwerte passen zu einem Host mit 8 GB RAM. Größenordnung für den Suchindex mit
-bge-m3 (1024 Dimensionen, `vector` = 4 KB je Embedding): 1 Mio. Abschnitte ≈ 4 GB Tabelle und
-noch einmal etwa so viel HNSW-Index. Für solche Instanzen (16 GB RAM oder mehr)
+bge-m3 (1024 Dimensionen, `halfvec` = 2 KB je Embedding, seit #164): 1 Mio. Abschnitte ≈ 2 GB
+Tabelle und noch einmal etwa so viel HNSW-Index (mit `vector` waren es je rund 4 GB). Für solche Instanzen (16 GB RAM oder mehr)
 `POSTGRES_SHARED_BUFFERS=4GB`, `POSTGRES_MAINTENANCE_WORK_MEM=4GB` und `POSTGRES_SHM_SIZE=5g`
 setzen. Die Werte wirken nach `docker compose -f deploy/compose.yaml up -d postgres` (Neustart
 der Datenbank); prüfen mit `SHOW shared_buffers;`. Für Kubernetes enthält
 [`deploy/helm/examples/cnpg-cluster.yaml`](../deploy/helm/examples/cnpg-cluster.yaml) dieselben
 Parameter; bei verwalteten Datenbanken setzt man sie in der Parametergruppe des Anbieters.
 
-Die Embeddings sind als `vector` (32 Bit je Dimension) gespeichert. `halfvec` (16 Bit, ab
-pgvector 0.7, HNSW bis 4000 Dimensionen) würde Tabelle und Index etwa halbieren, bei kaum
-messbarem Verlust an Suchqualität; die Umstellung braucht eine Migration und einen
-Index-Neuaufbau und ist ein eigenes Folge-Issue (#164).
+Die Embeddings sind als `halfvec` gespeichert (16 Bit je Dimension, ab pgvector 0.7), das
+halbiert Tabelle und Index gegenüber `vector`. Messung und Upgrade-Hinweise:
+[6.7](#67-upgrade-hinweis-embeddings-als-halfvec-164).
 
 ## 9. Datenschutz-Hinweise für Betreiber
 

@@ -109,3 +109,91 @@ async def test_sort_date_is_backfilled_in_batches(empty_database: str) -> None:
         )
         assert changed is not None and changed.year == 2030
     await engine.dispose()
+
+
+async def _embedding_column(url: str) -> tuple[str, str, list[float]]:
+    """Column type, HNSW operator class and the stored vector (single row)."""
+    engine = create_async_engine(url, poolclass=NullPool)
+    async with engine.connect() as connection:
+        column_type = await connection.scalar(
+            text(
+                "SELECT format_type(atttypid, atttypmod) FROM pg_attribute"
+                " WHERE attrelid = 'search_embeddings'::regclass AND attname = 'embedding'"
+            )
+        )
+        opclass = await connection.scalar(
+            text(
+                "SELECT opc.opcname FROM pg_index i"
+                " JOIN pg_class c ON c.oid = i.indexrelid"
+                " JOIN pg_opclass opc ON opc.oid = i.indclass[0]"
+                " WHERE c.relname = 'ix_search_embeddings_embedding_hnsw'"
+            )
+        )
+        stored = await connection.scalar(text("SELECT embedding::text FROM search_embeddings"))
+    await engine.dispose()
+    return str(column_type), str(opclass), [float(v) for v in str(stored).strip("[]").split(",")]
+
+
+async def test_embeddings_are_converted_to_halfvec_and_back(empty_database: str) -> None:
+    """``store_embeddings_as_halfvec`` keeps existing vectors (16-bit precision), keeps
+    the column's dimension and rebuilds the HNSW index for the new type; downgrade
+    converts back."""
+    config = alembic_config(empty_database)
+    await asyncio.to_thread(command.upgrade, config, "5c672b257a5b")
+    engine = create_async_engine(empty_database, poolclass=NullPool)
+    async with engine.begin() as connection:
+        # A column resized away from the configured default (``search resize``).
+        await connection.execute(text("DROP INDEX ix_search_embeddings_embedding_hnsw"))
+        await connection.execute(
+            text("ALTER TABLE search_embeddings ALTER COLUMN embedding TYPE vector(3)")
+        )
+        await connection.execute(
+            text(
+                "CREATE INDEX ix_search_embeddings_embedding_hnsw ON search_embeddings"
+                " USING hnsw (embedding vector_cosine_ops)"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO users (id, email, display_name, role, language, timezone)"
+                " VALUES (gen_random_uuid(), 'vec@example.org', 'Test', 'user', 'en', 'UTC')"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO mail_mailboxes (id, type, display_name, address, owner_user_id)"
+                " SELECT gen_random_uuid(), 'imap', 'Test', 'test@example.org', id FROM users"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO mail_messages (id, mailbox_id, remote_ref, subject, body_text,"
+                " body_main, size) SELECT gen_random_uuid(), id, 'ref', '', '', '', 0"
+                " FROM mail_mailboxes"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO search_chunks (id, message_id, mailbox_id, source, ordinal,"
+                " heading, content, ts_config) SELECT gen_random_uuid(), id, mailbox_id,"
+                " 'body', 0, '', 'text', 'simple' FROM mail_messages"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO search_embeddings (id, chunk_id, model, embedding)"
+                " SELECT gen_random_uuid(), id, 'model', '[0.123456789, -0.5, 0.75]'"
+                " FROM search_chunks"
+            )
+        )
+    await engine.dispose()
+
+    await asyncio.to_thread(command.upgrade, config, "5dab8560b40a")
+    column_type, opclass, stored = await _embedding_column(empty_database)
+    assert (column_type, opclass) == ("halfvec(3)", "halfvec_cosine_ops")
+    assert stored == pytest.approx([0.123456789, -0.5, 0.75], abs=1e-3)
+
+    await asyncio.to_thread(command.downgrade, config, "5c672b257a5b")
+    column_type, opclass, stored = await _embedding_column(empty_database)
+    assert (column_type, opclass) == ("vector(3)", "vector_cosine_ops")
+    assert stored == pytest.approx([0.123456789, -0.5, 0.75], abs=1e-3)

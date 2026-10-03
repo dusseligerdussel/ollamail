@@ -1049,7 +1049,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   `ocr_unavailable`) nur als Statuscode; der Textlayer bleibt dann im Index.
 - **Tabellen:** `search_chunks` (Text, `ts_config` `german`/`english`/`simple` aus der erkannten
   Sprache, generierte `tsvector`-Spalte mit GIN-Index), `search_embeddings` (`chunk_id`, `model`,
-  `embedding vector(n)` mit HNSW-Index, Kosinus), `search_index_state` (aktives Modell). `n` kommt
+  `embedding halfvec(n)` mit HNSW-Index, Kosinus; 16 Bit je Dimension, #164),
+  `search_index_state` (aktives Modell). `n` kommt
   aus `OLLAMAIL_SEARCH_EMBEDDING_DIMENSIONS`; zur Laufzeit gilt die Länge der Datenbankspalte.
 - **Embeddings** über `LLMGateway.embed` (Aufgabe `embeddings`) in Batches
   (`OLLAMAIL_SEARCH_EMBED_BATCH_SIZE`, optional Pause), auf der Queue `llm` mit deren

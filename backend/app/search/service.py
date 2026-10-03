@@ -445,12 +445,12 @@ async def resize_embeddings(session: AsyncSession, dimensions: int, model: str) 
     await session.execute(text("DROP INDEX IF EXISTS ix_search_embeddings_embedding_hnsw"))
     await session.execute(delete(SearchEmbedding))
     await session.execute(
-        text(f"ALTER TABLE search_embeddings ALTER COLUMN embedding TYPE vector({dimensions:d})")
+        text(f"ALTER TABLE search_embeddings ALTER COLUMN embedding TYPE halfvec({dimensions:d})")
     )
     await session.execute(
         text(
             "CREATE INDEX ix_search_embeddings_embedding_hnsw ON search_embeddings"
-            " USING hnsw (embedding vector_cosine_ops)"
+            " USING hnsw (embedding halfvec_cosine_ops)"
         )
     )
     await session.execute(delete(SearchIndexState))
