@@ -1,7 +1,7 @@
 """add session authenticated_at
 
 Revision ID: 23b02eb66722
-Revises: 1efbd562bd72
+Revises: 69dd8258f443
 Create Date: 2026-10-03 00:07:22.621439+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "23b02eb66722"
-down_revision: str | Sequence[str] | None = "1efbd562bd72"
+down_revision: str | Sequence[str] | None = "69dd8258f443"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
