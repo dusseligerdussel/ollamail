@@ -43,7 +43,7 @@ def use_llm(gateway: LLMGateway) -> Iterator[None]:
         _llm = saved
 
 
-@registry.step(STEP, version=1, queue="llm", after=("triage",))
+@registry.step(STEP, version=2, queue="llm", after=("triage",), recent_only=True)
 async def extract(ctx: StepContext) -> None:
     created = await extract_todos(
         ctx.session, ctx.message_id, llm=get_llm(), settings=get_settings().todos

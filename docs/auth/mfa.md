@@ -9,7 +9,7 @@ diese Seite ohne Bedeutung.
 |---|---|---|
 | Passkey (WebAuthn) – zweiter Faktor oder Anmeldung ohne Passwort | [`webauthn`](https://github.com/duo-labs/py_webauthn) | Credential-ID, öffentlicher Schlüssel, Signaturzähler, Name (`auth_mfa_passkeys`) |
 | Authenticator-App (TOTP, RFC 6238: 6 Ziffern, 30 s, SHA-1) | [`pyotp`](https://github.com/pyauth/pyotp), QR-Code lokal mit [`segno`](https://github.com/heuer/segno) | Secret verschlüsselt (`EncryptedStr`), zuletzt verwendeter Zeitschritt (`auth_mfa_totp`) |
-| Wiederherstellungscodes (10 Stück, je ~49 Bit) | – | nur HMAC-SHA256 mit einem aus `OLLAMAIL_SECRET_KEY` abgeleiteten Schlüssel, Zeitpunkt der Verwendung (`auth_mfa_recovery_codes`) |
+| Wiederherstellungscodes (10 Stück, je ~49 Bit) | – | nur HMAC-SHA256 mit einem aus `OLLAMAIL_SECRET_KEY` abgeleiteten Schlüssel, Zeitpunkt der Verwendung (`auth_mfa_recovery_codes`); nach einer Key-Rotation siehe [unten](#wiederherstellungscodes-und-key-rotation) |
 
 Alles hängt per `ON DELETE CASCADE` am Nutzer und verschwindet mit ihm.
 
@@ -64,6 +64,68 @@ dürfen sie ausschließlich die Einrichtungs-Endpunkte aufrufen (`/api/auth/mfa/
 `/api/auth/mfa/passkeys/options`, `POST /api/auth/mfa/passkeys`). Erst die bestätigte
 Einrichtung startet die Session. Bestehende Sessions laufen bis zum nächsten Login weiter.
 
+**Einladung und Registrierung** (#144) laufen über denselben Schrittfluss: Nach dem Festlegen
+des Passworts (`POST /api/auth/invitations/accept`) bzw. der Selbstregistrierung
+(`POST /api/auth/register`) gibt es bei geltender Pflicht **202** (`MfaChallenge`,
+`mfa_enrollment_required`) und noch keine Session; hat das Konto bereits einen Faktor,
+`mfa_required`. Das Passwort ist dann schon gespeichert, die Einladung verbraucht. Die
+Einladungsseite zeigt anschließend dieselben Schritte wie die Login-Seite.
+
+## Bestätigung vor sensiblen Aktionen (#144)
+
+Eine gestohlene Session soll nicht reichen, um die Zwei-Faktor-Authentifizierung abzuschalten
+oder das Konto zu löschen. Diese Endpunkte verlangen deshalb eine **aktuelle Bestätigung**:
+
+| Aktion | Endpunkt |
+|---|---|
+| Authenticator-App entfernen | `DELETE /api/auth/mfa/totp` |
+| Passkey entfernen | `DELETE /api/auth/mfa/passkeys/{id}` |
+| Neue Wiederherstellungscodes | `POST /api/auth/mfa/recovery-codes` |
+| Vollständiger Datenexport | `POST /api/privacy/exports` |
+| Konto löschen | `DELETE /api/privacy/account` (zusätzlich Eingabe der E-Mail-Adresse) |
+
+Jede Session speichert `authenticated_at` (Anmeldung oder letzte Bestätigung). Liegt das länger
+als `OLLAMAIL_AUTH_REAUTH_MINUTES` (Standard 10) zurück, antworten die Endpunkte mit **403**
+`urn:ollamail:problem:reauth-required` (`reauth_minutes`). Die Web-UI öffnet dann das Sheet
+„Bestätige, dass du es bist“ und führt die Aktion nach der Bestätigung erneut aus; Abbrechen
+ändert nichts. Sessions von vor dem Update gelten ab ihrem Anmeldezeitpunkt.
+
+`GET /api/auth/reauth` nennt die Möglichkeiten des Kontos (`methods`) und wie lange die
+aktuelle Bestätigung noch gilt (`valid_until`):
+
+| Methode | Für | Endpunkt |
+|---|---|---|
+| `password` | Konten mit lokalem Passwort | `POST /api/auth/reauth` (`{"method": "password", "password": …}`) |
+| `webauthn` | Konten mit Passkey (und konfigurierter RP-ID) | `POST /api/auth/reauth/passkey/options`, dann `POST /api/auth/reauth/passkey` |
+| `totp` | Konten mit Authenticator-App | `POST /api/auth/reauth` (`{"method": "totp", "code": …}`), jeder Zeitschritt nur einmal |
+| `sso` | Sessions eines Redirect-Providers (OIDC, GitHub, SAML), solange er aktiv ist | erneute Anmeldung über `login_path` mit `return_to`; die neue Session beginnt mit frischem `authenticated_at` |
+| `signin` | alle (z. B. LDAP-Konten) | abmelden und neu anmelden, danach zurück zur Seite |
+
+Wiederherstellungscodes zählen bewusst nicht: Sie sind der letzte Ausweg bei verlorenem Faktor
+und sollen nicht nebenbei verbraucht werden.
+
+**Warum SSO-Konten sich beim Provider neu anmelden:** ollamail kennt für sie weder Passwort noch
+zweiten Faktor (die verwaltet der Identity-Provider). Die erneute Anmeldung beweist, dass der
+Browser eine gültige Sitzung beim Provider hat bzw. dessen Anmeldung (inkl. seines zweiten
+Faktors) besteht – ein gestohlenes ollamail-Session-Cookie allein bringt das nicht mit. Ein
+eigener zweiter Faktor in ollamail für SSO-Konten würde die Faktorverwaltung doppeln.
+
+**Schutz gegen Raten:** Bestätigungsversuche zählen je Konto mit den Werten der Login-Sperre
+(`OLLAMAIL_AUTH_LOGIN_MAX_ATTEMPTS` je `OLLAMAIL_AUTH_LOGIN_WINDOW_MINUTES`, danach 429); die
+Session bleibt bestehen. Audit: `auth.reauthenticated` (`method`) und `auth.reauth_failed`
+(`method`, `reason`: `invalid_credentials`, `invalid_passkey`), Ziel ist die Session.
+
+## Wiederherstellungscodes und Key-Rotation
+
+Die Codes sind HMACs mit einem aus `OLLAMAIL_SECRET_KEY` abgeleiteten Schlüssel und lassen sich
+nicht neu verschlüsseln. Bei der Prüfung werden deshalb auch die Schlüssel aus
+`OLLAMAIL_SECRET_KEYS_OLD` versucht; ein so erkannter Code wird als verwendet markiert und mit dem
+aktuellen Schlüssel neu gehasht. Codes von vor einer Rotation gelten also, solange der alte Key in
+`OLLAMAIL_SECRET_KEYS_OLD` steht. Wer ihn nach `rotate-keys` entfernt
+([`deploy/README.md`](../../deploy/README.md#master-key-und-key-rotation)), macht diese Codes
+ungültig – vorher die Nutzer neue Codes erzeugen lassen (Einstellungen → Sicherheit → „Neue
+Codes“) oder den alten Key dort stehen lassen.
+
 ## Konfiguration
 
 | Variable | Bedeutung |
@@ -71,6 +133,7 @@ Einrichtung startet die Session. Bestehende Sessions laufen bis zum nächsten Lo
 | `OLLAMAIL_AUTH_WEBAUTHN_RP_ID` | Relying-Party-ID: die Domain der Web-UI, z. B. `mail.example.org`. Leer: aus `OLLAMAIL_AUTH_PUBLIC_URL` |
 | `OLLAMAIL_AUTH_WEBAUTHN_ORIGINS` | Erlaubte Origins als JSON-Liste, z. B. `["https://mail.example.org"]`. Leer: `OLLAMAIL_AUTH_PUBLIC_URL` |
 | `OLLAMAIL_AUTH_MFA_PENDING_MINUTES` | Gültigkeit des Zwischenzustands nach dem Passwort (1–30, Standard 5) |
+| `OLLAMAIL_AUTH_REAUTH_MINUTES` | Wie lange eine Bestätigung vor sensiblen Aktionen gilt (1–1440, Standard 10) |
 
 RP-ID und Origin kommen nur aus der Konfiguration, nie aus Request-Headern. Ohne beides sind
 Passkeys nicht verfügbar (TOTP funktioniert trotzdem). Wer die RP-ID später ändert, macht alle

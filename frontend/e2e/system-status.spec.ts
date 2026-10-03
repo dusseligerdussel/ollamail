@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-import { mockAdmin, processingMailboxIds, systemModels } from "./mock-admin";
+import { mockAdmin, processingMailboxIds, sharedMailboxIds, systemModels } from "./mock-admin";
 import { mockApi } from "./mock-api";
 import { mockMail } from "./mock-mail";
 
@@ -85,7 +85,7 @@ test("users see a mailbox that cannot sync and no model status", async ({ page }
           display_name: "Arbeit",
           address: "erika@example.org",
           is_shared: false,
-          permissions: ["act", "manage", "read", "sync"],
+          permissions: ["act", "manage", "read", "send", "sync"],
           provider_settings: {},
           has_credentials: true,
           sync_enabled: true,
@@ -145,4 +145,27 @@ test("admins retry the failed processing of a mailbox", async ({ page }) => {
 
   await expect(page.getByText("3 mails queued again")).toBeVisible();
   expect(retried).toBe(true);
+});
+
+test("admins classify the older mails of a mailbox", async ({ page }) => {
+  await mockApi(page);
+  await mockMail(page);
+  await mockAdmin(page);
+  let included = false;
+  await page.route(
+    `**/api/admin/system/mailboxes/${sharedMailboxIds.support}/include-older`,
+    (route) => {
+      included = true;
+      return route.fulfill({ json: { queued: 1840 } });
+    },
+  );
+
+  await page.goto("/admin");
+  const processing = page.getByRole("region", { name: "Processing per mailbox" });
+  const support = processing.getByRole("listitem").filter({ hasText: "Support" });
+  await expect(support).toContainText("1840 older mails searchable only");
+  await support.getByRole("button", { name: "Classify older mails too" }).click();
+
+  await expect(page.getByText("1840 older mails queued for triage and todos")).toBeVisible();
+  expect(included).toBe(true);
 });

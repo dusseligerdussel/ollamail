@@ -185,11 +185,22 @@ anbinden.
 
 ### Verbindungen
 
-Jeder API- und Worker-Prozess öffnet bis zu `OLLAMAIL_DATABASE_POOL_SIZE +
-OLLAMAIL_DATABASE_MAX_OVERFLOW` Verbindungen (Standard 5 + 10), Worker zusätzlich einige für
-die Job-Queue. Bei vielen Replikaten `max_connections` der Datenbank anpassen oder einen
-Pooler vorschalten (CloudNativePG: `Pooler`, Modus `session` – `LISTEN/NOTIFY` und
-Advisory-Locks funktionieren nicht im `transaction`-Modus).
+Jeder Pod hat einen gemeinsamen SQLAlchemy-Pool (`OLLAMAIL_DATABASE_POOL_SIZE +
+OLLAMAIL_DATABASE_MAX_OVERFLOW`, Standard 5 + 10) plus Job-Queue und `LISTEN`-Verbindungen: mit
+Standardwerten höchstens **21 je API-Pod** und **33 je Worker-Pod** mit allen Queues. Die
+Formel je Worker-Gruppe steht in [`OPERATIONS.md` §8.2](../OPERATIONS.md#82-datenbankverbindungen).
+`max_connections` der Datenbank muss die Summe über alle Replikate plus Reserve abdecken
+(PostgreSQL-Standard: 100; das CloudNativePG-Beispiel setzt 200). Alternativ einen Pooler
+vorschalten (CloudNativePG: `Pooler`, Modus `session` – `LISTEN/NOTIFY` und Advisory-Locks
+funktionieren nicht im `transaction`-Modus).
+
+### Tuning für pgvector
+
+PostgreSQL-Standardwerte machen den Aufbau des HNSW-Index langsam. Das Beispiel
+[`examples/cnpg-cluster.yaml`](../../deploy/helm/examples/cnpg-cluster.yaml) setzt unter
+`spec.postgresql.parameters` `shared_buffers`, `effective_cache_size`,
+`maintenance_work_mem`, `work_mem` und `max_connections` für einen Knoten mit 8 GB RAM;
+Richtwerte für große Suchindizes in [`OPERATIONS.md` §8.4](../OPERATIONS.md#84-postgresql-tuning-pgvector).
 
 ## 5. Secrets
 
@@ -328,8 +339,11 @@ Gruppe), `resources`, `nodeSelector`, `tolerations`, `affinity`, `topologySpread
   Postfächer der Queue `sync` verteilen sich über Advisory-Locks auf die Worker.
 - Beim Stoppen bekommen laufende Jobs `worker.shutdownTimeout` Sekunden (Standard 30);
   Kubernetes wartet `worker.terminationGracePeriodSeconds` (Standard 45).
-- Der Worker hat keinen HTTP-Endpunkt und deshalb standardmäßig keine Probe. Abstürze
-  beenden den Prozess (Exit-Code 1), Kubernetes startet ihn neu.
+- Liveness: `worker.livenessProbe` führt `python -m app.core.heartbeat` aus. Die Probe schlägt
+  fehl, wenn der Worker seine Heartbeat-Datei (`/tmp`, Intervall
+  `OLLAMAIL_WORKER_HEARTBEAT_INTERVAL_SECONDS`, Standard 30 s) seit vier Intervallen nicht
+  erneuert hat – Event-Loop blockiert oder ein Job-Worker abgestürzt. Abstürze des ganzen
+  Prozesses beenden ihn ohnehin (Exit-Code 1). `worker.livenessProbe: {}` schaltet die Probe ab.
 - Wie viele LLM-Anfragen gleichzeitig laufen, steuert `OLLAMAIL_LLM_CONCURRENCY`
   (zur Laufzeit im Admin-Bereich unter „KI“ änderbar).
 
@@ -444,8 +458,8 @@ Damit erfüllen die Pods den Pod Security Standard **restricted**
 | Ziel | Erlaubt von |
 |---|---|
 | `frontend` :8080 | `networkPolicy.frontend.from` (z. B. Namespace des Ingress-Controllers), leer = alle |
-| `api` :8000 | nur `frontend` |
-| `worker` | niemand |
+| `api` :8000 | `frontend`; mit `metrics.enabled` zusätzlich `metrics.from` |
+| `worker` | niemand; mit `metrics.enabled` `metrics.from` auf Port `metrics` (9464) |
 | `ollama` :11434 | `api` und Worker |
 
 `networkPolicy.egress.enabled: true` schränkt zusätzlich den ausgehenden Verkehr von `api`,
@@ -484,6 +498,30 @@ helm -n ollamail test ollamail                                   # /api/readyz �
 `/healthz` (Liveness) prüft nur den Prozess, `/readyz` (Readiness) die Datenbank und optional
 das LLM. Ist die Datenbank nicht erreichbar, nimmt Kubernetes alle API-Pods aus dem Service,
 startet sie aber nicht neu.
+
+**Metriken (Prometheus):** `metrics.enabled: true` setzt `OLLAMAIL_METRICS_ENABLED` und öffnet
+an jedem Worker-Pod den Port `metrics` (`metrics.workerPort`, Standard 9464). Die API liefert
+unter `<release>-api:8000/metrics` ihre Prozess-Metriken und die Datenbank-Metriken (Queue-Tiefe,
+fehlgeschlagene Jobs und Schritte, Sync-Status je Postfach-ID), die Worker ihre LLM-Metriken.
+Das Frontend und damit das Ingress leiten `/api/metrics` nicht weiter. Ein Token
+(`OLLAMAIL_METRICS_TOKEN`) gehört in `secrets.existingSecret`; mit NetworkPolicies muss
+`metrics.from` den Prometheus-Namespace freigeben. Beispiel für den Prometheus Operator:
+
+```yaml
+apiVersion: monitoring.coreos.com/v1
+kind: PodMonitor
+metadata:
+  name: ollamail-worker
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/instance: ollamail
+      app.kubernetes.io/component: worker
+  podMetricsEndpoints:
+    - port: metrics
+```
+
+Metriken, Labels und Beispiel-Abfragen: [`OPERATIONS.md` §8.3](../OPERATIONS.md#83-monitoring-prometheus).
 
 ## 13. Test und CI
 

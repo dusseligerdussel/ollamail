@@ -28,6 +28,7 @@ from app.core.db import get_db
 from app.digest import content as digest_content
 from app.digest.models import Digest, DigestLength, DigestStatus, DigestTrigger
 from app.mail.access import accessible_mailbox_ids, reader_ids
+from app.mail.api.router import get_deletion_requester
 from app.mail.models import Attachment, Folder, FolderRole, Mailbox, MailboxAssignment
 from app.main import create_app
 from app.rag.router import get_session_factory
@@ -63,6 +64,13 @@ async def app(
     app.dependency_overrides[get_db] = override_get_db
     app.dependency_overrides[get_llm] = lambda: fake_llm.gateway
     app.dependency_overrides[get_session_factory] = lambda: session_factory(db_session)
+    app.state.deletion_requests = []
+
+    async def record_deletion(mailbox_id: uuid.UUID) -> bool:
+        app.state.deletion_requests.append(mailbox_id)
+        return True
+
+    app.dependency_overrides[get_deletion_requester] = lambda: record_deletion
     yield app
     await app.state.database.dispose()
 
@@ -305,6 +313,27 @@ async def test_revoking_access_hides_everything_at_once(
     assert any(details.get("group") == GROUP for _, details in rows)
 
 
+async def test_removal_hides_everything_at_once(
+    team: Team, inbox: Inbox, fake_llm: FakeLLM, app: FastAPI
+) -> None:
+    """The removal runs in the background (#147); its data is gone from the request on."""
+    response = await team.admin.delete(f"/admin/shared-mailboxes/{team.mailbox_id}")
+
+    assert response.status_code == 202
+    assert app.state.deletion_requests == [team.mailbox_id]
+    for client, user_id in ((team.anna, team.anna_id), (team.ben, team.ben_id)):
+        seen = await visible_contents(client, user_id, team, inbox, fake_llm)
+        # Still listed, as being removed; nothing else is left.
+        assert seen == {**GONE, "mailbox": True}
+        [listed] = (await client.get("/mailboxes")).json()
+        assert listed["status"]["phase"] == "deleting"
+    [listed] = (await team.admin.get("/admin/shared-mailboxes")).json()
+    assert listed["status"]["phase"] == "deleting"
+    path = f"/admin/shared-mailboxes/{team.mailbox_id}"
+    assert (await team.admin.get(path)).status_code == 404
+    assert (await team.admin.delete(path)).status_code == 404
+
+
 async def test_admins_manage_but_do_not_read(team: Team, inbox: Inbox, fake_llm: FakeLLM) -> None:
     listed = (await team.admin.get("/admin/shared-mailboxes")).json()
     assert [m["id"] for m in listed] == [str(team.mailbox_id)]
@@ -453,3 +482,46 @@ async def test_unknown_users_are_rejected(team: Team) -> None:
     assert personal.status_code == 200
     response = await team.admin.get(f"/admin/shared-mailboxes/{uuid.uuid4()}")
     assert response.status_code == 404
+
+
+async def test_act_assignments_allow_actions_but_not_sending(
+    team: Team, db_session: AsyncSession
+) -> None:
+    async def permissions(client: AsyncClient) -> list[str]:
+        response = await client.get(f"/mailboxes/{team.mailbox_id}")
+        assert response.status_code == 200
+        result: list[str] = response.json()["permissions"]
+        return result
+
+    path = f"/admin/shared-mailboxes/{team.mailbox_id}/assignments"
+    response = await team.admin.put(
+        path,
+        json={
+            "users": [str(team.anna_id)],
+            "act_users": [str(team.anna_id)],
+            "groups": [{"group": GROUP, "permission": "act"}],
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert sorted(a["permission"] for a in response.json()["assignments"]) == ["act", "act"]
+    # Anna directly, Ben through his group.
+    assert await permissions(team.anna) == ["act", "read"]
+    assert await permissions(team.ben) == ["act", "read"]
+    response = await team.ben.patch(f"/messages/{team.message_id}", json={"flagged": True})
+    assert response.status_code == 200
+
+    # A changed permission is audited like a new assignment.
+    rows = list(
+        await db_session.execute(
+            select(audit_events.c.details)
+            .where(audit_events.c.action == "mailbox.shared")
+            .order_by(audit_events.c.id)
+        )
+    )
+    assert [row.details["permission"] for row in rows][-2:] == ["act", "act"]
+
+    response = await team.admin.put(path, json={"users": [str(team.anna_id)]})
+    assert response.status_code == 200
+    assert await permissions(team.anna) == ["read"]
+    response = await team.anna.patch(f"/messages/{team.message_id}", json={"flagged": False})
+    assert (response.status_code, response.json()["error_code"]) == (403, "read_only")

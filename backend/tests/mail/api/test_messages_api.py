@@ -1,11 +1,13 @@
 """Integration tests: read API for mails (inbox list, thread, body, attachments,
 read/unread) with sign-in and PostgreSQL. All names, addresses and contents are invented."""
 
+import threading
 import uuid
 from collections.abc import Iterator
 from datetime import timedelta
 from email.message import EmailMessage
 from email.utils import format_datetime, make_msgid
+from typing import Any
 
 import pytest
 from fastapi import FastAPI
@@ -15,6 +17,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import GmailSettings, GraphSettings, Settings
+from app.mail.api import messages as messages_api
 from app.mail.api import providers
 from app.mail.api.messages import get_flag_writer
 from app.mail.flags import write_flags
@@ -403,3 +406,30 @@ def test_oauth_providers_only_when_configured(settings: Settings) -> None:
     # A client ID without secret is not enough for the connect flow.
     no_secret = settings.model_copy(update={"graph": GraphSettings(client_id="client")})
     assert MailboxType.GRAPH not in [p.type for p in providers.available(no_secret, registry)]
+
+
+async def test_html_is_sanitised_off_the_event_loop(
+    erika: AsyncClient,
+    db_session: AsyncSession,
+    server: FakeServer,
+    storage: AttachmentStorage,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Up to 100 HTML bodies per thread must not block other requests (#147)."""
+    server.provider.add_message("INBOX", html_mail(), received_at=NOW + timedelta(hours=1))
+    await synced_mailbox(erika, db_session, server, storage)
+    message_id = ids(await inbox(erika))[0]
+    threads: list[int] = []
+    sanitize = messages_api.sanitize_html
+
+    def recording(*args: Any, **kwargs: Any) -> Any:
+        threads.append(threading.get_ident())
+        return sanitize(*args, **kwargs)
+
+    monkeypatch.setattr(messages_api, "sanitize_html", recording)
+
+    assert (await erika.get(f"/messages/{message_id}/thread")).status_code == 200
+    assert (await erika.get(f"/messages/{message_id}/body")).status_code == 200
+
+    assert len(threads) == 2
+    assert threading.get_ident() not in threads

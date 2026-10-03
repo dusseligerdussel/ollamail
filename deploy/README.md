@@ -39,9 +39,9 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 |---|---|---|
 | `frontend` | `ollamail-frontend` (`frontend/Dockerfile`, Caddy) | Statische UI, Reverse Proxy `/api/*` → `api:8000` (Präfix wird entfernt), einziger veröffentlichter Port |
 | `api` | `ollamail-api` (`backend/Dockerfile`) | FastAPI (uvicorn) |
-| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `ocr`, `default` |
+| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `ocr`, `default`; Healthcheck über eine Heartbeat-Datei (`python -m app.core.heartbeat`) |
 | `migrate` | `ollamail-api` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
-| `postgres` | `pgvector/pgvector:pg16` | Datenbank, Volume `postgres-data` |
+| `postgres` | `pgvector/pgvector:pg16` | Datenbank, Volume `postgres-data`; Tuning für pgvector über `POSTGRES_*` ([`OPERATIONS.md` §8.4](../docs/OPERATIONS.md#84-postgresql-tuning-pgvector)) |
 | `ollama-cpu` / `ollama-gpu` | `ollama/ollama` | Optionaler LLM-Server, im Netz als `ollama` erreichbar |
 
 Volumes: `postgres-data` (Datenbank), `ollamail-data` (Anhänge, Audio; `/data` in `api`/`worker`),
@@ -130,7 +130,11 @@ Der `worker` startet immer mit. Welche Queues er abarbeitet und wie parallel, st
 `OLLAMAIL_LLM_CONCURRENCY` (siehe `.env.example`; letztere lässt sich im Admin-Bereich unter „KI“
 zur Laufzeit ändern). Mehr Instanzen: `docker compose -f deploy/compose.yaml up -d --scale worker=2`.
 Beim Stoppen bekommen laufende Jobs `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` Sekunden (Standard 30),
-Compose wartet 45 s, bevor es den Container hart beendet.
+Compose wartet 45 s, bevor es den Container hart beendet. Jeder Worker braucht mit Standardwerten
+bis zu 33 Datenbankverbindungen, die API 21; die mitgelieferte Datenbank erlaubt 200
+(`POSTGRES_MAX_CONNECTIONS`, Formel in [`OPERATIONS.md` §8.2](../docs/OPERATIONS.md#82-datenbankverbindungen)).
+Prometheus-Metriken (`OLLAMAIL_METRICS_ENABLED`) liefern `api:8000/metrics` und jeder Worker auf
+Port 9464, nur im Compose-Netz ([§8.3](../docs/OPERATIONS.md#83-monitoring-prometheus)).
 
 ## Entwicklung (Hot Reload)
 
@@ -158,6 +162,11 @@ Key wechseln:
    verschlüsselt alle gespeicherten Secrets mit dem neuen Key (in einer Transaktion).
 4. `OLLAMAIL_SECRET_KEYS_OLD` leeren und neu starten.
 
+Wiederherstellungscodes für die Zwei-Faktor-Anmeldung sind nur als HMAC gespeichert und lassen
+sich nicht umschlüsseln. Sie funktionieren nach der Rotation weiter, solange der alte Key in
+`OLLAMAIL_SECRET_KEYS_OLD` steht; nach Schritt 4 nicht mehr. Vor Schritt 4 die Nutzer bitten,
+neue Codes zu erzeugen, oder den alten Key dort belassen (`docs/auth/mfa.md`).
+
 ## TLS / Reverse Proxy
 
 Der `frontend`-Container spricht nur HTTP und ist standardmäßig nur unter `127.0.0.1` veröffentlicht
@@ -179,7 +188,8 @@ Quellen), `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: n
 Der Job „Compose smoke test“ (`.github/workflows/ci.yml`) baut beide Images, erzeugt `deploy/.env`
 aus `.env.example` mit frisch generierten Secrets und startet den Stack wie oben (ohne Ollama). Er
 prüft `/api/readyz`, `/api/healthz`, die Auslieferung der UI, die Migrationen und den Worker
-(Heartbeat, keine Neustarts) sowie, dass `api` ohne `OLLAMAIL_SECRET_KEY` nicht startet. Er läuft auf
+(Heartbeat, Healthcheck, keine Neustarts), dass `/metrics` nur im Compose-Netz und nur mit Token
+erreichbar ist, sowie, dass `api` ohne `OLLAMAIL_SECRET_KEY` nicht startet. Er läuft auf
 `main`, bei Änderungen an `deploy/`, den Dockerfiles oder der Caddy-Konfiguration und auf PRs mit dem
 Label `ci:compose`. Bei Fehlern werden die Container-Logs (ohne Umgebungsvariablen, Secrets geschwärzt)
 als Artifact hochgeladen.

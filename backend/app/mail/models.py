@@ -104,6 +104,9 @@ class Mailbox(Base):
     sync_enabled: Mapped[bool] = mapped_column(server_default=true())
     # See ``app.mail.schemas.SyncSettings``.
     sync_settings: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict, server_default="{}")
+    # Removal requested (#147): the mailbox is hidden from every mail query at once and the
+    # job ``mail.delete_mailbox`` deletes its data in batches (``app.mail.deletion``).
+    deletion_requested_at: Mapped[datetime | None]
 
     folders: Mapped[list["Folder"]] = relationship(
         back_populates="mailbox", cascade="all, delete-orphan", passive_deletes=True
@@ -113,6 +116,8 @@ class Mailbox(Base):
 class AssignmentPermission(enum.StrEnum):
     # Read the mailbox and everything derived from it (triage, todos, search, digest).
     READ = "read"
+    # Also act on its mails: read/unread, flag, archive, move, trash (#148). Never send.
+    ACT = "act"
 
 
 class MailboxAssignment(Base):

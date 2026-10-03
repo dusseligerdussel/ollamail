@@ -60,6 +60,24 @@ async def test_complete_uses_assigned_model_and_records_metrics() -> None:
     assert MAIL not in repr(metrics)
 
 
+async def test_duration_is_measured_in_nanoseconds_with_the_injected_clock() -> None:
+    readings = iter([1_000_000_000, 1_000_300_000])  # 0.3 ms apart
+    gateway = LLMGateway(
+        EnvConfigResolver(LLMSettings(default_chat_model="chat:1b")),
+        provider_factory=FakeFactory(default=FakeProvider(answers=["ok"])),
+        metrics=(sink := RecordingSink()),
+        clock=lambda: next(readings),
+    )
+
+    await gateway.complete(LLMTask.TRIAGE, MESSAGES)
+
+    (metrics,) = sink.records
+    # Rounded milliseconds lose a sub-millisecond call; the nanosecond value keeps it.
+    assert metrics.duration_ms == 0
+    assert metrics.duration_ns == 300_000
+    assert metrics.seconds == 0.0003
+
+
 async def test_task_override_selects_other_endpoint() -> None:
     settings = LLMSettings.model_validate(
         {

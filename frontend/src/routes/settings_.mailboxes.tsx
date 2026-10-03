@@ -17,9 +17,9 @@ import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
 import {
+  allMailboxesQueryOptions,
   deleteMailbox,
   type Mailbox,
-  mailboxesQueryOptions,
   syncMailbox,
   updateMailbox,
 } from "@/api/mail";
@@ -73,7 +73,7 @@ function MailboxesPage() {
   const navigate = useNavigate();
   const search = Route.useSearch();
   const errorText = useMailErrorText();
-  const mailboxes = useQuery(mailboxesQueryOptions);
+  const mailboxes = useQuery(allMailboxesQueryOptions);
   const own = mailboxes.data?.filter((mailbox) => !mailbox.is_shared);
   const shared = mailboxes.data?.filter((mailbox) => mailbox.is_shared) ?? [];
   const [folders, setFolders] = useState<Mailbox>();
@@ -223,7 +223,7 @@ function MailboxRow({
         )}
         <SyncStatus status={mailbox.status} className="mt-0.5" />
       </div>
-      {mailbox.is_shared ? (
+      {mailbox.status.phase === "deleting" ? null : mailbox.is_shared ? (
         <Badge variant="outline" className="font-normal text-muted-foreground">
           {t("mailboxes.sharedBadge")}
         </Badge>

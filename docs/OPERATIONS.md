@@ -8,6 +8,7 @@ Backup/Restore, Updates, Datenschutz und Fehlersuche.
 
 Referenz für Dienste, Profile, Volumes und Entwicklungsmodus: [`deploy/README.md`](../deploy/README.md).
 Betrieb auf Kubernetes mit dem Helm-Chart: [`operations/kubernetes.md`](operations/kubernetes.md).
+Modelle auswählen und messen: [`operations/model-evals.md`](operations/model-evals.md).
 Alle Einstellungen: [`deploy/.env.example`](../deploy/.env.example).
 
 ## Inhalt
@@ -123,6 +124,7 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 |---|---|
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Geprüft wird `database`, mit `OLLAMAIL_LLM_READINESS_CHECK=true` zusätzlich `llm` (alle zugewiesenen Modelle vorhanden). |
+| Worker | Kein HTTP-Endpunkt. Der Worker schreibt alle `OLLAMAIL_WORKER_HEARTBEAT_INTERVAL_SECONDS` (Standard 30) eine Heartbeat-Datei, solange Event-Loop und alle Job-Worker laufen; der Compose-Healthcheck (`python -m app.core.heartbeat`) meldet `unhealthy`, wenn sie älter als vier Intervalle ist. `docker compose ps` zeigt den Zustand. |
 
 Die UI ist unter `http://localhost:8080` erreichbar – standardmäßig **nur auf dem Docker-Host
 selbst** (`OLLAMAIL_HTTP_BIND=127.0.0.1`). Für den Zugriff aus dem Netz einen Reverse Proxy mit TLS
@@ -266,6 +268,38 @@ veröffentlicht. Modelle liegen im Volume `ollama-models`.
 Das Profil muss bei `up` und `down` mit angegeben werden, sonst wird der Dienst nicht gestartet
 bzw. nicht gestoppt (`exec` und `logs` auf einen laufenden Dienst gehen auch ohne). Alternativ
 `COMPOSE_PROFILES=ollama-cpu` in der Shell oder in `deploy/.env` setzen.
+
+#### Erstimport auf CPU: Dauer, Altbestand, Zeitscheiben (#141)
+
+Auf CPU mit `qwen2.5:3b` brauchen Triage und Aufgaben zusammen etwa **20–60 s pro Mail**
+(Messung auf 4 vCPUs, [`operations/model-evals.md`](operations/model-evals.md), Abschnitt 4.1:
+Triage im Mittel 9,5 s, Aufgaben 46,3 s, Median 14,1 s). Seit #158 (Abschnitt 4.5: Triage 8,2 s,
+Aufgaben 8,3 s, keine Timeouts) sind es im Mittel rund 16 s; die Angaben unten bleiben als obere
+Abschätzung stehen. Würde jede importierte Mail
+klassifiziert, dauerte der Standard-Import (90 Tage, oft 5.000–10.000 Mails) **1–4 Tage**. Der
+Suchindex ist dagegen billig: Embeddings für 200 Mails brauchten 35 s, für 10.000 Mails also
+rund eine halbe Stunde. Deshalb gilt:
+
+- **Nur jüngere Mails werden klassifiziert.** Mails, die vor mehr als
+  `OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS` Tagen (Standard **14**) eingegangen sind, bekommen nur
+  Volltextindex und Embeddings – Suche und „Frag dein Postfach“ funktionieren –, aber keine Triage
+  und keine Aufgaben (Schritte im Status `skipped`). Auch Aufgaben aus monatealten Mails entfallen
+  so. Bei 14 Tagen sind das typischerweise einige hundert bis gut tausend Mails, also grob
+  **3–17 Stunden** LLM-Zeit statt Tagen; neue Mails überholen den Rückstand trotzdem sofort.
+  `0` klassifiziert alle Mails.
+- **Ältere Mails nachträglich klassifizieren:** Admin › Systemstatus, Abschnitt „Verarbeitung je
+  Postfach“, Button „Ältere Mails auch klassifizieren“, oder
+  `python -m app.cli processing include-older <mailbox-id>`. Die übersprungenen Mails laufen dann
+  hinter neuen Mails durch; für dieses Postfach gilt die Grenze danach nicht mehr (auch nicht für
+  später importierte Mails).
+- **Der Import läuft in Zeitscheiben.** Ein Sync-Job beendet den Import nach
+  `OLLAMAIL_MAIL_SYNC_SLICE_BATCHES` Batches (Standard 20, à `OLLAMAIL_MAIL_SYNC_BATCH_SIZE` = 50
+  Mails) oder `OLLAMAIL_MAIL_SYNC_SLICE_MINUTES` Minuten (Standard 5) und plant sich mit
+  niedrigerer Priorität neu ein. Der nächste Lauf holt zuerst neue Mails und Änderungen, dann geht
+  der Import weiter. Neue Mails warten so höchstens eine Zeitscheibe statt bis zum Ende des
+  Imports. Ausnahme Microsoft 365: Die Delta-Abfrage eines Ordners liefert neue Mails erst, wenn
+  dessen Erstimport durch ist; andere Ordner sind davon nicht betroffen. `0` schaltet die jeweilige
+  Grenze ab.
 
 ### 3.3 Consumer-GPU (Profil `ollama-gpu`)
 
@@ -474,6 +508,11 @@ Anforderungen an den Proxy:
   Antwort-Pufferung abschalten und lange Verbindungen erlauben. Der interne Caddy nutzt dafür
   bereits `flush_interval -1` und 1 h Timeout – der äußere Proxy muss mindestens genauso großzügig
   sein.
+- **Kompression:** Der interne Caddy komprimiert JSON-Antworten der API (`zstd`, `gzip`) und die
+  statischen Dateien, Server-Sent Events (`text/event-stream`) bewusst nicht: komprimierte
+  Streams würden gepuffert. Der äußere Proxy muss nichts komprimieren; wer es dort einschaltet,
+  nimmt `text/event-stream` aus (nginx: nicht in `gzip_types` aufnehmen; Caddy: `encode` mit
+  `match` auf `application/json*`, siehe `frontend/caddy/Caddyfile`).
 
 Die folgenden Beispiele verwenden `mail.example.org` als Hostnamen.
 
@@ -841,6 +880,10 @@ Mailserver mit selbstsigniertem Zertifikat: das CA-Zertifikat dem Container übe
 auch unverschlüsselt) nur in Testumgebungen. Mailserver im eigenen Netz (private oder
 Loopback-Adressen) müssen in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` stehen, sonst lehnt ollamail die
 Verbindung ab ([6.6](#66-upgrade-hinweise-sichere-standardwerte-143)).
+IMAP-Server ohne CONDSTORE (z. B. manche Hoster) melden nicht, welche Flags sich geändert haben;
+ollamail prüft dann je Sync nur die neuesten `OLLAMAIL_MAIL_IMAP_FLAG_WINDOW` Mails (Standard
+1000) und alle Mails einmal in `OLLAMAIL_MAIL_IMAP_FULL_FLAG_SCAN_HOURS` (Standard 24).
+Gelöschte und verschobene Mails werden trotzdem bei jedem Sync erkannt.
 
 **Mail-Sync (Microsoft 365):** Keine dauerhafte Verbindung; der Worker pollt per Delta Query
 (`poll_interval_seconds`, Standard 5 Minuten). Change Notifications sind optional und brauchen
@@ -885,6 +928,11 @@ Der Worker erholt sich selbst von den häufigsten Störungen; manuelles SQL ist 
   ungültige Modellausgabe nach dem Korrektur-Retry, `llm_output_error`/`llm_output_invalid`)
   bleiben fehlgeschlagen. Ein fehlendes Modell also einfach nachladen (`ollama pull …`); die
   betroffenen Mails laufen danach von selbst durch.
+- **Postfach entfernen.** Das Entfernen läuft als Job `mail.delete_mailbox` im Hintergrund
+  (Batches zu 500 Mails, gemessen rund 6 s je 100k Mails ohne Embeddings); bis dahin zeigt die
+  Postfachliste „Wird gelöscht“, die Daten sind schon für niemanden mehr sichtbar. Im Log:
+  `mail_mailbox_deletion_requested` und am Ende `mail_mailbox_deleted`. Bricht der Job ab, setzt
+  `mail.resume_deletions` (alle 15 Minuten) fort.
 - **Von Hand neu verarbeiten:** `python -m app.cli processing reprocess [--mailbox ID]` setzt
   auch dauerhafte Fehler zurück.
 
@@ -894,10 +942,106 @@ laufende und fehlgeschlagene Schritte (davon: automatische Wiederholung geplant)
 
 ### 8.2 Datenbankverbindungen
 
-Was heute schon gilt: Jeder API- bzw. Worker-Prozess öffnet bis zu
-`OLLAMAIL_DATABASE_POOL_SIZE + OLLAMAIL_DATABASE_MAX_OVERFLOW` Datenbankverbindungen (Standard
-5 + 10). Beim Hochskalieren darauf achten, dass die Summe unter `max_connections` von PostgreSQL
-bleibt (PostgreSQL-Standard: 100).
+Jeder Prozess hat **einen** SQLAlchemy-Pool (`app.core.db.process_database`): Alle Jobs eines
+Workers, der Postfach-Watcher und die KI-Einstellungen teilen ihn. Dazu kommen der Pool der
+Job-Queue (Procrastinate) und einzelne dauerhafte `LISTEN`-Verbindungen. Mit
+P = `OLLAMAIL_DATABASE_POOL_SIZE` (Standard 5) und O = `OLLAMAIL_DATABASE_MAX_OVERFLOW`
+(Standard 10) braucht höchstens:
+
+| Prozess | Verbindungen | Standard |
+|---|---|---|
+| `api` | P + O + 4 (Job-Queue, erst beim ersten eingereihten Job) + 1 (Live-Events) + 1 (KI-Einstellungen) | 21 |
+| `worker` | P + O + Σ (Slots je Gruppe + 2) + 1 (Job-Queue) + 1 (KI-Einstellungen) + 1 (Postfach-Watcher, nur mit Queue `sync`) | 33 |
+| `migrate`, CLI-Befehle | 1–2, nur kurz | – |
+
+Slots je Gruppe (`app/worker.py`): `OLLAMAIL_WORKER_CONCURRENCY` für `sync`, `tts` und `default`
+zusammen (Standard 4), max(`OLLAMAIL_LLM_CONCURRENCY`, `OLLAMAIL_LLM_MAX_CONCURRENCY`) für `llm`
+(Standard 4) und `OLLAMAIL_SEARCH_OCR_CONCURRENCY` für `ocr` (Standard 1). Ein Worker mit allen
+Queues hat also (4 + 2) + (4 + 2) + (1 + 2) + 1 = 16 Verbindungen für die Job-Queue.
+
+`max_connections` von PostgreSQL muss die Summe über alle Prozesse plus Reserve abdecken:
+
+```
+max_connections ≥ api × 21 + worker × 33 + 10 (migrate, CLI, psql, Backups)
+                  + superuser_reserved_connections (Standard 3)
+```
+
+Beispiel: `--scale worker=2` braucht 21 + 2 × 33 + 13 = 100 – genau die Grenze des
+PostgreSQL-Standards. Die mitgelieferte Datenbank startet deshalb mit `max_connections=200`
+(`POSTGRES_MAX_CONNECTIONS`, Abschnitt 8.4). Wer weiter skaliert, erhöht den Wert (jede
+Verbindung kostet einige MB RAM) oder senkt P und O: Ein Worker braucht selten mehr gleichzeitige
+SQLAlchemy-Verbindungen als Slots, P + O ≥ Summe der Slots reicht. Bei sehr vielen Replikaten
+(Kubernetes) hilft ein Pooler im Modus `session` (`LISTEN/NOTIFY` und Advisory-Locks
+funktionieren im Modus `transaction` nicht).
+
+### 8.3 Monitoring (Prometheus)
+
+Mit `OLLAMAIL_METRICS_ENABLED=true` liefern API und Worker Metriken im Prometheus-Format:
+
+| Endpunkt | Inhalt |
+|---|---|
+| `http://api:8000/metrics` | Prozess-Metriken der API und die Datenbank-Metriken (Queue, Schritte, Sync) |
+| `http://<worker>:9464/metrics` (`OLLAMAIL_METRICS_WORKER_PORT`) | Prozess-Metriken des Workers, v. a. die LLM-Aufrufe |
+
+- **Nur intern.** Das Frontend leitet `/api/metrics` nicht weiter (`404`); erreichbar sind die
+  Endpunkte nur im Compose-Netz bzw. Cluster. In Compose wird kein Port veröffentlicht: Prometheus
+  im selben Docker-Netz scrapt `api:8000` und die Worker-Container. Mit
+  `OLLAMAIL_METRICS_TOKEN` verlangen beide Endpunkte zusätzlich
+  `Authorization: Bearer <token>` (Prometheus: `authorization: {credentials: …}`).
+- **Keine Inhalte.** Labels enthalten nur IDs, Codes und Konfigurationswerte: Postfach-ID (nie
+  Adresse oder Anzeigename), Queue, Task-Name, Schritt, Fehlercode, Endpunkt-Name, Modell.
+- Die Datenbank-Metriken liest die API höchstens alle `OLLAMAIL_METRICS_DATABASE_REFRESH_SECONDS`
+  (Standard 60); die Abfragen zählen über Job- und Schritt-Tabelle.
+
+| Metrik | Labels | Bedeutung |
+|---|---|---|
+| `ollamail_queue_jobs` | `queue`, `priority`, `status` (`todo`, `doing`) | Queue-Tiefe; Priorität 10 = neue Mail, 0 = Erstimport, −10 = Neuverarbeitung |
+| `ollamail_queue_failed_jobs` | `queue`, `task` | fehlgeschlagene Jobs der letzten 7 Tage |
+| `ollamail_processing_steps` | `step`, `status` (`pending`, `running`, `failed`) | Verarbeitungsschritte je Schritt |
+| `ollamail_mailbox_processing_steps` | `mailbox_id`, `status` (+ `retry_scheduled`) | dasselbe je Postfach (wie Admin → System) |
+| `ollamail_mailbox_sync_phase` | `mailbox_id`, `phase` | 1 für die aktuelle Sync-Phase (`error`, `idle`, `importing`, …) |
+| `ollamail_mailbox_sync_error` | `mailbox_id`, `code` | 1, wenn der letzte Sync fehlschlug |
+| `ollamail_mailbox_sync_failed_folders` | `mailbox_id` | Ordner mit fehlgeschlagenem Sync |
+| `ollamail_mailbox_last_sync_timestamp_seconds` | `mailbox_id` | Zeitpunkt des letzten vollständigen Syncs |
+| `ollamail_metrics_database_up` | – | 0, wenn die Datenbank-Metriken nicht lesbar waren |
+| `ollamail_llm_request_duration_seconds` | `task`, `operation`, `endpoint`, `provider`, `model`, `outcome` | Dauer der LLM-Aufrufe (Histogramm) |
+| `ollamail_llm_tokens_total` | dieselben, `kind` (`prompt`, `completion`) | gemeldete Tokens |
+| `ollamail_llm_completion_tokens_per_second` | `endpoint`, `provider`, `model` | Tokens pro Sekunde erfolgreicher Aufrufe (Histogramm) |
+| `ollamail_llm_errors_total` | dieselben wie Dauer ohne `outcome`, `error_type` | fehlgeschlagene Aufrufe |
+
+Beispiel-Abfragen: Queue-Tiefe `sum by (queue) (ollamail_queue_jobs{status="todo"})`,
+Tokens/s `rate(ollamail_llm_tokens_total{kind="completion"}[5m]) / rate(ollamail_llm_request_duration_seconds_sum[5m])`,
+Postfächer mit Sync-Fehler `ollamail_mailbox_sync_error == 1`.
+
+### 8.4 PostgreSQL-Tuning (pgvector)
+
+Mit den PostgreSQL-Standardwerten (`shared_buffers` 128 MB, `maintenance_work_mem` 64 MB) dauert
+der Aufbau des HNSW-Index für die Embeddings sehr lange, sobald er nicht mehr in
+`maintenance_work_mem` passt. Die mitgelieferte Datenbank startet deshalb mit eigenen Werten
+(`command: -c …` in `deploy/compose.yaml`), änderbar in `deploy/.env`:
+
+| Variable | Standard | Hinweis |
+|---|---|---|
+| `POSTGRES_MAX_CONNECTIONS` | 200 | Formel in 8.2 |
+| `POSTGRES_SHARED_BUFFERS` | 512MB | ca. 25 % des RAM, den PostgreSQL nutzen darf |
+| `POSTGRES_EFFECTIVE_CACHE_SIZE` | 2GB | ca. 50–75 % des RAM; nur eine Planungsgröße |
+| `POSTGRES_MAINTENANCE_WORK_MEM` | 512MB | Index-Aufbau; möglichst so groß wie der HNSW-Index |
+| `POSTGRES_WORK_MEM` | 16MB | je Sortierung/Hash und Verbindung |
+| `POSTGRES_SHM_SIZE` | 1g | `/dev/shm` des Containers; ≥ `maintenance_work_mem`, sonst scheitern parallele Index-Builds |
+
+Die Standardwerte passen zu einem Host mit 8 GB RAM. Größenordnung für den Suchindex mit
+bge-m3 (1024 Dimensionen, `vector` = 4 KB je Embedding): 1 Mio. Abschnitte ≈ 4 GB Tabelle und
+noch einmal etwa so viel HNSW-Index. Für solche Instanzen (16 GB RAM oder mehr)
+`POSTGRES_SHARED_BUFFERS=4GB`, `POSTGRES_MAINTENANCE_WORK_MEM=4GB` und `POSTGRES_SHM_SIZE=5g`
+setzen. Die Werte wirken nach `docker compose -f deploy/compose.yaml up -d postgres` (Neustart
+der Datenbank); prüfen mit `SHOW shared_buffers;`. Für Kubernetes enthält
+[`deploy/helm/examples/cnpg-cluster.yaml`](../deploy/helm/examples/cnpg-cluster.yaml) dieselben
+Parameter; bei verwalteten Datenbanken setzt man sie in der Parametergruppe des Anbieters.
+
+Die Embeddings sind als `vector` (32 Bit je Dimension) gespeichert. `halfvec` (16 Bit, ab
+pgvector 0.7, HNSW bis 4000 Dimensionen) würde Tabelle und Index etwa halbieren, bei kaum
+messbarem Verlust an Suchqualität; die Umstellung braucht eine Migration und einen
+Index-Neuaufbau und ist ein eigenes Folge-Issue (#164).
 
 ## 9. Datenschutz-Hinweise für Betreiber
 
@@ -993,6 +1137,7 @@ Microsoft ──▶ api: Change Notifications nur mit OLLAMAIL_MAIL_GRAPH_NOTIFI
   einrichten (`"log-opts": {"max-size": "10m", "max-file": "5"}`) und die Aufbewahrung in das
   Löschkonzept aufnehmen.
 - Der Log-Level `DEBUG` (`OLLAMAIL_LOG_LEVEL`) ist nur zur Fehlersuche gedacht.
+- Prometheus-Metriken (8.3) sind standardmäßig aus und enthalten nur IDs, Codes und Zähler.
 
 ### 9.4 Hinweise für Verarbeitungsverzeichnis, DSFA und Betriebsrat
 

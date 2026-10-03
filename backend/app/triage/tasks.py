@@ -30,7 +30,7 @@ from app.worker import DEFAULT_RETRY, app
 
 log = get_logger(__name__)
 
-TRIAGE_STEP_VERSION = 1
+TRIAGE_STEP_VERSION = 2
 # Pending write-backs handled per run of the periodic job.
 WRITE_BACK_BATCH_SIZE = 200
 
@@ -66,7 +66,7 @@ def use_llm(gateway: LLMGateway) -> Iterator[None]:
         _llm = saved
 
 
-@registry.step("triage", version=TRIAGE_STEP_VERSION, queue="llm")
+@registry.step("triage", version=TRIAGE_STEP_VERSION, queue="llm", recent_only=True)
 async def triage_step(ctx: StepContext) -> None:
     result = await triage_message(
         ctx.session, ctx.message_id, llm=get_llm(), settings=get_settings().triage

@@ -93,3 +93,52 @@ test("a synced mail is found by the full-text search", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 2, name: subject })).toBeVisible();
   await expect(page.getByRole("article").getByText(term)).toBeVisible();
 });
+
+test("trash a synced mail on the IMAP server and undo it (#148)", async ({ page }) => {
+  test.setTimeout(120_000);
+  const run = randomUUID().slice(0, 8);
+  const address = `e2e-actions-${run}@example.org`;
+  const subject = `Invoice reminder ${run}`;
+  await appendMessages(address, [{ subject }, { subject: `Other ${run}` }]);
+  await signIn(page);
+
+  const created = await page.request.post("/api/mailboxes", {
+    headers: await csrfHeaders(page),
+    data: {
+      type: "imap",
+      address,
+      provider_settings: {
+        host: imap.host,
+        port: imap.port,
+        security: "tls",
+        verify_certificate: false,
+      },
+      credentials: { password: imap.password },
+    },
+  });
+  expect(created.status()).toBe(201);
+  const mailboxId = (await created.json()).id as string;
+
+  // The worker imports the inbox.
+  const inbox = async () => {
+    const response = await page.request.get(`/api/messages?mailbox_id=${mailboxId}`);
+    expect(response.status()).toBe(200);
+    return (await response.json()).items.map((item: { subject: string }) => item.subject);
+  };
+  await expect.poll(inbox, { timeout: 90_000 }).toContain(subject);
+
+  await page.goto(`/inbox?mailbox=${mailboxId}`);
+  const list = page.getByRole("list", { name: "Messages" });
+  await list.getByText(subject).click();
+  await expect(page.getByRole("heading", { level: 2, name: subject })).toBeVisible();
+
+  await page.getByRole("button", { name: "Move to trash" }).click();
+  await expect(page.getByText("Moved to trash", { exact: true })).toBeVisible();
+  await expect(list.getByText(subject)).toBeHidden();
+  // Done on the server: the stored message now lives in the trash folder.
+  expect(await inbox()).not.toContain(subject);
+
+  await page.getByRole("button", { name: "Undo" }).click();
+  await expect(list.getByText(subject)).toBeVisible();
+  expect(await inbox()).toContain(subject);
+});

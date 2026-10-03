@@ -1,7 +1,7 @@
 """Send a draft through the mailbox it answers from (``MailProvider.send``).
 
 Only on the author's request, only for an open draft whose mail still exists, and only
-with ``MailboxPermission.ACT`` on the mailbox. The draft row is locked while the message
+with ``MailboxPermission.SEND`` on the mailbox. The draft row is locked while the message
 goes out, so a double click cannot send twice. A successful send is recorded in the audit
 log (``mail.sent``: IDs and counts, never addresses, subject or text).
 """
@@ -97,7 +97,7 @@ async def send_draft(
     draft = await own_draft(session, user_id, draft_id, lock=True)
     if draft.status is not DraftStatus.DRAFT:
         raise DraftStateError
-    mailbox = await access.get_mailbox(session, user_id, draft.mailbox_id, MailboxPermission.ACT)
+    mailbox = await access.get_mailbox(session, user_id, draft.mailbox_id, MailboxPermission.SEND)
     if mailbox is None:
         raise SendNotAllowedError
     message = await session.get(Message, draft.message_id) if draft.message_id else None

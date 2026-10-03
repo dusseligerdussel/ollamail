@@ -10,6 +10,7 @@ from typing import Literal
 
 from pydantic import BaseModel
 
+from app.mail.actions import MessageAction
 from app.mail.models import MailboxType
 
 
@@ -82,8 +83,29 @@ class ThreadRead(BaseModel):
 
 
 class MessageUpdate(BaseModel):
-    # ``false`` marks the message unread. Written back to the mail server.
-    seen: bool
+    """Fields left out stay as they are. Both are written back to the mail server."""
+
+    # ``false`` marks the message unread.
+    seen: bool | None = None
+    # Flag (IMAP ``\\Flagged``, Graph flag, Gmail star).
+    flagged: bool | None = None
+
+
+class MessageActionRequest(BaseModel):
+    """``archive``, ``trash`` (to the trash folder, never deleted for good) or ``move``
+    into ``folder_id`` (a folder or label of the message's mailbox)."""
+
+    action: MessageAction
+    folder_id: uuid.UUID | None = None
+
+
+class MessageActionResult(BaseModel):
+    message: MessageSummary
+    # Folders/labels of the message now.
+    folder_ids: list[uuid.UUID]
+    # Move here to undo (``action: move``): the inbox if the message was there, else the
+    # folder it came from. ``null`` if there is nothing to go back to.
+    undo_folder_id: uuid.UUID | None
 
 
 ConnectMethod = Literal["credentials", "oauth"]

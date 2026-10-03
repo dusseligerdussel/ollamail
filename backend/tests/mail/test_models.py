@@ -3,6 +3,7 @@
 import base64
 import io
 import os
+import threading
 import uuid
 from datetime import UTC, datetime
 
@@ -14,6 +15,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import LoggingSettings
 from app.core.crypto import KeyRing, decode_key, set_keyring
 from app.core.logging import configure_logging
+from app.mail import service as mail_service
+from app.mail.mime import NormalizedMessage, normalize_message
 from app.mail.models import (
     Attachment,
     Folder,
@@ -359,3 +362,22 @@ async def test_deleting_the_owner_deletes_the_mailbox(db_session: AsyncSession) 
 async def test_owner_must_be_an_existing_user(db_session: AsyncSession) -> None:
     with pytest.raises(IntegrityError):
         await make_mailbox(db_session, owner_user_id=uuid.uuid4())
+
+
+async def test_mime_parsing_runs_off_the_event_loop(
+    db_session: AsyncSession, storage: AttachmentStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Parsing large mails must not block the worker's event loop (#147)."""
+    mailbox = await make_mailbox(db_session)
+    folders = await make_folders(db_session, mailbox)
+    threads: list[int] = []
+
+    def recording(source: bytes) -> NormalizedMessage:
+        threads.append(threading.get_ident())
+        return normalize_message(source)
+
+    monkeypatch.setattr(mail_service, "normalize_message", recording)
+
+    await store_message(db_session, mailbox.id, raw("01-plain-ascii.eml"), storage, folders)
+
+    assert len(threads) == 1 and threads[0] != threading.get_ident()

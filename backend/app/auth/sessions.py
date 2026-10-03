@@ -32,6 +32,8 @@ class CurrentSession:
     session_id: uuid.UUID
     user_id: uuid.UUID
     role: UserRole
+    # Sign-in or last confirmation (app/auth/reauth.py); ``None``: unknown, never recent.
+    authenticated_at: datetime | None = None
 
     @property
     def is_admin(self) -> bool:
@@ -60,6 +62,7 @@ async def create_session(
             provider=provider,
             expires_at=now + timedelta(minutes=settings.session_lifetime_minutes),
             last_seen_at=now,
+            authenticated_at=now,
             user_agent=user_agent[:_USER_AGENT_LENGTH] if user_agent else None,
         )
     )
@@ -76,7 +79,13 @@ async def resolve_session(
     idle_cutoff = now - timedelta(minutes=settings.session_idle_timeout_minutes)
     row = (
         await db.execute(
-            select(AuthSession.id, AuthSession.last_seen_at, User.id, User.role)
+            select(
+                AuthSession.id,
+                AuthSession.last_seen_at,
+                AuthSession.authenticated_at,
+                User.id,
+                User.role,
+            )
             .join(User, User.id == AuthSession.user_id)
             .where(
                 AuthSession.token_hash == hash_token(token),
@@ -88,13 +97,24 @@ async def resolve_session(
     ).one_or_none()
     if row is None:
         return None
-    session_id, last_seen_at, user_id, role = row
+    session_id, last_seen_at, authenticated_at, user_id, role = row
     if now - last_seen_at >= _TOUCH_INTERVAL:
         await db.execute(
             update(AuthSession).where(AuthSession.id == session_id).values(last_seen_at=now)
         )
         await db.commit()
-    return CurrentSession(session_id=session_id, user_id=user_id, role=role)
+    return CurrentSession(
+        session_id=session_id, user_id=user_id, role=role, authenticated_at=authenticated_at
+    )
+
+
+async def mark_authenticated(db: AsyncSession, session_id: uuid.UUID) -> datetime:
+    """Record that the user just confirmed who they are in this session (caller commits)."""
+    now = datetime.now(UTC)
+    await db.execute(
+        update(AuthSession).where(AuthSession.id == session_id).values(authenticated_at=now)
+    )
+    return now
 
 
 async def revoke_token(db: AsyncSession, token: str) -> uuid.UUID | None:

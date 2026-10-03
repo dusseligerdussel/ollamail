@@ -59,6 +59,12 @@ worker:
         - key: nvidia.com/gpu
           operator: Exists
           effect: NoSchedule
+metrics:
+  enabled: true
+  from:
+    - namespaceSelector:
+        matchLabels:
+          kubernetes.io/metadata.name: monitoring
 persistence:
   accessModes: [ReadWriteMany]
   storageClass: nfs

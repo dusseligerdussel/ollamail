@@ -24,8 +24,7 @@ from app.ai.llm.errors import (
 )
 from app.ai.settings.models import AIModelPull
 from app.ai.settings.runtime import worker_gateway
-from app.core.config import get_settings
-from app.core.db import Database
+from app.core.db import Database, process_database
 from app.core.ids import uuid7
 from app.core.logging import get_logger
 from app.worker import app, resource_lock
@@ -152,8 +151,4 @@ async def run_pull(database: Database, pull_id: uuid.UUID) -> None:
 @app.task(name=PULL_TASK, queue="default")
 async def pull_model_job(pull_id: str) -> None:
     """Download one model (minutes for several GB); progress goes to ``ai_model_pulls``."""
-    database = Database(get_settings().database)
-    try:
-        await run_pull(database, uuid.UUID(pull_id))
-    finally:
-        await database.dispose()
+    await run_pull(process_database(), uuid.UUID(pull_id))

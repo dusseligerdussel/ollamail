@@ -91,6 +91,7 @@ jobs:
           expect_failure
           expect_failure --set secrets.existingSecret=s --set config.OLLAMAIL_SECRET_KEY=x
           expect_failure --set secrets.existingSecret=s --set config.OLLAMAIL_MAIL_GRAPH_CLIENT_SECRET=x
+          expect_failure --set secrets.existingSecret=s --set config.OLLAMAIL_METRICS_TOKEN=x
           expect_failure --set secrets.existingSecret=s --set 'worker.groups[0].name=all' --set 'worker.groups[0].queues={sync,llm}'
           expect_failure --set secrets.existingSecret=s --set database.external.host=db
           expect_failure --set secrets.existingSecret=s --set worker.shutdownTimeout=60

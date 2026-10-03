@@ -22,6 +22,9 @@ class AuditAction(enum.StrEnum):
     MFA_ENABLED = "auth.mfa_enabled"
     MFA_DISABLED = "auth.mfa_disabled"
     MFA_RECOVERY_CODES_GENERATED = "auth.mfa_recovery_codes_generated"
+    # Confirmation before a sensitive action (#144): ``method``; failures with ``reason``.
+    REAUTHENTICATED = "auth.reauthenticated"
+    REAUTH_FAILED = "auth.reauth_failed"
     # Users
     USER_CREATED = "user.created"
     USER_ROLE_CHANGED = "user.role_changed"  # group mapping at login; user administration
@@ -53,6 +56,10 @@ class AuditAction(enum.StrEnum):
     MAILBOX_UNSHARED = "mailbox.unshared"
     # A reply was sent from a mailbox (app/drafts): IDs and counts only.
     MAIL_SENT = "mail.sent"
+    # A user archived, moved or trashed a mail (app/mail/actions, #148): IDs only.
+    MAIL_MOVED = "mail.moved"
+    # A user flagged or unflagged a mail (#148).
+    MAIL_FLAGGED = "mail.flagged"
     # Data subject rights and data deletion
     DATA_EXPORTED = "data.exported"  # personal data export: requested, downloaded
     DATA_DELETED = "data.deleted"  # retention job (counts only)

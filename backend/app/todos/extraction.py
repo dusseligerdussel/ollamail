@@ -14,7 +14,7 @@ from datetime import UTC, date, datetime
 from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from pydantic import BaseModel, BeforeValidator, Field
+from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -29,8 +29,8 @@ from app.users.models import User
 
 # Open todos of a thread shown to the model (oldest first).
 MAX_THREAD_TODOS = 20
-# Todos taken from one mail at most.
-MAX_TODOS_PER_MAIL = 10
+# Todos taken from one mail at most (also the ``maxItems`` of the answer schema).
+MAX_TODOS_PER_MAIL = 5
 
 WEEKDAY_NAMES = {
     "en": ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"],
@@ -80,9 +80,44 @@ class ExtractedTodo(BaseModel):
     updates: int | None = None
 
 
+def _gate_schema(schema: dict[str, Any]) -> None:
+    """JSON schema of the answer: ``asks_user: false`` allows only an empty todo list,
+    ``true`` at least one and at most ``MAX_TODOS_PER_MAIL``.
+
+    Endpoints with native structured output turn the schema into a grammar; without the
+    bounds small models kept appending todos until the token limit (#158).
+    """
+    properties = schema.pop("properties")
+    required = ["asks_user", "todos", "done"]
+
+    def branch(asks_user: bool) -> dict[str, Any]:
+        todos = {**properties["todos"], "minItems": 1, "maxItems": MAX_TODOS_PER_MAIL}
+        if not asks_user:
+            todos = {**properties["todos"], "maxItems": 0}
+        todos.pop("default", None)
+        return {
+            "type": "object",
+            "properties": {
+                "asks_user": {"const": asks_user},
+                "todos": todos,
+                "done": properties["done"],
+            },
+            "required": required,
+        }
+
+    # The root stays ``"type": "object"`` (required by OpenAI-compatible APIs).
+    schema.pop("required", None)
+    schema["anyOf"] = [branch(False), branch(True)]
+
+
 class TodoExtraction(BaseModel):
     """Structured output of the ``todos_extract`` prompt."""
 
+    model_config = ConfigDict(json_schema_extra=_gate_schema)
+
+    # The model's yes/no answer before listing tasks; ``False`` discards all new todos.
+    # Listed first so the decision precedes the list (models write in schema order).
+    asks_user: bool = True
     todos: list[ExtractedTodo] = Field(default_factory=list)
     # Numbers of listed open todos the mail marks as done.
     done: list[int] = Field(default_factory=list)
@@ -246,24 +281,28 @@ def plan_extraction(
     reference: date,
     min_confidence: float,
     outgoing: bool,
+    max_todos: int = MAX_TODOS_PER_MAIL,
 ) -> ExtractionPlan:
     """What to do with the model's answer, without touching the database.
 
-    Drops todos below ``min_confidence`` and all new todos of mails the user wrote,
-    resolves due dates and matches todos to the open thread todos (by the number the
-    model gave, else by equal title), so follow-up mails update instead of duplicating.
+    Drops todos below ``min_confidence``, all new todos of mails the user wrote or the
+    model said ask nothing of the user (``asks_user``), keeps the ``max_todos`` most
+    confident ones, resolves due dates and matches todos to the open thread todos (by
+    the number the model gave, else by equal title), so follow-up mails update instead
+    of duplicating.
     """
     done = sorted({n - 1 for n in result.done if 1 <= n <= len(open_titles)})
-    if outgoing:
+    if outgoing or not result.asks_user:
         return ExtractionPlan(done=done)
     # Normalised title -> ("open", index) or ("new", position in ``planned``).
     seen: dict[str, tuple[str, int]] = {
         _normalize_title(title): ("open", index) for index, title in enumerate(open_titles)
     }
     planned: list[PlannedTodo] = []
-    for item in result.todos[:MAX_TODOS_PER_MAIL]:
-        if item.confidence < min_confidence or not item.title:
-            continue
+    candidates = [item for item in result.todos if item.confidence >= min_confidence and item.title]
+    # Most confident first; ``sorted`` is stable, so ties keep the model's order.
+    candidates = sorted(candidates, key=lambda item: -item.confidence)[:max_todos]
+    for item in candidates:
         due = resolve_due_date(item.due_phrase, item.due_date, reference)
         key = _normalize_title(item.title)
         if item.updates is not None and 1 <= item.updates <= len(open_titles):
@@ -359,6 +398,7 @@ async def extract_todos(
         reference=reference,
         min_confidence=settings.min_confidence,
         outgoing=is_outgoing(message, mailbox),
+        max_todos=settings.max_per_mail,
     )
     created = apply_plan(session, plan, message=message, user_id=user_id, open_todos=open_todos)
     await session.flush()

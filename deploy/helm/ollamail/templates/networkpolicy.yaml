@@ -20,8 +20,16 @@ spec:
       ports:
         - port: http
           protocol: TCP
+    {{- if and .Values.metrics.enabled .Values.metrics.from }}
+    # Prometheus scrapes /metrics.
+    - from:
+        {{- toYaml .Values.metrics.from | nindent 8 }}
+      ports:
+        - port: http
+          protocol: TCP
+    {{- end }}
 ---
-# worker: no inbound connections.
+# worker: no inbound connections, except metrics scrapes.
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy
 metadata:
@@ -33,6 +41,14 @@ spec:
     matchLabels:
       {{- include "ollamail.componentSelectorLabels" (dict "root" . "component" "worker") | nindent 6 }}
   policyTypes: [Ingress]
+  {{- if and .Values.metrics.enabled .Values.metrics.from }}
+  ingress:
+    - from:
+        {{- toYaml .Values.metrics.from | nindent 8 }}
+      ports:
+        - port: metrics
+          protocol: TCP
+  {{- end }}
 ---
 apiVersion: networking.k8s.io/v1
 kind: NetworkPolicy

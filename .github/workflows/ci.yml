@@ -423,9 +423,11 @@ jobs:
           key="$(openssl rand -base64 32)"
           db_password="$(openssl rand -hex 16)"
           token="$(openssl rand -hex 16)"
+          metrics_token="$(openssl rand -hex 16)"
           echo "::add-mask::$key"
           echo "::add-mask::$db_password"
           echo "::add-mask::$token"
+          echo "::add-mask::$metrics_token"
           sed \
             -e "s|^OLLAMAIL_SECRET_KEY=.*|OLLAMAIL_SECRET_KEY=$key|" \
             -e "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$db_password|" \
@@ -433,6 +435,8 @@ jobs:
             -e "s|^OLLAMAIL_TTS_DOWNLOAD_VOICES=.*|OLLAMAIL_TTS_DOWNLOAD_VOICES=false|" \
             -e "s|^OLLAMAIL_HTTP_BIND=.*|OLLAMAIL_HTTP_BIND=127.0.0.1|" \
             -e "s|^OLLAMAIL_AUTH_IP_MAX_ATTEMPTS=.*|OLLAMAIL_AUTH_IP_MAX_ATTEMPTS=5|" \
+            -e "s|^OLLAMAIL_METRICS_ENABLED=.*|OLLAMAIL_METRICS_ENABLED=true|" \
+            -e "s|^OLLAMAIL_METRICS_TOKEN=.*|OLLAMAIL_METRICS_TOKEN=$metrics_token|" \
             .env.example > .env
           grep -q '^OLLAMAIL_SECRET_KEY=..*' .env
           docker compose config --quiet
@@ -476,6 +480,62 @@ jobs:
             echo "$service: $state"
             [ "$state" = "running 0" ] || { echo "::error::$service is not running stably"; exit 1; }
           done
+          health="$(docker inspect --format '{{.State.Health.Status}}' "$(docker compose ps -q worker)")"
+          [ "$health" = healthy ] || { echo "::error::worker healthcheck: $health"; exit 1; }
+      # #146: /metrics only inside the Compose network and only with the token.
+      - name: Metrics are internal and need the token
+        run: |
+          code="$(curl -sS -o /dev/null -w '%{http_code}' http://127.0.0.1:8080/api/metrics)"
+          [ "$code" = 404 ] || { echo "::error::/api/metrics is reachable through the proxy ($code)"; exit 1; }
+          # Python inside the containers: the token never appears on a command line.
+          scrape() {
+            docker compose exec -T "$1" python -c '
+          import os, sys, urllib.error, urllib.request
+          request = urllib.request.Request(sys.argv[1])
+          if sys.argv[2] == "token":
+              request.add_header("Authorization", "Bearer " + os.environ["OLLAMAIL_METRICS_TOKEN"])
+          try:
+              print(urllib.request.urlopen(request, timeout=10).read().decode())
+          except urllib.error.HTTPError as error:
+              print(error.code)
+          ' "$2" "$3"
+          }
+          [ "$(scrape api http://127.0.0.1:8000/metrics none)" = 401 ] || { echo "::error::api metrics without token"; exit 1; }
+          api="$(scrape api http://127.0.0.1:8000/metrics token)"
+          grep -q '^ollamail_metrics_database_up 1.0$' <<< "$api"
+          grep -q '^# TYPE ollamail_queue_jobs gauge$' <<< "$api"
+          [ "$(scrape worker http://127.0.0.1:9464/metrics none)" = 401 ] || { echo "::error::worker metrics without token"; exit 1; }
+          grep -q '^python_info' <<< "$(scrape worker http://127.0.0.1:9464/metrics token)"
+      # #147: JSON under /api is compressed; Server-Sent Events are neither compressed nor
+      # buffered by the internal Caddy.
+      - name: API compression spares Server-Sent Events
+        run: |
+          base=http://127.0.0.1:8080
+          # JSON is compressed (Caddy skips bodies under 512 bytes; the OpenAPI schema is large).
+          headers="$(curl -fsS -o /dev/null -D - -H 'Accept-Encoding: zstd, gzip' "$base/api/openapi.json")"
+          grep -qi '^content-encoding: \(zstd\|gzip\)' <<< "$headers" || { echo "::error::API JSON is not compressed"; exit 1; }
+          # Server-Sent Events need a session: the first admin of this throwaway stack.
+          jar="$RUNNER_TEMP/admin-cookies.txt"
+          curl -fsS -o /dev/null -c "$jar" "$base/api/healthz"
+          csrf="$(awk '$6 == "ollamail_csrf" { print $7 }' "$jar")"
+          token="$(sed -n 's/^OLLAMAIL_SETUP_TOKEN=//p' .env)"
+          curl -fsS -o /dev/null -b "$jar" -c "$jar" "$base/api/setup" \
+            -H "X-CSRF-Token: $csrf" -H 'Content-Type: application/json' \
+            --data "{\"setup_token\":\"$token\",\"email\":\"smoke-admin@example.org\",\"display_name\":\"Smoke\",\"password\":\"smoke-test-password\"}"
+          # Neither compressed nor buffered: the first line (`retry:`) arrives at once. curl
+          # ends with 28 (timeout) on the open stream.
+          set +e
+          curl -sS -N --max-time 5 -D "$RUNNER_TEMP/sse-headers.txt" -o "$RUNNER_TEMP/sse-body.txt" \
+            -b "$jar" -H 'Accept-Encoding: zstd, gzip' "$base/api/events"
+          code=$?
+          set -e
+          cat "$RUNNER_TEMP/sse-headers.txt"
+          [ "$code" = 28 ] || { echo "::error::the event stream ended early (curl $code)"; exit 1; }
+          grep -qi '^content-type: text/event-stream' "$RUNNER_TEMP/sse-headers.txt" || { echo "::error::no event stream"; exit 1; }
+          if grep -qi '^content-encoding:' "$RUNNER_TEMP/sse-headers.txt"; then
+            echo "::error::the event stream is compressed"; exit 1
+          fi
+          grep -q '^retry:' "$RUNNER_TEMP/sse-body.txt" || { echo "::error::the event stream is buffered"; exit 1; }
       # #137: the runner acts as an outer proxy that appends the real client IP to a value
       # the client forged. Varying the forged part must not yield a fresh IP bucket.
       - name: Forged X-Forwarded-For does not bypass the login IP limit

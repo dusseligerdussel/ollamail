@@ -31,7 +31,7 @@ absorbed by the data types:
 """
 
 import enum
-from collections.abc import AsyncIterator, Awaitable, Callable
+from collections.abc import AsyncIterator, Awaitable, Callable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime
 from typing import Any, Protocol, runtime_checkable
@@ -157,11 +157,28 @@ class MessageChanged:
 
 
 @dataclass(frozen=True, slots=True)
+class FlagsReported:
+    """Current flags of many known messages at once, most of them unchanged (IMAP without
+    CONDSTORE can only list the flags of a whole UID range). The caller compares them in
+    bulk and writes only the differences; unknown references are ignored. Cheaper than one
+    ``MessageUpdated`` per message (#147)."""
+
+    flags: Mapping[str, frozenset[str]] = field(repr=False)
+
+
+@dataclass(frozen=True, slots=True)
 class CursorAdvanced:
     cursor: SyncCursor
 
 
-SyncEvent = MessageFetched | MessageDeleted | MessageUpdated | MessageChanged | CursorAdvanced
+SyncEvent = (
+    MessageFetched
+    | MessageDeleted
+    | MessageUpdated
+    | MessageChanged
+    | FlagsReported
+    | CursorAdvanced
+)
 
 
 @dataclass(frozen=True, slots=True)

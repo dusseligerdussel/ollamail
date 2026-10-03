@@ -18,7 +18,6 @@ import asyncio
 import json
 import sys
 import time
-import uuid
 from collections import Counter
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass, field
@@ -28,7 +27,7 @@ from typing import Any
 from app.ai.llm import EnvConfigResolver, LLMError, LLMGateway, LLMTask
 from app.ai.llm.gateway import ProviderFactory, create_provider
 from app.core.config import LLMSettings, TriageSettings
-from app.triage.categories import DEFAULT_CATEGORIES, EffectiveCategory
+from app.evals.triage import default_categories
 from app.triage.classify import classify, mail_view
 from app.triage.rules import prefilter
 
@@ -76,22 +75,6 @@ class ModelReport:
         data["priority_accuracy"] = round(self.priority_accuracy, 3)
         data["confusion"] = {f"{e}->{p}": n for (e, p), n in sorted(self.confusion.items())}
         return data
-
-
-def default_categories() -> list[EffectiveCategory]:
-    return [
-        EffectiveCategory(
-            id=uuid.uuid5(uuid.NAMESPACE_URL, f"ollamail:triage:{d.key}"),
-            key=d.key,
-            name=d.name,
-            description=d.description,
-            builtin_key=d.key,
-            owner_user_id=None,
-            position=position,
-            hidden=False,
-        )
-        for position, d in enumerate(DEFAULT_CATEGORIES)
-    ]
 
 
 def load_dataset(path: Path = DATASET) -> list[Sample]:

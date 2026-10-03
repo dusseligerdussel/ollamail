@@ -19,6 +19,7 @@ from app.mail import hooks
 from app.mail.models import Folder, FolderRole, Mailbox, MailboxType, Message
 from app.mail.providers.base import (
     CursorAdvanced,
+    FlagsReported,
     MailboxConfig,
     MessageChanged,
     MessageFetched,
@@ -391,3 +392,52 @@ async def test_graph_mailbox_sync_end_to_end(
     folders = await db_session.scalars(select(Folder).where(Folder.mailbox_id == mailbox_id))
     roles = {f.remote_id: f.role for f in folders}
     assert roles == {INBOX: FolderRole.INBOX, ARCHIVE: FolderRole.ARCHIVE, TRASH: FolderRole.TRASH}
+
+
+async def test_flags_reported_in_bulk_write_only_differences(
+    db_session: AsyncSession, storage: AttachmentStorage
+) -> None:
+    """#147: IMAP without CONDSTORE reports the flags of many messages at once; they are
+    compared in the database and only changed rows are written."""
+    raw = load_fixture("01-plain-ascii.eml")
+    mailbox_ids = [await add_mailbox(db_session), await add_mailbox(db_session)]
+    for mailbox_id in mailbox_ids:
+        provider = ScriptedProvider(
+            {
+                "INBOX": [
+                    MessageFetched(RawMessage(ref, raw, ("INBOX",), flags), initial=True)
+                    for ref, flags in (
+                        ("a", frozenset()),
+                        ("b", frozenset({"seen"})),
+                        ("c", frozenset({"seen", "flagged"})),
+                    )
+                ]
+            }
+        )
+        await run(db_session, mailbox_id, lambda config, p=provider: p, storage)
+    mailbox_id, other_id = mailbox_ids
+
+    async def flags(mailbox: uuid.UUID) -> dict[str, list[str]]:
+        rows = await db_session.execute(
+            select(Message.remote_ref, Message.flags)
+            .where(Message.mailbox_id == mailbox)
+            .execution_options(populate_existing=True)
+        )
+        return dict(rows.tuples().all())
+
+    before = await flags(other_id)
+    provider = ScriptedProvider(
+        {
+            "INBOX": [
+                FlagsReported({"a": frozenset({"seen"}), "b": frozenset({"seen"})}),
+                # A second report in the same transaction, plus an unknown reference.
+                FlagsReported({"c": frozenset({"flagged", "seen"}), "gone": frozenset()}),
+                FlagsReported({"c": frozenset({"Wichtig"})}),
+            ]
+        }
+    )
+    stats = await run(db_session, mailbox_id, lambda config: provider, storage)
+
+    assert stats is not None and stats.updated == 2
+    assert await flags(mailbox_id) == {"a": ["seen"], "b": ["seen"], "c": ["Wichtig"]}
+    assert await flags(other_id) == before

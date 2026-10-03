@@ -15,7 +15,14 @@ from pydantic import AfterValidator, BaseModel, Field, create_model
 
 from app.ai.llm import ChatMessage, GenerationOptions, LLMTask
 from app.triage.categories import EffectiveCategory
-from app.triage.prompts import EXAMPLES_HEADING, TRIAGE_PROMPT
+from app.triage.prompts import (
+    BUILTIN_EXAMPLES,
+    BUILTIN_EXAMPLES_HEADING,
+    BUILTIN_RULES,
+    EXAMPLES_HEADING,
+    RULES_HEADING,
+    TRIAGE_PROMPT,
+)
 
 REASON_MAX_LENGTH = 300
 _WHITESPACE = re.compile(r"[ \t\r\f\v]+")
@@ -156,12 +163,40 @@ def build_messages(
         examples_text = EXAMPLES_HEADING[lang] + "".join(_render_example(e) for e in examples)
     examples_text += "\n"
     return TRIAGE_PROMPT.render(
-        lang, categories=category_lines, examples=examples_text, mail=render_mail(view)
+        lang,
+        categories=category_lines,
+        rules=_render_rules(categories, lang),
+        examples=examples_text,
+        mail=render_mail(view),
     )
 
 
+def _render_rules(categories: Sequence[EffectiveCategory], lang: str) -> str:
+    """Numbered decision rules and one synthetic example for each visible built-in
+    category, in check order."""
+    by_builtin = {c.builtin_key: c for c in categories if c.builtin_key}
+    rules = [(b, rule) for b, rule in BUILTIN_RULES[lang].items() if b in by_builtin]
+    if not rules:
+        return ""
+    lines = [
+        f"{number}. {by_builtin[builtin].key}: {rule}\n"
+        for number, (builtin, rule) in enumerate(rules, start=1)
+    ]
+    examples = [
+        f"- {text} → category={by_builtin[builtin].key}\n"
+        for builtin, text in BUILTIN_EXAMPLES[lang].items()
+        if builtin in by_builtin
+    ]
+    return RULES_HEADING[lang] + "".join(lines) + BUILTIN_EXAMPLES_HEADING[lang] + "".join(examples)
+
+
 def decision_schema(keys: Sequence[str]) -> type[BaseModel]:
-    """``{"category": <one of keys>, "priority": 1..3, "reason": str}``."""
+    """``{"assessment": str, "category": <one of keys>, "priority": 1..3}``.
+
+    The one-sentence reason comes first, so the category follows from it instead of
+    being justified afterwards. Models write fields in schema order, and Ollama's
+    grammar sorts them by name, hence ``assessment`` rather than ``reason``.
+    """
     allowed = list(keys)
 
     def known(value: str) -> str:
@@ -172,9 +207,9 @@ def decision_schema(keys: Sequence[str]) -> type[BaseModel]:
     category = Annotated[str, Field(json_schema_extra={"enum": allowed}), AfterValidator(known)]
     model: type[BaseModel] = create_model(
         "TriageDecision",
+        assessment=(str, Field(min_length=1, max_length=REASON_MAX_LENGTH)),
         category=(category, ...),
         priority=(int, Field(ge=1, le=3)),
-        reason=(str, Field(min_length=1, max_length=REASON_MAX_LENGTH)),
     )
     return model
 
@@ -202,5 +237,5 @@ async def classify(
         language=TRIAGE_PROMPT.language_for(language),
     )
     values = answer.model_dump()
-    reason = clean_text(str(values["reason"]), REASON_MAX_LENGTH).replace("\n", " ")
+    reason = clean_text(str(values["assessment"]), REASON_MAX_LENGTH).replace("\n", " ")
     return LLMDecision(by_key[values["category"]], int(values["priority"]), reason)

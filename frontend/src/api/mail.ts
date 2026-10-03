@@ -22,6 +22,8 @@ export type MessageBody = components["schemas"]["MessageBody"];
 export type Thread = components["schemas"]["ThreadRead"];
 export type Attachment = components["schemas"]["AttachmentRead"];
 export type Address = components["schemas"]["AddressRead"];
+export type MessageAction = components["schemas"]["MessageAction"];
+export type MessageActionResult = components["schemas"]["MessageActionResult"];
 
 /**
  * Query keys. Server events invalidate by their resource (`mailbox.*` → `["mailbox"]`,
@@ -36,9 +38,21 @@ export const mailKeys = {
   body: (messageId: string) => ["message", "body", messageId, "external"] as const,
 };
 
+function fetchMailboxes({ signal }: { signal: AbortSignal }) {
+  return unwrap(api.GET("/mailboxes", { signal }));
+}
+
+/** The mailboxes to read mail from: without those being removed (status `deleting`). */
 export const mailboxesQueryOptions = queryOptions({
   queryKey: mailKeys.mailboxes,
-  queryFn: ({ signal }) => unwrap(api.GET("/mailboxes", { signal })),
+  queryFn: fetchMailboxes,
+  select: (mailboxes) => mailboxes.filter((mailbox) => mailbox.status.phase !== "deleting"),
+});
+
+/** All mailboxes, including those being removed in the background (mailbox settings). */
+export const allMailboxesQueryOptions = queryOptions({
+  queryKey: mailKeys.mailboxes,
+  queryFn: fetchMailboxes,
 });
 
 export const mailboxProvidersQueryOptions = queryOptions({
@@ -129,6 +143,25 @@ export function setSeen(messageId: string, seen: boolean) {
     api.PATCH("/messages/{message_id}", {
       params: { path: { message_id: messageId } },
       body: { seen },
+    }),
+  );
+}
+
+export function setFlagged(messageId: string, flagged: boolean) {
+  return unwrap(
+    api.PATCH("/messages/{message_id}", {
+      params: { path: { message_id: messageId } },
+      body: { flagged },
+    }),
+  );
+}
+
+/** Archive, trash or move a message on the mail server (#148). */
+export function runMessageAction(messageId: string, action: MessageAction, folderId?: string) {
+  return unwrap(
+    api.POST("/messages/{message_id}/actions", {
+      params: { path: { message_id: messageId } },
+      body: { action, folder_id: folderId ?? null },
     }),
   );
 }

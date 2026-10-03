@@ -186,6 +186,10 @@ envFrom and env of api, worker and the migration job.
 {{- $root := .root -}}
 {{- $values := $root.Values -}}
 {{- $settings := dict "OLLAMAIL_DATA_DIR" "/data" -}}
+{{- if $values.metrics.enabled }}
+{{- $_ := set $settings "OLLAMAIL_METRICS_ENABLED" "true" }}
+{{- $_ := set $settings "OLLAMAIL_METRICS_WORKER_PORT" $values.metrics.workerPort }}
+{{- end }}
 {{- if and $values.ollama.enabled (not (hasKey $values.config "OLLAMAIL_LLM_BASE_URL")) }}
 {{- $_ := set $settings "OLLAMAIL_LLM_BASE_URL" (printf "http://%s-ollama:%v" (include "ollamail.fullname" $root) $values.ollama.service.port) }}
 {{- end }}

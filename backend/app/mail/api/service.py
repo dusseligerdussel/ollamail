@@ -21,7 +21,7 @@ from app.core.errors import ProblemError
 from app.core.events import Event
 from app.core.ids import uuid7
 from app.core.logging import get_logger
-from app.mail.access import MailboxPermission, permissions, publish_to_readers
+from app.mail.access import MailboxPermission, mailbox_permissions, publish_to_readers
 from app.mail.api.schemas import (
     ConnectionTestResult,
     FolderRead,
@@ -130,6 +130,8 @@ async def find_duplicate(
     duplicate = await session.scalar(
         select(Mailbox.id).where(
             owner,
+            # One being removed does not count: it may be added again right away.
+            Mailbox.deletion_requested_at.is_(None),
             Mailbox.type == body.type,
             func.lower(Mailbox.address) == body.address.lower(),
         )
@@ -299,7 +301,9 @@ async def statuses(
         failed = sum(1 for s in folder_states if s and s.last_error)
         overall = states.get((mailbox.id, None))
         phase: SyncPhase
-        if not mailbox.sync_enabled:
+        if mailbox.deletion_requested_at is not None:
+            phase = "deleting"
+        elif not mailbox.sync_enabled:
             phase = "paused"
         elif overall is not None and overall.last_error:
             phase = "error"
@@ -353,10 +357,8 @@ async def mailbox_reads(
 ) -> list[MailboxRead]:
     """Reads for ``user_id``, who may read all ``mailboxes``."""
     by_id = await statuses(session, mailboxes)
-    return [
-        mailbox_read(mailbox, by_id[mailbox.id], permissions(mailbox, user_id))
-        for mailbox in mailboxes
-    ]
+    granted = await mailbox_permissions(session, mailboxes, user_id)
+    return [mailbox_read(mailbox, by_id[mailbox.id], granted[mailbox.id]) for mailbox in mailboxes]
 
 
 # -- folders --------------------------------------------------------------------------

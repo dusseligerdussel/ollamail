@@ -10,7 +10,7 @@ from collections.abc import Collection, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, func, select, tuple_, update
+from sqlalchemy import ColumnElement, distinct, func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -41,6 +41,18 @@ async def is_mailbox_enabled(session: AsyncSession, mailbox_id: uuid.UUID) -> bo
     return enabled is not False
 
 
+async def _mailbox_flags(session: AsyncSession, mailbox_id: uuid.UUID) -> tuple[bool, bool]:
+    """``(enabled, include_older)`` of a mailbox; defaults if it has no settings row."""
+    row = (
+        await session.execute(
+            select(
+                MailboxProcessingSettings.enabled, MailboxProcessingSettings.include_older
+            ).where(MailboxProcessingSettings.mailbox_id == mailbox_id)
+        )
+    ).first()
+    return (True, False) if row is None else (row[0], row[1])
+
+
 async def set_mailbox_enabled(session: AsyncSession, mailbox_id: uuid.UUID, enabled: bool) -> None:
     statement = insert(MailboxProcessingSettings).values(
         id=uuid7(), mailbox_id=mailbox_id, enabled=enabled
@@ -64,7 +76,9 @@ async def _lock_rows(session: AsyncSession, message_id: uuid.UUID) -> dict[str, 
 
 
 # A predecessor in ``ProcessingStep.after`` no longer blocks once it is in one of these.
-_SETTLED = (StepStatus.DONE, StepStatus.FAILED)
+_SETTLED = (StepStatus.DONE, StepStatus.FAILED, StepStatus.SKIPPED)
+# A message is processed once all its steps are in one of these.
+_COMPLETE = (StepStatus.DONE, StepStatus.SKIPPED)
 
 
 def _unblocked(
@@ -117,17 +131,33 @@ _RESET_VALUES = {
 
 
 async def plan(
-    session: AsyncSession, message_id: uuid.UUID, steps: Sequence[ProcessingStep]
+    session: AsyncSession,
+    message_id: uuid.UUID,
+    steps: Sequence[ProcessingStep],
+    *,
+    recent_since: datetime | None = None,
 ) -> list[str]:
     """Bring the rows of a message up to the registered steps and versions.
 
     Missing steps and steps with an outdated version become ``pending``; done and failed
-    steps at the current version are left alone. Returns the steps that can run now
-    (empty if the message is gone or its mailbox has processing disabled).
+    steps at the current version are left alone. If the message was received before
+    ``recent_since`` and its mailbox did not opt in (``include_older``), pending
+    ``recent_only`` steps and the steps depending on them become ``skipped``; otherwise
+    skipped steps become ``pending`` again. Returns the steps that can run now (empty if
+    the message is gone or its mailbox has processing disabled).
     """
-    mailbox_id = await session.scalar(select(Message.mailbox_id).where(Message.id == message_id))
-    if mailbox_id is None or not await is_mailbox_enabled(session, mailbox_id) or not steps:
+    found = (
+        await session.execute(
+            select(Message.mailbox_id, _message_time()).where(Message.id == message_id)
+        )
+    ).first()
+    if found is None or not steps:
         return []
+    mailbox_id, received = found
+    enabled, include_older = await _mailbox_flags(session, mailbox_id)
+    if not enabled:
+        return []
+    old = recent_since is not None and not include_older and received < recent_since
     await session.execute(
         insert(MessageProcessing)
         .values(
@@ -145,10 +175,19 @@ async def plan(
         .on_conflict_do_nothing(index_elements=["message_id", "step"])
     )
     rows = await _lock_rows(session, message_id)
+    skipped: set[str] = set()
+    # ``steps`` is ordered (dependencies first), so a skipped dependency is known here.
     for step in steps:
         row = rows[step.name]
         if row.version != step.version:
             _reset(row, step.version)
+        skip = old and (step.recent_only or any(name in skipped for name in step.depends_on))
+        if skip and row.status == StepStatus.PENDING:
+            row.status = StepStatus.SKIPPED
+        elif not skip and row.status == StepStatus.SKIPPED:
+            _reset(row, step.version)
+        if row.status == StepStatus.SKIPPED:
+            skipped.add(step.name)
     await session.flush()
     return _ready(rows, steps)
 
@@ -221,7 +260,7 @@ async def finish_step(
     current = {(s.name, s.version) for s in steps}
     if all(
         (r := rows.get(s.name)) is not None
-        and r.status == StepStatus.DONE
+        and r.status in _COMPLETE
         and (r.step, r.version) in current
         for s in steps
     ):
@@ -291,12 +330,16 @@ class StepCounts:
     failed: int = 0
     # Of ``failed``: an automatic retry is scheduled (passing error, e.g. LLM down).
     retry_scheduled: int = 0
+    # Messages (not steps) with skipped steps: older than the backfill window
+    # (``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``); ``include_older`` processes them.
+    skipped_messages: int = 0
 
 
 async def count_steps_by_mailbox(
     session: AsyncSession, mailbox_ids: Collection[uuid.UUID] | None = None
 ) -> dict[uuid.UUID, StepCounts]:
-    """Pending, running and failed steps per mailbox (default: all mailboxes).
+    """Pending, running and failed steps and messages with skipped steps per mailbox
+    (default: all mailboxes).
 
     Mailboxes without such steps are missing from the result; use ``StepCounts()`` as
     the default. Done steps are not counted.
@@ -311,6 +354,7 @@ async def count_steps_by_mailbox(
             func.count().filter(
                 status == StepStatus.FAILED, MessageProcessing.retry_at.is_not(None)
             ),
+            func.count(distinct(MessageProcessing.message_id)).filter(status == StepStatus.SKIPPED),
         )
         .join(Message, Message.id == MessageProcessing.message_id)
         .where(status != StepStatus.DONE)
@@ -320,10 +364,7 @@ async def count_steps_by_mailbox(
         if not mailbox_ids:
             return {}
         query = query.where(Message.mailbox_id.in_(mailbox_ids))
-    return {
-        mailbox_id: StepCounts(pending, running, failed, retry_scheduled)
-        for mailbox_id, pending, running, failed, retry_scheduled in await session.execute(query)
-    }
+    return {mailbox_id: StepCounts(*counts) for mailbox_id, *counts in await session.execute(query)}
 
 
 async def reset_failed_steps(
@@ -350,6 +391,42 @@ async def reset_failed_steps(
             .where(
                 MessageProcessing.message_id.in_(message_ids),
                 MessageProcessing.status == StepStatus.FAILED,
+            )
+            .values(**_RESET_VALUES)
+        )
+    return message_ids
+
+
+async def include_older(session: AsyncSession, mailbox_id: uuid.UUID) -> list[uuid.UUID]:
+    """ "Classify older mails too": from now on, run ``recent_only`` steps for all mails of
+    the mailbox, and set its skipped steps back to ``pending``. Returns the IDs of the
+    affected messages (most recently received first), which the caller queues again
+    (``app.processing.tasks.requeue_messages``). Empty if processing is disabled."""
+    statement = insert(MailboxProcessingSettings).values(
+        id=uuid7(), mailbox_id=mailbox_id, include_older=True
+    )
+    await session.execute(
+        statement.on_conflict_do_update(
+            index_elements=[MailboxProcessingSettings.mailbox_id],
+            set_={"include_older": True, "updated_at": func.now()},
+        )
+    )
+    skipped = select(MessageProcessing.message_id).where(
+        MessageProcessing.status == StepStatus.SKIPPED
+    )
+    message_ids = list(
+        await session.scalars(
+            select(Message.id)
+            .where(Message.mailbox_id == mailbox_id, _enabled_mailbox(), Message.id.in_(skipped))
+            .order_by(_message_time().desc(), Message.id.desc())
+        )
+    )
+    if message_ids:
+        await session.execute(
+            update(MessageProcessing)
+            .where(
+                MessageProcessing.message_id.in_(message_ids),
+                MessageProcessing.status == StepStatus.SKIPPED,
             )
             .values(**_RESET_VALUES)
         )

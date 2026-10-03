@@ -35,7 +35,7 @@ export function ThreadReply({ messageId, mailboxId }: { messageId: string; mailb
   const mailboxes = useQuery(mailboxesQueryOptions);
   const canSend = !!mailboxes.data
     ?.find((mailbox) => mailbox.id === mailboxId)
-    ?.permissions?.includes("act");
+    ?.permissions?.includes("send");
   const existing = useQuery({
     ...messageDraftsQueryOptions(messageId),
     enabled: canSend,
