@@ -109,6 +109,9 @@ jobs:
       OLLAMAIL_TEST_IMAP_PASSWORD: ollamail-test
       OLLAMAIL_TEST_REQUIRE_IMAP: "1"
       OLLAMAIL_TEST_REQUIRE_SMTP: "1"
+      # Dovecot and Mailpit listen on localhost; mail connections refuse internal addresses
+      # without an allowlist entry (app/mail/providers/network.py).
+      OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS: localhost,127.0.0.0/8,::1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -266,6 +269,8 @@ jobs:
       OLLAMAIL_AUTH_COOKIE_SECURE: "false"
       # The test server uses a self-signed certificate.
       OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS: "true"
+      # Dovecot listens on localhost, an internal address that needs an allowlist entry.
+      OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS: localhost,127.0.0.0/8,::1
       # Nothing listens there: LLM calls fail immediately instead of waiting for a timeout.
       OLLAMAIL_LLM_BASE_URL: http://127.0.0.1:9
       OLLAMAIL_TTS_DOWNLOAD_VOICES: "false"

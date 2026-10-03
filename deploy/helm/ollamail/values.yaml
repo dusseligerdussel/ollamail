@@ -79,6 +79,12 @@ config:
   # Peers whose X-Forwarded-For/-Proto the api trusts (the frontend pods). Default: loopback
   # and private networks; add the pod CIDR if it lies outside them, e.g.:
   # OLLAMAIL_FORWARDED_ALLOW_IPS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10"
+  # Mail servers (IMAP/SMTP) on internal addresses users may connect to: host names or
+  # CIDR ranges, comma-separated, e.g. an IMAP server in the cluster or LAN. Default: public
+  # addresses only (no cluster services, no private networks, no metadata endpoint).
+  # OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS: "imap.mail.svc.cluster.local,10.20.0.0/16"
+  # Connection tests per user within 10 minutes (default 20).
+  # OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS: "20"
 
 # Additional environment variables (EnvVar objects) for api, worker and the migration job.
 extraEnv: []

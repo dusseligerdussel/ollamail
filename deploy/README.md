@@ -27,7 +27,9 @@ docker compose -f deploy/compose.yaml up -d
 versucht die GHCR-Images zu ziehen und bricht ohne Zugriff mit `unauthorized` ab.
 
 Die UI ist danach unter <http://localhost:8080> erreichbar, die API unter `/api`
-(z. B. `curl http://localhost:8080/api/healthz`).
+(z. B. `curl http://localhost:8080/api/healthz`). Der Port ist standardmäßig nur an `127.0.0.1`
+gebunden; für Zugriff aus dem LAN `OLLAMAIL_HTTP_BIND` bewusst setzen (siehe
+[TLS / Reverse Proxy](#tls--reverse-proxy)).
 
 Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 
@@ -157,8 +159,10 @@ Key wechseln:
 
 ## TLS / Reverse Proxy
 
-Der `frontend`-Container spricht nur HTTP. Für den Betrieb im Netz einen TLS-terminierenden
-Reverse Proxy (z. B. Caddy, Traefik, nginx) davorsetzen und `OLLAMAIL_HTTP_BIND=127.0.0.1` setzen.
+Der `frontend`-Container spricht nur HTTP und ist standardmäßig nur unter `127.0.0.1` veröffentlicht
+(`OLLAMAIL_HTTP_BIND`). Für den Betrieb im Netz einen TLS-terminierenden Reverse Proxy (z. B. Caddy,
+Traefik, nginx) auf demselben Host davorsetzen. Direkter Zugriff aus dem LAN (unverschlüsseltes HTTP)
+nur bewusst: `OLLAMAIL_HTTP_BIND` auf die LAN-Adresse des Hosts oder `0.0.0.0` setzen.
 Konfigurationsbeispiele: [`docs/OPERATIONS.md`](../docs/OPERATIONS.md#4-reverse-proxy-und-tls).
 `X-Forwarded-*`-Header werden nur von privaten Netzen akzeptiert; der äußere Proxy muss
 `X-Forwarded-For` auf die echte Client-IP setzen statt anzuhängen (Rate-Limits).
