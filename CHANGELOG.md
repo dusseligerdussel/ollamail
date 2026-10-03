@@ -39,12 +39,17 @@ Entwurf.
 
 ### Bekannte Einschränkungen
 
+- ollamail ist ein Analyse-Werkzeug, kein Mail-Client: Auf den Server zurück gehen nur
+  gelesen/ungelesen, gesendete Antworten und – falls eingeschaltet – die Triage-Kategorie als
+  Label/Ordner. Archivieren, Verschieben, Löschen und Markieren gibt es noch nicht
+  (`docs/ARCHITECTURE.md` §3.1, „Mail-Aktionen auf dem Server“).
 - Microsoft 365, Gmail/Google Workspace, Microsoft To Do und Google Tasks sind nur mit
   Unit- und Integrationstests gegen nachgebaute APIs geprüft, **nicht gegen echte Konten**.
   Testanleitungen: `docs/providers/microsoft365.md`, `docs/providers/gmail.md`.
 - SAML, SCIM und die externen Identity-Provider sind ebenfalls nicht gegen echte
   Entra-ID-/Okta-/Google-Mandanten getestet.
-- Die arm64-Images werden per QEMU gebaut, aber auf keiner echten arm64-Hardware getestet.
+- Die arm64-Images werden nativ auf arm64-Runnern gebaut (seit #131), aber auf keiner echten
+  arm64-Hardware getestet.
 - Die GHCR-Images sind derzeit nicht öffentlich; ohne Zugriff lokal bauen
   (`deploy/compose.build.yaml`, siehe `docs/OPERATIONS.md` §2.3).
 - Kein automatischer Downgrade: Rückkehr zu einer älteren Version nur über das Backup von

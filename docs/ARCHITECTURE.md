@@ -141,6 +141,20 @@ Mailboxes).
 Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`;
 Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto.py`).
 
+#### Mail-Aktionen auf dem Server
+
+ollamail ist ein Analyse-Werkzeug, kein Mail-Client. Die Provider können verschieben, Flags setzen
+und Labels setzen/entfernen; aus der App heraus gehen aber nur diese Änderungen an den Server:
+
+| Aktion | Wo | Provider-Methode |
+|---|---|---|
+| Gelesen/ungelesen | `PATCH /messages/{id}`, Job `mail.write_flags` | `set_flags` |
+| Antwort senden | `POST /drafts/{id}/send` (§4.6) | `send` |
+| Triage-Kategorie zurückschreiben (opt-in je Postfach) | `app/triage/writeback.py` (§4.2) | `apply_label`/`remove_label` bzw. `move` |
+
+Archivieren, Verschieben, Löschen und Markieren (Flag/Stern) durch den Nutzer gibt es noch nicht
+(#148); Mails werden dafür weiter im Mail-Client verwaltet.
+
 #### IMAP-Provider (`backend/app/mail/providers/imap*.py`)
 
 - **Client:** eigener schlanker asyncio-Client (`imap_client.py`, Parser in `imap_protocol.py`)
