@@ -127,7 +127,7 @@ jobs:
             org.opencontainers.image.title=ollamail-${{ matrix.image }}
 
       # Scan before anything is pushed: build the image into the local Docker daemon and fail
-      # on fixable critical CVEs. The build below reuses the cache.
+      # on fixable high and critical CVEs. The build below reuses the cache.
       - name: Build for scan
         uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
         with:
@@ -146,8 +146,10 @@ jobs:
           scan-type: image
           image-ref: ollamail-${{ matrix.image }}:scan
           scanners: vuln
-          severity: CRITICAL
+          severity: HIGH,CRITICAL
           ignore-unfixed: true
+          # Accepted findings, each with a reason and an expiry date.
+          trivyignores: .trivyignore
           exit-code: "1"
           format: table
 

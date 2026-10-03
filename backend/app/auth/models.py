@@ -16,6 +16,7 @@ from sqlalchemy import (
     Table,
     Text,
     UniqueConstraint,
+    func,
     true,
 )
 from sqlalchemy.dialects.postgresql import ARRAY
@@ -74,6 +75,9 @@ class AuthSession(Base):
     provider: Mapped[str] = mapped_column(String(64))
     expires_at: Mapped[datetime] = mapped_column(index=True)
     last_seen_at: Mapped[datetime]
+    # Last time the user proved who they are in this session: the sign-in itself or a
+    # confirmation before a sensitive action (app/auth/reauth.py).
+    authenticated_at: Mapped[datetime] = mapped_column(server_default=func.now())
     # Shown in the session list so users can recognise their devices; truncated.
     user_agent: Mapped[str | None] = mapped_column(String(255))
 

@@ -40,7 +40,7 @@ from app.ai.llm.errors import (
     ModelNotAvailableError,
 )
 from app.core.config import get_settings
-from app.core.db import Database
+from app.core.db import Database, bind_process_database, process_database
 from app.core.logging import get_logger
 from app.mail.hooks import MessageStored, on_message_stored
 from app.processing import service
@@ -64,26 +64,16 @@ class Priority(enum.IntEnum):
     REPROCESS = -10
 
 
-_database: Database | None = None
-
-
 def get_database() -> Database:
-    """Database of the worker process, created on first use."""
-    global _database
-    if _database is None:
-        _database = Database(get_settings().database)
-    return _database
+    """Database of the worker process, shared by all its jobs (``process_database``)."""
+    return process_database()
 
 
 @contextmanager
 def use_database(database: Database) -> Iterator[None]:
     """Run jobs against ``database`` (tests)."""
-    global _database
-    saved, _database = _database, database
-    try:
+    with bind_process_database(database):
         yield
-    finally:
-        _database = saved
 
 
 def _message_lock(message_id: UUID | str) -> str:

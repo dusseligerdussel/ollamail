@@ -1,7 +1,8 @@
 """Database engine, sessions and the declarative base class."""
 
 import uuid
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Iterator
+from contextlib import contextmanager
 from datetime import datetime
 from typing import Any, ClassVar
 
@@ -15,7 +16,7 @@ from sqlalchemy.ext.asyncio import (
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 
-from app.core.config import DatabaseSettings
+from app.core.config import DatabaseSettings, get_settings
 from app.core.ids import uuid7
 
 # Deterministic constraint names keep Alembic autogenerate diffs stable.
@@ -75,6 +76,42 @@ class Database:
 
     async def dispose(self) -> None:
         await self.engine.dispose()
+
+
+_process_database: Database | None = None
+
+
+def process_database() -> Database:
+    """The one engine (and connection pool) of this process, created on first use.
+
+    Worker tasks, the mailbox watcher and the AI settings resolver share it, so a worker
+    holds at most ``pool_size + max_overflow`` SQLAlchemy connections (docs/OPERATIONS.md,
+    "Datenbankverbindungen"). The api binds its own ``Database`` here (``bind_process_database``).
+    Create it inside the event loop that uses it.
+    """
+    global _process_database
+    if _process_database is None:
+        _process_database = Database(get_settings().database)
+    return _process_database
+
+
+@contextmanager
+def bind_process_database(database: Database) -> Iterator[None]:
+    """Make ``database`` the process database while the block runs (api lifespan, tests)."""
+    global _process_database
+    saved, _process_database = _process_database, database
+    try:
+        yield
+    finally:
+        _process_database = saved
+
+
+async def dispose_process_database() -> None:
+    """Close the pool of the process database, if one was created (worker shutdown)."""
+    global _process_database
+    database, _process_database = _process_database, None
+    if database is not None:
+        await database.dispose()
 
 
 async def get_db(request: Request) -> AsyncIterator[AsyncSession]:

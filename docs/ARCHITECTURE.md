@@ -420,7 +420,7 @@ ai/llm/
   profiles.py       Hardware-Profile cpu / gpu-consumer / gpu-server
   structured.py     Pydantic → JSON-Schema, Validierung, Retry, Prompt-Fallback
   context.py        Token-Schätzung, Kürzen langer Mails
-  metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call`)
+  metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call` und Prometheus-Zähler)
   gateway.py        LLMGateway – einziger Einstiegspunkt für Features
 ai/prompts/         versionierte, sprachabhängige Prompt-Templates (`name@version`)
 ai/settings/        KI-Einstellungen in der DB (#18): Modelle, Store, DbConfigResolver, Admin-API
@@ -473,6 +473,14 @@ Das Gateway erledigt pro Aufruf:
 6. **Metriken:** Task, Endpunkt, Modell, Prompt-Version, Dauer, Token-Zahlen, Versuche und
    Fehlertyp. Prompts und Antworten werden **nie** erfasst. Fehlermeldungen enthalten keine
    Response-Bodies, weil manche Server die Anfrage darin zurückspiegeln.
+
+**Modell-Evaluierung** (`backend/app/evals/`, #122): `uv run python -m app.evals --model … [--model …]`
+misst Triage, Todos, Digest und RAG über einen synthetischen Datensatz (200 Mails DE/EN, 60 Fragen,
+`app/evals/data/`) mit den Prompts und dem `LLMGateway` der Features (`EnvConfigResolver`); die
+RAG-Stufe indexiert in einer zurückgerollten Transaktion einer separaten Datenbank und nutzt
+`RagService`. Bericht als Markdown und JSON, nur IDs und Zahlen. Läuft nicht in `ci-ok`, nur manuell
+(Workflow „Model evals“). Ausführung und gemessene Ergebnisse:
+[`operations/model-evals.md`](operations/model-evals.md).
 
 Readiness: Mit `OLLAMAIL_LLM_READINESS_CHECK=true` prüft `/readyz` (Check `llm`), ob alle zugewiesenen
 Modelle auf ihren Endpunkten verfügbar sind. Der Check ist standardmäßig aus, weil die API auch ohne
@@ -746,6 +754,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Evaluierung:** `uv run python -m scripts.eval_triage --model qwen2.5:3b [--model …]` klassifiziert
   einen synthetischen, gelabelten Datensatz (`scripts/triage_eval_dataset.json`, DE/EN) und gibt die
   Genauigkeit je Modell aus (Kategorie, Priorität, Anteil Vorfilter, Fehlklassifikationen).
+  Umfassender (größerer Datensatz, Konfusionsmatrix, Latenz): `python -m app.evals` (§3.2).
 
 ### 4.3 Todos
 
@@ -802,7 +811,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Evaluierung:** `python -m app.todos.evaluation [--model NAME ...]` läuft mit dem echten Prompt
   gegen den konfigurierten Endpunkt über `app/todos/eval_cases.json` (synthetische DE/EN-Mails mit
   erwarteten Todos, Fristen, Updates und Erledigt-Vorschlägen) und gibt je Modell Precision, Recall
-  und Trefferquote der Fristen aus. Neue Fälle im selben Format ergänzen.
+  und Trefferquote der Fristen aus. Neue Fälle im selben Format ergänzen. Über den großen
+  Datensatz mit Fuzzy-Match der Titel: `python -m app.evals --stage todos` (§3.2).
 - **Export** (`backend/app/todos/export/`, #40): Aufgaben landen in der Aufgabenliste, mit der
   der Nutzer ohnehin arbeitet. Umgesetzt sind CalDAV (VTODO), Microsoft To Do (Graph, #101)
   und Google Tasks (#102).
@@ -1242,13 +1252,19 @@ Cookie (`ollamail_mfa`, Tabelle `auth_mfa_pending`), das an genau diesen Login g
 `/api/auth/mfa/verify*` startet die Session. Für den zweiten Schritt gelten IP-Limit, eine
 eigene Kontosperre und höchstens 5 Versuche je Zwischenzustand. Admins können 2FA für Admins oder
 alle lokalen Konten erzwingen (`auth_policy.mfa_enforcement`); dann wird der Faktor vor der ersten
-Session eingerichtet. RP-ID und Origins kommen aus der Konfiguration
+Session eingerichtet – auch nach einer Einladung oder Selbstregistrierung, die denselben
+Schrittfluss wie der Login nutzen. RP-ID und Origins kommen aus der Konfiguration
 (`OLLAMAIL_AUTH_WEBAUTHN_*`, sonst `OLLAMAIL_AUTH_PUBLIC_URL`).
 
 **Sessions:** Cookie `ollamail_session` (`HttpOnly`, `Secure`, `SameSite=Lax`, 256 Bit Zufall);
 in der DB steht nur der SHA-256. Gültig bis `expires_at` (Lebensdauer) und solange die letzte
 Anfrage weniger als das Idle-Timeout zurückliegt (`last_seen_at`, höchstens minütlich
-geschrieben). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort
+geschrieben). `authenticated_at` hält fest, wann sich der Nutzer in dieser Session zuletzt
+ausgewiesen hat (Login oder Bestätigung); sensible Endpunkte (Faktor entfernen, neue
+Wiederherstellungscodes, Datenexport, Konto löschen) verlangen über `RecentAuthDep`
+(`app/auth/reauth.py`) eine Bestätigung innerhalb von `OLLAMAIL_AUTH_REAUTH_MINUTES` per
+Passwort, TOTP, Passkey oder erneuter (SSO-)Anmeldung, sonst 403 `reauth-required`
+(Details: [`auth/mfa.md`](auth/mfa.md#bestätigung-vor-sensiblen-aktionen-144)). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort
 den Zugriff. Login ersetzt eine vorhandene Session (keine Session Fixation). Endpunkte:
 `GET /api/auth/me`, `PATCH /api/auth/me` (Name, Sprache, Zeitzone), `POST /api/auth/logout`,
 `GET /api/auth/sessions`, `DELETE /api/auth/sessions/{id}`, `DELETE /api/auth/sessions`
@@ -1341,8 +1357,13 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 
 - Konfiguration per Env (`OLLAMAIL_*`), dokumentiert in `deploy/.env.example`. Start mit Docker Compose: `deploy/README.md`.
 - Kubernetes: Helm-Chart `deploy/helm/ollamail`, Doku in [`operations/kubernetes.md`](operations/kubernetes.md).
-- Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar).
-- Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional OpenTelemetry-Metriken.
+- Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar); der Worker
+  meldet Liveness über eine Heartbeat-Datei (`app/core/heartbeat.py`).
+- Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional Prometheus-Metriken
+  (`OLLAMAIL_METRICS_ENABLED`, nur intern bzw. mit Token; nur IDs, Codes und Zähler,
+  `app/core/metrics.py`, `app/admin/metrics.py`).
+- Datenbank: ein gemeinsamer Verbindungspool je Prozess (`app.core.db.process_database`);
+  Verbindungsbudget und `max_connections` in [`OPERATIONS.md` §8.2](OPERATIONS.md#82-datenbankverbindungen).
 - Backups: `pg_dump` + Daten-Volume; Doku in [`OPERATIONS.md`](OPERATIONS.md#5-backup-und-restore).
 - Images: `ghcr.io/<owner>/ollamail-{api,frontend}` für `linux/amd64` und `linux/arm64`.
 

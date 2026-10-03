@@ -5,7 +5,7 @@ and flag its mails and change their read state. Only the CHECK constraint of the
 VARCHAR enum changes. The downgrade turns ``act`` assignments back into ``read`` ones.
 
 Revision ID: 1966be4845c1
-Revises: 7150e49202cb
+Revises: 23b02eb66722
 Create Date: 2026-10-03 07:25:33.624794+00:00
 """
 
@@ -14,7 +14,7 @@ from collections.abc import Sequence
 from alembic import op
 
 revision: str = "1966be4845c1"
-down_revision: str | Sequence[str] | None = "7150e49202cb"
+down_revision: str | Sequence[str] | None = "23b02eb66722"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

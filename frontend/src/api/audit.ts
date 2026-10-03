@@ -17,6 +17,8 @@ const actionGroups = {
   "auth.mfa_enabled": "auth",
   "auth.mfa_disabled": "auth",
   "auth.mfa_recovery_codes_generated": "auth",
+  "auth.reauthenticated": "auth",
+  "auth.reauth_failed": "auth",
   "user.created": "users",
   "user.role_changed": "users",
   "user.deactivated": "users",

@@ -185,6 +185,7 @@ async def test_rate_limit_window_restarts(db_session: AsyncSession) -> None:
 async def test_cleanup_job(monkeypatch: pytest.MonkeyPatch, scratch_database: str) -> None:
     from app.auth.tasks import cleanup
     from app.core.config import get_settings
+    from app.core.db import Database, bind_process_database
 
     monkeypatch.setenv("OLLAMAIL_DATABASE_URL", scratch_database)
     get_settings.cache_clear()
@@ -195,11 +196,14 @@ async def test_cleanup_job(monkeypatch: pytest.MonkeyPatch, scratch_database: st
                 key="stale", window_start=datetime.now(UTC) - timedelta(days=1), hits=3
             )
         )
+    database = Database(get_settings().database)
     try:
-        await cleanup.func(timestamp=0)
+        with bind_process_database(database):
+            await cleanup.func(timestamp=0)
         async with engine.connect() as connection:
             remaining = await connection.execute(select(func.count()).select_from(rate_limits))
             assert remaining.scalar() == 0
     finally:
+        await database.dispose()
         await engine.dispose()
         get_settings.cache_clear()

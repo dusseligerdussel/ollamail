@@ -835,7 +835,8 @@ export interface paths {
         put?: never;
         /**
          * Accept Invitation
-         * @description Set the password of the invited account and sign in.
+         * @description Set the password of the invited account and sign in. Like ``POST /auth/login``,
+         *     accounts with a second factor or under enforced 2FA get 202 and no session yet.
          */
         post: operations["auth_accept_invitation"];
         delete?: never;
@@ -1133,7 +1134,7 @@ export interface paths {
         post?: never;
         /**
          * Remove Passkey
-         * @description Remove one of the own passkeys.
+         * @description Remove one of the own passkeys. Needs a recent confirmation.
          */
         delete: operations["auth_remove_passkey"];
         options?: never;
@@ -1152,7 +1153,7 @@ export interface paths {
         put?: never;
         /**
          * Regenerate Recovery Codes
-         * @description New recovery codes; the previous ones stop working.
+         * @description New recovery codes; the previous ones stop working. Needs a recent confirmation.
          */
         post: operations["auth_regenerate_recovery_codes"];
         delete?: never;
@@ -1173,7 +1174,7 @@ export interface paths {
         post?: never;
         /**
          * Remove Totp
-         * @description Remove the authenticator app.
+         * @description Remove the authenticator app. Needs a recent confirmation (app/auth/reauth.py).
          */
         delete: operations["auth_remove_totp"];
         options?: never;
@@ -1404,6 +1405,70 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/reauth": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Options
+         * @description How the signed-in user can confirm who they are before a sensitive action.
+         */
+        get: operations["auth_get_options"];
+        put?: never;
+        /**
+         * Confirm
+         * @description Confirm with the password or an authenticator code.
+         */
+        post: operations["auth_confirm"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reauth/passkey": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Confirm Passkey
+         * @description Confirm with a passkey (after ``/auth/reauth/passkey/options``).
+         */
+        post: operations["auth_confirm_passkey"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/reauth/passkey/options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Passkey Options
+         * @description WebAuthn request options for confirming with a passkey.
+         */
+        post: operations["auth_passkey_options"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/register": {
         parameters: {
             query?: never;
@@ -1416,6 +1481,8 @@ export interface paths {
         /**
          * Register
          * @description Create a local account (role ``user``) and sign in, if self-registration is on.
+         *     While 2FA is enforced for all accounts, the answer is 202 and the account sets up a
+         *     factor first (as at the login).
          */
         post: operations["auth_register"];
         delete?: never;
@@ -2262,7 +2329,8 @@ export interface paths {
         /**
          * Delete Account
          * @description Delete the own account with all data (mailboxes, mails, todos, digests, ...) and
-         *     files. Confirmed by entering the account's e-mail address. Not reversible.
+         *     files. Confirmed by entering the account's e-mail address, after a recent confirmation
+         *     of the account (app/auth/reauth.py, 403 reauth-required). Not reversible.
          */
         delete: operations["privacy_delete_account"];
         options?: never;
@@ -2286,7 +2354,8 @@ export interface paths {
         /**
          * Request Export
          * @description Start an export of the own data (ZIP with JSON and digest audio) as a background
-         *     job. While one is in progress, that one is returned.
+         *     job. While one is in progress, that one is returned. Needs a recent confirmation
+         *     (app/auth/reauth.py).
          */
         post: operations["privacy_request_export"];
         delete?: never;
@@ -3435,7 +3504,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -5591,6 +5660,47 @@ export interface components {
              * @enum {string}
              */
             status: "ok" | "unavailable";
+        };
+        /**
+         * ReauthOptions
+         * @description How the signed-in user can confirm who they are.
+         */
+        ReauthOptions: {
+            /** Login Path */
+            login_path?: string | null;
+            /** Methods */
+            methods: ("password" | "totp" | "webauthn" | "sso" | "signin")[];
+            /** Provider Display Name */
+            provider_display_name?: string | null;
+            /** Reauth Minutes */
+            reauth_minutes: number;
+            /** Valid Until */
+            valid_until: string | null;
+        };
+        /** ReauthRequest */
+        ReauthRequest: {
+            /** Code */
+            code?: string | null;
+            /**
+             * Method
+             * @enum {string}
+             */
+            method: "password" | "totp";
+            /** Password */
+            password?: string | null;
+        };
+        /** ReauthStatus */
+        ReauthStatus: {
+            /**
+             * Authenticated At
+             * Format: date-time
+             */
+            authenticated_at: string;
+            /**
+             * Valid Until
+             * Format: date-time
+             */
+            valid_until: string;
         };
         /**
          * Recipient
@@ -9449,6 +9559,15 @@ export interface operations {
                     "application/json": components["schemas"]["UserRead"];
                 };
             };
+            /** @description Password set, second step needed */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaChallenge"];
+                };
+            };
             /** @description Local login is disabled */
             403: {
                 headers: {
@@ -10284,6 +10403,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Confirm the account first (reauth-required, see /auth/reauth) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description No such passkey */
             404: {
                 headers: {
@@ -10334,6 +10460,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Confirm the account first (reauth-required, see /auth/reauth) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
             /** @description No second factor set up */
             409: {
                 headers: {
@@ -10361,6 +10494,13 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Confirm the account first (reauth-required, see /auth/reauth) */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -10825,6 +10965,205 @@ export interface operations {
             };
         };
     };
+    auth_get_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthOptions"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_confirm: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReauthRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthStatus"];
+                };
+            };
+            /** @description Wrong password, code or passkey */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The method is not available for this account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_confirm_passkey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PasskeyAssertion"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReauthStatus"];
+                };
+            };
+            /** @description Wrong password, code or passkey */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The method is not available for this account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_passkey_options: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": {
+                        [key: string]: unknown;
+                    };
+                };
+            };
+            /** @description Wrong password, code or passkey */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The method is not available for this account */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many attempts */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
     auth_register: {
         parameters: {
             query?: never;
@@ -10845,6 +11184,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UserRead"];
+                };
+            };
+            /** @description Account created, 2FA must be set up */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MfaChallenge"];
                 };
             };
             /** @description Registration is disabled */
@@ -13148,7 +13496,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Self-deletion is disabled */
+            /** @description Self-deletion is disabled, or a confirmation is needed */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -13218,6 +13566,13 @@ export interface operations {
             };
             /** @description Not signed in */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Confirm the account first (reauth-required, see /auth/reauth) */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

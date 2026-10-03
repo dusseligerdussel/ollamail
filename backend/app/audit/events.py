@@ -22,6 +22,9 @@ class AuditAction(enum.StrEnum):
     MFA_ENABLED = "auth.mfa_enabled"
     MFA_DISABLED = "auth.mfa_disabled"
     MFA_RECOVERY_CODES_GENERATED = "auth.mfa_recovery_codes_generated"
+    # Confirmation before a sensitive action (#144): ``method``; failures with ``reason``.
+    REAUTHENTICATED = "auth.reauthenticated"
+    REAUTH_FAILED = "auth.reauth_failed"
     # Users
     USER_CREATED = "user.created"
     USER_ROLE_CHANGED = "user.role_changed"  # group mapping at login; user administration
