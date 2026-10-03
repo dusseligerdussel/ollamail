@@ -80,6 +80,10 @@ class ProcessingStep:
     # For steps that use another step's result when it exists (todos after triage).
     after: tuple[str, ...] = ()
     retry: RetryStrategy = field(default_factory=lambda: DEFAULT_RETRY, compare=False)
+    # Skipped for mails older than ``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS`` unless the
+    # mailbox opted in; for expensive LLM steps whose result only matters for recent
+    # mail (triage, todos). Steps that ``depends_on`` a skipped step are skipped too.
+    recent_only: bool = False
 
 
 class StepRegistry:
@@ -107,6 +111,7 @@ class StepRegistry:
         depends_on: tuple[str, ...] = (),
         after: tuple[str, ...] = (),
         retry: RetryStrategy = DEFAULT_RETRY,
+        recent_only: bool = False,
     ) -> Callable[[StepHandler], StepHandler]:
         """Decorator registering ``handler`` as step ``name``."""
 
@@ -120,6 +125,7 @@ class StepRegistry:
                     depends_on=tuple(depends_on),
                     after=tuple(after),
                     retry=retry,
+                    recent_only=recent_only,
                 )
             )
             return handler

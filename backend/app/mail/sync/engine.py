@@ -26,6 +26,16 @@ stable, so an invalid cursor does not wipe the mailbox: the time window is impor
 (known messages are only updated) and stored messages of the window that the server no
 longer returned are deleted afterwards (``_sync_scope`` with ``reconcile``).
 
+Time slices (#141): a large import must not hold the mailbox for hours. After
+``OLLAMAIL_MAIL_SYNC_SLICE_BATCHES`` import batches or ``..._SLICE_MINUTES`` minutes, the run
+stops importing at the committed cursor of the batch and reports ``SyncStats.incomplete``;
+the other folders get their changes and new mail but no import batch (a provider may have
+fetched one already, it is dropped). The job queues a follow-up run
+(``app.mail.sync.tasks``). Every run applies changes and new mail
+before it continues an import (providers fetch new mail first), so new mail waits for one
+slice at most. Changes and new mail are never cut off, and a resync (``reconcile``) is not
+sliced: it does not store intermediate cursors.
+
 Status: ``SyncState.last_error``/``last_synced_at`` per folder; errors that concern the
 whole mailbox (authentication, connection, configuration) go to the mailbox-level row
 (``folder_id IS NULL``), which also records the last complete sync. Only error codes are
@@ -35,7 +45,7 @@ while new messages arrive, then ``done`` or ``failed``).
 
 import uuid
 from collections.abc import Callable, Iterable
-from dataclasses import asdict, dataclass
+from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
@@ -93,6 +103,10 @@ class SyncStats:
     updated: int = 0
     deleted: int = 0
     failed_folders: int = 0
+    # Import batches committed in this run (for the time slice; not compared).
+    import_batches: int = field(default=0, compare=False)
+    # Stopped importing at the end of a time slice; a follow-up run continues.
+    incomplete: bool = False
 
 
 def _utcnow() -> datetime:
@@ -119,6 +133,9 @@ class MailboxSync:
         self.initial_days = self.sync_settings.initial_sync_days or settings.initial_sync_days
         self.now = now
         self.stats = SyncStats()
+        self.slice_batches = settings.sync_slice_batches
+        self.slice_time = timedelta(minutes=settings.sync_slice_minutes)
+        self.started_at = now()
 
     async def run(self) -> SyncStats:
         folders = await self.sync_folders()
@@ -246,6 +263,12 @@ class MailboxSync:
     async def _state(self, folder_id: uuid.UUID | None) -> SyncState:
         return await _sync_state(self.session, self.mailbox_id, folder_id)
 
+    def _slice_over(self) -> bool:
+        """The time slice of this run is used up (``OLLAMAIL_MAIL_SYNC_SLICE_*``)."""
+        return (0 < self.slice_batches <= self.stats.import_batches) or (
+            self.slice_time > timedelta(0) and self.now() - self.started_at >= self.slice_time
+        )
+
     async def _has_messages(self) -> bool:
         return bool(
             await self.session.scalar(select(exists().where(Message.mailbox_id == self.mailbox_id)))
@@ -284,6 +307,8 @@ class MailboxSync:
         new_ids: list[tuple[uuid.UUID, bool]] = []
         updates: dict[str, MessageUpdated] = {}
         deletes: list[str] = []
+        # Since the last commit: any event applied / any import message received.
+        dirty = importing = False
 
         async def store(raw: RawMessage, known: uuid.UUID | None, initial: bool) -> None:
             updates.pop(raw.remote_ref, None)
@@ -304,54 +329,76 @@ class MailboxSync:
             else:
                 updates[event.remote_ref] = event
 
-        async for event in self.provider.fetch_since(remote_id, cursor, since=since):
-            if isinstance(event, MessageFetched):
-                raw = event.message
-                await store(raw, await self._known(raw.remote_ref), event.initial)
-            elif isinstance(event, MessageChanged):
-                if await self._known(event.remote_ref) is not None:
-                    seen.add(event.remote_ref)
-                    update(
-                        MessageUpdated(
-                            event.remote_ref, flags=event.flags, folder_ids=event.folder_ids
+        events = self.provider.fetch_since(remote_id, cursor, since=since)
+        try:
+            async for event in events:
+                if isinstance(event, MessageFetched) and event.initial:
+                    if self.stats.incomplete and not (dirty or reconcile):
+                        # The slice ended in an earlier folder: do not start or continue
+                        # this folder's import; the follow-up run does.
+                        return
+                    importing = True
+                dirty = True
+                if isinstance(event, MessageFetched):
+                    raw = event.message
+                    await store(raw, await self._known(raw.remote_ref), event.initial)
+                elif isinstance(event, MessageChanged):
+                    if await self._known(event.remote_ref) is not None:
+                        seen.add(event.remote_ref)
+                        update(
+                            MessageUpdated(
+                                event.remote_ref, flags=event.flags, folder_ids=event.folder_ids
+                            )
                         )
-                    )
-                    continue
-                if event.folder_ids is not None and not wanted(event.folder_ids):
-                    continue
-                try:
-                    raw = await event.load()
-                except MessageNotFoundError:
-                    continue
-                await store(raw, None, False)
-            elif isinstance(event, MessageUpdated):
-                update(event)
-            elif isinstance(event, MessageDeleted):
-                updates.pop(event.remote_ref, None)
-                deletes.append(event.remote_ref)
-            elif isinstance(event, CursorAdvanced):
-                deletes.extend(await self._apply_updates(updates.values(), folders))
-                if reconcile:
-                    final = event.cursor
-                else:
-                    state.cursor = event.cursor.data
-                state.last_synced_at = self.now()
-                state.last_error = None
-                if new_ids:
-                    await self._publish("progress")
-                if deletes:
-                    # Commits the transaction, then removes the attachment files.
-                    self.stats.deleted += await delete_messages(
-                        self.session, self.mailbox_id, deletes, self.storage
-                    )
-                else:
-                    await self.session.commit()
-                self.stats.stored += len(new_ids)
-                for message_id, initial in new_ids:
-                    await message_stored(self.mailbox_id, message_id, backfill=initial)
-                new_ids, deletes = [], []
-                updates.clear()
-                self._release_messages()
+                        continue
+                    if event.folder_ids is not None and not wanted(event.folder_ids):
+                        continue
+                    try:
+                        raw = await event.load()
+                    except MessageNotFoundError:
+                        continue
+                    await store(raw, None, False)
+                elif isinstance(event, MessageUpdated):
+                    update(event)
+                elif isinstance(event, MessageDeleted):
+                    updates.pop(event.remote_ref, None)
+                    deletes.append(event.remote_ref)
+                elif isinstance(event, CursorAdvanced):
+                    deletes.extend(await self._apply_updates(updates.values(), folders))
+                    if reconcile:
+                        final = event.cursor
+                    else:
+                        state.cursor = event.cursor.data
+                    state.last_synced_at = self.now()
+                    state.last_error = None
+                    if new_ids:
+                        await self._publish("progress")
+                    if deletes:
+                        # Commits the transaction, then removes the attachment files.
+                        self.stats.deleted += await delete_messages(
+                            self.session, self.mailbox_id, deletes, self.storage
+                        )
+                    else:
+                        await self.session.commit()
+                    self.stats.stored += len(new_ids)
+                    for message_id, initial in new_ids:
+                        await message_stored(self.mailbox_id, message_id, backfill=initial)
+                    new_ids, deletes = [], []
+                    updates.clear()
+                    self._release_messages()
+                    if importing:
+                        self.stats.import_batches += 1
+                        if not reconcile and self._slice_over():
+                            # Stop at the committed cursor, without asking the provider
+                            # for the next batch; the follow-up run continues here.
+                            self.stats.incomplete = True
+                            return
+                    dirty = importing = False
+        finally:
+            # Ends the provider's iteration when the slice is over (or on errors).
+            aclose = getattr(events, "aclose", None)
+            if aclose is not None:
+                await aclose()
         if reconcile and final is not None and since is not None:
             await self._delete_unseen(seen, since)
             state = await self._state(folder_id)

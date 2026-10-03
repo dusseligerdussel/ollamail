@@ -19,6 +19,10 @@ Failures (#138): a step that keeps failing is marked ``failed``. If the reason p
 (LLM unreachable, model missing, timeout), ``processing.retry_failed`` runs it again
 later with a growing delay (``OLLAMAIL_PROCESSING_AUTO_RETRY_*``). While the worker's
 circuit breaker pauses a dead LLM endpoint, steps are postponed instead of failing.
+
+Backfill window (#141): mails received more than ``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``
+ago skip the ``recent_only`` steps (triage, todos) and get the search index only, unless
+their mailbox opted in (``service.include_older``).
 """
 
 import contextlib
@@ -26,7 +30,7 @@ import enum
 import re
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
-from datetime import timedelta
+from datetime import UTC, datetime, timedelta
 from uuid import UUID
 
 from procrastinate import BaseRetryStrategy, JobContext, RetryDecision
@@ -150,12 +154,21 @@ async def _defer_steps(message_id: str, names: Sequence[str], priority: int) -> 
             ).defer_async(message_id=message_id, step=name)
 
 
+def recent_since(now: datetime | None = None) -> datetime | None:
+    """Start of the backfill window: older mails skip ``recent_only`` steps. ``None`` if
+    ``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS`` is 0 (no window)."""
+    days = get_settings().processing.backfill_llm_days
+    if days == 0:
+        return None
+    return (now or datetime.now(UTC)) - timedelta(days=days)
+
+
 @app.task(name="processing.plan_message", queue="default", retry=DEFAULT_RETRY, pass_context=True)
 async def plan_message(context: JobContext, message_id: str) -> None:
     """Create or reset the step rows of a message and queue the steps that can run."""
     steps = registry.ordered()
     async with get_database().sessionmaker() as session:
-        ready = await service.plan(session, UUID(message_id), steps)
+        ready = await service.plan(session, UUID(message_id), steps, recent_since=recent_since())
         await session.commit()
     await _defer_steps(message_id, ready, _priority(context))
 

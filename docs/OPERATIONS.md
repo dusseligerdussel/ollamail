@@ -269,6 +269,36 @@ Das Profil muss bei `up` und `down` mit angegeben werden, sonst wird der Dienst 
 bzw. nicht gestoppt (`exec` und `logs` auf einen laufenden Dienst gehen auch ohne). Alternativ
 `COMPOSE_PROFILES=ollama-cpu` in der Shell oder in `deploy/.env` setzen.
 
+#### Erstimport auf CPU: Dauer, Altbestand, Zeitscheiben (#141)
+
+Auf CPU mit `qwen2.5:3b` brauchen Triage und Aufgaben zusammen etwa **20–60 s pro Mail**
+(Messung auf 4 vCPUs, [`operations/model-evals.md`](operations/model-evals.md), Abschnitt 4.1:
+Triage im Mittel 9,5 s, Aufgaben 46,3 s, Median 14,1 s). Würde jede importierte Mail
+klassifiziert, dauerte der Standard-Import (90 Tage, oft 5.000–10.000 Mails) **1–4 Tage**. Der
+Suchindex ist dagegen billig: Embeddings für 200 Mails brauchten 35 s, für 10.000 Mails also
+rund eine halbe Stunde. Deshalb gilt:
+
+- **Nur jüngere Mails werden klassifiziert.** Mails, die vor mehr als
+  `OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS` Tagen (Standard **14**) eingegangen sind, bekommen nur
+  Volltextindex und Embeddings – Suche und „Frag dein Postfach“ funktionieren –, aber keine Triage
+  und keine Aufgaben (Schritte im Status `skipped`). Auch Aufgaben aus monatealten Mails entfallen
+  so. Bei 14 Tagen sind das typischerweise einige hundert bis gut tausend Mails, also grob
+  **3–17 Stunden** LLM-Zeit statt Tagen; neue Mails überholen den Rückstand trotzdem sofort.
+  `0` klassifiziert alle Mails.
+- **Ältere Mails nachträglich klassifizieren:** Admin › Systemstatus, Abschnitt „Verarbeitung je
+  Postfach“, Button „Ältere Mails auch klassifizieren“, oder
+  `python -m app.cli processing include-older <mailbox-id>`. Die übersprungenen Mails laufen dann
+  hinter neuen Mails durch; für dieses Postfach gilt die Grenze danach nicht mehr (auch nicht für
+  später importierte Mails).
+- **Der Import läuft in Zeitscheiben.** Ein Sync-Job beendet den Import nach
+  `OLLAMAIL_MAIL_SYNC_SLICE_BATCHES` Batches (Standard 20, à `OLLAMAIL_MAIL_SYNC_BATCH_SIZE` = 50
+  Mails) oder `OLLAMAIL_MAIL_SYNC_SLICE_MINUTES` Minuten (Standard 5) und plant sich mit
+  niedrigerer Priorität neu ein. Der nächste Lauf holt zuerst neue Mails und Änderungen, dann geht
+  der Import weiter. Neue Mails warten so höchstens eine Zeitscheibe statt bis zum Ende des
+  Imports. Ausnahme Microsoft 365: Die Delta-Abfrage eines Ordners liefert neue Mails erst, wenn
+  dessen Erstimport durch ist; andere Ordner sind davon nicht betroffen. `0` schaltet die jeweilige
+  Grenze ab.
+
 ### 3.3 Consumer-GPU (Profil `ollama-gpu`)
 
 Voraussetzungen auf dem Host:

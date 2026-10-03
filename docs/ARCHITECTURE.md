@@ -295,6 +295,13 @@ Design und Einrichtung: [`providers/gmail.md`](providers/gmail.md). Kurzfassung:
 - **Job** `mail.sync_mailbox` (Queue `sync`, `lock` und `queueing_lock` pro Postfach); anstoßen mit
   `app.mail.sync.tasks.request_sync(mailbox_id)`. Verbindungsfehler lösen Retries aus,
   Anmelde- und Konfigurationsfehler nicht.
+- **Zeitscheiben (#141):** Ein Lauf importiert höchstens `OLLAMAIL_MAIL_SYNC_SLICE_BATCHES`
+  Batches bzw. `OLLAMAIL_MAIL_SYNC_SLICE_MINUTES` Minuten Altbestand (Events mit `initial=True`).
+  Danach endet er am zuletzt committeten Cursor, die übrigen Ordner bekommen nur noch Änderungen
+  und neue Mails, und `SyncStats.incomplete` ist gesetzt; der Job reiht einen Folgelauf mit
+  niedrigerer Priorität (`CONTINUE_PRIORITY`) ein. Weil die Provider neue Mails vor dem
+  Weiterimport liefern, warten neue Mails höchstens eine Zeitscheibe. Ein Resync ohne
+  Zwischen-Cursor (`reconcile`) wird nicht geteilt.
 - **Watcher** (`watcher.py`): läuft im Worker-Prozess neben den Job-Workern (kein Job, damit er
   keinen Worker-Slot dauerhaft belegt). Pro Postfach eine `IDLE`-Verbindung; jedes Push-Event
   stößt einen Sync an, zusätzlich alle `poll_interval_seconds` (andere Ordner, Server ohne
@@ -509,6 +516,10 @@ sechsmal im Abstand von 10 s erneut.
 - `POST /api/admin/system/mailboxes/{id}/retry-failed`: setzt nur die fehlgeschlagenen Schritte
   des Postfachs auf `pending` (`processing.service.reset_failed_steps`) und reiht die Mails mit
   `Priority.REPROCESS` ein, also hinter neuen Mails.
+- `POST /api/admin/system/mailboxes/{id}/include-older`: „Ältere Mails auch klassifizieren“
+  (`processing.service.include_older`): setzt `include_older` des Postfachs, die übersprungenen
+  Schritte auf `pending` und reiht die Mails mit `REPROCESS` ein. Die Übersicht zeigt dazu je
+  Postfach `skipped_messages` und `include_older`.
 - **UI:** Die Admin-Seite (`/admin`) zeigt Checkliste, Modellzustand mit Download-Button und
   Fortschritt sowie die Verarbeitung je Postfach. Die App-Shell zeigt unter dem Cloud-Hinweis
   dezente Hinweisleisten (`components/system-notices.tsx`): Admins sehen „Modell fehlt“ bzw.
@@ -655,6 +666,16 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Status:** `pending` → `running` → `done` bzw. `failed`. Ein fehlgeschlagener Versuch, der
   wiederholt wird, steht wieder auf `pending` (mit Fehlercode); `failed` heißt „aufgegeben“
   (Retries erschöpft oder `StepError(code, permanent=True)`). Gespeichert werden nur Fehlercodes.
+  `skipped` heißt „bewusst nicht ausgeführt“ (Altbestand, siehe unten); für `after` und das
+  Event `message.processed` zählt es wie erledigt.
+- **Altbestand (#141):** Schritte mit `recent_only=True` (Triage, Todos) laufen nur für Mails, die
+  nach `now − OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS` eingegangen sind (`received_at`, sonst
+  `sent_at`/`created_at`; `0` = alle). Ältere Mails bekommen nur die übrigen Schritte (Index,
+  Embeddings); `plan` setzt die übersprungenen und die per `depends_on` davon abhängigen Schritte
+  auf `skipped`. Bereits erledigte Schritte bleiben erledigt. Je Postfach hebt
+  `processing_mailbox_settings.include_older` die Grenze auf (Admin-Systemstatus oder
+  `python -m app.cli processing include-older <mailbox-id>`); `plan` setzt `skipped` dann wieder
+  auf `pending`. Übersprungene Schritte gelten nicht als veraltet (`requeue_outdated`).
 - **Automatische Wiederholung:** War der Grund vorübergehend (`LLMUnavailableError`,
   `ModelNotAvailableError`, begrenzt `LLMTimeoutError`), setzt `fail_step` `retry_at`;
   `processing.retry_failed` (alle 5 Minuten) setzt fällige Schritte wieder auf `pending`
@@ -667,7 +688,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   den Schritt dann zurück auf `pending` (ohne einen Versuch zu verbrauchen) und plant einen neuen
   Job nach Ablauf der Pause. Nach der Pause prüft ein einzelner Aufruf den Endpunkt.
 - **Zählen:** `count_steps_by_mailbox` liefert `StepCounts(pending, running, failed,
-  retry_scheduled)` je Postfach (Systemstatus), `reset_failed_steps` setzt fehlgeschlagene
+  retry_scheduled, skipped_messages)` je Postfach (Systemstatus; `skipped_messages` zählt Mails), `reset_failed_steps` setzt fehlgeschlagene
   Schritte eines Postfachs zurück.
 - **Versionen:** Erhöht ein Schritt seine `version` (z. B. neuer Prompt), reiht der periodische Job
   `processing.requeue_outdated` (alle 10 Minuten, `OLLAMAIL_PROCESSING_REQUEUE_BATCH_SIZE` Mails,

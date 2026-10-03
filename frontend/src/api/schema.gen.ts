@@ -621,6 +621,28 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/system/mailboxes/{mailbox_id}/include-older": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Include Older Mails
+         * @description Classify the older mails of a mailbox too: triage and todos run for the mails
+         *     outside the backfill window (``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``), behind new
+         *     mail (``REPROCESS``), and for every older mail of this mailbox from now on.
+         */
+        post: operations["admin_include_older_mails"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/admin/system/mailboxes/{mailbox_id}/retry-failed": {
         parameters: {
             query?: never;
@@ -4573,6 +4595,11 @@ export interface components {
             /** Subject */
             subject: string;
         };
+        /** IncludeOlderRead */
+        IncludeOlderRead: {
+            /** Queued */
+            queued: number;
+        };
         /** InvitationAccept */
         InvitationAccept: {
             /** Password */
@@ -4921,6 +4948,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Include Older */
+            include_older: boolean;
             /** Is Shared */
             is_shared: boolean;
             /** Owner Name */
@@ -4931,6 +4960,8 @@ export interface components {
             processing_enabled: boolean;
             /** Running */
             running: number;
+            /** Skipped Messages */
+            skipped_messages: number;
             /** Sync Error */
             sync_error: string | null;
             /**
@@ -9135,6 +9166,58 @@ export interface operations {
             };
             /** @description Syncing is paused */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_include_older_mails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncludeOlderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

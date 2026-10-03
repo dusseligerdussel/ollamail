@@ -45,6 +45,8 @@ export function testOverview(overrides: Partial<SystemOverview> = {}): SystemOve
         pending: 4,
         running: 1,
         failed: 3,
+        skipped_messages: 0,
+        include_older: false,
       },
       {
         id: "0199b000-0000-7000-8000-0000000000a2",
@@ -58,6 +60,8 @@ export function testOverview(overrides: Partial<SystemOverview> = {}): SystemOve
         pending: 0,
         running: 0,
         failed: 0,
+        skipped_messages: 1840,
+        include_older: false,
       },
     ],
     ...overrides,

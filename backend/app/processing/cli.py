@@ -121,3 +121,34 @@ def disable_command(mailbox_id: uuid.UUID) -> None:
 def enable_command(mailbox_id: uuid.UUID) -> None:
     """Process the mails of a mailbox again; missed mails are picked up automatically."""
     _switch(mailbox_id, enabled=True)
+
+
+async def _include_older(mailbox_id: uuid.UUID) -> int | None:
+    database = Database(get_settings().database)
+    try:
+        async with database.sessionmaker() as session:
+            if await session.get(Mailbox, mailbox_id) is None:
+                return None
+            message_ids = await service.include_older(session, mailbox_id)
+            await session.commit()
+    finally:
+        await database.dispose()
+    async with app.open_async():
+        await requeue_messages(message_ids, Priority.REPROCESS)
+    return len(message_ids)
+
+
+@processing_cli.command("include-older")
+def include_older_command(mailbox_id: uuid.UUID) -> None:
+    """Classify the older mails of a mailbox too (triage, todos).
+
+    By default only mails of the last OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS days are
+    classified. This processes the skipped older mails, behind new mail, and keeps doing
+    so for this mailbox from now on.
+    """
+    _load_steps()
+    count = asyncio.run(_include_older(mailbox_id))
+    if count is None:
+        typer.echo(f"Mailbox {mailbox_id} not found.", err=True)
+        raise typer.Exit(code=1)
+    typer.echo(f"Queued {count} older messages of mailbox {mailbox_id}.")

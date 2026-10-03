@@ -183,7 +183,7 @@
       "processing": {
         "title": "Verarbeitung je Postfach",
         "empty": "Noch keine Postfächer verbunden.",
-        "note": "Angezeigt werden nur Zahlen, nie Mail-Inhalte. Fehlgeschlagene Schritte laufen hinter neuen Mails erneut.",
+        "note": "Angezeigt werden nur Zahlen, nie Mail-Inhalte. Fehlgeschlagene Schritte laufen hinter neuen Mails erneut. Ältere Mails aus dem Import werden nur für die Suche erfasst, ohne Triage und Aufgaben, bis sie hier freigegeben werden.",
         "shared": "Shared Mailbox ({{type}})",
         "unknownOwner": "Unbekannter Besitzer",
         "disabled": "Verarbeitung aus",
@@ -202,7 +202,12 @@
         "failed_other": "{{count}} fehlgeschlagen",
         "retry": "Fehlgeschlagene erneut verarbeiten",
         "retried_one": "{{count}} Mail erneut eingereiht",
-        "retried_other": "{{count}} Mails erneut eingereiht"
+        "retried_other": "{{count}} Mails erneut eingereiht",
+        "skipped_one": "{{count}} ältere Mail nur durchsuchbar",
+        "skipped_other": "{{count}} ältere Mails nur durchsuchbar",
+        "includeOlder": "Ältere Mails auch klassifizieren",
+        "olderQueued_one": "{{count}} ältere Mail für Triage und Aufgaben eingereiht",
+        "olderQueued_other": "{{count}} ältere Mails für Triage und Aufgaben eingereiht"
       }
     },
     "audit": {

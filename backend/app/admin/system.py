@@ -1,5 +1,6 @@
 """System status for admins (``/admin/system``): model state per task with downloads,
-getting-started facts, and processing counts per mailbox with "retry failed".
+getting-started facts, and processing counts per mailbox with "retry failed" and
+"classify older mails too".
 
 Admins see states and counts only, never mail content (docs/PRIVACY.md, "Admin ≠ Leser").
 """
@@ -12,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.admin.schemas import (
+    IncludeOlderRead,
     MailboxProcessingRead,
     ModelPullRead,
     ModelPullRequest,
@@ -134,17 +136,21 @@ async def get_system_overview(
     mailboxes = [mailbox for mailbox, _ in rows]
     sync = await statuses(db, mailboxes)
     counts = await processing.count_steps_by_mailbox(db)
-    disabled = set(
-        await db.scalars(
-            select(MailboxProcessingSettings.mailbox_id).where(
-                MailboxProcessingSettings.enabled.is_(False)
+    flags = {
+        mailbox_id: (enabled, include_older)
+        for mailbox_id, enabled, include_older in await db.execute(
+            select(
+                MailboxProcessingSettings.mailbox_id,
+                MailboxProcessingSettings.enabled,
+                MailboxProcessingSettings.include_older,
             )
         )
-    )
+    }
     digest = await digest_service.settings_row(db, admin.user_id)
     items = []
     for mailbox, owner_name in rows:
         count = counts.get(mailbox.id, processing.StepCounts())
+        enabled, include_older = flags.get(mailbox.id, (True, False))
         items.append(
             MailboxProcessingRead(
                 id=mailbox.id,
@@ -154,10 +160,12 @@ async def get_system_overview(
                 owner_name=owner_name,
                 sync_phase=sync[mailbox.id].phase,
                 sync_error=sync[mailbox.id].last_error,
-                processing_enabled=mailbox.id not in disabled,
+                processing_enabled=enabled,
                 pending=count.pending,
                 running=count.running,
                 failed=count.failed,
+                skipped_messages=count.skipped_messages,
+                include_older=include_older,
             )
         )
     # Mailboxes that need attention first.
@@ -189,3 +197,22 @@ async def retry_failed_processing(
         await requeue_messages(message_ids, Priority.REPROCESS)
     log.info("processing_failed_requeued", mailbox_id=str(mailbox_id), count=len(message_ids))
     return RetryFailedRead(queued=len(message_ids))
+
+
+@router.post("/mailboxes/{mailbox_id}/include-older", responses=_NOT_FOUND)
+async def include_older_mails(
+    mailbox_id: uuid.UUID, request: Request, _: AdminSessionDep, db: DbDep
+) -> IncludeOlderRead:
+    """Classify the older mails of a mailbox too: triage and todos run for the mails
+    outside the backfill window (``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``), behind new
+    mail (``REPROCESS``), and for every older mail of this mailbox from now on."""
+    if await db.scalar(select(Mailbox.id).where(Mailbox.id == mailbox_id)) is None:
+        raise ProblemError(404, detail="Mailbox not found.")
+    message_ids = await processing.include_older(db, mailbox_id)
+    await db.commit()
+    if message_ids:
+        queue: JobQueue = request.app.state.job_queue
+        await queue.ensure_open()
+        await requeue_messages(message_ids, Priority.REPROCESS)
+    log.info("processing_older_requeued", mailbox_id=str(mailbox_id), count=len(message_ids))
+    return IncludeOlderRead(queued=len(message_ids))

@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "@tanstack/react-router";
-import { Check, Circle, Download, RotateCw } from "lucide-react";
+import { Check, Circle, Download, History, RotateCw } from "lucide-react";
 import type { ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -11,6 +11,7 @@ import {
   type ModelStatus,
   modelStatusQueryOptions,
   systemOverviewQueryOptions,
+  useIncludeOlder,
   usePullModel,
   useRetryFailed,
 } from "@/api/system";
@@ -260,6 +261,7 @@ function ProcessingRow({ mailbox }: { mailbox: MailboxProcessing }) {
   const { t } = useTranslation();
   const errorText = useMailErrorText();
   const retry = useRetryFailed();
+  const includeOlder = useIncludeOlder();
   // Personal mailboxes are named after their owner (their own name may be the address).
   const title = mailbox.is_shared
     ? mailbox.display_name
@@ -285,12 +287,17 @@ function ProcessingRow({ mailbox }: { mailbox: MailboxProcessing }) {
           )}
           {!mailbox.processing_enabled && ` · ${t("pages.admin.processing.disabled")}`}
         </span>
+        {mailbox.skipped_messages > 0 && (
+          <span className="block text-ui text-muted-foreground">
+            {t("pages.admin.processing.skipped", { count: mailbox.skipped_messages })}
+          </span>
+        )}
       </span>
-      <span className="text-ui text-muted-foreground tabular-nums">
+      <span className="whitespace-nowrap text-ui text-muted-foreground tabular-nums">
         {t("pages.admin.processing.pending", { count: mailbox.pending + mailbox.running })}
       </span>
       <span
-        className={`text-ui tabular-nums max-sm:flex-1 ${mailbox.failed > 0 ? "font-medium text-destructive" : "text-muted-foreground"}`}
+        className={`whitespace-nowrap text-ui tabular-nums max-sm:flex-1 ${mailbox.failed > 0 ? "font-medium text-destructive" : "text-muted-foreground"}`}
       >
         {t("pages.admin.processing.failed", { count: mailbox.failed })}
       </span>
@@ -308,6 +315,22 @@ function ProcessingRow({ mailbox }: { mailbox: MailboxProcessing }) {
         >
           <RotateCw />
           {t("pages.admin.processing.retry")}
+        </Button>
+      )}
+      {mailbox.skipped_messages > 0 && mailbox.processing_enabled && (
+        <Button
+          size="sm"
+          variant="outline"
+          disabled={includeOlder.isPending}
+          onClick={() =>
+            includeOlder.mutate(mailbox.id, {
+              onSuccess: ({ queued }) =>
+                toast.success(t("pages.admin.processing.olderQueued", { count: queued })),
+            })
+          }
+        >
+          <History />
+          {t("pages.admin.processing.includeOlder")}
         </Button>
       )}
     </li>
