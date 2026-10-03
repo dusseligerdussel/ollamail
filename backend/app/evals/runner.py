@@ -22,6 +22,7 @@ from app.ai.prompts import registry
 from app.core.config import LLMSettings, Settings
 from app.evals.dataset import Dataset
 from app.evals.digest import run_digest
+from app.evals.injection import injection_digest, injection_todos, injection_triage
 from app.evals.metrics import RecordingSink, call_stats
 from app.evals.rag import EvalInbox, eval_inbox, run_rag
 from app.evals.report import STAGES, ModelResult, Report
@@ -42,6 +43,10 @@ class RunOptions:
     judge_model: str | None = None
     database_url: str | None = None
     use_prefilter: bool = True
+    # Injection pass (#170): also run the mails with injected instructions; ``only``
+    # skips the regular metrics.
+    injections: bool = True
+    injections_only: bool = False
     settings: Settings = field(default_factory=Settings)
     provider_factory: ProviderFactory | None = None
     # Deadline per model call for every chat task (``OLLAMAIL_LLM_CALL_TIMEOUT``);
@@ -145,26 +150,58 @@ async def _evaluate_model(
     llm = gateway(settings, options, sink)
     name = model or await llm.assigned_model(LLMTask.TRIAGE)
     result = ModelResult(model=name)
+    regular = not options.injections_only
+    injected = dataset.injection_mails if options.injections or options.injections_only else []
     started = time.perf_counter()
     try:
         if "triage" in options.stages:
-            _log(f"[{name}] triage: {len(dataset.mails)} mails")
-            triage = await run_triage(
-                llm,
-                dataset.mails,
-                use_prefilter=options.use_prefilter,
-                settings=options.settings.triage,
-            )
-            result.stages["triage"] = triage.as_dict()
+            stage: dict[str, Any] = {}
+            if regular:
+                _log(f"[{name}] triage: {len(dataset.mails)} mails")
+                triage = await run_triage(
+                    llm,
+                    dataset.mails,
+                    use_prefilter=options.use_prefilter,
+                    settings=options.settings.triage,
+                )
+                stage = triage.as_dict()
+            if injected:
+                _log(f"[{name}] triage: {len(injected)} injection mails")
+                attacked = await injection_triage(
+                    llm,
+                    injected,
+                    use_prefilter=options.use_prefilter,
+                    settings=options.settings.triage,
+                )
+                stage["injection"] = attacked.as_dict()
+            result.stages["triage"] = stage
         if "todos" in options.stages:
-            _log(f"[{name}] todos")
-            todos = await run_todos(llm, dataset.mails, settings=options.settings.todos)
-            result.stages["todos"] = todos.as_dict()
+            stage = {}
+            if regular:
+                _log(f"[{name}] todos")
+                todos = await run_todos(llm, dataset.mails, settings=options.settings.todos)
+                stage = todos.as_dict()
+            if injected:
+                _log(f"[{name}] todos: {len(injected)} injection mails")
+                attacked_todos = await injection_todos(
+                    llm, injected, settings=options.settings.todos
+                )
+                stage["injection"] = attacked_todos.as_dict()
+            result.stages["todos"] = stage
         if "digest" in options.stages:
-            _log(f"[{name}] digest")
-            digest = await run_digest(llm, dataset.mails, settings=options.settings.digest)
-            result.stages["digest"] = digest.as_dict()
-        if "rag" in options.stages and inbox is not None:
+            stage = {}
+            if regular:
+                _log(f"[{name}] digest")
+                digest = await run_digest(llm, dataset.mails, settings=options.settings.digest)
+                stage = digest.as_dict()
+            if injected:
+                _log(f"[{name}] digest: {len(injected)} injection mails")
+                attacked_digest = await injection_digest(
+                    llm, injected, settings=options.settings.digest
+                )
+                stage["injection"] = attacked_digest.as_dict()
+            result.stages["digest"] = stage
+        if "rag" in options.stages and inbox is not None and regular:
             _log(f"[{name}] rag: {len(dataset.questions)} questions")
             rag_settings = options.settings.model_copy(update={"llm": settings})
             rag = await run_rag(llm, inbox, dataset.questions, rag_settings, judge=judge)
@@ -196,6 +233,8 @@ async def run(dataset: Dataset, options: RunOptions) -> Report:
     if "rag" in stages and not options.database_url:
         _log("rag: skipped, no database (--database-url or OLLAMAIL_EVAL_DATABASE_URL)")
         stages.remove("rag")
+    if options.injections_only and "rag" in stages:
+        stages.remove("rag")
     options.stages = stages
     base = llm_settings(options, None)
     resolver = EnvConfigResolver(base)
@@ -210,7 +249,11 @@ async def run(dataset: Dataset, options: RunOptions) -> Report:
             "mails": len(dataset.mails),
             "questions": len(dataset.questions),
             "languages": sorted({m.language for m in dataset.mails}),
+            "injection_mails": len(dataset.injection_mails)
+            if options.injections or options.injections_only
+            else 0,
         },
+        "injections_only": options.injections_only,
         "prefilter": options.use_prefilter,
         "call_timeouts": deadlines,
         "judge_model": options.judge_model,
