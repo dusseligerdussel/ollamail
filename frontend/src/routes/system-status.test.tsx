@@ -51,6 +51,8 @@ function mockSystemApi({
         );
       case "POST /api/admin/system/mailboxes/0199b000-0000-7000-8000-0000000000a1/retry-failed":
         return json({ queued: 3 });
+      case "POST /api/admin/system/mailboxes/0199b000-0000-7000-8000-0000000000a2/include-older":
+        return json({ queued: 1840 });
       case "GET /api/messages":
         return json({ items: [], next_cursor: null });
       default:
@@ -212,7 +214,12 @@ describe("admin overview", () => {
       "Shared mailbox (Microsoft 365) · Sync error: Sign-in failed.",
     );
     expect(work).toHaveTextContent("IMAP · Up to date");
-    expect(within(support as HTMLElement).queryByRole("button")).not.toBeInTheDocument();
+    expect(
+      within(support as HTMLElement).queryByRole("button", { name: "Retry failed" }),
+    ).not.toBeInTheDocument();
+    expect(
+      within(work as HTMLElement).queryByRole("button", { name: "Classify older mails too" }),
+    ).not.toBeInTheDocument();
 
     await userEvent.click(
       within(work as HTMLElement).getByRole("button", { name: "Retry failed" }),
@@ -224,5 +231,41 @@ describe("admin overview", () => {
       ),
     );
     expect(await screen.findByText("3 mails queued again")).toBeInTheDocument();
+  });
+
+  it("classifies the older mails of a mailbox on request", async () => {
+    const requests = mockSystemApi();
+    await renderApp("/admin");
+
+    const processing = await screen.findByRole("region", { name: "Processing per mailbox" });
+    const [, support] = await within(processing).findAllByRole("listitem");
+    expect(support).toHaveTextContent("1840 older mails searchable only");
+
+    await userEvent.click(
+      within(support as HTMLElement).getByRole("button", { name: "Classify older mails too" }),
+    );
+
+    await waitFor(() =>
+      expect(requests).toContain(
+        "POST /api/admin/system/mailboxes/0199b000-0000-7000-8000-0000000000a2/include-older",
+      ),
+    );
+    expect(
+      await screen.findByText("1840 older mails queued for triage and todos"),
+    ).toBeInTheDocument();
+  });
+
+  it("offers no classification of older mails once they are included", async () => {
+    const overview = testOverview();
+    overview.mailboxes = overview.mailboxes.map((mailbox) => ({ ...mailbox, skipped_messages: 0 }));
+    mockSystemApi({ overview });
+    await renderApp("/admin");
+
+    const processing = await screen.findByRole("region", { name: "Processing per mailbox" });
+    await within(processing).findAllByRole("listitem");
+    expect(
+      within(processing).queryByRole("button", { name: "Classify older mails too" }),
+    ).not.toBeInTheDocument();
+    expect(processing).not.toHaveTextContent("searchable only");
   });
 });

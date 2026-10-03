@@ -61,6 +61,11 @@ class MailboxProcessingRead(BaseModel):
     pending: int
     running: int
     failed: int
+    # Mails older than the backfill window that got search only, no triage and no todos
+    # (``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``).
+    skipped_messages: int
+    # Older mails are classified too (``POST .../include-older``).
+    include_older: bool
 
 
 class SystemOverviewRead(BaseModel):
@@ -77,4 +82,9 @@ class SystemOverviewRead(BaseModel):
 
 class RetryFailedRead(BaseModel):
     # Messages queued again.
+    queued: int
+
+
+class IncludeOlderRead(BaseModel):
+    # Older messages queued for triage and todos.
     queued: int

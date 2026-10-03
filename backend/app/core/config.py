@@ -285,6 +285,11 @@ class MailSettings(BaseSettings):
     imap_timeout: float = Field(default=60.0, gt=0)
     # Messages fetched (and committed) per batch; an interrupted sync resumes per batch.
     sync_batch_size: int = Field(default=50, ge=1, le=1000)
+    # Time slices of a large import: a sync job stops importing older mail after this many
+    # import batches or minutes and queues a follow-up job, so new mail is fetched in
+    # between instead of waiting for the whole import. 0 = no limit.
+    sync_slice_batches: int = Field(default=20, ge=0)
+    sync_slice_minutes: float = Field(default=5.0, ge=0)
     # Keep one push connection (IMAP IDLE) per mailbox in the worker; otherwise poll only.
     watch_enabled: bool = True
     # Mail servers (IMAP/SMTP) users may reach on internal addresses (loopback, RFC 1918,
@@ -557,6 +562,11 @@ class ProcessingSettings(BaseSettings):
     # most 16 times as long). Steps wait without using up their attempts meanwhile.
     llm_breaker_threshold: int = Field(default=3, ge=1)
     llm_breaker_cooldown_seconds: float = Field(default=30.0, gt=0)
+    # Mails older than this many days (by date received) get full-text search and
+    # embeddings only, no triage and no todos: on CPU those take 20-60 s per mail, and
+    # todos from months-old mail are noise. Admins can classify the older mails of a
+    # mailbox later (system status). 0 = classify all mails.
+    backfill_llm_days: int = Field(default=14, ge=0)
 
 
 class TriageSettings(BaseSettings):

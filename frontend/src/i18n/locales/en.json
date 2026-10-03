@@ -183,7 +183,7 @@
       "processing": {
         "title": "Processing per mailbox",
         "empty": "No mailboxes connected yet.",
-        "note": "Only counts are shown, never mail content. Failed steps are retried after new mail.",
+        "note": "Only counts are shown, never mail content. Failed steps are retried after new mail. Older imported mails are only indexed for search, without triage and todos, until they are released here.",
         "shared": "Shared mailbox ({{type}})",
         "unknownOwner": "Unknown owner",
         "disabled": "processing off",
@@ -202,7 +202,12 @@
         "failed_other": "{{count}} failed",
         "retry": "Retry failed",
         "retried_one": "{{count}} mail queued again",
-        "retried_other": "{{count}} mails queued again"
+        "retried_other": "{{count}} mails queued again",
+        "skipped_one": "{{count}} older mail searchable only",
+        "skipped_other": "{{count}} older mails searchable only",
+        "includeOlder": "Classify older mails too",
+        "olderQueued_one": "{{count}} older mail queued for triage and todos",
+        "olderQueued_other": "{{count}} older mails queued for triage and todos"
       }
     },
     "audit": {

@@ -83,6 +83,11 @@ config:
   # OLLAMAIL_PROCESSING_AUTO_RETRY_TIMEOUT_ATTEMPTS: "1"
   # OLLAMAIL_PROCESSING_LLM_BREAKER_THRESHOLD: "3"
   # OLLAMAIL_PROCESSING_LLM_BREAKER_COOLDOWN_SECONDS: "30"
+  # Initial import on CPU (docs/OPERATIONS.md); defaults shown. Triage and todos only for
+  # mails of the last N days (0 = all); sync jobs import in slices of batches/minutes.
+  # OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS: "14"
+  # OLLAMAIL_MAIL_SYNC_SLICE_BATCHES: "20"
+  # OLLAMAIL_MAIL_SYNC_SLICE_MINUTES: "5"
   # Peers whose X-Forwarded-For/-Proto the api trusts (the frontend pods). Default: loopback
   # and private networks; add the pod CIDR if it lies outside them, e.g.:
   # OLLAMAIL_FORWARDED_ALLOW_IPS: "10.0.0.0/8,172.16.0.0/12,192.168.0.0/16,100.64.0.0/10"

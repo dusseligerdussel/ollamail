@@ -8,7 +8,7 @@ import enum
 import uuid
 from datetime import datetime
 
-from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint, true
+from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint, false, true
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -22,6 +22,10 @@ class StepStatus(enum.StrEnum):
     # Gave up (permanent error or retries exhausted). Runs again by reprocessing, or
     # automatically at ``retry_at`` if the error was a passing one.
     FAILED = "failed"
+    # Deliberately not run: the message is older than ``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``
+    # and the step is ``recent_only`` (or depends on one). Runs once the mailbox opts in
+    # ("classify older mails too").
+    SKIPPED = "skipped"
 
 
 class MessageProcessing(Base):
@@ -62,7 +66,8 @@ class MessageProcessing(Base):
 
 
 class MailboxProcessingSettings(Base):
-    """Opt-out of automatic processing (e.g. no AI for one mailbox). No row = enabled."""
+    """Opt-out of automatic processing (e.g. no AI for one mailbox). No row = enabled,
+    recent mails only for ``recent_only`` steps."""
 
     __tablename__ = "processing_mailbox_settings"
 
@@ -70,3 +75,6 @@ class MailboxProcessingSettings(Base):
         ForeignKey("mail_mailboxes.id", ondelete="CASCADE"), unique=True
     )
     enabled: Mapped[bool] = mapped_column(server_default=true())
+    # Run ``recent_only`` steps (triage, todos) for older mails too, ignoring
+    # ``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS`` ("classify older mails too").
+    include_older: Mapped[bool] = mapped_column(server_default=false())

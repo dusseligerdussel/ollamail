@@ -670,6 +670,8 @@ export function systemOverview(empty: boolean) {
             pending: 12,
             running: 1,
             failed: 3,
+            skipped_messages: 0,
+            include_older: false,
           },
           {
             id: sharedMailboxIds.support,
@@ -683,6 +685,8 @@ export function systemOverview(empty: boolean) {
             pending: 0,
             running: 0,
             failed: 0,
+            skipped_messages: 1840,
+            include_older: false,
           },
         ],
   };

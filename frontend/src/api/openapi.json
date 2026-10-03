@@ -3945,6 +3945,19 @@
         "title": "InboxMessage",
         "type": "object"
       },
+      "IncludeOlderRead": {
+        "properties": {
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued"
+        ],
+        "title": "IncludeOlderRead",
+        "type": "object"
+      },
       "InvitationAccept": {
         "properties": {
           "password": {
@@ -4806,6 +4819,10 @@
             "title": "Id",
             "type": "string"
           },
+          "include_older": {
+            "title": "Include Older",
+            "type": "boolean"
+          },
           "is_shared": {
             "title": "Is Shared",
             "type": "boolean"
@@ -4831,6 +4848,10 @@
           },
           "running": {
             "title": "Running",
+            "type": "integer"
+          },
+          "skipped_messages": {
+            "title": "Skipped Messages",
             "type": "integer"
           },
           "sync_error": {
@@ -4871,7 +4892,9 @@
           "processing_enabled",
           "pending",
           "running",
-          "failed"
+          "failed",
+          "skipped_messages",
+          "include_older"
         ],
         "title": "MailboxProcessingRead",
         "type": "object"
@@ -12172,6 +12195,59 @@
           }
         },
         "summary": "Sync Shared Mailbox",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/system/mailboxes/{mailbox_id}/include-older": {
+      "post": {
+        "description": "Classify the older mails of a mailbox too: triage and todos run for the mails\noutside the backfill window (``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``), behind new\nmail (``REPROCESS``), and for every older mail of this mailbox from now on.",
+        "operationId": "admin_include_older_mails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncludeOlderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Include Older Mails",
         "tags": [
           "admin"
         ]
