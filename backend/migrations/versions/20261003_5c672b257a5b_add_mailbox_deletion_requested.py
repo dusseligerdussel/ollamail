@@ -4,7 +4,7 @@ Mailboxes are removed by a background job in batches (#147); the column marks a
 requested removal.
 
 Revision ID: 5c672b257a5b
-Revises: 7150e49202cb
+Revises: 347034e8fdc2
 Create Date: 2026-10-03 07:27:04.058028+00:00
 """
 
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "5c672b257a5b"
-down_revision: str | Sequence[str] | None = "7150e49202cb"
+down_revision: str | Sequence[str] | None = "347034e8fdc2"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

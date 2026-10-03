@@ -25,6 +25,8 @@ VERIFY = "verify"
 ENROLL = "enroll"
 PASSKEY = "passkey"
 REGISTER = "register"
+# Confirming a sensitive action with a passkey (app/auth/reauth.py).
+REAUTH = "reauth"
 
 # Wrong codes per pending login; then the password has to be entered again.
 MAX_ATTEMPTS = 5

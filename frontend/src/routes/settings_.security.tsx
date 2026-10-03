@@ -17,10 +17,12 @@ import {
   removePasskey,
   removeTotp,
 } from "@/api/mfa";
+import { isReauthCancelled } from "@/api/reauth";
 import { PasskeyForm } from "@/components/account/security/passkey-form";
 import { RecoveryCodeList } from "@/components/account/security/recovery-code-list";
 import { TotpSetup } from "@/components/account/security/totp-setup";
 import { Notice } from "@/components/admin/notice";
+import { useReauth } from "@/components/auth/reauth";
 import { InlineError } from "@/components/inline-error";
 import { ListSkeleton } from "@/components/list-skeleton";
 import { PageHeader } from "@/components/page-header";
@@ -289,14 +291,17 @@ function PasskeyRow({ passkey }: { passkey: Passkey }) {
   const queryClient = useQueryClient();
   const formatDate = useDate();
   const removalError = useRemovalError();
+  const withReauth = useReauth();
   const remove = useMutation({
-    mutationFn: () => removePasskey(passkey.id),
+    mutationFn: () => withReauth(() => removePasskey(passkey.id)),
     meta: { errorToast: false },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: mfaQueryKey });
       toast.success(t("account.security.passkeys.removed"));
     },
-    onError: (error) => toast.error(removalError(error)),
+    onError: (error) => {
+      if (!isReauthCancelled(error)) toast.error(removalError(error));
+    },
   });
   const added = formatDate(passkey.created_at);
   const description = passkey.last_used_at
@@ -336,14 +341,17 @@ function TotpRow({ status, onSetup }: { status: MfaStatus; onSetup: () => void }
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const removalError = useRemovalError();
+  const withReauth = useReauth();
   const remove = useMutation({
-    mutationFn: removeTotp,
+    mutationFn: () => withReauth(removeTotp),
     meta: { errorToast: false },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: mfaQueryKey });
       toast.success(t("account.security.totp.removed"));
     },
-    onError: (error) => toast.error(removalError(error)),
+    onError: (error) => {
+      if (!isReauthCancelled(error)) toast.error(removalError(error));
+    },
   });
   return (
     <Row
@@ -387,8 +395,9 @@ function RegenerateCodesPanel({
   onCreated: (codes: string[]) => void;
 }) {
   const { t } = useTranslation();
+  const withReauth = useReauth();
   const create = useMutation({
-    mutationFn: regenerateRecoveryCodes,
+    mutationFn: () => withReauth(regenerateRecoveryCodes),
     onSuccess: (result) => onCreated(result.codes),
   });
   return (

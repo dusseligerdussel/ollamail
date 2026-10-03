@@ -183,7 +183,7 @@
       "processing": {
         "title": "Verarbeitung je Postfach",
         "empty": "Noch keine Postfächer verbunden.",
-        "note": "Angezeigt werden nur Zahlen, nie Mail-Inhalte. Fehlgeschlagene Schritte laufen hinter neuen Mails erneut.",
+        "note": "Angezeigt werden nur Zahlen, nie Mail-Inhalte. Fehlgeschlagene Schritte laufen hinter neuen Mails erneut. Ältere Mails aus dem Import werden nur für die Suche erfasst, ohne Triage und Aufgaben, bis sie hier freigegeben werden.",
         "shared": "Shared Mailbox ({{type}})",
         "unknownOwner": "Unbekannter Besitzer",
         "disabled": "Verarbeitung aus",
@@ -203,7 +203,12 @@
         "failed_other": "{{count}} fehlgeschlagen",
         "retry": "Fehlgeschlagene erneut verarbeiten",
         "retried_one": "{{count}} Mail erneut eingereiht",
-        "retried_other": "{{count}} Mails erneut eingereiht"
+        "retried_other": "{{count}} Mails erneut eingereiht",
+        "skipped_one": "{{count}} ältere Mail nur durchsuchbar",
+        "skipped_other": "{{count}} ältere Mails nur durchsuchbar",
+        "includeOlder": "Ältere Mails auch klassifizieren",
+        "olderQueued_one": "{{count}} ältere Mail für Triage und Aufgaben eingereiht",
+        "olderQueued_other": "{{count}} ältere Mails für Triage und Aufgaben eingereiht"
       }
     },
     "audit": {
@@ -258,7 +263,9 @@
           "session_revoked": "Sitzungen beendet",
           "mfa_enabled": "Zwei-Faktor-Methode hinzugefügt",
           "mfa_disabled": "Zwei-Faktor-Methode entfernt",
-          "mfa_recovery_codes_generated": "Wiederherstellungscodes erstellt"
+          "mfa_recovery_codes_generated": "Wiederherstellungscodes erstellt",
+          "reauthenticated": "Identität bestätigt",
+          "reauth_failed": "Bestätigung fehlgeschlagen"
         },
         "user": {
           "created": "Benutzer angelegt",
@@ -290,7 +297,9 @@
           "unshared": "Postfachfreigabe entzogen"
         },
         "mail": {
-          "sent": "Mail gesendet"
+          "sent": "Mail gesendet",
+          "moved": "Mail verschoben",
+          "flagged": "Mail markiert"
         },
         "data": {
           "exported": "Daten exportiert",
@@ -863,7 +872,13 @@
       "removeDescription_other": "„{{name}}“ und seine {{formatted}} Mails werden für alle gelöscht, samt Triage, Aufgaben, Suchindex und Zugriffen. Die Mails auf dem Server bleiben erhalten.",
       "removed": "Geteiltes Postfach wird entfernt",
       "cancel": "Abbrechen",
-      "notFound": "Dieses geteilte Postfach gibt es nicht (mehr)."
+      "notFound": "Dieses geteilte Postfach gibt es nicht (mehr).",
+      "permissions": {
+        "read": "Nur lesen",
+        "act": "Mails verwalten"
+      },
+      "permissionsDescription": "„Mails verwalten“ erlaubt zusätzlich archivieren, verschieben, löschen, markieren und gelesen/ungelesen setzen. Senden ist aus geteilten Postfächern nicht möglich.",
+      "permissionFor": "Recht für {{name}}"
     }
   },
   "digest": {
@@ -1091,6 +1106,37 @@
       },
       "otherMethods": "Andere Methoden",
       "passkeyName": "Passkey"
+    },
+    "reauth": {
+      "title": "Bestätige, dass du es bist",
+      "description_one": "Für diese Aktion ist eine aktuelle Bestätigung nötig. Sie gilt danach {{count}} Minute.",
+      "description_other": "Für diese Aktion ist eine aktuelle Bestätigung nötig. Sie gilt danach {{count}} Minuten.",
+      "loading": "Optionen werden geladen …",
+      "passwordLabel": "Passwort",
+      "totpLabel": "Code aus deiner Authenticator-App",
+      "passkeyHint": "Verwende einen der Passkeys, die du für dieses Konto hinzugefügt hast.",
+      "ssoHint": "Du hast dich mit {{provider}} angemeldet. Melde dich dort erneut an, um fortzufahren; danach kommst du auf diese Seite zurück.",
+      "signinHint": "Melde dich ab und wieder an, um fortzufahren. Danach kommst du auf diese Seite zurück.",
+      "confirm": "Bestätigen",
+      "confirming": "Wird bestätigt …",
+      "usePasskey": "Passkey verwenden",
+      "waiting": "Warte auf dein Gerät …",
+      "continueWith": "Weiter mit {{provider}}",
+      "signIn": "Erneut anmelden",
+      "cancel": "Abbrechen",
+      "wrongPassword": "Das Passwort ist nicht korrekt.",
+      "wrongCode": "Der Code ist nicht korrekt. Versuche es erneut.",
+      "passkeyFailed": "Dieser Passkey wurde nicht akzeptiert.",
+      "passkeyCancelled": "Es wurde kein Passkey verwendet. Versuche es erneut oder wähle eine andere Methode.",
+      "throttled": "Zu viele Versuche. Versuche es später erneut.",
+      "otherMethods": "Andere Möglichkeiten zur Bestätigung",
+      "switch": {
+        "password": "Passwort verwenden",
+        "totp": "Authenticator-App verwenden",
+        "webauthn": "Passkey verwenden",
+        "sso": "Erneut mit {{provider}} anmelden",
+        "signin": "Abmelden und neu anmelden"
+      }
     }
   },
   "account": {
@@ -1280,13 +1326,41 @@
     "shortcuts": {
       "open": "Nachricht öffnen",
       "close": "Nachricht schließen",
-      "toggleUnread": "Als gelesen oder ungelesen markieren"
+      "toggleUnread": "Als gelesen oder ungelesen markieren",
+      "archive": "Archivieren (erledigt)",
+      "trash": "In den Papierkorb",
+      "move": "In einen Ordner verschieben",
+      "flag": "Markieren oder Markierung entfernen"
     },
     "ownMailboxes": "Meine Postfächer",
     "sharedMailboxes": "Geteilte Postfächer",
     "readOnly": "Geteiltes Postfach, nur lesen",
-    "readOnlyHint": "Gelesen/ungelesen gilt für das ganze Postfach; in geteilten Postfächern kann das nur der Administrator ändern.",
-    "foundInAttachment": "Fundstelle im Anhang"
+    "readOnlyHint": "Gelesen/ungelesen, Markierungen und Ordner gelten für das ganze Postfach. Ändern darf sie nur, wem die Administration „Mails verwalten“ erlaubt.",
+    "foundInAttachment": "Fundstelle im Anhang",
+    "actions": {
+      "archive": "Archivieren",
+      "move": "Verschieben",
+      "moveTo": "Verschieben nach",
+      "trash": "In den Papierkorb",
+      "flag": "Markieren",
+      "unflag": "Markierung entfernen",
+      "undo": "Rückgängig",
+      "foldersFailed": "Die Ordner konnten nicht geladen werden.",
+      "noFolders": "Keine Ordner zum Verschieben.",
+      "done": {
+        "archive": "Archiviert",
+        "trash": "In den Papierkorb verschoben",
+        "move": "Verschoben"
+      },
+      "errors": {
+        "no_archive_folder": "Dieses Postfach hat keinen Archivordner.",
+        "no_trash_folder": "Dieses Postfach hat keinen Papierkorb.",
+        "message_not_found": "Diese Mail gibt es auf dem Server nicht mehr.",
+        "read_only": "In diesem Postfach darfst du nur lesen.",
+        "unknown_folder": "Diesen Ordner gibt es nicht mehr."
+      }
+    },
+    "flagged": "Markiert"
   },
   "mailboxes": {
     "title": "Postfächer",

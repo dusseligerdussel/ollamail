@@ -881,7 +881,8 @@
       },
       "AssignmentPermission": {
         "enum": [
-          "read"
+          "read",
+          "act"
         ],
         "title": "AssignmentPermission",
         "type": "string"
@@ -937,6 +938,8 @@
           "auth.mfa_enabled",
           "auth.mfa_disabled",
           "auth.mfa_recovery_codes_generated",
+          "auth.reauthenticated",
+          "auth.reauth_failed",
           "user.created",
           "user.role_changed",
           "user.deactivated",
@@ -957,6 +960,8 @@
           "mailbox.shared",
           "mailbox.unshared",
           "mail.sent",
+          "mail.moved",
+          "mail.flagged",
           "data.exported",
           "data.deleted",
           "data.retention_changed",
@@ -3757,6 +3762,10 @@
             "title": "Group",
             "type": "string"
           },
+          "permission": {
+            "$ref": "#/components/schemas/AssignmentPermission",
+            "default": "read"
+          },
           "provider": {
             "anyOf": [
               {
@@ -3943,6 +3952,19 @@
           "reason"
         ],
         "title": "InboxMessage",
+        "type": "object"
+      },
+      "IncludeOlderRead": {
+        "properties": {
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued"
+        ],
+        "title": "IncludeOlderRead",
         "type": "object"
       },
       "InvitationAccept": {
@@ -4613,6 +4635,15 @@
       "MailboxAssignmentsUpdate": {
         "description": "Who may read a shared mailbox; replaces the current assignments.",
         "properties": {
+          "act_users": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Act Users",
+            "type": "array"
+          },
           "groups": {
             "items": {
               "$ref": "#/components/schemas/GroupAssignment"
@@ -4778,7 +4809,8 @@
           "read",
           "sync",
           "manage",
-          "act"
+          "act",
+          "send"
         ],
         "title": "MailboxPermission",
         "type": "string"
@@ -4806,6 +4838,10 @@
             "title": "Id",
             "type": "string"
           },
+          "include_older": {
+            "title": "Include Older",
+            "type": "boolean"
+          },
           "is_shared": {
             "title": "Is Shared",
             "type": "boolean"
@@ -4831,6 +4867,10 @@
           },
           "running": {
             "title": "Running",
+            "type": "integer"
+          },
+          "skipped_messages": {
+            "title": "Skipped Messages",
             "type": "integer"
           },
           "sync_error": {
@@ -4872,7 +4912,9 @@
           "processing_enabled",
           "pending",
           "running",
-          "failed"
+          "failed",
+          "skipped_messages",
+          "include_older"
         ],
         "title": "MailboxProcessingRead",
         "type": "object"
@@ -5150,6 +5192,74 @@
         "title": "MailboxUpdate",
         "type": "object"
       },
+      "MessageAction": {
+        "enum": [
+          "archive",
+          "move",
+          "trash"
+        ],
+        "title": "MessageAction",
+        "type": "string"
+      },
+      "MessageActionRequest": {
+        "description": "``archive``, ``trash`` (to the trash folder, never deleted for good) or ``move``\ninto ``folder_id`` (a folder or label of the message's mailbox).",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/MessageAction"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "MessageActionRequest",
+        "type": "object"
+      },
+      "MessageActionResult": {
+        "properties": {
+          "folder_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Folder Ids",
+            "type": "array"
+          },
+          "message": {
+            "$ref": "#/components/schemas/MessageSummary"
+          },
+          "undo_folder_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo Folder Id"
+          }
+        },
+        "required": [
+          "message",
+          "folder_ids",
+          "undo_folder_id"
+        ],
+        "title": "MessageActionResult",
+        "type": "object"
+      },
       "MessageBody": {
         "description": "Sanitised HTML of a message. External images are removed unless requested.",
         "properties": {
@@ -5422,15 +5532,31 @@
         "type": "object"
       },
       "MessageUpdate": {
+        "description": "Fields left out stay as they are. Both are written back to the mail server.",
         "properties": {
+          "flagged": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flagged"
+          },
           "seen": {
-            "title": "Seen",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen"
           }
         },
-        "required": [
-          "seen"
-        ],
         "title": "MessageUpdate",
         "type": "object"
       },
@@ -6822,6 +6948,133 @@
           "checks"
         ],
         "title": "ReadinessStatus",
+        "type": "object"
+      },
+      "ReauthOptions": {
+        "description": "How the signed-in user can confirm who they are.",
+        "properties": {
+          "login_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login Path"
+          },
+          "methods": {
+            "items": {
+              "enum": [
+                "password",
+                "totp",
+                "webauthn",
+                "sso",
+                "signin"
+              ],
+              "type": "string"
+            },
+            "title": "Methods",
+            "type": "array"
+          },
+          "provider_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Display Name"
+          },
+          "reauth_minutes": {
+            "title": "Reauth Minutes",
+            "type": "integer"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "methods",
+          "reauth_minutes",
+          "valid_until"
+        ],
+        "title": "ReauthOptions",
+        "type": "object"
+      },
+      "ReauthRequest": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "method": {
+            "enum": [
+              "password",
+              "totp"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "title": "ReauthRequest",
+        "type": "object"
+      },
+      "ReauthStatus": {
+        "properties": {
+          "authenticated_at": {
+            "format": "date-time",
+            "title": "Authenticated At",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authenticated_at",
+          "valid_until"
+        ],
+        "title": "ReauthStatus",
         "type": "object"
       },
       "Recipient": {
@@ -8659,6 +8912,15 @@
       "SharedMailboxCreate": {
         "description": "A shared mailbox and, optionally, its first assignments.",
         "properties": {
+          "act_users": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Act Users",
+            "type": "array"
+          },
           "address": {
             "maxLength": 320,
             "pattern": "^[^@\\s]+@[^@\\s]+$",
@@ -11970,7 +12232,7 @@
     },
     "/admin/shared-mailboxes/{mailbox_id}/assignments": {
       "put": {
-        "description": "Replace who may read the mailbox. Removing a user or group revokes access at once:\nfrom the next request on, its mails, triage, todos, search hits, answers and digests\nare no longer visible to them.",
+        "description": "Replace who may read the mailbox and who may also act on its mails (``act_users``,\ngroup ``permission``). Removing a user or group revokes access at once: from the next\nrequest on, its mails, triage, todos, search hits, answers and digests are no longer\nvisible to them.",
         "operationId": "admin_set_shared_mailbox_assignments",
         "parameters": [
           {
@@ -12195,6 +12457,59 @@
           }
         },
         "summary": "Sync Shared Mailbox",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/system/mailboxes/{mailbox_id}/include-older": {
+      "post": {
+        "description": "Classify the older mails of a mailbox too: triage and todos run for the mails\noutside the backfill window (``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``), behind new\nmail (``REPROCESS``), and for every older mail of this mailbox from now on.",
+        "operationId": "admin_include_older_mails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncludeOlderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Include Older Mails",
         "tags": [
           "admin"
         ]
@@ -12810,7 +13125,7 @@
     },
     "/auth/invitations/accept": {
       "post": {
-        "description": "Set the password of the invited account and sign in.",
+        "description": "Set the password of the invited account and sign in. Like ``POST /auth/login``,\naccounts with a second factor or under enforced 2FA get 202 and no session yet.",
         "operationId": "auth_accept_invitation",
         "requestBody": {
           "content": {
@@ -12832,6 +13147,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallenge"
+                }
+              }
+            },
+            "description": "Password set, second step needed"
           },
           "403": {
             "description": "Local login is disabled"
@@ -13589,7 +13914,7 @@
     },
     "/auth/mfa/passkeys/{passkey_id}": {
       "delete": {
-        "description": "Remove one of the own passkeys.",
+        "description": "Remove one of the own passkeys. Needs a recent confirmation.",
         "operationId": "auth_remove_passkey",
         "parameters": [
           {
@@ -13609,6 +13934,9 @@
           },
           "401": {
             "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
           },
           "404": {
             "description": "No such passkey"
@@ -13635,7 +13963,7 @@
     },
     "/auth/mfa/recovery-codes": {
       "post": {
-        "description": "New recovery codes; the previous ones stop working.",
+        "description": "New recovery codes; the previous ones stop working. Needs a recent confirmation.",
         "operationId": "auth_regenerate_recovery_codes",
         "responses": {
           "200": {
@@ -13651,6 +13979,9 @@
           "401": {
             "description": "Not signed in"
           },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
+          },
           "409": {
             "description": "No second factor set up"
           }
@@ -13663,7 +13994,7 @@
     },
     "/auth/mfa/totp": {
       "delete": {
-        "description": "Remove the authenticator app.",
+        "description": "Remove the authenticator app. Needs a recent confirmation (app/auth/reauth.py).",
         "operationId": "auth_remove_totp",
         "responses": {
           "204": {
@@ -13671,6 +14002,9 @@
           },
           "401": {
             "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
           },
           "404": {
             "description": "Not set up"
@@ -14119,9 +14453,176 @@
         ]
       }
     },
+    "/auth/reauth": {
+      "get": {
+        "description": "How the signed-in user can confirm who they are before a sensitive action.",
+        "operationId": "auth_get_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Options",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "description": "Confirm with the password or an authenticator code.",
+        "operationId": "auth_confirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReauthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Wrong password, code or passkey"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "The method is not available for this account"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        },
+        "summary": "Confirm",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/reauth/passkey": {
+      "post": {
+        "description": "Confirm with a passkey (after ``/auth/reauth/passkey/options``).",
+        "operationId": "auth_confirm_passkey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAssertion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Wrong password, code or passkey"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "The method is not available for this account"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        },
+        "summary": "Confirm Passkey",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/reauth/passkey/options": {
+      "post": {
+        "description": "WebAuthn request options for confirming with a passkey.",
+        "operationId": "auth_passkey_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Auth Passkey Options",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Wrong password, code or passkey"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "The method is not available for this account"
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        },
+        "summary": "Passkey Options",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/register": {
       "post": {
-        "description": "Create a local account (role ``user``) and sign in, if self-registration is on.",
+        "description": "Create a local account (role ``user``) and sign in, if self-registration is on.\nWhile 2FA is enforced for all accounts, the answer is 202 and the account sets up a\nfactor first (as at the login).",
         "operationId": "auth_register",
         "requestBody": {
           "content": {
@@ -14143,6 +14644,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallenge"
+                }
+              }
+            },
+            "description": "Account created, 2FA must be set up"
           },
           "403": {
             "description": "Registration is disabled"
@@ -16603,7 +17114,7 @@
     },
     "/messages/{message_id}": {
       "patch": {
-        "description": "Mark read or unread. Stored at once, written back to the server by a job. Users of\na shared mailbox may only read it (403 ``read_only``): the flag is the mailbox's.",
+        "description": "Mark read or unread, flag or unflag. Stored at once, written back to the server by\na job. Needs ``act`` on the mailbox (403 ``read_only``): in a shared mailbox the\nstate is the mailbox's, so only users assigned with ``act`` may change it.",
         "operationId": "messages_update_message",
         "parameters": [
           {
@@ -16659,6 +17170,71 @@
           }
         },
         "summary": "Update Message",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}/actions": {
+      "post": {
+        "description": "Archive, move or trash a message on the mail server. Synchronous: when the answer\narrives, the server has done it. Recorded in the audit log (``mail.moved``).",
+        "operationId": "messages_run_message_action",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Read-only mailbox (error_code read_only)"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "409": {
+            "description": "No archive or trash folder (no_archive_folder, no_trash_folder), the mail is gone on the server (message_not_found) or the mailbox does not allow changes (error_code)"
+          },
+          "422": {
+            "description": "Unknown or missing folder (unknown_folder)"
+          },
+          "502": {
+            "description": "The mail server refused the action (error_code)"
+          },
+          "503": {
+            "description": "The mail server is unreachable"
+          }
+        },
+        "summary": "Run Message Action",
         "tags": [
           "messages"
         ]
@@ -16842,7 +17418,7 @@
     },
     "/privacy/account": {
       "delete": {
-        "description": "Delete the own account with all data (mailboxes, mails, todos, digests, ...) and\nfiles. Confirmed by entering the account's e-mail address. Not reversible.",
+        "description": "Delete the own account with all data (mailboxes, mails, todos, digests, ...) and\nfiles. Confirmed by entering the account's e-mail address, after a recent confirmation\nof the account (app/auth/reauth.py, 403 reauth-required). Not reversible.",
         "operationId": "privacy_delete_account",
         "requestBody": {
           "content": {
@@ -16862,7 +17438,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Self-deletion is disabled"
+            "description": "Self-deletion is disabled, or a confirmation is needed"
           },
           "409": {
             "description": "Last active administrator"
@@ -16929,7 +17505,7 @@
         ]
       },
       "post": {
-        "description": "Start an export of the own data (ZIP with JSON and digest audio) as a background\njob. While one is in progress, that one is returned.",
+        "description": "Start an export of the own data (ZIP with JSON and digest audio) as a background\njob. While one is in progress, that one is returned. Needs a recent confirmation\n(app/auth/reauth.py).",
         "operationId": "privacy_request_export",
         "responses": {
           "202": {
@@ -16944,6 +17520,9 @@
           },
           "401": {
             "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
           }
         },
         "summary": "Request Export",

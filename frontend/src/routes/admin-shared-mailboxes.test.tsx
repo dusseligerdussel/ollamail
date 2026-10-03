@@ -78,10 +78,19 @@ describe("admin: shared mailboxes", () => {
       within(screen.getByRole("list", { name: "Groups" })).getByText("Support-Team"),
     ).toBeInTheDocument();
 
+    // The group may also manage mails (archive, move, trash, flag).
+    fireEvent.change(screen.getByRole("combobox", { name: "Permission for Support-Team" }), {
+      target: { value: "act" },
+    });
+
     await userEvent.click(save);
     await waitFor(() =>
       expect(assignments).toEqual([
-        { users: [testUser.id], groups: [{ group: "Support-Team", provider: null }] },
+        {
+          users: [testUser.id],
+          act_users: [],
+          groups: [{ group: "Support-Team", provider: null, permission: "act" }],
+        },
       ]),
     );
   });

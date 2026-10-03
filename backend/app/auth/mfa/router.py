@@ -54,7 +54,8 @@ from app.auth.mfa.schemas import (
 from app.auth.mfa.totp import provisioning_uri, qr_svg
 from app.auth.models import LOCAL_PROVIDER
 from app.auth.policy import local_login_enabled
-from app.auth.sessions import SESSION_COOKIE, resolve_session
+from app.auth.reauth import REAUTH_RESPONSES, RecentAuthDep
+from app.auth.sessions import SESSION_COOKIE, resolve_session, revoke_token
 from app.core.config import Settings
 from app.core.db import get_db
 from app.core.errors import ProblemError
@@ -162,6 +163,12 @@ async def second_step(
         methods = service.enroll_methods(configured)
         state = "mfa_enrollment_required"
     cookie_carrier = Response()
+    # A session of someone else in this browser (e.g. the admin who sent an invitation) ends
+    # here: otherwise the set-up endpoints would act on that account instead.
+    previous = request.cookies.get(SESSION_COOKIE)
+    if previous:
+        await revoke_token(db, previous)
+        auth_service.clear_cookies(cookie_carrier, settings)
     pending = await pending_store.start(
         db, settings.auth, request, cookie_carrier, purpose=step, user_id=user.id
     )
@@ -534,12 +541,13 @@ async def confirm_totp(
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         **_UNAUTHORIZED,
+        **REAUTH_RESPONSES,
         404: {"description": "Not set up"},
         409: {"description": "2FA enforced"},
     },
 )
-async def remove_totp(subject: SignedInDep, db: DbDep) -> Response:
-    """Remove the authenticator app."""
+async def remove_totp(subject: SignedInDep, _: RecentAuthDep, db: DbDep) -> Response:
+    """Remove the authenticator app. Needs a recent confirmation (app/auth/reauth.py)."""
     await service.check_removal_allowed(db, subject.user, totp=True)
     if not await service.remove_totp(db, subject.user.id):
         raise ProblemError(404, detail="No authenticator app is set up.")
@@ -666,12 +674,15 @@ async def register_passkey(
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
         **_UNAUTHORIZED,
+        **REAUTH_RESPONSES,
         404: {"description": "No such passkey"},
         409: {"description": "2FA enforced"},
     },
 )
-async def remove_passkey(passkey_id: uuid.UUID, subject: SignedInDep, db: DbDep) -> Response:
-    """Remove one of the own passkeys."""
+async def remove_passkey(
+    passkey_id: uuid.UUID, subject: SignedInDep, _: RecentAuthDep, db: DbDep
+) -> Response:
+    """Remove one of the own passkeys. Needs a recent confirmation."""
     passkey = await db.scalar(
         select(Passkey).where(Passkey.id == passkey_id, Passkey.user_id == subject.user.id)
     )
@@ -688,12 +699,16 @@ async def remove_passkey(passkey_id: uuid.UUID, subject: SignedInDep, db: DbDep)
 
 @router.post(
     "/mfa/recovery-codes",
-    responses={**_UNAUTHORIZED, 409: {"description": "No second factor set up"}},
+    responses={
+        **_UNAUTHORIZED,
+        **REAUTH_RESPONSES,
+        409: {"description": "No second factor set up"},
+    },
 )
 async def regenerate_recovery_codes(
-    subject: SignedInDep, db: DbDep, settings: SettingsDep
+    subject: SignedInDep, _: RecentAuthDep, db: DbDep, settings: SettingsDep
 ) -> RecoveryCodes:
-    """New recovery codes; the previous ones stop working."""
+    """New recovery codes; the previous ones stop working. Needs a recent confirmation."""
     if not (await service.factors(db, subject.user.id)).any:
         raise ProblemError(
             409,

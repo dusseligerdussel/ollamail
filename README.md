@@ -9,6 +9,22 @@ Selbst gehostetes, „local first“ E-Mail-Analyse-Tool – für Einzelpersonen
 - **Enterprise-ready** – Erst-Login wird Admin; Anmeldung über Microsoft Entra ID, Google, GitHub, OIDC oder LDAP/Active Directory
 - **Datenschutz** – läuft vollständig lokal mit Ollama, auch nur auf CPU; DSGVO by design
 
+## Analyse-Werkzeug, kein Mail-Client
+
+ollamail liest Postfächer und wertet sie aus. Für die tägliche Triage gibt es die wichtigsten
+Aktionen; alles Weitere – Ordner anlegen, neue Mails verfassen, Regeln, endgültig löschen –
+bleibt im Mail-Client. Auf den Mailserver zurück gehen nur diese Aktionen, jeweils erst nach
+einem Klick bzw. Tastendruck:
+
+- **Gelesen/ungelesen** und **Markieren** (Flag bzw. Stern)
+- **Archivieren**, **Verschieben** in einen Ordner bzw. ein Label, **In den Papierkorb** – mit
+  „Rückgängig“; endgültig gelöscht wird nichts
+- **Antworten senden** – nur aus eigenen Postfächern
+- **Triage-Kategorie als Label oder Ordner** – nur, wenn pro Postfach eingeschaltet
+
+In geteilten Postfächern braucht es dafür das Recht „Mails verwalten“ (vom Admin vergeben).
+Details: [Architektur §3.1](docs/ARCHITECTURE.md#mail-aktionen-auf-dem-server).
+
 > **Status:** Vorbereitung auf die erste Version `v0.1.0` – Funktionsumfang und bekannte
 > Einschränkungen im [Changelog](CHANGELOG.md). Vor 1.0 können sich Konfiguration und API noch
 > ändern. Siehe auch die [Roadmap](docs/ROADMAP.md).

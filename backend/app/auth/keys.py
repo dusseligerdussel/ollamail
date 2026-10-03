@@ -34,6 +34,18 @@ def derive_key(settings: SecuritySettings, purpose: str) -> bytes:
     return _derive(master, purpose)
 
 
+def derive_keys(settings: SecuritySettings, purpose: str) -> list[bytes]:
+    """The key for ``purpose`` from ``OLLAMAIL_SECRET_KEY`` first, then the keys from
+    ``OLLAMAIL_SECRET_KEYS_OLD``: for values that are only verified, never decrypted, and
+    must stay valid across a key rotation (recovery codes)."""
+    keys = [derive_key(settings, purpose)]
+    for old in settings.secret_keys_old:
+        key = _derive(decode_key(old.get_secret_value()), purpose)
+        if key not in keys:
+            keys.append(key)
+    return keys
+
+
 def keyed_digest(key: bytes, value: str) -> str:
     """Hex HMAC-SHA256 of ``value``; stores lookups without the value itself."""
     return hmac.new(key, value.encode(), hashlib.sha256).hexdigest()

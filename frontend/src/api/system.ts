@@ -60,3 +60,17 @@ export function useRetryFailed() {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: systemKeys.overview }),
   });
 }
+
+/** "Classify older mails too": triage and todos for mails outside the backfill window. */
+export function useIncludeOlder() {
+  const queryClient = useQueryClient();
+  return useMutation({
+    mutationFn: (mailboxId: string) =>
+      unwrap(
+        api.POST("/admin/system/mailboxes/{mailbox_id}/include-older", {
+          params: { path: { mailbox_id: mailboxId } },
+        }),
+      ),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: systemKeys.overview }),
+  });
+}

@@ -221,6 +221,8 @@ class GroupAssignment(BaseModel):
 
     group: GroupName
     provider: ProviderKey | None = None
+    # ``act``: members may also archive, move, trash and flag mails (#148).
+    permission: AssignmentPermission = AssignmentPermission.READ
 
 
 class MailboxAssignmentsUpdate(BaseModel):
@@ -228,6 +230,8 @@ class MailboxAssignmentsUpdate(BaseModel):
 
     users: list[uuid.UUID] = Field(default_factory=list, max_length=1000)
     groups: list[GroupAssignment] = Field(default_factory=list, max_length=200)
+    # Users who may also act on its mails (``act``); implies ``users``.
+    act_users: list[uuid.UUID] = Field(default_factory=list, max_length=1000)
 
 
 class SharedMailboxCreate(MailboxCreate, MailboxAssignmentsUpdate):

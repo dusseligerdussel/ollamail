@@ -10,6 +10,7 @@ export type SharedMailboxCreate = Schemas["SharedMailboxCreate"];
 export type MailboxAssignment = Schemas["MailboxAssignmentRead"];
 export type MailboxAssignmentsUpdate = Schemas["MailboxAssignmentsUpdate"];
 export type GroupAssignment = Schemas["GroupAssignment"];
+export type AssignmentPermission = Schemas["AssignmentPermission"];
 export type MailboxMember = Schemas["MailboxMember"];
 
 /**

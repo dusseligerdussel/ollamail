@@ -482,3 +482,46 @@ async def test_unknown_users_are_rejected(team: Team) -> None:
     assert personal.status_code == 200
     response = await team.admin.get(f"/admin/shared-mailboxes/{uuid.uuid4()}")
     assert response.status_code == 404
+
+
+async def test_act_assignments_allow_actions_but_not_sending(
+    team: Team, db_session: AsyncSession
+) -> None:
+    async def permissions(client: AsyncClient) -> list[str]:
+        response = await client.get(f"/mailboxes/{team.mailbox_id}")
+        assert response.status_code == 200
+        result: list[str] = response.json()["permissions"]
+        return result
+
+    path = f"/admin/shared-mailboxes/{team.mailbox_id}/assignments"
+    response = await team.admin.put(
+        path,
+        json={
+            "users": [str(team.anna_id)],
+            "act_users": [str(team.anna_id)],
+            "groups": [{"group": GROUP, "permission": "act"}],
+        },
+    )
+    assert response.status_code == 200, response.text
+    assert sorted(a["permission"] for a in response.json()["assignments"]) == ["act", "act"]
+    # Anna directly, Ben through his group.
+    assert await permissions(team.anna) == ["act", "read"]
+    assert await permissions(team.ben) == ["act", "read"]
+    response = await team.ben.patch(f"/messages/{team.message_id}", json={"flagged": True})
+    assert response.status_code == 200
+
+    # A changed permission is audited like a new assignment.
+    rows = list(
+        await db_session.execute(
+            select(audit_events.c.details)
+            .where(audit_events.c.action == "mailbox.shared")
+            .order_by(audit_events.c.id)
+        )
+    )
+    assert [row.details["permission"] for row in rows][-2:] == ["act", "act"]
+
+    response = await team.admin.put(path, json={"users": [str(team.anna_id)]})
+    assert response.status_code == 200
+    assert await permissions(team.anna) == ["read"]
+    response = await team.anna.patch(f"/messages/{team.message_id}", json={"flagged": False})
+    assert (response.status_code, response.json()["error_code"]) == (403, "read_only")

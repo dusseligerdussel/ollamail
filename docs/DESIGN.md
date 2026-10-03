@@ -8,7 +8,9 @@ Ziel: ein ruhiges, schnelles, professionelles Werkzeug. Vorbilder: Linear, Super
 - Viel Weißraum, klare Typografie, wenige Farben. Neutrale Grautöne (z. B. zinc), **eine** Akzentfarbe.
 - Systemschrift bzw. selbst gehostete Variable Font (z. B. Inter oder Geist). Keine Google-Fonts-CDNs.
 - Dichte Listen wie in einem Mail-Client: eine Zeile pro Mail, Kategorie als dezentes Label.
-- Tastatur zuerst: `j/k` navigieren, `e` erledigt, `⌘K` Command Palette, `?` Shortcut-Übersicht.
+- Tastatur zuerst: `j/k` navigieren, `e` erledigt (archivieren), `v` verschieben, `#` Papierkorb,
+  `s` markieren, `u` gelesen/ungelesen, `⌘K` Command Palette, `?` Shortcut-Übersicht. Aktionen
+  wirken sofort und bieten „Rückgängig“ im Toast statt einer Rückfrage.
 - Dark-, Light- und System-Theme, gleichwertig gestaltet.
 - Lucide-Icons, 16 px, Strichstärke einheitlich.
 - Schnelle, kurze Übergänge (≤ 150 ms), `prefers-reduced-motion` respektieren.

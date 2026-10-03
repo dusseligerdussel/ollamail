@@ -15,6 +15,9 @@ Entwurf.
 - **Postfächer:** IMAP (mit IDLE und Autodiscovery), Microsoft 365 (Graph) und Gmail /
   Google Workspace; geteilte Postfächer mit serverseitiger Zugriffsprüfung. Antworten und
   Antwortentwürfe werden über SMTP, Graph bzw. die Gmail-API gesendet.
+- **Mail-Aktionen:** Archivieren (`e`), Verschieben (`v`), In den Papierkorb (`#`) und Markieren
+  (`s`) über IMAP, Graph und Gmail, sofort mit „Rückgängig“; in geteilten Postfächern nur mit dem
+  Recht „Mails verwalten“, jede Aktion im Audit-Log.
 - **Triage:** Kategorien und Priorität je Mail mit Begründung, Vorfilter für Newsletter und
   Benachrichtigungen, Absenderregeln, lernt aus Korrekturen; optionales Zurückschreiben als
   Label/Ordner.
@@ -33,18 +36,29 @@ Entwurf.
 - **Datenschutz:** verschlüsselte Zugangsdaten mit Key-Rotation, PII-Filter im Logging,
   manipulationssicheres Audit-Log, Aufbewahrungsfristen, Datenexport und Kontolöschung.
 - **Betrieb:** Docker Compose (Multi-Arch-Images amd64/arm64 über GHCR oder lokaler Build),
-  Helm-Chart, Backup/Restore- und Upgrade-Anleitung in `docs/OPERATIONS.md`.
+  Helm-Chart, Backup/Restore- und Upgrade-Anleitung in `docs/OPERATIONS.md`. Worker-Healthcheck
+  per Heartbeat, optionale Prometheus-Metriken (`OLLAMAIL_METRICS_ENABLED`, nur intern bzw. mit
+  Token), ein Datenbank-Pool je Prozess und PostgreSQL-Tuning für pgvector (#146).
 - **Oberfläche:** schlichte UI in Deutsch und Englisch, Light/Dark, Desktop und Mobil,
   Befehlsmenü und Tastaturkürzel.
 
 ### Bekannte Einschränkungen
 
+- ollamail ist ein Analyse-Werkzeug, kein Mail-Client: Auf den Server zurück gehen nur
+  gelesen/ungelesen, Markieren, Archivieren, Verschieben, In den Papierkorb, gesendete Antworten
+  und – falls eingeschaltet – die Triage-Kategorie als Label/Ordner. Keine neuen Mails, keine
+  Ordnerverwaltung, kein endgültiges Löschen (`docs/ARCHITECTURE.md` §3.1, „Mail-Aktionen auf
+  dem Server“).
+- In IMAP-Postfächern bleiben Mails, die in den Papierkorb verschoben wurden, in ollamail
+  gespeichert (der Papierkorb wird standardmäßig nicht synchronisiert); bei Microsoft 365 und
+  Gmail entfernt sie der nächste Sync. „Rückgängig“ wirkt nur bis dahin.
 - Microsoft 365, Gmail/Google Workspace, Microsoft To Do und Google Tasks sind nur mit
   Unit- und Integrationstests gegen nachgebaute APIs geprüft, **nicht gegen echte Konten**.
   Testanleitungen: `docs/providers/microsoft365.md`, `docs/providers/gmail.md`.
 - SAML, SCIM und die externen Identity-Provider sind ebenfalls nicht gegen echte
   Entra-ID-/Okta-/Google-Mandanten getestet.
-- Die arm64-Images werden per QEMU gebaut, aber auf keiner echten arm64-Hardware getestet.
+- Die arm64-Images werden nativ auf arm64-Runnern gebaut (seit #131), aber auf keiner echten
+  arm64-Hardware getestet.
 - Die GHCR-Images sind derzeit nicht öffentlich; ohne Zugriff lokal bauen
   (`deploy/compose.build.yaml`, siehe `docs/OPERATIONS.md` §2.3).
 - Kein automatischer Downgrade: Rückkehr zu einer älteren Version nur über das Backup von

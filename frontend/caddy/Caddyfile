@@ -31,6 +31,12 @@
 	import security_headers
 
 	# API: strip the /api prefix and forward to FastAPI.
+	# Prometheus metrics are for scrapers inside the network (http://api:8000/metrics),
+	# never for browsers.
+	handle /api/metrics* {
+		respond 404
+	}
+
 	handle_path /api/* {
 		# Compress JSON only (#147). Server-Sent Events (text/event-stream) must reach the
 		# browser unbuffered; attachments, audio and exports pass through unchanged.
