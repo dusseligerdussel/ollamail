@@ -1,0 +1,174 @@
+{
+  "run": {
+    "started_at": "2026-10-03T16:42:43+00:00",
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+      "cpu_count": 4,
+      "description": "Intel(R) Xeon(R) Processor @ 2.80GHz, 4 logical CPUs, Linux x86_64"
+    },
+    "endpoint": {
+      "provider": "ollama",
+      "base_url": "http://localhost:11434"
+    },
+    "profile": "cpu",
+    "stages": [
+      "rag"
+    ],
+    "dataset": {
+      "mails": 200,
+      "questions": 60,
+      "languages": [
+        "de",
+        "en"
+      ]
+    },
+    "prefilter": true,
+    "call_timeouts": {
+      "triage": 120.0,
+      "todos": 120.0,
+      "digest": 120.0,
+      "rag_chat": 120.0
+    },
+    "judge_model": null,
+    "prompt_versions": {
+      "triage": "triage@2",
+      "todos_extract": "todos_extract@2",
+      "digest_map": "digest_map@1",
+      "digest_condense": "digest_condense@1",
+      "digest_reduce": "digest_reduce@1",
+      "rag_query": "rag_query@1",
+      "rag_rerank": "rag_rerank@1",
+      "rag_answer": "rag_answer@1",
+      "eval_judge": "eval_judge@1"
+    },
+    "embedding_model": "granite-embedding-multilingual:278m",
+    "index_seconds": 26.7,
+    "embedding_calls": {
+      "calls": 201,
+      "failed": 0,
+      "timeouts": 0,
+      "seconds_mean": 0.12,
+      "seconds_p50": 0.12,
+      "seconds_p95": 0.15,
+      "prompt_tokens": 31778,
+      "completion_tokens": 0,
+      "tokens_per_second": null,
+      "processed_tokens_per_second": null,
+      "tokens_estimated": false
+    },
+    "finished_at": "2026-10-03T17:27:45+00:00"
+  },
+  "models": [
+    {
+      "model": "qwen2.5:3b",
+      "seconds": 2675.0,
+      "error": null,
+      "timeouts": {
+        "calls": 111,
+        "timed_out": 0,
+        "rate": 0.0
+      },
+      "stages": {
+        "rag": {
+          "questions": 60,
+          "answerable": 48,
+          "unanswerable": 12,
+          "embedding_model": "granite-embedding-multilingual:278m",
+          "indexed_mails": 200,
+          "index_seconds": 26.7,
+          "recall_at_1": 0.7917,
+          "recall_at_3": 0.8125,
+          "recall_at_5": 0.8125,
+          "recall_at_sources": 0.8125,
+          "mrr": 0.7986,
+          "cited_expected_source": 0.7083,
+          "answer_correct_rules": 0.7917,
+          "no_answer_correct_rules": 0.8333,
+          "judge": null,
+          "first_token_seconds_mean": 41.98,
+          "seconds_mean": 44.58,
+          "errors": 0,
+          "wrong": [
+            {
+              "question": "de-a-q02",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-a-q04",
+              "rank": 1,
+              "status": "answered"
+            },
+            {
+              "question": "de-a-q08",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-a-q09",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-a-q10",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-b-q02",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-b-q03",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-b-q07",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-b-q08",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-b-q10",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-b-q14",
+              "rank": null,
+              "status": "answered"
+            },
+            {
+              "question": "en-a-q13",
+              "rank": null,
+              "status": "answered"
+            }
+          ]
+        }
+      },
+      "calls": {
+        "rag_chat": {
+          "calls": 111,
+          "failed": 0,
+          "timeouts": 0,
+          "seconds_mean": 23.98,
+          "seconds_p50": 5.99,
+          "seconds_p95": 52.11,
+          "prompt_tokens": 33578,
+          "completion_tokens": 3473,
+          "tokens_per_second": 1.3,
+          "processed_tokens_per_second": 13.92,
+          "tokens_estimated": true
+        }
+      }
+    }
+  ]
+}

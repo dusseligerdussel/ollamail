@@ -1,0 +1,148 @@
+{
+  "run": {
+    "started_at": "2026-10-03T16:25:57+00:00",
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+      "cpu_count": 4,
+      "description": "Intel(R) Xeon(R) Processor @ 2.10GHz, 4 logical CPUs, Linux x86_64"
+    },
+    "endpoint": {
+      "provider": "ollama",
+      "base_url": "http://localhost:11434"
+    },
+    "profile": "cpu",
+    "stages": [
+      "digest"
+    ],
+    "dataset": {
+      "mails": 200,
+      "questions": 60,
+      "languages": [
+        "de",
+        "en"
+      ]
+    },
+    "prefilter": true,
+    "call_timeouts": {
+      "triage": 180.0,
+      "todos": 180.0,
+      "digest": 360.0,
+      "rag_chat": 360.0
+    },
+    "judge_model": null,
+    "prompt_versions": {
+      "triage": "triage@2",
+      "todos_extract": "todos_extract@2",
+      "digest_map": "digest_map@1",
+      "digest_condense": "digest_condense@1",
+      "digest_reduce": "digest_reduce@2",
+      "rag_query": "rag_query@1",
+      "rag_rerank": "rag_rerank@1",
+      "rag_answer": "rag_answer@1",
+      "eval_judge": "eval_judge@1"
+    },
+    "finished_at": "2026-10-03T16:41:54+00:00"
+  },
+  "models": [
+    {
+      "model": "qwen2.5:3b",
+      "seconds": 956.6,
+      "error": null,
+      "timeouts": {
+        "calls": 32,
+        "timed_out": 0,
+        "rate": 0.0
+      },
+      "stages": {
+        "digest": {
+          "digests": 10,
+          "mails": 124,
+          "important_coverage": 0.9118,
+          "deadline_coverage": 0.8293,
+          "words_mean": 140.8,
+          "seconds_mean": 95.7,
+          "errors": 0,
+          "days": [
+            {
+              "day": "2026-10-05",
+              "language": "de",
+              "important": "6/6",
+              "deadlines": "3/4"
+            },
+            {
+              "day": "2026-10-05",
+              "language": "en",
+              "important": "6/6",
+              "deadlines": "4/4"
+            },
+            {
+              "day": "2026-10-06",
+              "language": "de",
+              "important": "5/6",
+              "deadlines": "4/4"
+            },
+            {
+              "day": "2026-10-06",
+              "language": "en",
+              "important": "6/6",
+              "deadlines": "3/4"
+            },
+            {
+              "day": "2026-10-07",
+              "language": "de",
+              "important": "6/6",
+              "deadlines": "2/4"
+            },
+            {
+              "day": "2026-10-07",
+              "language": "en",
+              "important": "6/6",
+              "deadlines": "4/4"
+            },
+            {
+              "day": "2026-10-08",
+              "language": "de",
+              "important": "7/7",
+              "deadlines": "3/4"
+            },
+            {
+              "day": "2026-10-08",
+              "language": "en",
+              "important": "6/6",
+              "deadlines": "4/4"
+            },
+            {
+              "day": "2026-10-09",
+              "language": "de",
+              "important": "7/9",
+              "deadlines": "3/5"
+            },
+            {
+              "day": "2026-10-09",
+              "language": "en",
+              "important": "7/10",
+              "deadlines": "4/4"
+            }
+          ]
+        }
+      },
+      "calls": {
+        "digest": {
+          "calls": 32,
+          "failed": 0,
+          "timeouts": 0,
+          "seconds_mean": 29.89,
+          "seconds_p50": 27.72,
+          "seconds_p95": 42.55,
+          "prompt_tokens": 28125,
+          "completion_tokens": 6877,
+          "tokens_per_second": 7.19,
+          "processed_tokens_per_second": 36.59,
+          "tokens_estimated": false
+        }
+      }
+    }
+  ]
+}

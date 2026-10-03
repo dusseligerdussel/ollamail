@@ -37,16 +37,17 @@ def _refs(text: str) -> list[int]:
 @dataclass
 class DigestLLM(FakeProvider):
     """Answers by prompt type. Map calls containing one of ``broken_refs`` get invalid JSON;
-    ``reduce_answer`` replaces the default reduce answer."""
+    ``reduce_answer`` replaces the default reduce answer (a list: one answer per reduce
+    call, in order)."""
 
     broken_refs: set[int] = field(default_factory=set)
-    reduce_answer: str | None = None
+    reduce_answer: str | list[str] | None = None
     kinds: list[str] = field(default_factory=list)
 
     @staticmethod
     def kind(messages: Sequence[ChatMessage]) -> str:
         system = messages[0].content
-        if "deadline: " in system:
+        if '{"items"' in system:
             return "map"
         if "Merge these notes" in system or "Fasse diese Notizen" in system:
             return "condense"
@@ -78,6 +79,8 @@ class DigestLLM(FakeProvider):
             lines = [line for line in user.splitlines() if line.strip()]
             refs = ", ".join(str(ref) for ref in _refs(user))
             content = f"Condensed {len(lines)} notes [{refs}]"
+        elif isinstance(self.reduce_answer, list):
+            content = self.reduce_answer.pop(0)
         elif self.reduce_answer is not None:
             content = self.reduce_answer
         else:

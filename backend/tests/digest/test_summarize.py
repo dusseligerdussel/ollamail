@@ -9,6 +9,7 @@ from app.ai.llm import LLMTask
 from app.core.config import DigestSettings
 from app.digest.content import MailItem
 from app.digest.models import DigestLength
+from app.digest.prompts import DIGEST_REDUCE, REDUCE_MISSING_REFERENCES
 from app.digest.summarize import Summarizer, clean_answer, references
 from tests.digest.conftest import FakeLLM, make_llm
 
@@ -51,7 +52,7 @@ async def test_maps_in_small_batches_and_reduces_once(fake_llm: FakeLLM) -> None
         "digest_map@2",
         "digest_map@2",
         "digest_map@2",
-        "digest_reduce@1",
+        "digest_reduce@2",
     ]
 
 
@@ -110,6 +111,63 @@ async def test_unusable_reduce_answer_falls_back_to_the_notes(fake_llm: FakeLLM)
     assert summary.text == "Summary of mail 1. [1] Summary of mail 2. [2]"
 
 
+async def test_answer_without_references_is_asked_for_once_more(fake_llm: FakeLLM) -> None:
+    fake_llm.provider.reduce_answer = [
+        "Anna needs the report by Friday. Ben confirms the meeting.",
+        "Anna needs the report by Friday [1]. Ben confirms the meeting [2].",
+    ]
+    digest = summarizer(fake_llm)
+
+    summary = await digest.summarize(mails(2))
+
+    assert summary.text == "Anna needs the report by Friday [1]. Ben confirms the meeting [2]."
+    assert fake_llm.provider.kinds == ["map", "reduce", "reduce"]
+    assert digest.reference_retries == 1
+    # The follow-up continues the conversation with the first answer and the hint.
+    follow_up = fake_llm.provider.calls[-1].messages
+    assert [m.role for m in follow_up] == ["system", "user", "assistant", "user"]
+    assert follow_up[2].content == "Anna needs the report by Friday. Ben confirms the meeting."
+    assert follow_up[3].content == REDUCE_MISSING_REFERENCES["en"]
+    assert fake_llm.sink.records[-1].prompt_version == "digest_reduce@2"
+
+
+async def test_invented_references_count_as_missing(fake_llm: FakeLLM) -> None:
+    fake_llm.provider.reduce_answer = ["Anna needs the report [7].", "Anna needs the report [2]."]
+
+    summary = await summarizer(fake_llm).summarize(mails(2))
+
+    assert summary.text == "Anna needs the report [2]."
+
+
+async def test_second_answer_without_references_keeps_the_first(fake_llm: FakeLLM) -> None:
+    fake_llm.provider.reduce_answer = ["Anna needs the report.", "Still no numbers."]
+    digest = summarizer(fake_llm)
+
+    summary = await digest.summarize(mails(2))
+
+    # Asked once only; the first text stays (it is fine to listen to, just unreferenced).
+    assert summary.text == "Anna needs the report."
+    assert fake_llm.provider.kinds == ["map", "reduce", "reduce"]
+    assert digest.reference_retries == 1
+
+
+async def test_answer_with_references_is_not_asked_again(fake_llm: FakeLLM) -> None:
+    fake_llm.provider.reduce_answer = ["Anna needs the report [1]. Ben confirms."]
+    digest = summarizer(fake_llm)
+
+    await digest.summarize(mails(2))
+
+    assert fake_llm.provider.kinds == ["map", "reduce"]
+    assert digest.reference_retries == 0
+
+
+def test_reduce_prompt_example_has_valid_references() -> None:
+    for language in ("en", "de"):
+        system = DIGEST_REDUCE.render(language, words="100", notes="")[0].content
+        example = system.split("\n")[-1]
+        assert references(example) == [1, 3, 2]
+
+
 async def test_no_mails_needs_no_model(fake_llm: FakeLLM) -> None:
     summary = await summarizer(fake_llm).summarize([])
 
@@ -126,6 +184,11 @@ async def test_no_mails_needs_no_model(fake_llm: FakeLLM) -> None:
             "First point [1] Second [2]",
         ),
         ("**Bold** text [1].\n\nSecond paragraph.", "Bold text [1].\n\nSecond paragraph."),
+        # Variants of small models are normalised.
+        (
+            "Spaced [ 1 ]. Footnote[^2]. Hash [#1]. Semicolon [2; 1].",
+            "Spaced [1]. Footnote [2]. Hash [1]. Semicolon [2, 1].",
+        ),
     ],
 )
 def test_clean_answer(answer: str, expected: str) -> None:
@@ -134,3 +197,4 @@ def test_clean_answer(answer: str, expected: str) -> None:
 
 def test_references_in_order_of_appearance() -> None:
     assert references("A [3]. B [1, 3]. C [2].") == [3, 1, 2]
+    assert references("A [ 4 ]. B [^5]. C [6; 7].") == [4, 5, 6, 7]
