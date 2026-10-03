@@ -189,6 +189,11 @@ data: {"type":"message.synced","message_id":"…","mailbox_id":"…"}
   aber nur für Typen, die in `invalidationRules` eingetragen sind. Unbenannte Events bevorzugen.
 - Standard: `message.synced` invalidiert alle Queries mit Schlüssel `["message", …]`. Abweichende
   Regeln in `invalidationRules` (`src/hooks/use-events.ts`) nach Event-Typ eintragen.
+- Invalidierungen werden gebündelt (#140, `createInvalidationBatcher`): Ein Event nach einer
+  Ruhepause wirkt sofort; folgende Events werden gesammelt und gemeinsam angewendet, sobald 2 s lang
+  keins kam, spätestens nach 5 s. Jeder Schlüssel wird je Bündel einmal invalidiert. Bei einem Import
+  laden die Listen so alle paar Sekunden neu statt einmal pro Mail. `message.processed` invalidiert
+  nur Aufgaben, Labels und Suche, nicht Threads und Listen.
 - Nach einem Verbindungsabbruch verbindet sich der Browser selbst neu; danach werden alle Queries neu
   geladen, weil verpasste Events nicht nachgeliefert werden.
 
@@ -207,8 +212,8 @@ API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
   `mailbox.changed`, Ordnerauswahl im Sheet, Entfernen mit Bestätigung.
 - **Inbox** (`/inbox`): Filter und geöffnete Mail stehen in der URL (`mailbox`, `folder`,
   `unread`, `message`). Die Liste ist mit TanStack Virtual virtualisiert (Zeilenhöhe `h-row`, auf
-  Handys zweizeilig) und lädt Seiten nach, solange gescrollt wird; `total` sorgt für die richtige
-  Scrollhöhe. Öffnen markiert als gelesen (einmal je Öffnen), `u` schaltet um. Tasten: `j`/`k`,
+  Handys zweizeilig) und lädt Seiten nach, solange gescrollt wird; `total` (nur auf der ersten
+  Seite) sorgt für die richtige Scrollhöhe. Öffnen markiert als gelesen (einmal je Öffnen), `u` schaltet um. Tasten: `j`/`k`,
   `Enter`/`o`, `Esc`, `u`; Aktionen auch in der Command Palette. Nur eine Zeile ist im Tab-Fokus
   (Roving Tabindex), damit `Tab` die Liste verlässt; darin bewegen `↑`/`↓`/`Pos1`/`Ende` und
   `j`/`k` den Fokus.

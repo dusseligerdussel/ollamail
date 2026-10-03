@@ -4,7 +4,7 @@ import uuid
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import select
+from sqlalchemy import event, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.events import Event
@@ -239,9 +239,22 @@ async def test_inbox_grouped_by_category(db_client: AsyncClient, db_session: Asy
         await save_result(db_session, message.id, Decision(category, priority, TriageSource.LLM))
     await db_client.patch(f"/triage/categories/{spam}", json={"hidden": True})
 
-    response = await db_client.get("/triage/inbox")
+    statements: list[str] = []
+
+    def record(_conn: object, _cursor: object, statement: str, *_: object) -> None:
+        if "FROM mail_messages" in statement:
+            statements.append(statement)
+
+    engine = db_session.bind.engine.sync_engine  # type: ignore[union-attr]
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        response = await db_client.get("/triage/inbox")
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
 
     assert response.status_code == 200
+    # Counts and messages of all groups: two queries, not two per category (#140).
+    assert len(statements) == 2
     groups = {(g["category"]["builtin_key"] if g["category"] else None): g for g in response.json()}
     assert "spam" not in groups
     assert [m["subject"] for m in groups["info"]["messages"]] == ["High info", "Low info"]
@@ -403,21 +416,26 @@ async def test_inbox_messages_ordered_by_category(
         None,
     ]
     assert page["items"][0]["priority"] == 2 and page["items"][-1]["priority"] is None
-    assert (page["total"], page["next_offset"]) == (5, None)
+    assert (page["total"], page["next_cursor"]) == (5, None)
     counts = {g["category_id"]: g["total"] for g in page["groups"]}
     assert (counts[str(important)], counts[str(info)], counts[None]) == (1, 2, 2)
     assert str(spam) not in counts
     assert page["groups"][-1]["category_id"] is None
 
-    first = (await db_client.get("/triage/inbox/messages", params={"limit": 2})).json()
-    assert ([m["subject"] for m in first["items"]], first["next_offset"]) == (
-        ["Important", "High info"],
-        2,
-    )
-    second = (
-        await db_client.get("/triage/inbox/messages", params={"limit": 2, "offset": 2})
-    ).json()
-    assert [m["subject"] for m in second["items"]] == ["Low info", "Hidden spam"]
+    # Keyset pages across the segments (category x priority); counts only on the first.
+    subjects: list[str] = []
+    params: dict[str, str | int] = {"limit": 2}
+    while True:
+        next_page = (await db_client.get("/triage/inbox/messages", params=params)).json()
+        subjects += [m["subject"] for m in next_page["items"]]
+        assert (next_page["total"] is None) == ("cursor" in params)
+        assert (next_page["groups"] is None) == ("cursor" in params)
+        if next_page["next_cursor"] is None:
+            break
+        params["cursor"] = next_page["next_cursor"]
+    assert subjects == [m["subject"] for m in page["items"]]
+    invalid = await db_client.get("/triage/inbox/messages", params={"cursor": "not-a-cursor"})
+    assert invalid.status_code == 422
 
     only_info = (
         await db_client.get("/triage/inbox/messages", params={"category": str(info)})

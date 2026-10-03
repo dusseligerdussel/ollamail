@@ -18,9 +18,9 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse
-from sqlalchemy import ColumnElement, and_, exists, func, select, tuple_
+from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import defer, selectinload
+from sqlalchemy.orm import selectinload
 
 from app.auth.dependencies import CurrentSessionDep, SettingsDep
 from app.core.db import get_db
@@ -28,7 +28,7 @@ from app.core.errors import ProblemError
 from app.core.events import Event, publish
 from app.core.jobs import JobQueue
 from app.core.logging import get_logger
-from app.mail import access
+from app.mail import access, listing
 from app.mail.access import MailboxPermission
 from app.mail.api import providers
 from app.mail.api.message_schemas import (
@@ -43,8 +43,7 @@ from app.mail.api.message_schemas import (
     ThreadRead,
 )
 from app.mail.api.router import RegistryDep, StorageDep
-from app.mail.models import Attachment, Folder, FolderRole, Mailbox, Message
-from app.mail.models import message_folders as message_folders_table
+from app.mail.models import Attachment, FolderRole, Mailbox, Message
 from app.mail.providers.base import Flag
 from app.mail.sanitize import sanitize_html
 from app.mail.sync.tasks import request_flag_write
@@ -86,9 +85,6 @@ def get_flag_writer(request: Request) -> FlagWriter:
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 FlagWriterDep = Annotated[FlagWriter, Depends(get_flag_writer)]
 NOT_FOUND: dict[int | str, dict[str, Any]] = {404: {"description": "No such message"}}
-
-# Sort key of the list: newest first.
-_date = func.coalesce(Message.received_at, Message.sent_at, Message.created_at)
 
 
 @providers_router.get("/providers")
@@ -132,14 +128,6 @@ def _addresses(values: Sequence[Any] | None) -> list[AddressRead]:
 
 def _date_of(message: Message) -> datetime:
     return message.received_at or message.sent_at or message.created_at
-
-
-def _in_folder(condition: ColumnElement[bool]) -> ColumnElement[bool]:
-    return exists(
-        select(message_folders_table.c.message_id)
-        .join(Folder, Folder.id == message_folders_table.c.folder_id)
-        .where(message_folders_table.c.message_id == Message.id, condition)
-    )
 
 
 async def _message(db: AsyncSession, user_id: uuid.UUID, message_id: uuid.UUID) -> Message:
@@ -231,45 +219,29 @@ async def list_messages(
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
 ) -> MessagePage:
     """Messages of the user's mailboxes, newest first, one row per message. Pages with
-    ``cursor``; ``total`` counts all matching messages."""
-    conditions: list[ColumnElement[bool]] = [access.visible_to(current.user_id)]
-    if mailbox_id is not None:
-        conditions.append(Message.mailbox_id == mailbox_id)
-    if folder_id is not None:
-        conditions.append(_in_folder(Folder.id == folder_id))
-    else:
-        conditions.append(_in_folder(Folder.role == FolderRole.INBOX))
+    ``cursor``; ``total`` counts all matching messages and comes only with the first page
+    (without ``cursor``)."""
+    mailbox_ids = await listing.readable_mailbox_ids(db, current.user_id, mailbox_id)
+    folders = (
+        [folder_id]
+        if folder_id is not None
+        else await listing.folder_ids(db, mailbox_ids, FolderRole.INBOX)
+    )
+    conditions: list[ColumnElement[bool]] = [listing.in_folders(folders)]
     if unread is True:
         conditions.append(~Message.flags.contains([Flag.SEEN.value]))
     elif unread is False:
         conditions.append(Message.flags.contains([Flag.SEEN.value]))
 
-    base = select(Message).join(Mailbox, Mailbox.id == Message.mailbox_id).where(and_(*conditions))
-    total = await db.scalar(select(func.count()).select_from(base.subquery())) or 0
-
-    query = base
-    if cursor is not None:
-        date, last_id = _decode_cursor(cursor)
-        query = query.where(tuple_(_date, Message.id) < tuple_(date, last_id))
-    # The list needs neither bodies nor headers; only the start of the main text.
-    query = query.options(
-        *(
-            defer(column)
-            for column in (
-                Message.body_text,
-                Message.body_html,
-                Message.headers,
-                Message.signature,
-                Message.references,
-            )
-        )
-    )
-    rows = list(await db.scalars(query.order_by(_date.desc(), Message.id.desc()).limit(limit + 1)))
+    before = _decode_cursor(cursor) if cursor is not None else None
+    total = await listing.count(db, mailbox_ids, conditions) if before is None else None
+    query = listing.newest_first(mailbox_ids, conditions, before=before, limit=limit + 1)
+    rows = list(await db.scalars(query))
     items = rows[:limit]
     next_cursor = None
     if len(rows) > limit and items:
         last = items[-1]
-        next_cursor = _encode_cursor(_date_of(last), last.id)
+        next_cursor = _encode_cursor(last.sort_date, last.id)
     return MessagePage(
         items=[MessageSummary(**_summary_fields(m)) for m in items],
         next_cursor=next_cursor,
@@ -292,7 +264,7 @@ async def get_thread(message_id: uuid.UUID, current: CurrentSessionDep, db: DbDe
                     Message.mailbox_id == message.mailbox_id,
                 )
                 .options(selectinload(Message.attachments))
-                .order_by(_date.desc(), Message.id.desc())
+                .order_by(*listing.NEWEST_FIRST)
                 .limit(MAX_THREAD_MESSAGES)
             )
         )
