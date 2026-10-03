@@ -217,6 +217,12 @@ API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
   `Enter`/`o`, `Esc`, `u`; Aktionen auch in der Command Palette. Nur eine Zeile ist im Tab-Fokus
   (Roving Tabindex), damit `Tab` die Liste verlässt; darin bewegen `↑`/`↓`/`Pos1`/`Ende` und
   `j`/`k` den Fokus.
+- **Mail-Aktionen** (#148, `components/mail/use-message-actions.ts`): Archivieren `e`,
+  Verschieben `v` (Menü mit den Ordnern des Postfachs), Papierkorb `#`, Markieren `s`; auch als
+  Buttons im Kopf der geöffneten Mail und in der Command Palette. Optimistisch: Die Mail verlässt
+  Inbox- und Triage-Listen sofort, die nächste öffnet sich; lehnt der Server ab, kommt sie zurück
+  und ein Toast nennt den Grund. Der Erfolgs-Toast bietet „Rückgängig“ (`move` zurück nach
+  `undo_folder_id`). Nur mit `act` auf dem Postfach; Antworten brauchen `send`.
 - **Mail-HTML** zeigt `MailBodyFrame`: `iframe` mit `srcdoc`, `sandbox` **ohne** `allow-scripts`
   (`allow-same-origin` nur, damit die Höhe gemessen und `cid:`-Bilder mit Cookie geladen werden
   können), eigene CSP (`default-src 'none'`, Bilder nur `'self'`/`data:`), kein Referrer, Links in

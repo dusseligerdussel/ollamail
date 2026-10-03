@@ -21,7 +21,7 @@ from app.core.errors import ProblemError
 from app.core.events import Event
 from app.core.ids import uuid7
 from app.core.logging import get_logger
-from app.mail.access import MailboxPermission, permissions, publish_to_readers
+from app.mail.access import MailboxPermission, mailbox_permissions, publish_to_readers
 from app.mail.api.schemas import (
     ConnectionTestResult,
     FolderRead,
@@ -353,10 +353,8 @@ async def mailbox_reads(
 ) -> list[MailboxRead]:
     """Reads for ``user_id``, who may read all ``mailboxes``."""
     by_id = await statuses(session, mailboxes)
-    return [
-        mailbox_read(mailbox, by_id[mailbox.id], permissions(mailbox, user_id))
-        for mailbox in mailboxes
-    ]
+    granted = await mailbox_permissions(session, mailboxes, user_id)
+    return [mailbox_read(mailbox, by_id[mailbox.id], granted[mailbox.id]) for mailbox in mailboxes]
 
 
 # -- folders --------------------------------------------------------------------------

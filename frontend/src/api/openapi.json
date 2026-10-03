@@ -881,7 +881,8 @@
       },
       "AssignmentPermission": {
         "enum": [
-          "read"
+          "read",
+          "act"
         ],
         "title": "AssignmentPermission",
         "type": "string"
@@ -959,6 +960,8 @@
           "mailbox.shared",
           "mailbox.unshared",
           "mail.sent",
+          "mail.moved",
+          "mail.flagged",
           "data.exported",
           "data.deleted",
           "data.retention_changed",
@@ -3759,6 +3762,10 @@
             "title": "Group",
             "type": "string"
           },
+          "permission": {
+            "$ref": "#/components/schemas/AssignmentPermission",
+            "default": "read"
+          },
           "provider": {
             "anyOf": [
               {
@@ -4628,6 +4635,15 @@
       "MailboxAssignmentsUpdate": {
         "description": "Who may read a shared mailbox; replaces the current assignments.",
         "properties": {
+          "act_users": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Act Users",
+            "type": "array"
+          },
           "groups": {
             "items": {
               "$ref": "#/components/schemas/GroupAssignment"
@@ -4793,7 +4809,8 @@
           "read",
           "sync",
           "manage",
-          "act"
+          "act",
+          "send"
         ],
         "title": "MailboxPermission",
         "type": "string"
@@ -5173,6 +5190,74 @@
         "title": "MailboxUpdate",
         "type": "object"
       },
+      "MessageAction": {
+        "enum": [
+          "archive",
+          "move",
+          "trash"
+        ],
+        "title": "MessageAction",
+        "type": "string"
+      },
+      "MessageActionRequest": {
+        "description": "``archive``, ``trash`` (to the trash folder, never deleted for good) or ``move``\ninto ``folder_id`` (a folder or label of the message's mailbox).",
+        "properties": {
+          "action": {
+            "$ref": "#/components/schemas/MessageAction"
+          },
+          "folder_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Folder Id"
+          }
+        },
+        "required": [
+          "action"
+        ],
+        "title": "MessageActionRequest",
+        "type": "object"
+      },
+      "MessageActionResult": {
+        "properties": {
+          "folder_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Folder Ids",
+            "type": "array"
+          },
+          "message": {
+            "$ref": "#/components/schemas/MessageSummary"
+          },
+          "undo_folder_id": {
+            "anyOf": [
+              {
+                "format": "uuid",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Undo Folder Id"
+          }
+        },
+        "required": [
+          "message",
+          "folder_ids",
+          "undo_folder_id"
+        ],
+        "title": "MessageActionResult",
+        "type": "object"
+      },
       "MessageBody": {
         "description": "Sanitised HTML of a message. External images are removed unless requested.",
         "properties": {
@@ -5445,15 +5530,31 @@
         "type": "object"
       },
       "MessageUpdate": {
+        "description": "Fields left out stay as they are. Both are written back to the mail server.",
         "properties": {
+          "flagged": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Flagged"
+          },
           "seen": {
-            "title": "Seen",
-            "type": "boolean"
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Seen"
           }
         },
-        "required": [
-          "seen"
-        ],
         "title": "MessageUpdate",
         "type": "object"
       },
@@ -8809,6 +8910,15 @@
       "SharedMailboxCreate": {
         "description": "A shared mailbox and, optionally, its first assignments.",
         "properties": {
+          "act_users": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "maxItems": 1000,
+            "title": "Act Users",
+            "type": "array"
+          },
           "address": {
             "maxLength": 320,
             "pattern": "^[^@\\s]+@[^@\\s]+$",
@@ -12120,7 +12230,7 @@
     },
     "/admin/shared-mailboxes/{mailbox_id}/assignments": {
       "put": {
-        "description": "Replace who may read the mailbox. Removing a user or group revokes access at once:\nfrom the next request on, its mails, triage, todos, search hits, answers and digests\nare no longer visible to them.",
+        "description": "Replace who may read the mailbox and who may also act on its mails (``act_users``,\ngroup ``permission``). Removing a user or group revokes access at once: from the next\nrequest on, its mails, triage, todos, search hits, answers and digests are no longer\nvisible to them.",
         "operationId": "admin_set_shared_mailbox_assignments",
         "parameters": [
           {
@@ -17002,7 +17112,7 @@
     },
     "/messages/{message_id}": {
       "patch": {
-        "description": "Mark read or unread. Stored at once, written back to the server by a job. Users of\na shared mailbox may only read it (403 ``read_only``): the flag is the mailbox's.",
+        "description": "Mark read or unread, flag or unflag. Stored at once, written back to the server by\na job. Needs ``act`` on the mailbox (403 ``read_only``): in a shared mailbox the\nstate is the mailbox's, so only users assigned with ``act`` may change it.",
         "operationId": "messages_update_message",
         "parameters": [
           {
@@ -17058,6 +17168,71 @@
           }
         },
         "summary": "Update Message",
+        "tags": [
+          "messages"
+        ]
+      }
+    },
+    "/messages/{message_id}/actions": {
+      "post": {
+        "description": "Archive, move or trash a message on the mail server. Synchronous: when the answer\narrives, the server has done it. Recorded in the audit log (``mail.moved``).",
+        "operationId": "messages_run_message_action",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/MessageActionRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageActionResult"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Read-only mailbox (error_code read_only)"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "409": {
+            "description": "No archive or trash folder (no_archive_folder, no_trash_folder), the mail is gone on the server (message_not_found) or the mailbox does not allow changes (error_code)"
+          },
+          "422": {
+            "description": "Unknown or missing folder (unknown_folder)"
+          },
+          "502": {
+            "description": "The mail server refused the action (error_code)"
+          },
+          "503": {
+            "description": "The mail server is unreachable"
+          }
+        },
+        "summary": "Run Message Action",
         "tags": [
           "messages"
         ]

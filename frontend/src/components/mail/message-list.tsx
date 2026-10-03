@@ -1,7 +1,7 @@
 import { Link } from "@tanstack/react-router";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import type { TFunction } from "i18next";
-import { Paperclip } from "lucide-react";
+import { Flag, Paperclip } from "lucide-react";
 import {
   createContext,
   type FocusEvent,
@@ -326,6 +326,7 @@ const MessageRow = memo(function MessageRow({
               )}
             </span>
           </span>
+          <FlagMark flagged={message.flagged} />
           {message.has_attachments && (
             <Paperclip
               aria-label={t("mail.hasAttachments")}
@@ -343,6 +344,7 @@ const MessageRow = memo(function MessageRow({
             <span className={cn("min-w-0 flex-1 truncate", message.unread && "font-semibold")}>
               {sender}
             </span>
+            <FlagMark flagged={message.flagged} />
             {message.has_attachments && (
               <Paperclip
                 aria-label={t("mail.hasAttachments")}
@@ -365,6 +367,18 @@ const MessageRow = memo(function MessageRow({
     </Link>
   );
 });
+
+function FlagMark({ flagged }: { flagged: boolean }) {
+  const { t } = useRowContext();
+  if (!flagged) return null;
+  return (
+    <Flag
+      role="img"
+      aria-label={t("mail.flagged")}
+      className="size-3.5 shrink-0 fill-current text-brand"
+    />
+  );
+}
 
 function UnreadDot({ unread }: { unread: boolean }) {
   const { t } = useRowContext();

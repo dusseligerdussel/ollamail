@@ -17,6 +17,7 @@ import { SCIM_PROVIDER } from "@/api/scim";
 import {
   deleteSharedMailbox,
   type GroupAssignment,
+  type AssignmentPermission as Permission,
   type SharedMailbox,
   setAssignments,
   sharedMailboxQueryOptions,
@@ -137,6 +138,44 @@ function groupKey(group: GroupAssignment) {
   return `${group.group.toLowerCase()}\u0000${group.provider ?? ""}`;
 }
 
+function assignmentsKey(users: Map<string, Permission>, groups: GroupAssignment[]) {
+  return [
+    ...[...users].map(([id, permission]) => `${id}\u0000${permission}`),
+    ...groups.map((group) => `${groupKey(group)}\u0000${group.permission}`),
+  ]
+    .sort()
+    .join("|");
+}
+
+/** `read`, or `act`: may also archive, move, trash and flag mails (never send). */
+function PermissionSelect({
+  value,
+  onChange,
+  label,
+}: {
+  value: Permission;
+  onChange: (permission: Permission) => void;
+  label: string;
+}) {
+  const { t } = useTranslation();
+  return (
+    <NativeSelect
+      size="sm"
+      className="w-40 shrink-0"
+      aria-label={label}
+      value={value}
+      onChange={(event) => onChange(event.target.value as Permission)}
+    >
+      <NativeSelectOption value="read">
+        {t("pages.sharedMailboxes.permissions.read")}
+      </NativeSelectOption>
+      <NativeSelectOption value="act">
+        {t("pages.sharedMailboxes.permissions.act")}
+      </NativeSelectOption>
+    </NativeSelect>
+  );
+}
+
 function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
@@ -148,11 +187,13 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
       ldapDirectoriesQueryOptions,
     ],
   });
-  const savedUsers = mailbox.assignments.flatMap((a) => (a.user_id ? [a.user_id] : []));
-  const savedGroups = mailbox.assignments.flatMap((a) =>
-    a.group ? [{ group: a.group, provider: a.provider ?? null }] : [],
+  const savedUsers = new Map(
+    mailbox.assignments.flatMap((a) => (a.user_id ? [[a.user_id, a.permission] as const] : [])),
   );
-  const [selected, setSelected] = useState(() => new Set(savedUsers));
+  const savedGroups = mailbox.assignments.flatMap((a) =>
+    a.group ? [{ group: a.group, provider: a.provider ?? null, permission: a.permission }] : [],
+  );
+  const [selected, setSelected] = useState(() => new Map(savedUsers));
   const [groups, setGroups] = useState<GroupAssignment[]>(savedGroups);
   const [filter, setFilter] = useState("");
   const [error, setError] = useState<string>();
@@ -174,13 +215,15 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
     );
   }, [users.data, filter]);
 
-  const dirty =
-    selected.size !== savedUsers.length ||
-    savedUsers.some((id) => !selected.has(id)) ||
-    groups.map(groupKey).sort().join("|") !== savedGroups.map(groupKey).sort().join("|");
+  const dirty = assignmentsKey(selected, groups) !== assignmentsKey(savedUsers, savedGroups);
 
   const save = useMutation({
-    mutationFn: () => setAssignments(mailbox.id, { users: [...selected], groups }),
+    mutationFn: () =>
+      setAssignments(mailbox.id, {
+        users: [...selected.keys()],
+        act_users: [...selected].flatMap(([id, permission]) => (permission === "act" ? [id] : [])),
+        groups,
+      }),
     meta: { errorToast: false },
     onSuccess: () => {
       toast.success(t("pages.sharedMailboxes.saved"));
@@ -194,11 +237,11 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
       ),
   });
 
-  const toggle = (userId: string, checked: boolean) => {
+  const assign = (userId: string, permission: Permission | undefined) => {
     setError(undefined);
     setSelected((current) => {
-      const next = new Set(current);
-      if (checked) next.add(userId);
+      const next = new Map(current);
+      if (permission) next.set(userId, permission);
       else next.delete(userId);
       return next;
     });
@@ -212,6 +255,9 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
         </h2>
         <p className="mt-1 text-ui text-muted-foreground">
           {t("pages.sharedMailboxes.accessDescription")}
+        </p>
+        <p className="mt-1 text-ui text-muted-foreground">
+          {t("pages.sharedMailboxes.permissionsDescription")}
         </p>
         <p className="mt-1 text-ui">
           {mailbox.assignments.length === 0
@@ -249,12 +295,15 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
             )}
             {visibleUsers.map((user) => {
               const id = `assign-${user.id}`;
+              const permission = selected.get(user.id);
               return (
-                <li key={user.id} className="flex items-center gap-3 px-4 py-2.5">
+                <li key={user.id} className="flex items-center gap-3 px-4 py-2">
                   <Checkbox
                     id={id}
-                    checked={selected.has(user.id)}
-                    onCheckedChange={(checked) => toggle(user.id, checked === true)}
+                    checked={!!permission}
+                    onCheckedChange={(checked) =>
+                      assign(user.id, checked === true ? (permission ?? "read") : undefined)
+                    }
                   />
                   <Label htmlFor={id} className="flex min-w-0 flex-1 flex-col items-start gap-0">
                     <span className="truncate text-ui">{user.display_name}</span>
@@ -262,6 +311,13 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
                       {user.email}
                     </span>
                   </Label>
+                  {permission && (
+                    <PermissionSelect
+                      value={permission}
+                      onChange={(next) => assign(user.id, next)}
+                      label={t("pages.sharedMailboxes.permissionFor", { name: user.display_name })}
+                    />
+                  )}
                 </li>
               );
             })}
@@ -314,7 +370,11 @@ function GroupEditor({
 
   const add = (event: FormEvent) => {
     event.preventDefault();
-    const group = { group: name.trim(), provider: provider || null };
+    const group: GroupAssignment = {
+      group: name.trim(),
+      provider: provider || null,
+      permission: "read",
+    };
     if (!group.group) return;
     if (!groups.some((existing) => groupKey(existing) === groupKey(group))) {
       onChange([...groups, group]);
@@ -337,7 +397,18 @@ function GroupEditor({
         {groups.map((group) => (
           <li key={groupKey(group)} className="flex items-center gap-3 py-1.5 pr-2 pl-4">
             <span className="min-w-0 flex-1 truncate font-mono text-ui">{group.group}</span>
-            <span className="shrink-0 text-xs text-muted-foreground">{label(group.provider)}</span>
+            <span className="min-w-0 shrink truncate text-xs text-muted-foreground">
+              {label(group.provider)}
+            </span>
+            <PermissionSelect
+              value={group.permission}
+              onChange={(permission) =>
+                onChange(
+                  groups.map((g) => (groupKey(g) === groupKey(group) ? { ...g, permission } : g)),
+                )
+              }
+              label={t("pages.sharedMailboxes.permissionFor", { name: group.group })}
+            />
             <Button
               size="icon-sm"
               variant="ghost"

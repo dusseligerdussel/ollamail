@@ -10,7 +10,7 @@ export function testMailbox(overrides: Partial<Mailbox> = {}): Mailbox {
     display_name: "Arbeit",
     address: "erika@example.org",
     is_shared: false,
-    permissions: ["act", "manage", "read", "sync"],
+    permissions: ["act", "manage", "read", "send", "sync"],
     provider_settings: { host: "imap.example.org", port: 993, security: "tls" },
     has_credentials: true,
     sync_enabled: true,
