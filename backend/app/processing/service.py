@@ -8,7 +8,7 @@ they are inspected, so concurrent steps of the same message see each other's res
 import uuid
 from collections.abc import Collection, Sequence
 from dataclasses import dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import ColumnElement, func, select, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
@@ -100,6 +100,20 @@ def _reset(row: MessageProcessing, version: int) -> None:
     row.attempts = 0
     row.started_at = None
     row.finished_at = None
+    row.retry_at = None
+    row.auto_retries = 0
+
+
+# Column values of a step set back to ``pending`` by hand (reprocessing).
+_RESET_VALUES = {
+    "status": StepStatus.PENDING,
+    "error_code": None,
+    "attempts": 0,
+    "started_at": None,
+    "finished_at": None,
+    "retry_at": None,
+    "auto_retries": 0,
+}
 
 
 async def plan(
@@ -201,6 +215,8 @@ async def finish_step(
     row.version = step.version
     row.error_code = None
     row.finished_at = datetime.now(UTC)
+    row.retry_at = None
+    row.auto_retries = 0
     await session.flush()
     current = {(s.name, s.version) for s in steps}
     if all(
@@ -213,6 +229,23 @@ async def finish_step(
     return _ready(rows, steps)
 
 
+@dataclass(frozen=True)
+class AutoRetry:
+    """Automatic retries of a step that failed for a passing reason: at most ``limit``,
+    the first after ``delay``, then twice as long each time (at most ``MAX_RETRY_DELAY``)."""
+
+    limit: int
+    delay: timedelta
+
+
+MAX_RETRY_DELAY = timedelta(days=1)
+
+
+def retry_delay(auto_retry: AutoRetry, retries: int) -> timedelta:
+    """Wait before automatic retry number ``retries + 1``."""
+    return min(auto_retry.delay * (1 << min(retries, 16)), MAX_RETRY_DELAY)
+
+
 async def fail_step(
     session: AsyncSession,
     message_id: uuid.UUID,
@@ -222,17 +255,24 @@ async def fail_step(
     *,
     final: bool,
     steps: Sequence[ProcessingStep] = (),
+    auto_retry: AutoRetry | None = None,
 ) -> list[str]:
     """Record a failed attempt. ``final`` (no retry follows) marks the step ``failed``
-    and publishes ``message.processed`` with status ``failed``. Returns the steps of
-    ``steps`` that can run now (steps waiting for the failed one via ``after``)."""
+    and publishes ``message.processed`` with status ``failed``; with ``auto_retry``
+    (a passing error) it also sets ``retry_at`` unless the automatic retries are used
+    up. Returns the steps of ``steps`` that can run now (steps waiting for the failed
+    one via ``after``)."""
     rows = await _lock_rows(session, message_id)
     row = rows.get(step.name)
     if row is None:
         return []
+    now = datetime.now(UTC)
     row.status = StepStatus.FAILED if final else StepStatus.PENDING
     row.error_code = error_code
-    row.finished_at = datetime.now(UTC)
+    row.finished_at = now
+    row.retry_at = None
+    if final and auto_retry is not None and row.auto_retries < auto_retry.limit:
+        row.retry_at = now + retry_delay(auto_retry, row.auto_retries)
     await session.flush()
     if not final:
         return []
@@ -247,8 +287,10 @@ class StepCounts:
     # Not run yet: waiting for dependencies, a job or a retry.
     pending: int = 0
     running: int = 0
-    # Gave up; ``reset_failed_steps`` runs them again.
+    # Gave up; ``reset_failed_steps`` (or an automatic retry) runs them again.
     failed: int = 0
+    # Of ``failed``: an automatic retry is scheduled (passing error, e.g. LLM down).
+    retry_scheduled: int = 0
 
 
 async def count_steps_by_mailbox(
@@ -266,6 +308,9 @@ async def count_steps_by_mailbox(
             func.count().filter(status == StepStatus.PENDING),
             func.count().filter(status == StepStatus.RUNNING),
             func.count().filter(status == StepStatus.FAILED),
+            func.count().filter(
+                status == StepStatus.FAILED, MessageProcessing.retry_at.is_not(None)
+            ),
         )
         .join(Message, Message.id == MessageProcessing.message_id)
         .where(status != StepStatus.DONE)
@@ -276,8 +321,8 @@ async def count_steps_by_mailbox(
             return {}
         query = query.where(Message.mailbox_id.in_(mailbox_ids))
     return {
-        mailbox_id: StepCounts(pending, running, failed)
-        for mailbox_id, pending, running, failed in await session.execute(query)
+        mailbox_id: StepCounts(pending, running, failed, retry_scheduled)
+        for mailbox_id, pending, running, failed, retry_scheduled in await session.execute(query)
     }
 
 
@@ -306,15 +351,54 @@ async def reset_failed_steps(
                 MessageProcessing.message_id.in_(message_ids),
                 MessageProcessing.status == StepStatus.FAILED,
             )
-            .values(
-                status=StepStatus.PENDING,
-                error_code=None,
-                attempts=0,
-                started_at=None,
-                finished_at=None,
-            )
+            .values(**_RESET_VALUES)
         )
     return message_ids
+
+
+async def postpone_step(session: AsyncSession, message_id: uuid.UUID, step: ProcessingStep) -> None:
+    """Undo ``start_step``: the step did not really run (the LLM endpoint is paused), so
+    it waits again without using up an attempt."""
+    rows = await _lock_rows(session, message_id)
+    row = rows.get(step.name)
+    if row is None or row.status != StepStatus.RUNNING:
+        return
+    row.status = StepStatus.PENDING
+    row.attempts = max(0, row.attempts - 1)
+    row.started_at = None
+    await session.flush()
+
+
+async def requeue_due_retries(session: AsyncSession, *, limit: int) -> list[uuid.UUID]:
+    """Set failed steps whose ``retry_at`` has come back to ``pending`` (oldest due
+    first, at most ``limit`` steps) and count the automatic retry. Returns the IDs of
+    the affected messages, which the caller queues again. Mailboxes with processing
+    disabled are left out; their steps stay due until processing is enabled."""
+    due = (
+        select(MessageProcessing.id)
+        .join(Message, Message.id == MessageProcessing.message_id)
+        .where(
+            MessageProcessing.status == StepStatus.FAILED,
+            MessageProcessing.retry_at <= func.now(),
+            _enabled_mailbox(),
+        )
+        .order_by(MessageProcessing.retry_at)
+        .limit(limit)
+    )
+    result = await session.execute(
+        update(MessageProcessing)
+        .where(MessageProcessing.id.in_(due.scalar_subquery()))
+        .values(
+            status=StepStatus.PENDING,
+            attempts=0,
+            started_at=None,
+            finished_at=None,
+            retry_at=None,
+            auto_retries=MessageProcessing.auto_retries + 1,
+        )
+        .returning(MessageProcessing.message_id)
+    )
+    return list(dict.fromkeys(result.scalars()))
 
 
 def _message_time() -> ColumnElement[datetime]:
@@ -348,13 +432,7 @@ async def reset_steps(
     statement = (
         update(MessageProcessing)
         .where(MessageProcessing.message_id.in_(message_ids))
-        .values(
-            status=StepStatus.PENDING,
-            error_code=None,
-            attempts=0,
-            started_at=None,
-            finished_at=None,
-        )
+        .values(**_RESET_VALUES)
     )
     if steps is not None:
         statement = statement.where(MessageProcessing.step.in_(steps))

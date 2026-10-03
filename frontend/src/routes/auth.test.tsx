@@ -90,6 +90,48 @@ describe("setup wizard", () => {
     expect(screen.getByLabelText("Setup code")).toHaveAttribute("aria-invalid", "true");
   });
 
+  it("explains a CSRF rejection instead of blaming the setup code", async () => {
+    const api = backend({ initialized: false, user: null });
+    mockFetch((request) =>
+      request.method === "POST"
+        ? problem(403, { detail: "CSRF token missing or invalid.", error_code: "csrf_failed" })
+        : api(request),
+    );
+    const user = userEvent.setup();
+    await renderApp("/setup");
+
+    await user.type(screen.getByLabelText("Name"), "Test Admin");
+    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Password"), "correct horse battery");
+    await user.type(screen.getByLabelText("Setup code"), "SETUPCODE");
+    await user.click(screen.getByRole("button", { name: "Create administrator" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The browser did not send the security cookie");
+    expect(alert).toHaveTextContent("OLLAMAIL_AUTH_COOKIE_SECURE=false");
+    expect(screen.getByRole("link", { name: /HTTPS and test operation/ })).toHaveAttribute(
+      "href",
+      expect.stringContaining("docs/OPERATIONS.md#26-http-ohne-tls-testbetrieb"),
+    );
+    expect(screen.queryByText("The setup code is incorrect.")).not.toBeInTheDocument();
+    expect(screen.getByLabelText("Setup code")).not.toHaveAttribute("aria-invalid");
+  });
+
+  it("warns before submitting when the page is not a secure context", async () => {
+    vi.stubGlobal("isSecureContext", false);
+    mockFetch(backend({ initialized: false, user: null }));
+    await renderApp("/setup");
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Unencrypted connection (HTTP)");
+  });
+
+  it("shows no connection notice in a secure context", async () => {
+    mockFetch(backend({ initialized: false, user: null }));
+    await renderApp("/setup");
+
+    expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  });
+
   it("shows the minimum password length the server requires", async () => {
     const api = backend({ initialized: false, user: null });
     mockFetch((request) =>
@@ -193,6 +235,45 @@ describe("login", () => {
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent("Too many sign-in attempts.");
+  });
+
+  it("explains a CSRF rejection instead of a generic error", async () => {
+    const api = backend({ user: null });
+    mockFetch((request) =>
+      request.method === "POST" ? problem(403, { error_code: "csrf_failed" }) : api(request),
+    );
+    const user = userEvent.setup();
+    await renderApp("/login");
+
+    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Password"), "correct horse battery");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("The browser did not send the security cookie");
+    expect(screen.getAllByRole("alert")).toHaveLength(1);
+  });
+
+  it("keeps other 403 responses as they are", async () => {
+    const api = backend({ user: null });
+    mockFetch((request) => (request.method === "POST" ? problem(403) : api(request)));
+    const user = userEvent.setup();
+    await renderApp("/login");
+
+    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Password"), "correct horse battery");
+    await user.click(screen.getByRole("button", { name: "Sign in" }));
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).not.toHaveTextContent("security cookie");
+  });
+
+  it("warns on the login page when the page is not a secure context", async () => {
+    vi.stubGlobal("isSecureContext", false);
+    mockFetch(backend({ user: null }));
+    await renderApp("/login");
+
+    expect(screen.getByRole("alert")).toHaveTextContent("Unencrypted connection (HTTP)");
   });
 
   it("renders buttons for the configured external providers", async () => {

@@ -1032,6 +1032,14 @@
       "providersAction": "Set up identity provider",
       "continue": "Continue to inbox"
     },
+    "insecure": {
+      "title": "Unencrypted connection (HTTP)",
+      "description": "ollamail is open via http://. Browsers discard its secure cookies on such connections (except on localhost), so setup and sign-in fail.",
+      "failedTitle": "The browser did not send the security cookie",
+      "failedDescription": "The server rejected the request (CSRF check). This usually happens when ollamail is open via http://: browsers then discard its secure cookies (except on localhost).",
+      "fix": "Set up HTTPS, for example with a reverse proxy. Only for tests in a trusted local network: set <code>OLLAMAIL_AUTH_COOKIE_SECURE=false</code>. Passwords and sessions are then transmitted unencrypted.",
+      "docs": "Guide: HTTPS and test operation without TLS"
+    },
     "invite": {
       "title": "Set your password",
       "description": "You were invited to ollamail as {{email}}.",

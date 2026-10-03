@@ -1,7 +1,7 @@
 """add ai model pulls
 
 Revision ID: 69dd8258f443
-Revises: 1efbd562bd72
+Revises: 664d0bf2fc5c
 Create Date: 2026-10-02 23:05:18.003430+00:00
 """
 
@@ -11,7 +11,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "69dd8258f443"
-down_revision: str | Sequence[str] | None = "1efbd562bd72"
+down_revision: str | Sequence[str] | None = "664d0bf2fc5c"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

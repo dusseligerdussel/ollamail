@@ -1032,6 +1032,14 @@
       "providersAction": "Identity-Provider einrichten",
       "continue": "Weiter zum Posteingang"
     },
+    "insecure": {
+      "title": "Unverschlüsselte Verbindung (HTTP)",
+      "description": "ollamail ist über http:// geöffnet. Browser verwerfen dabei die sicheren Cookies (außer auf localhost), deshalb schlagen Einrichtung und Anmeldung fehl.",
+      "failedTitle": "Der Browser hat das Sicherheits-Cookie nicht gesendet",
+      "failedDescription": "Der Server hat die Anfrage abgelehnt (CSRF-Prüfung). Das passiert meist, wenn ollamail über http:// geöffnet ist: Browser verwerfen dann die sicheren Cookies (außer auf localhost).",
+      "fix": "Richte HTTPS ein, zum Beispiel mit einem Reverse Proxy. Nur für Tests in einem vertrauenswürdigen lokalen Netz: <code>OLLAMAIL_AUTH_COOKIE_SECURE=false</code> setzen. Passwörter und Sitzungen werden dann unverschlüsselt übertragen.",
+      "docs": "Anleitung: HTTPS und Testbetrieb ohne TLS"
+    },
     "invite": {
       "title": "Passwort festlegen",
       "description": "Du wurdest als {{email}} zu ollamail eingeladen.",

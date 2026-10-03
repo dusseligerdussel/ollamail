@@ -136,13 +136,16 @@ class ImapConnection:
         ssl_context: ssl.SSLContext | None,
         connect_timeout: float,
         command_timeout: float,
+        address: str | None = None,
     ) -> "ImapConnection":
+        """``address``: connect there instead of resolving ``host`` again (checked by
+        ``app.mail.providers.network``); TLS still verifies the certificate for ``host``."""
         if security != "none" and ssl_context is None:
             raise ValueError("TLS needs an SSL context")
         try:
             async with asyncio.timeout(connect_timeout):
                 reader, writer = await asyncio.open_connection(
-                    host,
+                    address or host,
                     port,
                     ssl=ssl_context if security == "tls" else None,
                     server_hostname=host if security == "tls" else None,

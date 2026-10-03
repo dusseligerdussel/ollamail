@@ -202,7 +202,7 @@ Umgebungsvariablen an `api`, Worker und Migrations-Job übergeben (`envFrom`).
 | `OLLAMAIL_SECRET_KEY` | ja | Master-Key, `openssl rand -base64 32` (siehe [`PRIVACY.md`](../PRIVACY.md)) |
 | `OLLAMAIL_DATABASE_URL` | je nach Datenbank-Variante | siehe [Abschnitt 4](#4-datenbank) |
 | `OLLAMAIL_SECRET_KEYS_OLD` | nur bei Key-Rotation | frühere Master-Keys, kommagetrennt |
-| `OLLAMAIL_SETUP_TOKEN` | nein | fester Setup-Token für den ersten Admin |
+| `OLLAMAIL_SETUP_TOKEN` | nein | fester Setup-Token für den ersten Admin, mindestens 32 Zeichen (`openssl rand -hex 16`) |
 | `OLLAMAIL_LLM_API_KEY`, `OLLAMAIL_LLM_ENDPOINTS` | nein | API-Keys von LLM-Endpunkten |
 | `OLLAMAIL_AUTH_OIDC_PROVIDERS` | nein | OIDC-Provider inkl. Client-Secret (GitOps) |
 | `OLLAMAIL_MAIL_GRAPH_CLIENT_SECRET`, `OLLAMAIL_GMAIL_CLIENT_SECRET` | nein | OAuth-Client-Secrets |
@@ -275,12 +275,21 @@ Regeln:
   endet, lehnt das Chart ab ([Abschnitt 5](#5-secrets)). Enthalten `OLLAMAIL_LLM_ENDPOINTS`
   oder `OLLAMAIL_AUTH_OIDC_PROVIDERS` Secrets, ebenfalls ins Secret.
 - `OLLAMAIL_DATA_DIR` setzt das Chart selbst (`/data`, [Abschnitt 9](#9-speicher)).
+- Postfächer dürfen nur Mailserver auf öffentlichen Adressen nutzen. Ein IMAP-/SMTP-Server im
+  Cluster oder im internen Netz muss in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` stehen (Hostnamen
+  oder CIDR-Bereiche, kommagetrennt), siehe
+  [`OPERATIONS.md`](../OPERATIONS.md#66-upgrade-hinweise-sichere-standardwerte-143).
 - Die Worker-Variablen `OLLAMAIL_WORKER_QUEUES`, `OLLAMAIL_WORKER_CONCURRENCY` und
   `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` kommen aus `worker.*` ([Abschnitt 7](#7-worker-und-queues)).
 - Mit `OLLAMAIL_AUTH_COOKIE_SECURE=true` (Standard) funktioniert die Anmeldung nur über HTTPS
   (oder `http://localhost`, z. B. per `kubectl port-forward`).
 - Der Frontend-Container trägt `X-Forwarded-*`-Header nur von privaten Netzen weiter; ein
-  Ingress-Controller im Cluster erfüllt das.
+  Ingress-Controller im Cluster erfüllt das. Er muss `X-Forwarded-For` auf die echte Client-IP
+  setzen, statt an einen vom Client mitgeschickten Wert anzuhängen (ingress-nginx: kein
+  `use-forwarded-headers`, außer ein weiterer Proxy davor setzt den Header selbst korrekt).
+- Die API wertet `X-Forwarded-*` nur von `OLLAMAIL_FORWARDED_ALLOW_IPS` aus (Standard: Loopback
+  und private Netze). Liegt das Pod-Netz außerhalb davon (z. B. `100.64.0.0/10`), das Pod-CIDR
+  in `config` eintragen.
 
 ## 7. Worker und Queues
 

@@ -15884,7 +15884,7 @@
         ]
       },
       "post": {
-        "description": "Add a mailbox. The connection is tested first; then the initial import starts\n(unless ``sync_enabled`` is false).",
+        "description": "Add a mailbox. The connection is tested first (counts towards the rate limit of\n``POST /mailboxes/test``); then the initial import starts (unless ``sync_enabled`` is\nfalse).",
         "operationId": "mailboxes_create_mailbox",
         "requestBody": {
           "content": {
@@ -15915,6 +15915,9 @@
           },
           "422": {
             "description": "Invalid request, unavailable mailbox type or failed connection test"
+          },
+          "429": {
+            "description": "Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS)"
           }
         },
         "summary": "Create Mailbox",
@@ -15999,7 +16002,7 @@
     },
     "/mailboxes/test": {
       "post": {
-        "description": "Connect and list the folders without saving anything. A failed test is a normal\nresult (``ok: false`` with an error code), not an HTTP error.",
+        "description": "Connect and list the folders without saving anything. A failed test is a normal\nresult (``ok: false`` with an error code), not an HTTP error; an unreachable server and\none on a refused internal address both give ``connection_failed``. Rate-limited per\nuser.",
         "operationId": "mailboxes_test_mailbox_connection",
         "requestBody": {
           "content": {
@@ -16027,6 +16030,9 @@
           },
           "422": {
             "description": "Invalid request, unavailable mailbox type or failed connection test"
+          },
+          "429": {
+            "description": "Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS)"
           }
         },
         "summary": "Test Mailbox Connection",
@@ -16175,6 +16181,9 @@
           },
           "422": {
             "description": "Invalid request, unavailable mailbox type or failed connection test"
+          },
+          "429": {
+            "description": "Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS)"
           }
         },
         "summary": "Update Mailbox",
@@ -17627,7 +17636,7 @@
     },
     "/setup": {
       "post": {
-        "description": "Create the first admin and sign them in. Only possible while no user exists.",
+        "description": "Create the first admin and sign them in. Only possible while no user exists.\nAttempts count towards the per-IP limit of the login (``OLLAMAIL_AUTH_IP_MAX_ATTEMPTS``).",
         "operationId": "setup_create_admin",
         "requestBody": {
           "content": {
@@ -17665,6 +17674,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
           }
         },
         "summary": "Create Admin",

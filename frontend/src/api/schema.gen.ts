@@ -1923,8 +1923,9 @@ export interface paths {
         put?: never;
         /**
          * Create Mailbox
-         * @description Add a mailbox. The connection is tested first; then the initial import starts
-         *     (unless ``sync_enabled`` is false).
+         * @description Add a mailbox. The connection is tested first (counts towards the rate limit of
+         *     ``POST /mailboxes/test``); then the initial import starts (unless ``sync_enabled`` is
+         *     false).
          */
         post: operations["mailboxes_create_mailbox"];
         delete?: never;
@@ -1988,7 +1989,9 @@ export interface paths {
         /**
          * Test Mailbox Connection
          * @description Connect and list the folders without saving anything. A failed test is a normal
-         *     result (``ok: false`` with an error code), not an HTTP error.
+         *     result (``ok: false`` with an error code), not an HTTP error; an unreachable server and
+         *     one on a refused internal address both give ``connection_failed``. Rate-limited per
+         *     user.
          */
         post: operations["mailboxes_test_mailbox_connection"];
         delete?: never;
@@ -2430,6 +2433,7 @@ export interface paths {
         /**
          * Create Admin
          * @description Create the first admin and sign them in. Only possible while no user exists.
+         *     Attempts count towards the per-IP limit of the login (``OLLAMAIL_AUTH_IP_MAX_ATTEMPTS``).
          */
         post: operations["setup_create_admin"];
         delete?: never;
@@ -12217,6 +12221,13 @@ export interface operations {
                 };
                 content?: never;
             };
+            /** @description Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     mailboxes_autodiscover: {
@@ -12317,6 +12328,13 @@ export interface operations {
             };
             /** @description Invalid request, unavailable mailbox type or failed connection test */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12454,6 +12472,13 @@ export interface operations {
             };
             /** @description Invalid request, unavailable mailbox type or failed connection test */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -13579,6 +13604,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Too many attempts (rate limit or account lockout) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
