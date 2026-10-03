@@ -3,6 +3,8 @@
 import uuid
 from datetime import UTC, date, datetime
 
+import pytest
+
 from app.ai.tts.normalize import segment
 from app.digest import script, texts
 from app.digest.content import DigestContent, MailItem, TodoItem
@@ -108,3 +110,23 @@ def test_spoken_text_is_speakable() -> None:
     assert "am Freitag, dem zweiten Oktober zweitausendsechsundzwanzig." in spoken
     assert "ist eine neue Mail eingegangen, sie ist wichtig." in spoken
     assert "[" not in spoken and "#" not in spoken
+
+
+@pytest.mark.parametrize(
+    "summary",
+    [
+        "Anna bittet um Rückmeldung [3].",
+        "Anna bittet um Rückmeldung. [3]",
+        "Anna [3] bittet um Rückmeldung [2, 3].",
+        "Anna bittet um Rückmeldung [ 3 ][^2][#3][2; 3].",
+    ],
+)
+def test_spoken_text_reads_no_references(summary: str) -> None:
+    content = DigestContent(mails=[mail("important")])
+    text = script.build(content, summary, today=FRIDAY, language="de")
+
+    spoken = " ".join(piece.text for piece in segment(script.spoken(text), "de"))
+
+    assert "Anna bittet um Rückmeldung." in spoken
+    assert "[" not in spoken and "]" not in spoken
+    assert "drei" not in spoken

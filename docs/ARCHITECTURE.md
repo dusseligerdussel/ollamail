@@ -975,9 +975,11 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
      scheitert eine einzelne Mail, steht stattdessen „Absender schreibt: Betreff“ da.
   2. *Condense:* Passen die Notizen nicht in ein Kontextfenster, werden Gruppen zu weniger
      Notizen zusammengefasst (Referenzen bleiben erhalten), bei Bedarf mehrfach.
-  3. *Reduce:* aus den Notizen der gesprochene Hauptteil mit `[n]`-Referenzen. Erfundene
-     Referenzen, Überschriften, Listen und `<think>`-Blöcke werden entfernt; eine unbrauchbare
-     Antwort wird durch die Notizen ersetzt.
+  3. *Reduce:* aus den Notizen der gesprochene Hauptteil mit `[n]`-Referenzen (Prompt mit
+     Beispiel). Erfundene Referenzen, Überschriften, Listen und `<think>`-Blöcke werden entfernt,
+     Varianten wie `[ 3 ]`, `[^3]` oder `[2; 7]` zu `[3]` bzw. `[2, 7]` vereinheitlicht. Bleibt
+     keine gültige Referenz übrig, fragt der Code einmal mit Korrekturhinweis nach (#171); eine
+     unbrauchbare Antwort wird durch die Notizen ersetzt.
   Zahlen, Datum, Todos und Sammelsätze schreibt der Code selbst (`app.digest.texts`), nicht das
   Modell. Ohne Mails kommt der Digest ohne Modellaufruf aus.
 - **Ergebnis `Digest`** (`digests`): Titel, Skript (Markdown, `[n]` verweist auf
