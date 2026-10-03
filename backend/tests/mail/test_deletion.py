@@ -17,7 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import audit
 from app.audit import AuditAction
 from app.core.events import Event
-from app.mail import deletion
+from app.mail import deletion, hooks
 from app.mail.models import Mailbox, Message, Thread
 from app.mail.service import store_message
 from app.mail.storage import AttachmentStorage
@@ -180,3 +180,35 @@ async def test_defer_queues_one_job_per_mailbox(queue: None) -> None:  # noqa: F
     assert {job.queue for job in jobs} == {"default"}
     # Not the sync's lock: a running import does not hold up the removal.
     assert {job.lock for job in jobs} == {f"mailbox_deletion:{first}", f"mailbox_deletion:{second}"}
+
+
+async def test_job_reports_the_removed_mailbox_with_its_owner(
+    db_session: AsyncSession, storage: AttachmentStorage, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    mailbox = await filled_mailbox(db_session, storage)
+    unmarked = await filled_mailbox(db_session, storage)
+    await deletion.request_deletion(db_session, mailbox, audit.SYSTEM)
+    await db_session.commit()
+    reported: list[hooks.MailboxDeleted] = []
+
+    async def handler(event: hooks.MailboxDeleted) -> None:
+        reported.append(event)
+
+    async def failing(event: hooks.MailboxDeleted) -> None:
+        raise RuntimeError("handler failed")
+
+    class Database:
+        @asynccontextmanager
+        async def sessionmaker(self) -> AsyncIterator[AsyncSession]:
+            yield db_session
+
+    monkeypatch.setattr(deletion, "_database", Database)
+    monkeypatch.setattr(deletion, "AttachmentStorage", lambda _: storage)
+    # A failing handler does not stop the others (the user deletion, #177).
+    monkeypatch.setattr(hooks, "_deleted_handlers", [failing, handler])
+
+    await deletion.delete_mailbox_job(str(mailbox.id))
+    await deletion.delete_mailbox_job(str(mailbox.id))  # a retry reports nothing
+    await deletion.delete_mailbox_job(str(unmarked.id))
+
+    assert reported == [hooks.MailboxDeleted(mailbox.id, mailbox.owner_user_id)]

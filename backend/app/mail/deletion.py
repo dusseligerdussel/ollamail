@@ -12,7 +12,9 @@ those rows) open for minutes. Instead:
 2. The job ``mail.delete_mailbox`` deletes the mails in batches (newest first, one commit
    per batch, attachment files after each commit, like ``app.privacy.retention``), then
    the threads, then the mailbox row with what is left (folders, sync state, settings)
-   and the attachment directory. Readers get ``mailbox.changed`` with ``deleted``.
+   and the attachment directory. Readers get ``mailbox.changed`` with ``deleted``, the
+   handlers of ``app.mail.hooks.on_mailbox_deleted`` the former owner (a user being
+   deleted waits for their mailboxes, ``app.privacy.deletion``).
 
 The job is idempotent: a retry, or the periodic ``mail.resume_deletions`` after a lost
 job, continues where the previous run stopped.
@@ -33,6 +35,7 @@ from app.core.config import get_settings
 from app.core.db import Database
 from app.core.events import Event, publish
 from app.core.logging import get_logger
+from app.mail import hooks
 from app.mail.access import publish_to_readers, reader_ids
 from app.mail.models import Attachment, Mailbox, Message, Thread
 from app.mail.storage import AttachmentStorage
@@ -70,6 +73,7 @@ class PurgeResult:
     threads: int = 0
     # The mailbox row was deleted by this run.
     deleted: bool = False
+    owner_user_id: uuid.UUID | None = None
 
 
 async def _delete_files(storage: AttachmentStorage, paths: list[str]) -> None:
@@ -87,11 +91,13 @@ async def purge_mailbox(
     """Delete a mailbox marked by ``request_deletion`` with all its data, in batches.
     Commits per batch. Does nothing for a mailbox that is not marked (or gone)."""
     result = PurgeResult()
-    marked = await session.scalar(
-        select(Mailbox.id).where(
-            Mailbox.id == mailbox_id, Mailbox.deletion_requested_at.is_not(None)
+    marked = (
+        await session.execute(
+            select(Mailbox.id, Mailbox.owner_user_id).where(
+                Mailbox.id == mailbox_id, Mailbox.deletion_requested_at.is_not(None)
+            )
         )
-    )
+    ).first()
     if marked is None:
         # Already gone (a previous run finished): remove leftover files only.
         if await session.get(Mailbox, mailbox_id) is None:
@@ -139,6 +145,7 @@ async def purge_mailbox(
         delete(Mailbox).where(Mailbox.id == mailbox_id).returning(Mailbox.id)
     )
     result.deleted = deleted.first() is not None
+    result.owner_user_id = marked.owner_user_id if result.deleted else None
     for user_id in readers:
         await publish(session, user_id, _mailbox_changed(mailbox_id, "deleted"))
     await session.commit()
@@ -161,9 +168,11 @@ def _database() -> Database:
 @app.task(name=DELETE_TASK, queue="default", retry=DEFAULT_RETRY)
 async def delete_mailbox_job(mailbox_id: str) -> None:
     async with _database().sessionmaker() as session:
-        await purge_mailbox(
+        result = await purge_mailbox(
             session, uuid.UUID(mailbox_id), AttachmentStorage(get_settings().storage.data_dir)
         )
+    if result.deleted:
+        await hooks.mailbox_deleted(uuid.UUID(mailbox_id), result.owner_user_id)
 
 
 async def defer_deletion(mailbox_id: uuid.UUID) -> bool:

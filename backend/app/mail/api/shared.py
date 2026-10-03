@@ -169,7 +169,13 @@ async def _set_assignments(
         user_id: AssignmentPermission.READ for user_id in users if user_id not in act_users
     } | {user_id: AssignmentPermission.ACT for user_id in act_users}
     if wanted_users:
-        known = set(await db.scalars(select(User.id).where(User.id.in_(wanted_users))))
+        known = set(
+            await db.scalars(
+                select(User.id).where(
+                    User.id.in_(wanted_users), User.deletion_requested_at.is_(None)
+                )
+            )
+        )
         if known != set(wanted_users):
             raise ProblemError(422, detail="Unknown user.", error_code="unknown_user")
     wanted_groups: dict[tuple[str, str], GroupAssignment] = {}
