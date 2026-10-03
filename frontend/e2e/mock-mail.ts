@@ -192,7 +192,7 @@ function mailbox(id: string, name: string, address: string, mailboxStatus: objec
     address,
     is_shared: false,
     // Own mailboxes grant everything (shared mailboxes only what was assigned).
-    permissions: ["read", "sync", "manage", "act"],
+    permissions: ["read", "sync", "manage", "act", "send"],
     provider_settings: { host: "imap.example.org", port: 993, security: "tls" },
     has_credentials: true,
     sync_enabled: true,
@@ -298,6 +298,9 @@ export async function mockMail(
   }: MockMail = {},
 ) {
   const read = new Set<string>();
+  // Mail actions (#148): messages out of the inbox (archived, trashed, moved) and flags.
+  const moved = new Set<string>();
+  const flagged = new Set<string>();
   const unread = new Set<string>();
   const wait = () => (delay ? new Promise((resolve) => setTimeout(resolve, delay)) : undefined);
 
@@ -363,10 +366,13 @@ export async function mockMail(
         const offset = Number(url.searchParams.get("cursor") ?? 0);
         const onlyUnread = url.searchParams.get("unread") === "true";
         const mailboxFilter = url.searchParams.get("mailbox_id");
-        let all = Array.from({ length: messages }, (_, index) => summary(index)).map((item) => ({
-          ...item,
-          unread: unread.has(item.id) || (item.unread && !read.has(item.id)),
-        }));
+        let all = Array.from({ length: messages }, (_, index) => summary(index))
+          .filter((item) => !moved.has(item.id))
+          .map((item) => ({
+            ...item,
+            unread: unread.has(item.id) || (item.unread && !read.has(item.id)),
+            flagged: flagged.has(item.id) || item.flagged,
+          }));
         if (mailboxFilter) all = all.filter((item) => item.mailbox_id === mailboxFilter);
         if (onlyUnread) all = all.filter((item) => item.unread);
         const items = all.slice(offset, offset + limit);
@@ -383,6 +389,7 @@ export async function mockMail(
         const index = Number.parseInt(threadMatch[1]?.split("-").at(-1) ?? "0", 16);
         const data = thread(index);
         for (const message of data.messages) {
+          if (flagged.has(message.id)) message.flagged = true;
           if (read.has(message.id)) message.unread = false;
           if (unread.has(message.id)) message.unread = true;
         }
@@ -398,19 +405,48 @@ export async function mockMail(
           blocked_images: 0,
         });
       }
+      const actionMatch = path.match(/^\/messages\/([^/]+)\/actions$/);
+      if (actionMatch && method === "POST") {
+        const id = actionMatch[1] ?? "";
+        const body = request.postDataJSON() as { action: string; folder_id: string | null };
+        const target =
+          body.action === "archive"
+            ? folderIds.archive
+            : body.action === "trash"
+              ? folderIds.trash
+              : (body.folder_id ?? "");
+        if (target === folderIds.inbox) moved.delete(id);
+        else moved.add(id);
+        const index = Number.parseInt(id.split("-").at(-1) ?? "0", 16);
+        return json(route, {
+          message: summary(index),
+          folder_ids: [target],
+          undo_folder_id: folderIds.inbox,
+        });
+      }
       const patchMatch = path.match(/^\/messages\/([^/]+)$/);
       if (patchMatch && method === "PATCH") {
         const id = patchMatch[1] ?? "";
-        const seen = (request.postDataJSON() as { seen: boolean }).seen;
-        if (seen) {
+        const { seen, flagged: flag } = request.postDataJSON() as {
+          seen?: boolean;
+          flagged?: boolean;
+        };
+        if (seen === true) {
           read.add(id);
           unread.delete(id);
-        } else {
+        } else if (seen === false) {
           unread.add(id);
           read.delete(id);
         }
+        if (flag === true) flagged.add(id);
+        else if (flag === false) flagged.delete(id);
         const index = Number.parseInt(id.split("-").at(-1) ?? "0", 16);
-        return json(route, { ...summary(index), unread: !seen });
+        const item = summary(index);
+        return json(route, {
+          ...item,
+          unread: unread.has(id) || (item.unread && !read.has(id)),
+          flagged: flagged.has(id),
+        });
       }
       return route.fulfill({
         status: 404,

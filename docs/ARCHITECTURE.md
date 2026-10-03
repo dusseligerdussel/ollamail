@@ -143,17 +143,34 @@ Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto
 
 #### Mail-Aktionen auf dem Server
 
-ollamail ist ein Analyse-Werkzeug, kein Mail-Client. Die Provider können verschieben, Flags setzen
-und Labels setzen/entfernen; aus der App heraus gehen aber nur diese Änderungen an den Server:
+ollamail ist ein Analyse-Werkzeug, kein Mail-Client: keine neuen Mails, keine Ordnerverwaltung,
+kein endgültiges Löschen. Aus der App heraus gehen nur diese Änderungen an den Server, jede erst
+nach einer ausdrücklichen Aktion des Nutzers:
 
-| Aktion | Wo | Provider-Methode |
-|---|---|---|
-| Gelesen/ungelesen | `PATCH /messages/{id}`, Job `mail.write_flags` | `set_flags` |
-| Antwort senden | `POST /drafts/{id}/send` (§4.6) | `send` |
-| Triage-Kategorie zurückschreiben (opt-in je Postfach) | `app/triage/writeback.py` (§4.2) | `apply_label`/`remove_label` bzw. `move` |
+| Aktion | Wo | Provider-Methode | Recht |
+|---|---|---|---|
+| Gelesen/ungelesen, Markieren (Flag/Stern) | `PATCH /messages/{id}`, Job `mail.write_flags` | `set_flags` | `act` |
+| Archivieren, Verschieben, In den Papierkorb (#148) | `POST /messages/{id}/actions` (`app/mail/actions.py`) | `move` | `act` |
+| Antwort senden | `POST /drafts/{id}/send` (§4.6) | `send` | `send` |
+| Triage-Kategorie zurückschreiben (opt-in je Postfach) | `app/triage/writeback.py` (§4.2) | `apply_label`/`remove_label` bzw. `move` | `manage` |
 
-Archivieren, Verschieben, Löschen und Markieren (Flag/Stern) durch den Nutzer gibt es noch nicht
-(#148); Mails werden dafür weiter im Mail-Client verwaltet.
+**Archivieren, Verschieben, Papierkorb** (#148): Ziel ist ein Ordner des Postfachs, über seine
+Rolle gefunden – Archivieren in den Ordner mit Rolle `archive` (Gmail: das Label „All Mail“, also
+`INBOX` entfernen), Papierkorb in den mit Rolle `trash`, Verschieben in einen beliebigen Ordner
+bzw. ein Label (Gmail: Label hinzu, `INBOX`/`SPAM`/`TRASH` weg). Damit genügt allen Providern
+`move`; ohne passenden Ordner antwortet die API 409 `no_archive_folder` bzw. `no_trash_folder`.
+Die Aktion läuft synchron im Request (Zeile gesperrt, damit Aktion und Sync sich nicht
+überholen): erst auf dem Server, dann folgt die gespeicherte Mail – neue `remote_ref` (IMAP-UIDs
+ändern sich) und Ordner. Der nächste Sync bestätigt das, ohne Kopie. Die Antwort nennt
+`undo_folder_id` (der Posteingang, wenn die Mail dort lag, sonst ihr bisheriger Ordner);
+„Rückgängig“ ist ein `move` dorthin. Fehler des Servers ändern lokal nichts (`409
+message_not_found`, `502` mit Code, `503` bei Verbindungsfehlern). Jede Aktion steht im Audit-Log
+(`mail.moved`, Markieren `mail.flagged`; nur IDs), Events `message.updated` gehen an alle Leser
+des Postfachs.
+
+Bekannte Grenze: Der Papierkorb ist standardmäßig vom Sync ausgeschlossen. Bei IMAP bleibt eine
+dorthin verschobene Mail deshalb gespeichert (unter ihrer neuen Referenz), bei Graph und Gmail
+entfernt sie der nächste Sync; „Rückgängig“ wirkt dort nur bis zu diesem Sync (danach 404).
 
 #### IMAP-Provider (`backend/app/mail/providers/imap*.py`)
 
@@ -306,8 +323,8 @@ und `delete_mailbox`; sie baut nichts davon nach.
 | `GET /mailboxes/providers` | Postfachtypen, die sich auf dieser Instanz anlegen lassen: `credentials` (Formular, z. B. IMAP) oder `oauth` mit `oauth_start_path`. OAuth-Typen erscheinen nur, wenn der Provider registriert und sein OAuth-Client konfiguriert ist (`app/mail/api/providers.py`, ein Eintrag je Provider) |
 
 - **Zugriff:** ausschließlich über `app/mail/access.py` (`accessible_mailbox_ids`, `visible_to`,
-  `get_mailbox`, Berechtigungen `read`/`sync`/`manage`/`act`). Besitzer haben alle, Nutzer eines
-  Shared Mailbox nur `read`. Fremde Postfächer verhalten sich wie nicht vorhandene (404).
+  `get_mailbox`, Berechtigungen `read`/`sync`/`manage`/`act`/`send`). Besitzer haben alle, Nutzer
+  eines Shared Mailbox `read` und mit einer `act`-Zuweisung zusätzlich `act`, nie `send`. Fremde Postfächer verhalten sich wie nicht vorhandene (404).
   `MailboxRead.permissions` nennt die Berechtigungen des angemeldeten Nutzers;
   `provider_settings` sehen nur Nutzer mit `manage`. `GET /mailboxes/{id}/members` listet alle,
   die das Postfach lesen dürfen (für die Zuweisung von Team-Todos).
@@ -353,7 +370,8 @@ synthetischen Mails: `backend/tests/perf/` (`OLLAMAIL_TEST_PERF=1`, in der CI ak
 | `GET /messages` | Eine Zeile je Mail, neueste zuerst, Keyset-Paging (`cursor`, `limit` ≤ 200), `total` für die virtualisierte Liste (nur auf der ersten Seite, danach `null`). Filter: `mailbox_id`, `folder_id` (ohne: Ordner mit Rolle `inbox`), `unread`. Ohne Bodies; nur ein Snippet aus `body_main` |
 | `GET /messages/{id}/thread` | Konversation der Mail, älteste zuerst (höchstens die neuesten 100), mit Empfängern, Text, sanitisiertem HTML (`body.html`, `body.blocked_images`) und Anhängen |
 | `GET /messages/{id}/body?external_images=true` | HTML mit externen Bildern – erst, wenn der Nutzer sie für diese Mail anfordert |
-| `PATCH /messages/{id}` | `{"seen": bool}`: gelesen/ungelesen. Sofort gespeichert, Event `message.updated`, Job `mail.write_flags` schreibt die Flags auf den Server. Braucht `act`; in Shared Mailboxes 403 `read_only` (der Status gilt für das ganze Postfach) |
+| `PATCH /messages/{id}` | `{"seen": bool, "flagged": bool}` (beide optional): gelesen/ungelesen, markieren. Sofort gespeichert, Event `message.updated` an alle Leser, Job `mail.write_flags` schreibt die Flags auf den Server; Markieren steht im Audit-Log (`mail.flagged`). Braucht `act`, sonst 403 `read_only` (der Status gilt für das ganze Postfach) |
+| `POST /messages/{id}/actions` | `{"action": "archive" \| "trash" \| "move", "folder_id"}` (#148, `app/mail/api/actions.py`): synchron auf dem Server, Antwort mit neuen `folder_ids` und `undo_folder_id`. Braucht `act` (403 `read_only`); 409 `no_archive_folder`/`no_trash_folder`/`message_not_found`, 422 `unknown_folder`, 502/503 bei Serverfehlern. Siehe §3.1, „Mail-Aktionen auf dem Server“ |
 | `GET /messages/{id}/attachments/{attachment_id}` | Download (`Content-Disposition: attachment`, `application/octet-stream`, `nosniff`, CSP `sandbox`). `?inline=true` nur für PNG/JPEG/GIF/WebP (`cid:`-Bilder im HTML) |
 
 - **HTML:** immer serverseitig mit `sanitize_html` bereinigt; das Roh-HTML verlässt den Server nie.
@@ -1051,8 +1069,8 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
   Mail) und `reply_draft_settings` (Signatur, Stilbeispiele an/aus; am Nutzer).
 - **Zugriff:** Ein Entwurf ist nur für seinen Autor sichtbar und nur, solange er das Postfach
   lesen darf (`accessible_mailbox_ids`, bei jeder Anfrage in SQL); sonst 404. Erzeugen braucht
-  Leserecht auf die Mail, Senden zusätzlich `MailboxPermission.ACT` (Eigentümer; Shared
-  Mailboxes sind vorerst nur lesbar → 403 `read_only`).
+  Leserecht auf die Mail, Senden zusätzlich `MailboxPermission.SEND` (nur Eigentümer; auch mit
+  `act`-Zuweisung wird aus Shared Mailboxes nicht gesendet → 403 `read_only`).
 - **Generierung** (Aufgabe `reply_draft` im LLM-Gateway, Modell im KI-Admin zuweisbar,
   Prompt `reply_draft@1`, gestreamt per SSE): Kontext ist der Thread bis zur beantworteten Mail
   (höchstens `OLLAMAIL_DRAFTS_THREAD_MESSAGES` Mails, je `OLLAMAIL_DRAFTS_MESSAGE_CHARS` Zeichen
@@ -1259,8 +1277,9 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 **Umsetzung (#34):**
 
 - **Zuweisungen** (`mail_mailbox_assignments`, `app/mail/models.py`): je Zeile genau ein Nutzer
-  (`user_id`) oder eine Gruppe (`group_name`, optional `provider`), Recht `read` (Aktionen
-  später). Gruppen sind die, die eine Identität des Nutzers beim letzten Login gemeldet hat
+  (`user_id`) oder eine Gruppe (`group_name`, optional `provider`), Recht `read` oder `act`
+  („Mails verwalten“: zusätzlich gelesen/ungelesen, markieren, archivieren, verschieben,
+  Papierkorb; #148). Senden aus Shared Mailboxes gibt es nicht (`send` nur für Besitzer). Gruppen sind die, die eine Identität des Nutzers beim letzten Login gemeldet hat
   (`auth_identities.groups`: OIDC-Gruppen-Claim, LDAP-Gruppen-DNs, GitHub-Teams), verglichen ohne
   Groß-/Kleinschreibung wie beim Rollen-Mapping (#33). Änderungen der Gruppenmitgliedschaft im
   Verzeichnis wirken mit dem nächsten Login.
@@ -1275,18 +1294,21 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 - **Admin-API** (`/admin/shared-mailboxes`, nur Admins, `app/mail/api/shared.py`): anlegen
   (Verbindungstest, Zugangsdaten verschlüsselt), umbenennen, Zugangsdaten/Sync-Einstellungen,
   pausieren, Ordner, Sync anstoßen, entfernen (`delete_mailbox`), Zuweisungen ersetzen
-  (`PUT …/assignments`, `{"users": [...], "groups": [{"group", "provider"}]}`). Antworten enthalten
+  (`PUT …/assignments`, `{"users": [...], "act_users": [...], "groups": [{"group", "provider",
+  "permission"}]}`; `act_users` erhalten `act`). Antworten enthalten
   nur Metadaten (Status, Anzahlen, Zuweisungen, `reader_count`), nie Mails. Admins lesen ein
   Shared Mailbox nur, wenn sie sich zuweisen – sichtbar im Audit-Log.
-- **Audit:** `mailbox.shared` und `mailbox.unshared` je Nutzer bzw. Gruppe (Nutzer-ID bzw.
-  Gruppenname, falls kurz und ohne `@`, sonst nur die Zuweisungs-ID), in derselben Transaktion.
+- **Audit:** `mailbox.shared` (mit `permission`, auch wenn sich nur das Recht ändert) und
+  `mailbox.unshared` je Nutzer bzw. Gruppe (Nutzer-ID bzw. Gruppenname, falls kurz und ohne `@`,
+  sonst nur die Zuweisungs-ID), in derselben Transaktion.
 - **Einmal synchronisiert:** Ein Shared Mailbox ist eine Zeile in `mail_mailboxes`; Sync-Job,
   Mails, Verarbeitung (Triage, Todos, Suchindex) gibt es genau einmal, egal wie viele es lesen.
   Events (`mailbox.sync`, `mailbox.changed`, `message.processed`) gehen an alle aktuellen Leser
   (`app.mail.access.publish_to_readers`); wer Zugriff erhält oder verliert, bekommt
   `mailbox.changed` (`assigned`/`revoked`).
-- **Nur lesen:** Nutzer eines Shared Mailbox dürfen weder Einstellungen ändern noch synchronisieren
-  noch gelesen/ungelesen setzen (der Status gehört dem Postfach). Triage-Korrekturen sind erlaubt
+- **Nur lesen bzw. Mails verwalten:** Nutzer eines Shared Mailbox dürfen weder Einstellungen
+  ändern noch synchronisieren noch senden. Gelesen/ungelesen, Markierungen und Ordner gehören dem
+  Postfach; ändern dürfen sie nur Nutzer mit `act`-Zuweisung. Triage-Korrekturen sind erlaubt
   und wirken postfachweit (§4.2).
 - **Löschen:** Wird ein Nutzer gelöscht, verschwinden nur seine Zuweisungen (`ON DELETE
   CASCADE`) und seine Team-Todo-Zuweisungen (`SET NULL`); das Shared Mailbox bleibt.

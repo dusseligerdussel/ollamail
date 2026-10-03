@@ -11,15 +11,19 @@ Selbst gehostetes, „local first“ E-Mail-Analyse-Tool – für Einzelpersonen
 
 ## Analyse-Werkzeug, kein Mail-Client
 
-ollamail liest Postfächer und wertet sie aus; Mails verwalten Sie weiter in Ihrem Mail-Client.
-Auf den Mailserver zurück gehen nur diese Aktionen:
+ollamail liest Postfächer und wertet sie aus. Für die tägliche Triage gibt es die wichtigsten
+Aktionen; alles Weitere – Ordner anlegen, neue Mails verfassen, Regeln, endgültig löschen –
+bleibt im Mail-Client. Auf den Mailserver zurück gehen nur diese Aktionen, jeweils erst nach
+einem Klick bzw. Tastendruck:
 
-- **Gelesen/ungelesen** (eigene Postfächer)
-- **Antworten senden** – nur auf ausdrücklichen Klick, nur aus eigenen Postfächern
+- **Gelesen/ungelesen** und **Markieren** (Flag bzw. Stern)
+- **Archivieren**, **Verschieben** in einen Ordner bzw. ein Label, **In den Papierkorb** – mit
+  „Rückgängig“; endgültig gelöscht wird nichts
+- **Antworten senden** – nur aus eigenen Postfächern
 - **Triage-Kategorie als Label oder Ordner** – nur, wenn pro Postfach eingeschaltet
 
-Archivieren, Verschieben, Löschen und Markieren (Flag/Stern) sind derzeit **nicht** möglich, ebenso
-neue Mails verfassen. Details: [Architektur §3.1](docs/ARCHITECTURE.md#mail-aktionen-auf-dem-server).
+In geteilten Postfächern braucht es dafür das Recht „Mails verwalten“ (vom Admin vergeben).
+Details: [Architektur §3.1](docs/ARCHITECTURE.md#mail-aktionen-auf-dem-server).
 
 > **Status:** Vorbereitung auf die erste Version `v0.1.0` – Funktionsumfang und bekannte
 > Einschränkungen im [Changelog](CHANGELOG.md). Vor 1.0 können sich Konfiguration und API noch

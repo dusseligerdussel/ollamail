@@ -85,7 +85,7 @@ test("users see a mailbox that cannot sync and no model status", async ({ page }
           display_name: "Arbeit",
           address: "erika@example.org",
           is_shared: false,
-          permissions: ["act", "manage", "read", "sync"],
+          permissions: ["act", "manage", "read", "send", "sync"],
           provider_settings: {},
           has_credentials: true,
           sync_enabled: true,

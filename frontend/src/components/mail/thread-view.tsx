@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { ArrowLeft, Eye, ImageOff, Mail, MailOpen, Paperclip } from "lucide-react";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import {
@@ -41,6 +41,8 @@ interface ThreadViewProps {
   unread: boolean;
   /** Missing for read-only (shared) mailboxes: read state cannot be changed there. */
   onToggleUnread?: () => void;
+  /** Archive, move, trash and flag (#148), next to the read toggle. */
+  actions?: ReactNode;
   /** Back to the list (stacked mobile layout only). */
   onBack?: () => void;
   /** Mark and scroll to this place of the opened message. */
@@ -52,6 +54,7 @@ export function ThreadView({
   messageId,
   unread,
   onToggleUnread,
+  actions,
   onBack,
   focus,
 }: ThreadViewProps) {
@@ -76,15 +79,18 @@ export function ThreadView({
         }
         actions={
           onToggleUnread ? (
-            <Button
-              variant="ghost"
-              size="icon-sm"
-              onClick={onToggleUnread}
-              aria-label={unread ? t("mail.markRead") : t("mail.markUnread")}
-              title={unread ? t("mail.markRead") : t("mail.markUnread")}
-            >
-              {unread ? <MailOpen /> : <Mail />}
-            </Button>
+            <div className="flex items-center gap-0.5">
+              {actions}
+              <Button
+                variant="ghost"
+                size="icon-sm"
+                onClick={onToggleUnread}
+                aria-label={unread ? t("mail.markRead") : t("mail.markUnread")}
+                title={unread ? t("mail.markRead") : t("mail.markUnread")}
+              >
+                {unread ? <MailOpen /> : <Mail />}
+              </Button>
+            </div>
           ) : (
             <span
               className="flex shrink-0 items-center gap-1.5 text-xs whitespace-nowrap text-muted-foreground"

@@ -38,6 +38,7 @@ from app.core.openapi import generate_operation_id
 from app.digest.router import feed_router as digest_feed_router
 from app.digest.router import router as digests_router
 from app.drafts.router import router as drafts_router
+from app.mail.api.actions import router as message_actions_router
 from app.mail.api.messages import providers_router as mailbox_providers_router
 from app.mail.api.messages import router as messages_router
 from app.mail.api.router import router as mailboxes_router
@@ -148,6 +149,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(mailboxes_router)
     app.include_router(shared_mailboxes_router)
     app.include_router(messages_router)
+    app.include_router(message_actions_router)
     app.include_router(gmail_connect_router)
     app.include_router(graph_router)
     app.include_router(digests_router)
