@@ -2148,7 +2148,8 @@ export interface paths {
         /**
          * List Messages
          * @description Messages of the user's mailboxes, newest first, one row per message. Pages with
-         *     ``cursor``; ``total`` counts all matching messages.
+         *     ``cursor``; ``total`` counts all matching messages and comes only with the first page
+         *     (without ``cursor``).
          */
         get: operations["messages_list_messages"];
         put?: never;
@@ -2838,7 +2839,8 @@ export interface paths {
         /**
          * List Inbox Messages
          * @description Inbox messages ordered by category (user's order, uncategorised last), then
-         *     priority, then newest first; with the number of messages per category.
+         *     priority, then newest first. Pages with ``cursor``; the first page (without ``cursor``)
+         *     also carries the total and the number of messages per category.
          */
         get: operations["triage_list_inbox_messages"];
         put?: never;
@@ -5042,7 +5044,7 @@ export interface components {
             /** Next Cursor */
             next_cursor: string | null;
             /** Total */
-            total: number;
+            total: number | null;
         };
         /**
          * MessageSummary
@@ -6587,13 +6589,13 @@ export interface components {
         /** TriagedMessagePage */
         TriagedMessagePage: {
             /** Groups */
-            groups: components["schemas"]["CategoryCount"][];
+            groups: components["schemas"]["CategoryCount"][] | null;
             /** Items */
             items: components["schemas"]["TriagedMessage"][];
-            /** Next Offset */
-            next_offset: number | null;
+            /** Next Cursor */
+            next_cursor: string | null;
             /** Total */
-            total: number;
+            total: number | null;
         };
         /**
          * UserCreate
@@ -14739,7 +14741,7 @@ export interface operations {
                 unread?: boolean | null;
                 /** @description One visible category, or `none` for the uncategorised messages */
                 category?: string | "none" | null;
-                offset?: number;
+                cursor?: string | null;
                 limit?: number;
             };
             header?: never;
@@ -14764,7 +14766,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Unknown or hidden category */
+            /** @description Unknown or hidden category, invalid cursor */
             422: {
                 headers: {
                     [name: string]: unknown;

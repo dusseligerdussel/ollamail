@@ -369,7 +369,10 @@ async def get_inbox(
     return response
 
 
-@router.get("/inbox/messages", responses={422: {"description": "Unknown or hidden category"}})
+@router.get(
+    "/inbox/messages",
+    responses={422: {"description": "Unknown or hidden category, invalid cursor"}},
+)
 async def list_inbox_messages(
     current: CurrentSessionDep,
     db: DbDep,
@@ -379,15 +382,20 @@ async def list_inbox_messages(
         uuid.UUID | Literal["none"] | None,
         Query(description="One visible category, or `none` for the uncategorised messages"),
     ] = None,
-    offset: Annotated[int, Query(ge=0)] = 0,
+    cursor: Annotated[str | None, Query(max_length=500)] = None,
     limit: Annotated[int, Query(ge=1, le=200)] = 100,
 ) -> TriagedMessagePage:
     """Inbox messages ordered by category (user's order, uncategorised last), then
-    priority, then newest first; with the number of messages per category."""
+    priority, then newest first. Pages with ``cursor``; the first page (without ``cursor``)
+    also carries the total and the number of messages per category."""
     categories = await effective_categories(db, current.user_id)
     visible = [c.id for c in categories]
     if isinstance(category, uuid.UUID) and category not in visible:
         raise ProblemError(422, detail="Unknown or hidden category.")
+    try:
+        position = service.InboxCursor.decode(cursor) if cursor is not None else None
+    except ValueError:
+        raise ProblemError(422, detail="Invalid cursor.", error_code="invalid_cursor") from None
     page = await service.inbox_page(
         db,
         current.user_id,
@@ -395,21 +403,22 @@ async def list_inbox_messages(
         mailbox_id=mailbox_id,
         unread=unread,
         category=category,
-        offset=offset,
+        cursor=position,
         limit=limit,
     )
-    end = offset + len(page.rows)
     return TriagedMessagePage(
         items=[
             TriagedMessage(**summary_fields(message), category_id=category_id, priority=priority)
             for message, category_id, priority in page.rows
         ],
-        next_offset=end if end < page.total else None,
+        next_cursor=page.next_cursor.encode() if page.next_cursor is not None else None,
         total=page.total,
         groups=[
             CategoryCount(category_id=category_id, total=total)
             for category_id, total in page.counts.items()
-        ],
+        ]
+        if page.counts is not None
+        else None,
     )
 
 

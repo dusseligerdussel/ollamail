@@ -141,15 +141,15 @@ export function triageInboxQueryOptions(filters: TriageInboxFilters) {
               mailbox_id: filters.mailbox,
               unread: filters.unread,
               category: filters.category === "all" ? undefined : filters.category,
-              offset: pageParam,
+              cursor: pageParam,
               limit: TRIAGE_PAGE_SIZE,
             },
           },
           signal,
         }),
       ),
-    initialPageParam: 0,
-    getNextPageParam: (page) => page.next_offset ?? undefined,
+    initialPageParam: undefined as string | undefined,
+    getNextPageParam: (page) => page.next_cursor ?? undefined,
   });
 }
 
