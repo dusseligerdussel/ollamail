@@ -4,7 +4,8 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { createFirstAdmin, setSignedIn, type User } from "@/api/auth";
-import { describeApiError, isApiError } from "@/api/errors";
+import { describeApiError, isApiError, isCsrfError } from "@/api/errors";
+import { InsecureConnectionNotice } from "@/components/auth/insecure-connection-notice";
 import { FormError, FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { useDocumentTitle } from "@/hooks/use-document-title";
@@ -46,7 +47,9 @@ function SetupForm({ onDone }: { onDone: (admin: User) => void }) {
 
   const fieldErrors: FieldErrors = {};
   let formError: string | undefined;
-  if (setup.isError) {
+  // Not the setup code's fault: shown by the notice instead of at the field (#142).
+  const csrfFailed = setup.isError && isCsrfError(setup.error);
+  if (setup.isError && !csrfFailed) {
     const error = setup.error;
     const type = isApiError(error) ? error.problem?.type : undefined;
     if (isApiError(error) && error.status === 403) {
@@ -83,6 +86,7 @@ function SetupForm({ onDone }: { onDone: (admin: User) => void }) {
         <h1 className="text-lg font-semibold tracking-tight">{t("auth.setup.title")}</h1>
         <p className="text-ui text-muted-foreground">{t("auth.setup.description")}</p>
       </div>
+      <InsecureConnectionNotice failed={csrfFailed} />
       <form className="flex flex-col gap-4" onSubmit={onSubmit}>
         <FormField
           label={t("auth.fields.displayName")}

@@ -6,8 +6,9 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { authProvidersQueryOptions, login, safeRedirect, setSignedIn, type User } from "@/api/auth";
-import { describeApiError, isApiError } from "@/api/errors";
+import { describeApiError, isApiError, isCsrfError } from "@/api/errors";
 import { type MfaChallenge, signInWithPasskey } from "@/api/mfa";
+import { InsecureConnectionNotice } from "@/components/auth/insecure-connection-notice";
 import { EnrollStep, SecondFactorStep } from "@/components/auth/second-factor";
 import { FormError, FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
@@ -128,6 +129,10 @@ function LoginPage() {
   }
 
   const passkeyLogin = localLogin && !!providers.data?.passkey_login && webauthnSupported();
+  // Explained by the notice instead of a generic "forbidden" (#142).
+  const csrfFailed =
+    (signIn.isError && isCsrfError(signIn.error)) ||
+    (passkeySignIn.isError && isCsrfError(passkeySignIn.error));
 
   return (
     <div className="flex flex-col gap-6">
@@ -135,6 +140,7 @@ function LoginPage() {
         <h1 className="text-lg font-semibold tracking-tight">{t("auth.login.title")}</h1>
         <p className="text-ui text-muted-foreground">{t("auth.login.description")}</p>
       </div>
+      <InsecureConnectionNotice failed={csrfFailed} />
 
       {localLogin && (
         <form className="flex flex-col gap-4" onSubmit={onSubmit}>
@@ -157,7 +163,9 @@ function LoginPage() {
             onChange={(event) => setPassword(event.target.value)}
           />
           {expired && <FormError>{t("auth.mfa.expired")}</FormError>}
-          {signIn.isError && <FormError>{loginErrorMessage(signIn.error, t)}</FormError>}
+          {signIn.isError && !isCsrfError(signIn.error) && (
+            <FormError>{loginErrorMessage(signIn.error, t)}</FormError>
+          )}
           <Button type="submit" disabled={signIn.isPending} className="mt-1">
             {signIn.isPending ? t("auth.login.submitting") : t("auth.login.submit")}
           </Button>
@@ -202,7 +210,7 @@ function LoginPage() {
               </li>
             ))}
           </ul>
-          {passkeySignIn.isError && (
+          {passkeySignIn.isError && !isCsrfError(passkeySignIn.error) && (
             <FormError>{passkeyErrorMessage(passkeySignIn.error, t)}</FormError>
           )}
         </div>
