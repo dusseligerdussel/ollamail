@@ -1,7 +1,18 @@
 import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { Filter, Inbox, Mail, MailOpen, MailPlus, Settings2 } from "lucide-react";
-import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
+import {
+  Archive,
+  Filter,
+  Flag,
+  FolderInput,
+  Inbox,
+  Mail,
+  MailOpen,
+  MailPlus,
+  Settings2,
+  Trash2,
+} from "lucide-react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Trans, useTranslation } from "react-i18next";
 
 import {
@@ -17,8 +28,10 @@ import { EmptyState } from "@/components/empty-state";
 import { InlineError } from "@/components/inline-error";
 import { KeyHint } from "@/components/key-hint";
 import { ListSkeleton } from "@/components/list-skeleton";
+import { MessageActions } from "@/components/mail/message-actions";
 import { MessageList } from "@/components/mail/message-list";
 import { ThreadSkeleton, ThreadView } from "@/components/mail/thread-view";
+import { useMessageActions } from "@/components/mail/use-message-actions";
 import { useSetSeen } from "@/components/mail/use-set-seen";
 import { PageHeader } from "@/components/page-header";
 import { useShortcut } from "@/components/shortcuts/shortcut-provider";
@@ -127,7 +140,8 @@ function InboxPage() {
     if (index >= 0) setActiveIndex(index);
   }, [selectedId, items, setActiveIndex]);
 
-  // Users of a shared mailbox may only read it; read state belongs to the mailbox.
+  // Users of a shared mailbox may only read it unless assigned with `act`; read state, flags and
+  // folders belong to the mailbox.
   const canAct = useCallback(
     (mailboxId: string | undefined) =>
       !!mailboxes.data?.find((mailbox) => mailbox.id === mailboxId)?.permissions.includes("act"),
@@ -163,6 +177,53 @@ function InboxPage() {
     if (toggleTarget) setSeen({ messageId: toggleTarget.id, seen: toggleTarget.unread });
   }, [toggleTarget, setSeen]);
 
+  // Archive, move, trash, flag (#148): the opened message makes way for the next one.
+  const messageActions = useMessageActions();
+  const [moveOpen, setMoveOpen] = useState(false);
+  const targetFlagged = selectedId
+    ? (listMessage?.flagged ?? openedMessage?.flagged ?? false)
+    : (activeMessage?.flagged ?? false);
+  // A ref, so loading another page keeps the actions and the commands (#115).
+  const itemsRef = useRef(items);
+  itemsRef.current = items;
+  const leave = useCallback(
+    (messageId: string) => {
+      if (messageId !== selectedId) return;
+      const list = itemsRef.current;
+      const index = list.findIndex((message) => message.id === messageId);
+      const next = index >= 0 ? (list[index + 1] ?? list[index - 1]) : undefined;
+      if (next) open(next.id);
+      else close();
+    },
+    [selectedId, open, close],
+  );
+  const archive = useCallback(() => {
+    if (!toggleTarget) return;
+    leave(toggleTarget.id);
+    messageActions.archive(toggleTarget.id);
+  }, [toggleTarget, leave, messageActions]);
+  const trash = useCallback(() => {
+    if (!toggleTarget) return;
+    leave(toggleTarget.id);
+    messageActions.trash(toggleTarget.id);
+  }, [toggleTarget, leave, messageActions]);
+  const moveTo = useCallback(
+    (folderId: string) => {
+      if (!toggleTarget) return;
+      leave(toggleTarget.id);
+      messageActions.moveTo(toggleTarget.id, folderId);
+    },
+    [toggleTarget, leave, messageActions],
+  );
+  const toggleFlag = useCallback(() => {
+    if (toggleTarget) messageActions.setFlagged(toggleTarget.id, !targetFlagged);
+  }, [toggleTarget, targetFlagged, messageActions]);
+  // The move menu lives in the header of the opened message.
+  const openMove = useCallback(() => {
+    if (toggleTarget && selectedId === toggleTarget.id) setMoveOpen(true);
+    else if (toggleTarget) open(toggleTarget.id);
+  }, [toggleTarget, selectedId, open]);
+
   useShortcut(
     { id: "mail.open", keys: "enter", group: "list", description: t("mail.shortcuts.open") },
     () => {
@@ -188,6 +249,46 @@ function InboxPage() {
       description: t("mail.shortcuts.toggleUnread"),
     },
     toggleUnread,
+  );
+  useShortcut(
+    {
+      id: "mail.archive",
+      keys: "e",
+      group: "list",
+      description: t("mail.shortcuts.archive"),
+      enabled: !!toggleTarget,
+    },
+    archive,
+  );
+  useShortcut(
+    {
+      id: "mail.trash",
+      keys: "#",
+      group: "list",
+      description: t("mail.shortcuts.trash"),
+      enabled: !!toggleTarget,
+    },
+    trash,
+  );
+  useShortcut(
+    {
+      id: "mail.move",
+      keys: "v",
+      group: "list",
+      description: t("mail.shortcuts.move"),
+      enabled: !!toggleTarget,
+    },
+    openMove,
+  );
+  useShortcut(
+    {
+      id: "mail.flag",
+      keys: "s",
+      group: "list",
+      description: t("mail.shortcuts.flag"),
+      enabled: !!toggleTarget,
+    },
+    toggleFlag,
   );
 
   const setUnreadFilter = useCallback(
@@ -222,17 +323,63 @@ function InboxPage() {
       },
     ];
     if (toggleTarget) {
-      list.unshift({
-        id: "mail.toggleUnread",
-        label: toggleTarget.unread ? t("mail.markRead") : t("mail.markUnread"),
-        group: "actions",
-        icon: toggleTarget.unread ? MailOpen : Mail,
-        shortcut: "u",
-        run: toggleUnread,
-      });
+      list.unshift(
+        {
+          id: "mail.archive",
+          label: t("mail.actions.archive"),
+          group: "actions",
+          icon: Archive,
+          shortcut: "e",
+          run: archive,
+        },
+        {
+          id: "mail.move",
+          label: t("mail.actions.move"),
+          group: "actions",
+          icon: FolderInput,
+          shortcut: "v",
+          run: openMove,
+        },
+        {
+          id: "mail.trash",
+          label: t("mail.actions.trash"),
+          group: "actions",
+          icon: Trash2,
+          shortcut: "#",
+          run: trash,
+        },
+        {
+          id: "mail.flag",
+          label: targetFlagged ? t("mail.actions.unflag") : t("mail.actions.flag"),
+          group: "actions",
+          icon: Flag,
+          shortcut: "s",
+          run: toggleFlag,
+        },
+        {
+          id: "mail.toggleUnread",
+          label: toggleTarget.unread ? t("mail.markRead") : t("mail.markUnread"),
+          group: "actions",
+          icon: toggleTarget.unread ? MailOpen : Mail,
+          shortcut: "u",
+          run: toggleUnread,
+        },
+      );
     }
     return list;
-  }, [t, search.unread, setUnreadFilter, navigate, toggleTarget, toggleUnread]);
+  }, [
+    t,
+    search.unread,
+    setUnreadFilter,
+    navigate,
+    toggleTarget,
+    toggleUnread,
+    archive,
+    trash,
+    openMove,
+    toggleFlag,
+    targetFlagged,
+  ]);
   useCommands(commands);
 
   const setCategoryView = useCallback(
@@ -343,6 +490,20 @@ function InboxPage() {
         messageId={selectedId}
         unread={openedUnread}
         onToggleUnread={canAct(thread.data.mailbox_id) ? toggleUnread : undefined}
+        actions={
+          canAct(thread.data.mailbox_id) ? (
+            <MessageActions
+              mailboxId={thread.data.mailbox_id}
+              flagged={targetFlagged}
+              onArchive={archive}
+              onTrash={trash}
+              onMove={moveTo}
+              onToggleFlag={toggleFlag}
+              moveOpen={moveOpen}
+              onMoveOpenChange={setMoveOpen}
+            />
+          ) : undefined
+        }
         onBack={split ? undefined : close}
       />
     );

@@ -113,6 +113,8 @@ class Mailbox(Base):
 class AssignmentPermission(enum.StrEnum):
     # Read the mailbox and everything derived from it (triage, todos, search, digest).
     READ = "read"
+    # Also act on its mails: read/unread, flag, archive, move, trash (#148). Never send.
+    ACT = "act"
 
 
 class MailboxAssignment(Base):

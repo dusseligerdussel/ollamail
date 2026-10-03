@@ -138,7 +138,11 @@ entscheiden die normalen Ordner-Ausschlüsse der Sync-Einstellungen.
 | `move(ref, <Label>)` | Ziel-Label hinzufügen, `INBOX`/`SPAM`/`TRASH` entfernen |
 | `send(reply)` | `messages.send` mit der RFC-5322-Quelle (`raw`, Base64url) und der `threadId` der beantworteten Mail; `In-Reply-To`, `References` und `Re:`-Betreff halten die Antwort in Gmails Thread. Gmail legt die Kopie unter `SENT` ab, der Sync bringt sie. Keine automatische Wiederholung (auch nicht bei 5xx), damit nichts doppelt gesendet wird; fehlender Scope → `send_not_permitted`, abgelehnte Mail → `message_refused` |
 
-`remote_ref` ist die Gmail-Message-ID und bleibt bei allen Aktionen gleich.
+`remote_ref` ist die Gmail-Message-ID und bleibt bei allen Aktionen gleich. In der App
+(#148): Archivieren = `move(ref, "ALL_MAIL")`, Papierkorb = `move(ref, "TRASH")`, Verschieben in
+ein Label = `move(ref, <Label>)`, Markieren = Stern (`STARRED`); „Rückgängig“ verschiebt nach
+`INBOX` (ein dabei gesetztes Label bleibt). Mit `OLLAMAIL_GMAIL_READONLY=true` antworten alle
+Aktionen mit 502 `read_only`.
 
 ## 5. Synchronisation
 
