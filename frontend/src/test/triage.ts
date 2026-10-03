@@ -118,7 +118,7 @@ export function triageApi({
       return json({
         items,
         total: items.length,
-        next_offset: null,
+        next_cursor: null,
         groups: [
           ...categories.map((item) => ({ category_id: item.id, total: counts.get(item.id) ?? 0 })),
           { category_id: null, total: counts.get(null) ?? 0 },

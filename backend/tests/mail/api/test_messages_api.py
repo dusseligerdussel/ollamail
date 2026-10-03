@@ -194,7 +194,8 @@ async def test_paging_and_unread_filter(
         if cursor:
             params["cursor"] = cursor
         page = await inbox(erika, **params)
-        assert page["total"] == 7
+        # Counted only for the first page.
+        assert page["total"] == (None if cursor else 7)
         seen.extend(ids(page))
         cursor = page["next_cursor"]
         if cursor is None:

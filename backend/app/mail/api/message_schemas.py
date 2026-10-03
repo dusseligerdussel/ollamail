@@ -39,8 +39,9 @@ class MessagePage(BaseModel):
     items: list[MessageSummary]
     # Pass as ``cursor`` for the next page; ``null`` on the last page.
     next_cursor: str | None
-    # Number of messages matching the filter (all pages).
-    total: int
+    # Number of messages matching the filter (all pages); only on the first page
+    # (without ``cursor``), ``null`` on the following ones.
+    total: int | None
 
 
 class AttachmentRead(BaseModel):
