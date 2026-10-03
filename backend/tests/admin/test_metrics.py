@@ -94,7 +94,7 @@ async def test_unreachable_database_still_serves_process_metrics(settings: Setti
 
 
 @pytest.mark.db
-async def test_endpoint_reads_the_database(settings: Settings) -> None:
+async def test_endpoint_reads_the_database(settings: Settings, migrated_database: str) -> None:
     status, body = await _get(_with_metrics(settings))
 
     assert status == 200
