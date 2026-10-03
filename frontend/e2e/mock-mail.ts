@@ -302,6 +302,14 @@ export async function mockMail(
   const moved = new Set<string>();
   const flagged = new Set<string>();
   const unread = new Set<string>();
+  // Removed mailboxes: the background job "never finishes", they stay as `deleting`.
+  const removing = new Set<string>();
+  const listed = () =>
+    mailboxes.map((item) =>
+      removing.has(item.id)
+        ? { ...item, sync_enabled: false, status: { ...item.status, phase: "deleting" } }
+        : item,
+    );
   const wait = () => (delay ? new Promise((resolve) => setTimeout(resolve, delay)) : undefined);
 
   if (triage) {
@@ -325,7 +333,19 @@ export async function mockMail(
       const method = request.method();
 
       if (method === "GET" && path === "/mailboxes")
-        return json(route, hasMailboxes ? mailboxes : []);
+        return json(route, hasMailboxes ? listed() : []);
+      const removed = method === "DELETE" && /^\/mailboxes\/([^/]+)$/.exec(path);
+      if (removed) {
+        const target = mailboxes.find((item) => item.id === removed[1]);
+        if (!target) return json(route, { detail: "Mailbox not found." }, 404);
+        removing.add(target.id);
+        const count = (target.status as { message_count: number }).message_count;
+        return json(
+          route,
+          { mailbox_id: target.id, deleted: true, messages: count, attachments: 0 },
+          202,
+        );
+      }
       if (method === "GET" && path === "/mailboxes/providers") {
         return json(route, [
           { type: "imap", connect: "credentials", oauth_start_path: null },

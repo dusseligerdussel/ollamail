@@ -55,7 +55,8 @@ async def store_message(
         await session.flush()
         return existing
 
-    normalized = normalize_message(raw.raw)
+    # CPU-bound (MIME, charsets, HTML to text, language): off the event loop (#147).
+    normalized = await asyncio.to_thread(normalize_message, raw.raw)
     parsed = normalized.parsed
     timestamp = raw.received_at or parsed.sent_at
     thread = await assign_thread(

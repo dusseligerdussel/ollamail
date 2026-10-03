@@ -10,6 +10,7 @@ and written back to the mail server by the ``mail.write_flags`` job.
 Privacy: logs carry IDs only, never subjects, addresses or file names.
 """
 
+import asyncio
 import base64
 import binascii
 import uuid
@@ -273,11 +274,14 @@ async def get_thread(message_id: uuid.UUID, current: CurrentSessionDep, db: DbDe
         if message not in newest:
             newest[-1:] = [message]
         messages = sorted(newest, key=lambda m: (_date_of(m), m.id))
+    # Sanitising up to 100 HTML bodies is CPU-bound: off the event loop (#147). Everything
+    # read here is loaded already, so the thread never touches the session.
+    details = await asyncio.to_thread(lambda: [_detail(m) for m in messages])
     return ThreadRead(
         thread_id=message.thread_id,
         mailbox_id=message.mailbox_id,
         subject=messages[0].subject if messages[0].subject else message.subject,
-        messages=[_detail(m) for m in messages],
+        messages=details,
     )
 
 
@@ -291,7 +295,7 @@ async def get_message_body(
     """Sanitised HTML; with ``external_images=true`` remote images are kept (the user
     chose to load them for this message)."""
     message = await _message(db, current.user_id, message_id)
-    return _body(message, external_images=external_images)
+    return await asyncio.to_thread(_body, message, external_images=external_images)
 
 
 @router.patch("/{message_id}", responses={**NOT_FOUND, 403: {"description": "Read-only mailbox"}})

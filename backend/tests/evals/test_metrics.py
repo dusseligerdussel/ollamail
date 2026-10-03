@@ -109,7 +109,12 @@ def test_answer_needs_every_keyword_group() -> None:
 
 
 def _call(
-    task: str, ms: int, prompt: int | None, completion: int | None, ok: bool = True
+    task: str,
+    ms: int,
+    prompt: int | None,
+    completion: int | None,
+    ok: bool = True,
+    ns: int | None = None,
 ) -> LLMCallMetrics:
     return LLMCallMetrics(
         task=task,
@@ -122,6 +127,7 @@ def _call(
         success=ok,
         prompt_tokens=prompt,
         completion_tokens=completion,
+        duration_ns=ns,
     )
 
 
@@ -142,6 +148,22 @@ def test_call_stats() -> None:
     assert stats.processed_tokens_per_second == 210.0
     assert not stats.estimated
     assert call_stats([]).tokens_per_second is None
+
+
+def test_call_stats_uses_nanoseconds_for_sub_millisecond_calls() -> None:
+    # A fast model answers in 0.25 ms: the rounded duration is 0 ms, the rate is still defined.
+    stats = call_stats([_call("triage", 0, 100, 20, ns=250_000)] * 2)
+
+    assert stats.seconds_mean == 0.00025
+    assert stats.tokens_per_second == 80_000.0
+    assert stats.processed_tokens_per_second == 480_000.0
+
+
+def test_call_stats_without_measurable_duration_has_no_rate() -> None:
+    stats = call_stats([_call("triage", 0, 100, 20, ns=0)])
+
+    assert stats.tokens_per_second is None
+    assert stats.processed_tokens_per_second is None
 
 
 def test_percentile() -> None:

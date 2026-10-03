@@ -32,6 +32,16 @@ class LLMCallMetrics:
     # Structured output: number of model calls including retries.
     attempts: int = 1
     error_type: str | None = None
+    # Monotonic duration in nanoseconds; ``duration_ms`` is rounded and is 0 for calls
+    # shorter than half a millisecond. ``None`` for metrics built without it.
+    duration_ns: int | None = None
+
+    @property
+    def seconds(self) -> float:
+        """Call duration at the best available resolution."""
+        if self.duration_ns is not None:
+            return self.duration_ns / 1_000_000_000
+        return self.duration_ms / 1000
 
 
 class MetricsSink(Protocol):
@@ -67,7 +77,7 @@ LLM_ERRORS = Counter(
 def observe(metrics: LLMCallMetrics) -> None:
     """Count one call for Prometheus."""
     labels = (metrics.task, metrics.operation, metrics.endpoint, metrics.provider, metrics.model)
-    seconds = metrics.duration_ms / 1000
+    seconds = metrics.seconds
     outcome = "success" if metrics.success else "error"
     LLM_DURATION.labels(*labels, outcome).observe(seconds)
     if metrics.prompt_tokens:

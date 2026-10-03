@@ -201,6 +201,23 @@ test("add an IMAP mailbox with autodiscovery and connection test", async ({ page
   await expect(page).toHaveURL(/\/settings\/mailboxes$/);
 });
 
+test("remove a mailbox → shown as being removed until the job is done", async ({ page }) => {
+  await mockMail(page);
+  await page.goto("/settings/mailboxes");
+  const list = page.getByRole("list", { name: "Mailboxes" });
+  const row = list.getByRole("listitem").filter({ hasText: "erika@example.org" });
+  await row.getByRole("button", { name: "Actions for Arbeit" }).click();
+  await page.getByRole("menuitem", { name: "Remove" }).click();
+  const dialog = page.getByRole("dialog", { name: "Remove mailbox?" });
+  await dialog.getByRole("button", { name: "Remove" }).click();
+
+  // The data is deleted by a background job; until it is done the row says so.
+  await expect(page.getByText("Removing mailbox (1,284 messages)")).toBeVisible();
+  await expect(row.getByText("Being removed")).toBeVisible();
+  await expect(row.getByRole("button", { name: "Actions for Arbeit" })).toHaveCount(0);
+  await expectNoA11yViolations(page);
+});
+
 test("a late autodiscovery answer keeps the server the user enters", async ({ page }) => {
   await mockMail(page);
   // Holds back the autodiscovery answer; the mail mock answers once it is released.

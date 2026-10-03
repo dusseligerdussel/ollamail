@@ -9,7 +9,7 @@ import os
 import platform
 import sys
 import time
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from contextlib import AsyncExitStack
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
@@ -47,6 +47,8 @@ class RunOptions:
     # Deadline per model call for every chat task (``OLLAMAIL_LLM_CALL_TIMEOUT``);
     # ``None``: as configured (environment, else the profile's per-task defaults).
     timeout: float | None = None
+    # Monotonic nanoseconds for call durations; ``None``: ``time.perf_counter_ns``.
+    clock: Callable[[], int] | None = None
 
 
 def _log(message: str) -> None:
@@ -80,6 +82,7 @@ def gateway(settings: LLMSettings, options: RunOptions, sink: RecordingSink) -> 
         EnvConfigResolver(settings),
         provider_factory=options.provider_factory or create_provider,
         metrics=sink,
+        clock=options.clock or time.perf_counter_ns,
     )
 
 

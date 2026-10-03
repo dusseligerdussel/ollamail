@@ -100,14 +100,15 @@ class ConnectionTestResult(BaseModel):
     folders: list[RemoteFolderRead] = Field(default_factory=list)
 
 
-SyncPhase = Literal["paused", "pending", "importing", "syncing", "idle", "error"]
+SyncPhase = Literal["deleting", "paused", "pending", "importing", "syncing", "idle", "error"]
 
 
 class MailboxSyncStatus(BaseModel):
-    """``phase`` summarises the fields: ``paused`` (sync disabled), ``error`` (the last sync
-    failed for the whole mailbox), ``syncing`` (a sync job is queued or running),
-    ``pending`` (never synced), ``importing`` (initial import of some folder unfinished),
-    else ``idle``."""
+    """``phase`` summarises the fields: ``deleting`` (removal requested, a background job
+    deletes the data; nothing else can be done with the mailbox), ``paused`` (sync
+    disabled), ``error`` (the last sync failed for the whole mailbox), ``syncing`` (a sync
+    job is queued or running), ``pending`` (never synced), ``importing`` (initial import of
+    some folder unfinished), else ``idle``."""
 
     phase: SyncPhase
     # Last complete sync of the mailbox.
@@ -186,7 +187,8 @@ class SyncRequestResult(BaseModel):
 class MailboxDeleted(BaseModel):
     """Confirmation of a removal: the mailbox and all data derived from it (mails,
     attachments and their files, threads, folders, sync state, processing results, todos,
-    triage results, search index) are deleted."""
+    triage results, search index) are hidden at once and deleted by a background job
+    (#147); ``mailbox.changed`` with ``deleted`` reports the end."""
 
     mailbox_id: uuid.UUID
     deleted: Literal[True] = True

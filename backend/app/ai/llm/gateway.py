@@ -106,10 +106,12 @@ class LLMGateway:
         metrics: MetricsSink | None = None,
         concurrency: Callable[[], Awaitable[int]] | None = None,
         circuit: CircuitBreaker | None = None,
+        clock: Callable[[], int] = time.perf_counter_ns,
     ) -> None:
         """``concurrency`` limits parallel requests of this gateway (worker: the admin
         setting, re-read on every request); ``None`` means no limit. ``circuit`` stops
-        calls to an endpoint that is down (worker); ``None`` means always call."""
+        calls to an endpoint that is down (worker); ``None`` means always call. ``clock``
+        returns monotonic nanoseconds for call durations (tests pass a controlled one)."""
         self._resolver = resolver
         self._limiter = DynamicLimiter(concurrency) if concurrency is not None else None
         self._provider_factory = provider_factory
@@ -118,6 +120,7 @@ class LLMGateway:
         # (endpoint, model) pairs that rejected the native JSON-schema parameter.
         self._prompt_only: set[tuple[str, str]] = set()
         self._circuit = circuit
+        self._clock = clock
 
     async def _provider(self, endpoint: EndpointConfig) -> LLMProvider:
         cached = self._providers.get(endpoint.name)
@@ -167,13 +170,14 @@ class LLMGateway:
         assignment: ModelAssignment,
         operation: Operation,
         prompt_version: str | None,
-        started: float,
+        started: int,
         *,
         error: BaseException | None = None,
         usage: Usage | None = None,
         attempts: int = 1,
     ) -> None:
         usage = usage or Usage()
+        duration_ns = max(0, self._clock() - started)
         self._metrics.record(
             LLMCallMetrics(
                 task=assignment.task.value,
@@ -182,12 +186,13 @@ class LLMGateway:
                 provider=assignment.endpoint.provider,
                 model=assignment.model,
                 prompt_version=prompt_version,
-                duration_ms=round((time.perf_counter() - started) * 1000),
+                duration_ms=round(duration_ns / 1_000_000),
                 success=error is None,
                 prompt_tokens=usage.prompt_tokens,
                 completion_tokens=usage.completion_tokens,
                 attempts=attempts,
                 error_type=type(error).__name__ if error is not None else None,
+                duration_ns=duration_ns,
             )
         )
 
@@ -222,7 +227,7 @@ class LLMGateway:
         assignment, provider = await self._select(task)
         fitted, opts = self._prepare(assignment, messages, options)
         self._admit(assignment)
-        started = time.perf_counter()
+        started = self._clock()
         try:
             async with (
                 self._watched(assignment),
@@ -255,7 +260,7 @@ class LLMGateway:
         key = (assignment.endpoint.name, assignment.model)
         native = assignment.endpoint.structured_output == "native" and key not in self._prompt_only
         self._admit(assignment)
-        started = time.perf_counter()
+        started = self._clock()
         try:
             async with (
                 self._watched(assignment),
@@ -335,7 +340,7 @@ class LLMGateway:
         assignment, provider = await self._select(task)
         fitted, opts = self._prepare(assignment, messages, options)
         self._admit(assignment)
-        started = time.perf_counter()
+        started = self._clock()
         streamed_chars = 0
         error: BaseException | None = None
         try:
@@ -404,7 +409,7 @@ class LLMGateway:
         if model is not None:
             assignment = dataclasses.replace(assignment, model=model)
         self._admit(assignment)
-        started = time.perf_counter()
+        started = self._clock()
         try:
             async with self._watched(assignment), self._slot():
                 vectors = await provider.embed(texts, model=assignment.model)

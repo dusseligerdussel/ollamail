@@ -285,6 +285,11 @@ class MailSettings(BaseSettings):
     imap_timeout: float = Field(default=60.0, gt=0)
     # Messages fetched (and committed) per batch; an interrupted sync resumes per batch.
     sync_batch_size: int = Field(default=50, ge=1, le=1000)
+    # IMAP servers without CONDSTORE (#147): each sync checks the flags of the newest N known
+    # messages per folder; the flags of all of them only every few hours. Deletions and
+    # moves are found on every sync either way.
+    imap_flag_window: int = Field(default=1000, ge=1)
+    imap_full_flag_scan_hours: float = Field(default=24, gt=0)
     # Time slices of a large import: a sync job stops importing older mail after this many
     # import batches or minutes and queues a follow-up job, so new mail is fetched in
     # between instead of waiting for the whole import. 0 = no limit.
