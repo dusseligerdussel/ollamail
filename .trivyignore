@@ -1,0 +1,8 @@
+# Trivy findings accepted for the release images (.github/workflows/release.yml).
+#
+# The scan fails on fixable HIGH and CRITICAL vulnerabilities. Add an entry here only if a
+# finding cannot be fixed in this repository (e.g. no fixed version of the base image yet) or
+# does not apply to ollamail. Every entry needs:
+#   - a comment: affected package, why it is accepted, link to the tracking issue
+#   - an expiry date, so it is reviewed again: `CVE-YYYY-NNNNN exp:YYYY-MM-DD`
+# Fixable findings get an issue and a fix instead of an entry here.
