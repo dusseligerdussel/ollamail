@@ -270,9 +270,12 @@ bzw. nicht gestoppt (`exec` und `logs` auf einen laufenden Dienst gehen auch ohn
 
 #### Erstimport auf CPU: Dauer, Altbestand, Zeitscheiben (#141)
 
-Auf CPU mit `qwen2.5:3b` brauchen Triage und Aufgaben zusammen etwa **20–60 s pro Mail**. Würde
-jede importierte Mail klassifiziert, dauerte der Standard-Import (90 Tage, oft 5.000–10.000 Mails)
-**1–4 Tage**. Deshalb gilt:
+Auf CPU mit `qwen2.5:3b` brauchen Triage und Aufgaben zusammen etwa **20–60 s pro Mail**
+(Messung auf 4 vCPUs, [`operations/model-evals.md`](operations/model-evals.md), Abschnitt 4.1:
+Triage im Mittel 9,5 s, Aufgaben 46,3 s, Median 14,1 s). Würde jede importierte Mail
+klassifiziert, dauerte der Standard-Import (90 Tage, oft 5.000–10.000 Mails) **1–4 Tage**. Der
+Suchindex ist dagegen billig: Embeddings für 200 Mails brauchten 35 s, für 10.000 Mails also
+rund eine halbe Stunde. Deshalb gilt:
 
 - **Nur jüngere Mails werden klassifiziert.** Mails, die vor mehr als
   `OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS` Tagen (Standard **14**) eingegangen sind, bekommen nur
