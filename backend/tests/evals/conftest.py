@@ -68,7 +68,7 @@ class Oracle:
         prompt = messages[-1].content
         if schema.__name__ == "TriageDecision":
             mail = self._mail(prompt)
-            return {"category": mail.category, "priority": mail.priority, "reason": "Fits."}
+            return {"assessment": "Fits.", "category": mail.category, "priority": mail.priority}
         if schema is TodoExtraction:
             mail = self._mail(prompt)
             return {

@@ -25,7 +25,7 @@ NOW = datetime(2026, 9, 30, 9, 0, tzinfo=UTC)
 
 def answer(category: str, priority: int = 2, reason: str = "Test reason.") -> str:
     """A model answer in the triage schema."""
-    return json.dumps({"category": category, "priority": priority, "reason": reason})
+    return json.dumps({"assessment": reason, "category": category, "priority": priority})
 
 
 @dataclass

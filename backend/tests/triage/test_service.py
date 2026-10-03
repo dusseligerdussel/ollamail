@@ -134,7 +134,7 @@ async def test_model_decides_and_result_is_replaced_on_rerun(
     assert first is not None
     assert first.category_id == await _category_id(db_session, account, "action_required")
     assert (first.priority, first.reason, first.source) == (1, "Asks for a meeting.", "llm")
-    assert first.prompt_version == "triage@1"
+    assert first.prompt_version == "triage@2"
     assert first.model == "qwen2.5:3b"
     first.write_back_pending = False
 

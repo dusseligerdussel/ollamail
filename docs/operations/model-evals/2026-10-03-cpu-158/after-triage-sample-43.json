@@ -1,0 +1,222 @@
+{
+  "run": {
+    "started_at": "2026-10-03T10:18:20+00:00",
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+      "cpu_count": 4,
+      "description": "Intel(R) Xeon(R) Processor @ 2.80GHz, 4 logical CPUs, Linux x86_64"
+    },
+    "endpoint": {
+      "provider": "ollama",
+      "base_url": "http://localhost:11434"
+    },
+    "profile": "cpu",
+    "stages": [
+      "triage"
+    ],
+    "dataset": {
+      "mails": 43,
+      "questions": 21,
+      "languages": [
+        "de",
+        "en"
+      ]
+    },
+    "prefilter": true,
+    "call_timeouts": {
+      "triage": 180.0,
+      "todos": 180.0,
+      "digest": 360.0,
+      "rag_chat": 360.0
+    },
+    "judge_model": null,
+    "prompt_versions": {
+      "triage": "triage@2",
+      "todos_extract": "todos_extract@2",
+      "digest_map": "digest_map@1",
+      "digest_condense": "digest_condense@1",
+      "digest_reduce": "digest_reduce@1",
+      "rag_query": "rag_query@1",
+      "rag_rerank": "rag_rerank@1",
+      "rag_answer": "rag_answer@1",
+      "eval_judge": "eval_judge@1"
+    },
+    "finished_at": "2026-10-03T10:24:08+00:00"
+  },
+  "models": [
+    {
+      "model": "qwen2.5:3b",
+      "seconds": 347.8,
+      "error": null,
+      "timeouts": {
+        "calls": 40,
+        "timed_out": 0,
+        "rate": 0.0
+      },
+      "stages": {
+        "triage": {
+          "mails": 43,
+          "accuracy": 0.7209,
+          "accuracy_model_only": 0.7,
+          "priority_accuracy": 0.4419,
+          "decided_by_rule": 3,
+          "rule_correct": 3,
+          "errors": 0,
+          "recall_per_category": {
+            "important": 0.5,
+            "action_required": 0.8889,
+            "waiting_for": 0.25,
+            "info": 0.875,
+            "newsletter": 0.8571,
+            "notification": 0.8333,
+            "spam": 0.3333
+          },
+          "confusion": {
+            "important": {
+              "important": 3,
+              "action_required": 1,
+              "waiting_for": 1,
+              "info": 1,
+              "newsletter": 0,
+              "notification": 0,
+              "spam": 0
+            },
+            "action_required": {
+              "important": 0,
+              "action_required": 8,
+              "waiting_for": 1,
+              "info": 0,
+              "newsletter": 0,
+              "notification": 0,
+              "spam": 0
+            },
+            "waiting_for": {
+              "important": 0,
+              "action_required": 1,
+              "waiting_for": 1,
+              "info": 2,
+              "newsletter": 0,
+              "notification": 0,
+              "spam": 0
+            },
+            "info": {
+              "important": 0,
+              "action_required": 0,
+              "waiting_for": 1,
+              "info": 7,
+              "newsletter": 0,
+              "notification": 0,
+              "spam": 0
+            },
+            "newsletter": {
+              "important": 0,
+              "action_required": 0,
+              "waiting_for": 0,
+              "info": 1,
+              "newsletter": 6,
+              "notification": 0,
+              "spam": 0
+            },
+            "notification": {
+              "important": 0,
+              "action_required": 0,
+              "waiting_for": 0,
+              "info": 1,
+              "newsletter": 0,
+              "notification": 5,
+              "spam": 0
+            },
+            "spam": {
+              "important": 0,
+              "action_required": 2,
+              "waiting_for": 0,
+              "info": 0,
+              "newsletter": 0,
+              "notification": 0,
+              "spam": 1
+            }
+          },
+          "misclassified": [
+            {
+              "mail": "de-a-005",
+              "expected": "important",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "de-a-024",
+              "expected": "info",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "de-a-028",
+              "expected": "waiting_for",
+              "predicted": "info"
+            },
+            {
+              "mail": "de-b-006",
+              "expected": "spam",
+              "predicted": "action_required"
+            },
+            {
+              "mail": "de-b-020",
+              "expected": "waiting_for",
+              "predicted": "info"
+            },
+            {
+              "mail": "de-b-025",
+              "expected": "waiting_for",
+              "predicted": "action_required"
+            },
+            {
+              "mail": "de-b-030",
+              "expected": "newsletter",
+              "predicted": "info"
+            },
+            {
+              "mail": "de-b-039",
+              "expected": "notification",
+              "predicted": "info"
+            },
+            {
+              "mail": "de-b-048",
+              "expected": "action_required",
+              "predicted": "waiting_for"
+            },
+            {
+              "mail": "en-a-007",
+              "expected": "spam",
+              "predicted": "action_required"
+            },
+            {
+              "mail": "en-a-049",
+              "expected": "important",
+              "predicted": "action_required"
+            },
+            {
+              "mail": "en-b-004",
+              "expected": "important",
+              "predicted": "info"
+            }
+          ]
+        }
+      },
+      "calls": {
+        "triage": {
+          "calls": 40,
+          "failed": 0,
+          "timeouts": 0,
+          "seconds_mean": 8.69,
+          "seconds_p50": 8.12,
+          "seconds_p95": 12.19,
+          "prompt_tokens": 56239,
+          "completion_tokens": 1910,
+          "tokens_per_second": 5.49,
+          "processed_tokens_per_second": 167.24,
+          "tokens_estimated": false
+        }
+      }
+    }
+  ]
+}

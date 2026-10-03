@@ -30,7 +30,7 @@ from app.worker import DEFAULT_RETRY, app
 
 log = get_logger(__name__)
 
-TRIAGE_STEP_VERSION = 1
+TRIAGE_STEP_VERSION = 2
 # Pending write-backs handled per run of the periodic job.
 WRITE_BACK_BATCH_SIZE = 200
 

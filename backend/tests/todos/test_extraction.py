@@ -52,7 +52,7 @@ async def test_extracts_todo_with_resolved_due_date(mail: MailData, fake_llm: Fa
     )
     assert (todo.status, todo.is_manual, todo.external_refs) == (TodoStatus.OPEN, False, {})
     (metrics,) = fake_llm.sink.records
-    assert (metrics.task, metrics.prompt_version) == ("todos", "todos_extract@1")
+    assert (metrics.task, metrics.prompt_version) == ("todos", "todos_extract@2")
 
 
 async def test_german_mail_uses_german_prompt(mail: MailData, fake_llm: FakeLLM) -> None:
@@ -276,3 +276,29 @@ async def test_invalid_model_answers_are_repaired(mail: MailData, fake_llm: Fake
     (todo,) = await extract_todos(mail.session, message.id, llm=fake_llm.gateway, settings=SETTINGS)
 
     assert (len(todo.title), todo.priority, todo.confidence) == (255, TodoPriority.HIGH, 1.0)
+
+
+async def test_todos_per_mail_are_capped(mail: MailData, fake_llm: FakeLLM) -> None:
+    message = await mail.message()
+    fake_llm.answer([REPORT | {"title": f"Task {n}", "confidence": 0.6 + n / 10} for n in range(4)])
+
+    created = await extract_todos(
+        mail.session,
+        message.id,
+        llm=fake_llm.gateway,
+        settings=TodosSettings(max_per_mail=2),
+    )
+
+    assert [t.title for t in created] == ["Task 3", "Task 2"]
+
+
+async def test_prompt_allows_no_task(mail: MailData, fake_llm: FakeLLM) -> None:
+    message = await mail.message()
+    fake_llm.provider.answers.append(
+        '{"asks_user": false, "todos": [{"title": "Read memo", "confidence": 0.9}], "done": []}'
+    )
+
+    created = await extract_todos(mail.session, message.id, llm=fake_llm.gateway, settings=SETTINGS)
+
+    assert created == []
+    assert '"asks_user": false, "todos": [], "done": []' in fake_llm.prompt()
