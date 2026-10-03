@@ -2,7 +2,7 @@
 
 from typing import Any
 
-from sqlalchemy import CheckConstraint, Float, String, true
+from sqlalchemy import BigInteger, CheckConstraint, Float, String, UniqueConstraint, true
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
@@ -41,3 +41,20 @@ class AISettingsRecord(Base):
     concurrency: Mapped[int | None] = mapped_column()
     # {"<task>": {"provider": "<name>" | null, "model": "<model>" | null}}
     tasks: Mapped[dict[str, Any]] = mapped_column(JSONB, default=dict)
+
+
+class AIModelPull(Base):
+    """Download of a model onto an Ollama endpoint, started by an admin (job
+    ``ai.pull_model``). One row per endpoint and model; progress in bytes."""
+
+    __tablename__ = "ai_model_pulls"
+    __table_args__ = (UniqueConstraint("endpoint", "model"),)
+
+    endpoint: Mapped[str] = mapped_column(String(64))
+    model: Mapped[str] = mapped_column(String(255))
+    # ``PullStatus``: queued, running, done or failed.
+    status: Mapped[str] = mapped_column(String(16))
+    completed: Mapped[int] = mapped_column(BigInteger, default=0)
+    total: Mapped[int | None] = mapped_column(BigInteger)
+    # Machine-readable code of the failure, never a server text.
+    error_code: Mapped[str | None] = mapped_column(String(64))

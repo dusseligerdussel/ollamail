@@ -620,6 +620,89 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/admin/system/mailboxes/{mailbox_id}/retry-failed": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Retry Failed Processing
+         * @description Process the failed steps of a mailbox again, behind new mail (``REPROCESS``).
+         */
+        post: operations["admin_retry_failed_processing"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system/models": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Model Status
+         * @description Each task's model: installed, missing, endpoint unreachable, or disabled (cloud
+         *     endpoint while cloud LLMs are off). Asks every endpoint for its models.
+         */
+        get: operations["admin_get_model_status"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system/models/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Pull Model
+         * @description Download a model that a task uses onto its Ollama endpoint, as a background job.
+         *     Poll ``GET /admin/system/models`` for the progress.
+         */
+        post: operations["admin_pull_model"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get System Overview
+         * @description Facts for the getting-started checklist and, per mailbox, sync status and the
+         *     number of pending and failed processing steps.
+         */
+        get: operations["admin_get_system_overview"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/ai/status": {
         parameters: {
             query?: never;
@@ -4727,6 +4810,39 @@ export interface components {
          */
         MailboxPermission: "read" | "sync" | "manage" | "act";
         /**
+         * MailboxProcessingRead
+         * @description Sync status and processing counts of one mailbox; no content, no address.
+         */
+        MailboxProcessingRead: {
+            /** Display Name */
+            display_name: string | null;
+            /** Failed */
+            failed: number;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Is Shared */
+            is_shared: boolean;
+            /** Owner Name */
+            owner_name: string | null;
+            /** Pending */
+            pending: number;
+            /** Processing Enabled */
+            processing_enabled: boolean;
+            /** Running */
+            running: number;
+            /** Sync Error */
+            sync_error: string | null;
+            /**
+             * Sync Phase
+             * @enum {string}
+             */
+            sync_phase: "paused" | "pending" | "importing" | "syncing" | "idle" | "error";
+            type: components["schemas"]["MailboxType"];
+        };
+        /**
          * MailboxProviderRead
          * @description A mailbox type that can be added on this instance.
          */
@@ -4991,6 +5107,49 @@ export interface components {
              * @enum {string}
              */
             method: "totp" | "recovery";
+        };
+        /** ModelPullRead */
+        ModelPullRead: {
+            /** Completed */
+            completed: number;
+            /** Error Code */
+            error_code: string | null;
+            status: components["schemas"]["PullStatus"];
+            /** Total */
+            total: number | null;
+            /**
+             * Updated At
+             * Format: date-time
+             */
+            updated_at: string;
+        };
+        /** ModelPullRequest */
+        ModelPullRequest: {
+            /** Endpoint */
+            endpoint: string;
+            /** Model */
+            model: string;
+        };
+        /** ModelStatusRead */
+        ModelStatusRead: {
+            /** Can Pull */
+            can_pull: boolean;
+            /** Endpoint */
+            endpoint: string;
+            /** Model */
+            model: string;
+            /**
+             * Provider
+             * @enum {string}
+             */
+            provider: "ollama" | "openai_compatible";
+            pull: components["schemas"]["ModelPullRead"] | null;
+            /**
+             * State
+             * @enum {string}
+             */
+            state: "installed" | "missing" | "unreachable" | "disabled";
+            task: components["schemas"]["LLMTask"];
         };
         /** MsTodoConnectRequest */
         MsTodoConnectRequest: {
@@ -5337,6 +5496,11 @@ export interface components {
             timezone?: string | null;
         };
         /**
+         * PullStatus
+         * @enum {string}
+         */
+        PullStatus: "queued" | "running" | "done" | "failed";
+        /**
          * RagFilters
          * @description Filters set in the UI; each one narrows the mailboxes the user may read.
          */
@@ -5512,6 +5676,11 @@ export interface components {
             rag_history_days: number;
             /** Search Index Days */
             search_index_days: number;
+        };
+        /** RetryFailedRead */
+        RetryFailedRead: {
+            /** Queued */
+            queued: number;
         };
         /** RoleMappingRead */
         RoleMappingRead: {
@@ -6101,6 +6270,22 @@ export interface components {
             initial_sync_days?: number | null;
             /** Poll Interval Seconds */
             poll_interval_seconds?: number | null;
+        };
+        /**
+         * SystemOverviewRead
+         * @description Facts for the getting-started checklist and the processing table.
+         */
+        SystemOverviewRead: {
+            /** Digest Enabled */
+            digest_enabled: boolean;
+            /** Digest Scheduler Enabled */
+            digest_scheduler_enabled: boolean;
+            /** Mailbox Count */
+            mailbox_count: number;
+            /** Mailboxes */
+            mailboxes: components["schemas"]["MailboxProcessingRead"][];
+            /** Public Url Set */
+            public_url_set: boolean;
         };
         /**
          * TargetType
@@ -8794,6 +8979,171 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    admin_retry_failed_processing: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RetryFailedRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_get_model_status: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelStatusRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_pull_model: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModelPullRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            202: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModelPullRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Model not assigned to a task on this Ollama endpoint */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    admin_get_system_overview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SystemOverviewRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

@@ -244,14 +244,21 @@ eigenen Fehlercode `llm_timeout` („hat zu lange gebraucht“), getrennt von `l
 
 ```sh
 docker compose -f deploy/compose.yaml --profile ollama-cpu up -d
-# Modelle des Profils `cpu` laden (einmalig, landen im Volume `ollama-models`)
+```
+
+Die API lädt fehlende Modelle beim Start selbst aus Ollama (`OLLAMAIL_LLM_PULL_MISSING_MODELS=true`,
+Standard in `deploy/.env.example`; sie wartet dafür etwa eine Minute auf den Ollama-Container).
+Die Modelle landen im Volume `ollama-models`. Bis der Download fertig ist, zeigt die UI Admins
+einen Hinweis „Modell fehlt“. Auf der Admin-Seite (`/admin`, Abschnitt „Sprachmodelle“) steht der
+Zustand je Aufgabe; ein fehlendes Modell lässt sich dort auch per Button herunterladen (Job
+`ai.pull_model` mit Fortschrittsanzeige). Von Hand geht es weiterhin so:
+
+```sh
 docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull qwen2.5:3b
 docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull bge-m3
 ```
 
-Alternativ lädt die API fehlende Modelle beim Start selbst, wenn
-`OLLAMAIL_LLM_PULL_MISSING_MODELS=true` gesetzt ist. Mit `OLLAMAIL_LLM_READINESS_CHECK=true`
-meldet `/api/readyz` fehlende Modelle als `"llm":"failed"`.
+Mit `OLLAMAIL_LLM_READINESS_CHECK=true` meldet `/api/readyz` fehlende Modelle als `"llm":"failed"`.
 
 Ollama ist nur im internen Compose-Netz unter `http://ollama:11434` erreichbar, der Port wird nicht
 veröffentlicht. Modelle liegen im Volume `ollama-models`.
@@ -301,6 +308,8 @@ Ohne Ollama-Profil kann ein vorhandener Ollama-Server genutzt werden:
 - Ollama direkt auf dem Docker-Host: `OLLAMAIL_LLM_BASE_URL=http://host.docker.internal:11434`.
   Unter Linux braucht der Container dafür einen `extra_hosts`-Eintrag
   (`host.docker.internal:host-gateway`) in einer eigenen Compose-Override-Datei.
+- Wer die Modelle dieses Servers selbst verwaltet, setzt `OLLAMAIL_LLM_PULL_MISSING_MODELS=false`;
+  dann lädt nur noch der Button auf der Admin-Seite (`/admin`) auf ausdrücklichen Wunsch.
 
 Cloud-LLMs sind standardmäßig gesperrt (`OLLAMAIL_LLM_CLOUD_ENABLED=false`), siehe
 [Abschnitt 9](#9-datenschutz-hinweise-für-betreiber).
@@ -923,6 +932,7 @@ verarbeitet. Die vollständige Liste aller Tabellen und Dateien mit Löschweg st
 | Aufgaben-Export: Ziel, Server-URL, Benutzername, Passwort bzw. Google-Refresh-Token (verschlüsselt), Liste, Modus je Nutzer; Verweise auf die exportierten Aufgaben | PostgreSQL: `todo_export_targets` (Zugangsdaten verschlüsselt mit `OLLAMAIL_SECRET_KEY`), `todos.external_refs` | aktiv, nur mit `OLLAMAIL_TODOS_EXPORT_SINKS` (#40, Microsoft To Do #101, Google Tasks #102) |
 | Job-Queue (nur IDs und Parameter, keine Mail-Inhalte) | PostgreSQL (`procrastinate_*`) | aktiv |
 | Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
+| Modell-Downloads (Endpunkt, Modellname, Status, Bytes, Fehlercode; nicht personenbezogen) | PostgreSQL (`ai_model_pulls`) | vorhanden (#139) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
 | TTS-Stimmen (keine personenbezogenen Daten) | Daten-Volume, `tts/voices/<engine>/` | vorhanden (#27) |
 | Instanz-Secrets und Konfiguration | `deploy/.env` auf dem Host | vorhanden |

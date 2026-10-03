@@ -60,6 +60,7 @@ QUEUES: tuple[QueueName, ...] = get_args(QueueName)
 
 # Modules that define tasks; the worker imports them on start-up. Add one line per module.
 TASK_MODULES: list[str] = [
+    "app.ai.settings.pulls",
     "app.ai.tts.tasks",
     "app.auth.tasks",
     "app.digest.tasks",
