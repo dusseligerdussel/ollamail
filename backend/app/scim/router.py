@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import Settings
 from app.core.db import get_db
+from app.privacy.router import UserDeletionRequesterDep
 from app.scim import resources, service
 from app.scim.errors import ScimError, ScimRoute, not_found, scim_response
 from app.scim.filters import parse_filter
@@ -179,8 +180,14 @@ async def patch_user(user_id: str, request: Request, _: ScimClientDep, db: DbDep
 
 
 @router.delete("/Users/{user_id}")
-async def delete_user(user_id: str, request: Request, _: ScimClientDep, db: DbDep) -> Response:
-    await service.delete_user(db, request, user_id)
+async def delete_user(
+    user_id: str,
+    request: Request,
+    _: ScimClientDep,
+    db: DbDep,
+    finisher: UserDeletionRequesterDep,
+) -> Response:
+    await service.delete_user(db, request, user_id, finisher)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 

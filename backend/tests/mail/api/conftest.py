@@ -28,6 +28,7 @@ from app.mail.providers.registry import ProviderRegistry
 from app.mail.storage import AttachmentStorage
 from app.mail.sync.engine import SyncStats, sync_mailbox
 from app.main import create_app
+from app.privacy.router import get_user_deletion_requester
 from tests.auth.conftest import _cheap_hashing, login, make_local_user  # noqa: F401
 from tests.conftest import api_client
 from tests.mail.conftest import load_fixture
@@ -117,6 +118,14 @@ async def app(
         return True
 
     app.dependency_overrides[get_deletion_requester] = lambda: record_deletion
+    # Queued user deletions (#177, ``user_deletion_requests``); the jobs do not run.
+    app.state.user_deletion_requests = []
+
+    async def record_user_deletion(user_id: uuid.UUID) -> bool:
+        app.state.user_deletion_requests.append(user_id)
+        return True
+
+    app.dependency_overrides[get_user_deletion_requester] = lambda: record_user_deletion
     yield app
     set_keyring(None)
     await app.state.database.dispose()
@@ -125,6 +134,12 @@ async def app(
 @pytest.fixture
 def deletion_requests(app: FastAPI) -> list[uuid.UUID]:
     requests: list[uuid.UUID] = app.state.deletion_requests
+    return requests
+
+
+@pytest.fixture
+def user_deletion_requests(app: FastAPI) -> list[uuid.UUID]:
+    requests: list[uuid.UUID] = app.state.user_deletion_requests
     return requests
 
 

@@ -1,6 +1,7 @@
 """Fixtures for SCIM tests: an app on the rolled-back test session, an admin client and
 an IdP client with a bearer token. All names and addresses are invented."""
 
+import uuid
 from collections.abc import AsyncIterator
 from typing import Any
 
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.config import Settings, StorageSettings
 from app.core.db import get_db
 from app.main import create_app
+from app.privacy.router import get_user_deletion_requester
 from app.scim import tokens
 from app.scim.models import ScimConfig
 from app.users.models import User, UserRole
@@ -38,6 +40,14 @@ async def app(
         yield db_session
 
     app.dependency_overrides[get_db] = override_get_db
+    # Queued user deletions (#177); the jobs do not run.
+    app.state.user_deletion_requests = []
+
+    async def record_user_deletion(user_id: uuid.UUID) -> bool:
+        app.state.user_deletion_requests.append(user_id)
+        return True
+
+    app.dependency_overrides[get_user_deletion_requester] = lambda: record_user_deletion
     yield app
     await app.state.database.dispose()
 

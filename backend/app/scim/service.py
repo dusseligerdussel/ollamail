@@ -54,7 +54,7 @@ from app.auth.sessions import revoke_user_sessions
 from app.core.config import Settings
 from app.core.logging import get_logger
 from app.privacy import deletion
-from app.privacy.router import get_file_stores
+from app.privacy.router import UserDeletionRequester, finish_in_background, get_file_stores
 from app.scim.errors import ScimError, invalid_value, not_found
 from app.scim.filters import Condition, invalid_filter
 from app.scim.models import ScimGroup, ScimUser, scim_group_members
@@ -613,12 +613,14 @@ async def _apply_user(
         raise _conflict("A user with this userName or e-mail address already exists.") from None
 
 
-async def delete_user(db: AsyncSession, request: Request, user_id: str) -> None:
+async def delete_user(
+    db: AsyncSession, request: Request, user_id: str, finisher: UserDeletionRequester
+) -> None:
     """Delete a provisioned user with all their data (``app.privacy.deletion``)."""
     user, _ = await get_user(db, user_id)
     settings: Settings = request.app.state.settings
     guard = await AdminAccessGuard.start(db, _registry(request))
-    await deletion.delete_user(
+    result = await deletion.delete_user(
         db,
         user.id,
         get_file_stores(settings),
@@ -626,6 +628,8 @@ async def delete_user(db: AsyncSession, request: Request, user_id: str) -> None:
         via="scim",
         access_guard=guard,
     )
+    if result is not None:
+        await finish_in_background(finisher, result)
 
 
 # -- groups ------------------------------------------------------------------------------

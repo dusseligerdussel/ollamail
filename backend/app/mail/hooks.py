@@ -18,6 +18,11 @@ Handlers run in the worker process that syncs the mailbox, so the module registe
 them must be imported there (``TASK_MODULES`` in ``app/worker.py``). Handlers should be
 quick (defer a job, publish an event) and idempotent. A failing handler is logged and does
 not stop the sync or the other handlers; the message stays stored.
+
+``mailbox_deleted`` is called after the background removal (``app.mail.deletion``) has
+deleted a mailbox row, with the former owner (``None`` for a shared mailbox). The deletion
+of a user waits for it (``app.privacy.tasks``, #177). Same rules: registered in a module of
+``TASK_MODULES``, quick, idempotent; a failing handler is logged.
 """
 
 import uuid
@@ -67,5 +72,37 @@ async def message_stored(
                 "mail_message_stored_handler_failed",
                 mailbox_id=str(mailbox_id),
                 message_id=str(message_id),
+                error_type=type(exc).__name__,
+            )
+
+
+@dataclass(frozen=True, slots=True)
+class MailboxDeleted:
+    mailbox_id: uuid.UUID
+    owner_user_id: uuid.UUID | None
+
+
+MailboxDeletedHandler = Callable[[MailboxDeleted], Awaitable[None]]
+
+_deleted_handlers: list[MailboxDeletedHandler] = []
+
+
+def on_mailbox_deleted(handler: MailboxDeletedHandler) -> MailboxDeletedHandler:
+    """Register ``handler`` (usable as decorator). Registering twice has no effect."""
+    if handler not in _deleted_handlers:
+        _deleted_handlers.append(handler)
+    return handler
+
+
+async def mailbox_deleted(mailbox_id: uuid.UUID, owner_user_id: uuid.UUID | None) -> None:
+    """Notify all handlers that the row of ``mailbox_id`` was deleted and committed."""
+    event = MailboxDeleted(mailbox_id=mailbox_id, owner_user_id=owner_user_id)
+    for handler in list(_deleted_handlers):
+        try:
+            await handler(event)
+        except Exception as exc:
+            log.error(
+                "mail_mailbox_deleted_handler_failed",
+                mailbox_id=str(mailbox_id),
                 error_type=type(exc).__name__,
             )

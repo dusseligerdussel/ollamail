@@ -5,6 +5,7 @@ created by SCIM. All names and addresses are invented (docs/PRIVACY.md)."""
 
 import uuid
 from collections.abc import AsyncIterator
+from pathlib import Path
 
 import pytest
 from fastapi import FastAPI
@@ -24,9 +25,11 @@ from app.auth.provisioning import (
 from app.auth.sessions import SESSION_COOKIE, create_session
 from app.mail.access import can_read
 from app.mail.models import Mailbox, MailboxAssignment, MailboxType
+from app.mail.storage import AttachmentStorage
 from app.users.models import User, UserRole
 from tests.auth.conftest import make_local_user
 from tests.conftest import api_client
+from tests.privacy.conftest import finish_user_deletion
 from tests.scim.conftest import ok, patch_body, scim_config
 
 pytestmark = pytest.mark.db
@@ -140,7 +143,7 @@ async def test_deactivated_user_loses_sessions_and_access_at_once(
 
 
 async def test_delete_uses_deletion_concept_and_keeps_shared_mailboxes(
-    idp: AsyncClient, db_session: AsyncSession
+    app: FastAPI, idp: AsyncClient, db_session: AsyncSession, tmp_path: Path
 ) -> None:
     user_id = await _create(idp)
     await _group(idp, "Support-Team", user_id)
@@ -157,6 +160,10 @@ async def test_delete_uses_deletion_concept_and_keeps_shared_mailboxes(
 
     ok(await idp.delete(f"/Users/{user_id}"), 204)
 
+    # Gone for the IdP at once; the mailbox is removed in the background (#177).
+    assert (await idp.get(f"/Users/{user_id}")).status_code == 404
+    assert app.state.user_deletion_requests == [user_id]
+    await finish_user_deletion(db_session, user_id, AttachmentStorage(tmp_path), tmp_path)
     db_session.expunge_all()
     assert await db_session.get(User, user_id) is None
     assert await db_session.get(Mailbox, own_id) is None
