@@ -11,7 +11,7 @@ from app.evals.dataset import Dataset
 from app.evals.digest import deadline_mentioned
 from app.evals.rag import rule_correct, says_nothing_found
 from app.evals.runner import RunOptions, llm_settings, run
-from tests.evals.conftest import Oracle, factory
+from tests.evals.conftest import Oracle, SteppingClock, factory
 
 
 def options(oracle: Oracle, **kwargs: object) -> RunOptions:
@@ -20,6 +20,7 @@ def options(oracle: Oracle, **kwargs: object) -> RunOptions:
         "stages": ("triage", "todos", "digest"),
         "settings": Settings(llm=LLMSettings(structured_output_retries=0)),
         "provider_factory": factory(oracle),
+        "clock": SteppingClock(),
     }
     values.update(kwargs)
     return RunOptions(**values)  # type: ignore[arg-type]
@@ -47,7 +48,11 @@ async def test_a_perfect_model_scores_full_marks(dataset: Dataset, oracle: Oracl
     assert digest["important_coverage"] == 1.0
     assert digest["errors"] == 0
     assert set(result.calls) == {"triage", "todos", "digest"}
-    assert result.calls["triage"]["tokens_per_second"] is not None
+    # Every call takes 50 ms on the controlled clock and reports 100 + 20 tokens.
+    triage_calls = result.calls["triage"]
+    assert triage_calls["seconds_mean"] == 0.05
+    assert triage_calls["tokens_per_second"] == 400.0
+    assert triage_calls["processed_tokens_per_second"] == 2400.0
     assert "rag" not in report.run["stages"]
 
 
