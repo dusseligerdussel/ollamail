@@ -4,6 +4,7 @@ import { useDefaultLayout } from "react-resizable-panels";
 
 import { CloudNotice } from "@/components/cloud-notice";
 import { CommandPalette } from "@/components/command-palette/command-palette";
+import { SystemNotices } from "@/components/system-notices";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Toaster } from "@/components/ui/sonner";
 import { EventsListener } from "@/hooks/use-events";
@@ -22,6 +23,7 @@ function Main() {
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col outline-none"
     >
       <CloudNotice />
+      <SystemNotices />
       <Outlet />
     </main>
   );

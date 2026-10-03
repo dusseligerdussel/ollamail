@@ -16,18 +16,22 @@ from contextlib import (
     asynccontextmanager,
     nullcontext,
 )
+from typing import Literal
 
 from fastapi import Request
 from pydantic import BaseModel
 
 from app.ai.llm.base import LLMProvider
+from app.ai.llm.circuit import CircuitBreaker
 from app.ai.llm.config import EndpointConfig, LLMConfigResolver, ModelAssignment
 from app.ai.llm.context import CHARS_PER_TOKEN, estimate_tokens, fit_messages
 from app.ai.llm.errors import (
     CloudLLMDisabledError,
     LLMError,
     LLMNotReadyError,
+    LLMRequestError,
     LLMTimeoutError,
+    LLMUnavailableError,
     StructuredOutputUnsupportedError,
 )
 from app.ai.llm.limiter import DynamicLimiter
@@ -36,9 +40,23 @@ from app.ai.llm.ollama import OllamaProvider, normalize_model_name
 from app.ai.llm.openai_compat import OpenAICompatibleProvider
 from app.ai.llm.structured import StructuredResult, complete_structured
 from app.ai.llm.types import ChatMessage, GenerationOptions, LLMResult, LLMTask, Usage
+from app.core.config import LLMProviderKind
 from app.core.logging import get_logger
 
 ProviderFactory = Callable[[EndpointConfig], LLMProvider]
+
+# ``disabled``: assigned to a cloud endpoint while cloud LLMs are switched off.
+ModelState = Literal["installed", "missing", "unreachable", "disabled"]
+
+
+@dataclasses.dataclass(frozen=True)
+class ModelStatus:
+    task: LLMTask
+    endpoint: str
+    provider: LLMProviderKind
+    model: str
+    state: ModelState
+
 
 log = get_logger(__name__)
 
@@ -87,9 +105,11 @@ class LLMGateway:
         provider_factory: ProviderFactory = create_provider,
         metrics: MetricsSink | None = None,
         concurrency: Callable[[], Awaitable[int]] | None = None,
+        circuit: CircuitBreaker | None = None,
     ) -> None:
         """``concurrency`` limits parallel requests of this gateway (worker: the admin
-        setting, re-read on every request); ``None`` means no limit."""
+        setting, re-read on every request); ``None`` means no limit. ``circuit`` stops
+        calls to an endpoint that is down (worker); ``None`` means always call."""
         self._resolver = resolver
         self._limiter = DynamicLimiter(concurrency) if concurrency is not None else None
         self._provider_factory = provider_factory
@@ -97,6 +117,7 @@ class LLMGateway:
         self._providers: dict[str, tuple[EndpointConfig, LLMProvider]] = {}
         # (endpoint, model) pairs that rejected the native JSON-schema parameter.
         self._prompt_only: set[tuple[str, str]] = set()
+        self._circuit = circuit
 
     async def _provider(self, endpoint: EndpointConfig) -> LLMProvider:
         cached = self._providers.get(endpoint.name)
@@ -109,6 +130,28 @@ class LLMGateway:
         provider = self._provider_factory(endpoint)
         self._providers[endpoint.name] = (endpoint, provider)
         return provider
+
+    def _admit(self, assignment: ModelAssignment) -> None:
+        """Raise ``LLMCircuitOpenError`` if the endpoint is paused by the breaker."""
+        if self._circuit is not None:
+            self._circuit.before_call(assignment.endpoint.name)
+
+    @asynccontextmanager
+    async def _watched(self, assignment: ModelAssignment) -> AsyncIterator[None]:
+        """Report the outcome of an admitted call to the breaker."""
+        if self._circuit is None:
+            yield
+            return
+        endpoint = assignment.endpoint.name
+        try:
+            yield
+        except Exception as exc:
+            self._circuit.record(endpoint, exc)
+            raise
+        except BaseException:
+            self._circuit.release(endpoint)
+            raise
+        self._circuit.record(endpoint, None)
 
     def _slot(self) -> AbstractAsyncContextManager[None]:
         return self._limiter.slot() if self._limiter is not None else nullcontext()
@@ -178,9 +221,14 @@ class LLMGateway:
     ) -> LLMResult:
         assignment, provider = await self._select(task)
         fitted, opts = self._prepare(assignment, messages, options)
+        self._admit(assignment)
         started = time.perf_counter()
         try:
-            async with self._slot(), _deadline(assignment.call_timeout):
+            async with (
+                self._watched(assignment),
+                self._slot(),
+                _deadline(assignment.call_timeout),
+            ):
                 result = await provider.complete(fitted, model=assignment.model, options=opts)
         except Exception as exc:
             self._record(assignment, "complete", prompt_version, started, error=exc)
@@ -206,9 +254,14 @@ class LLMGateway:
         retries = await self._resolver.structured_output_retries()
         key = (assignment.endpoint.name, assignment.model)
         native = assignment.endpoint.structured_output == "native" and key not in self._prompt_only
+        self._admit(assignment)
         started = time.perf_counter()
         try:
-            async with self._slot(), _deadline(assignment.call_timeout):
+            async with (
+                self._watched(assignment),
+                self._slot(),
+                _deadline(assignment.call_timeout),
+            ):
                 result = await self._structured(
                     provider, assignment, fitted, schema, opts, native, retries, language
                 )
@@ -281,11 +334,13 @@ class LLMGateway:
     ) -> AsyncIterator[str]:
         assignment, provider = await self._select(task)
         fitted, opts = self._prepare(assignment, messages, options)
+        self._admit(assignment)
         started = time.perf_counter()
         streamed_chars = 0
         error: BaseException | None = None
         try:
             async with (
+                self._watched(assignment),
                 self._slot(),
                 aclosing(
                     self._bounded_stream(
@@ -348,9 +403,10 @@ class LLMGateway:
         assignment, provider = await self._select(task)
         if model is not None:
             assignment = dataclasses.replace(assignment, model=model)
+        self._admit(assignment)
         started = time.perf_counter()
         try:
-            async with self._slot():
+            async with self._watched(assignment), self._slot():
                 vectors = await provider.embed(texts, model=assignment.model)
         except Exception as exc:
             self._record(assignment, "embed", None, started, error=exc)
@@ -390,8 +446,70 @@ class LLMGateway:
                     f"model {assignment.model!r} is missing on endpoint {endpoint.name!r}"
                 )
 
-    async def pull_missing_models(self) -> None:
-        """Download models assigned to Ollama endpoints that are not installed yet."""
+    async def model_status(self, *, wait: float = 5.0) -> list[ModelStatus]:
+        """State of every task's model: installed, missing, endpoint unreachable, or
+        assigned to a cloud endpoint while cloud LLMs are disabled. Each endpoint is asked
+        once, for at most ``wait`` seconds."""
+        cloud_allowed = await self._resolver.cloud_allowed()
+        available: dict[str, list[str] | None] = {}
+        result = []
+        for assignment in await self._assignments():
+            endpoint = assignment.endpoint
+            state: ModelState
+            if endpoint.is_cloud and not cloud_allowed:
+                state = "disabled"
+            else:
+                if endpoint.name not in available:
+                    provider = await self._provider(endpoint)
+                    try:
+                        async with asyncio.timeout(wait):
+                            available[endpoint.name] = await provider.list_models()
+                    except (LLMError, TimeoutError) as exc:
+                        log.info(
+                            "llm_model_status_failed",
+                            endpoint=endpoint.name,
+                            error_type=type(exc).__name__,
+                        )
+                        available[endpoint.name] = None
+                models = available[endpoint.name]
+                if models is None:
+                    state = "unreachable"
+                elif any(self._same_model(endpoint, assignment.model, m) for m in models):
+                    state = "installed"
+                else:
+                    state = "missing"
+            result.append(
+                ModelStatus(
+                    task=assignment.task,
+                    endpoint=endpoint.name,
+                    provider=endpoint.provider,
+                    model=assignment.model,
+                    state=state,
+                )
+            )
+        return result
+
+    async def pull_model(self, endpoint_name: str, model: str) -> AsyncIterator[tuple[int, int]]:
+        """Download ``model`` on an Ollama endpoint that a task is assigned to, yielding
+        ``(completed, total)`` bytes. Other endpoints raise :class:`LLMRequestError`."""
+        for assignment in await self._assignments():
+            endpoint = assignment.endpoint
+            if endpoint.name == endpoint_name and self._same_model(
+                endpoint, assignment.model, model
+            ):
+                break
+        else:
+            raise LLMRequestError(f"model {model!r} is not assigned on {endpoint_name!r}")
+        provider = await self._provider(endpoint)
+        if not isinstance(provider, OllamaProvider):
+            raise LLMRequestError(f"endpoint {endpoint_name!r} cannot download models")
+        async for progress in provider.pull_progress(assignment.model):
+            yield progress
+
+    async def pull_missing_models(self, *, attempts: int = 6, interval: float = 10.0) -> None:
+        """Download models assigned to Ollama endpoints that are not installed yet. An
+        unreachable endpoint is asked up to ``attempts`` times, ``interval`` seconds apart:
+        the bundled Ollama container may start after the API."""
         pending: dict[str, tuple[EndpointConfig, set[str]]] = {}
         for assignment in await self._assignments():
             if assignment.endpoint.provider != "ollama":
@@ -402,10 +520,8 @@ class LLMGateway:
             provider = await self._provider(endpoint)
             if not isinstance(provider, OllamaProvider):
                 continue
-            try:
-                installed = set(await provider.list_models())
-            except LLMError as exc:
-                log.warning("llm_model_pull_failed", endpoint=name, error_type=type(exc).__name__)
+            installed = await self._installed(name, provider, attempts, interval)
+            if installed is None:
                 continue
             for model in sorted(models - installed):
                 log.info("llm_model_pull_started", endpoint=name, model=model)
@@ -420,6 +536,22 @@ class LLMGateway:
                     )
                     continue
                 log.info("llm_model_pull_finished", endpoint=name, model=model)
+
+    @staticmethod
+    async def _installed(
+        name: str, provider: OllamaProvider, attempts: int, interval: float
+    ) -> set[str] | None:
+        for attempt in range(1, attempts + 1):
+            try:
+                return set(await provider.list_models())
+            except LLMError as exc:
+                if attempt == attempts or not isinstance(exc, LLMUnavailableError):
+                    log.warning(
+                        "llm_model_pull_failed", endpoint=name, error_type=type(exc).__name__
+                    )
+                    return None
+            await asyncio.sleep(interval)
+        return None
 
     async def aclose(self) -> None:
         for _, provider in self._providers.values():

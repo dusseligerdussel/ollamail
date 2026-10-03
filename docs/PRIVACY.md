@@ -17,7 +17,9 @@ Feature, sondern eine Randbedingung für jede Änderung.
    (Admin → Nutzer) zeigt nur Kontodaten: Name, Adresse, Rolle, Anmeldeverfahren, Status, letzte
    Anmeldung und Zahl der Sitzungen. Auch Shared Mailboxes verwaltet der Admin nur (Verbindung,
    Ordner, Zuweisungen, Sync-Status); lesen kann er sie nur, wenn er sich selbst zuweist, und
-   das steht im Audit-Log.
+   das steht im Audit-Log. Der Systemstatus auf der Admin-Seite (#139) zeigt je Postfach nur
+   Anzeigename, Besitzername, Sync-Status mit Fehlercode und die Zahl ausstehender bzw.
+   fehlgeschlagener Verarbeitungsschritte – keine Adressen, Betreffzeilen oder Inhalte.
 5. **Transparenz** – Jede KI-Bewertung (Triage, Todo) ist für den Nutzer erklärbar und korrigierbar.
 
 ## Technische Maßnahmen
@@ -191,8 +193,10 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   `delete_messages` die Dateien der gelöschten Mails.
   Umsetzung Verarbeitung (`backend/app/processing/`): `message_processing` (Status je Mail und
   Schritt) und `processing_mailbox_settings` (Opt-out je Postfach) hängen per `ON DELETE CASCADE`
-  an Mail bzw. Postfach. Gespeichert werden nur Schrittname, Version, Status und ein
-  Fehlercode (`StepError.code` oder Name der Exception-Klasse), nie Exception-Texte.
+  an Mail bzw. Postfach. Gespeichert werden nur Schrittname, Version, Status, ein
+  Fehlercode (`StepError.code` oder Name der Exception-Klasse), nie Exception-Texte, sowie
+  Zeitpunkt und Anzahl automatischer Wiederholungen (#138). Die Logs zu hängenden Jobs und
+  zum Circuit-Breaker enthalten nur Job-/Mail-IDs, Task-, Queue- und Endpunktnamen.
   Umsetzung Triage (`backend/app/triage/`, #20): `triage_results` und `triage_feedback` hängen per
   `ON DELETE CASCADE` an der Mail, `triage_mailbox_settings` am Postfach; eigene Kategorien,
   Sichtbarkeit/Reihenfolge und Absenderregeln am Nutzer. Korrekturen speichern keinen Mailtext,
@@ -331,7 +335,7 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 | `mail_threads` | Betreff-Schlüssel, Zeitpunkt der letzten Mail | P; leer nach Aufbewahrung (`privacy.retention`) |
 | `mail_messages`, `mail_message_folders` | Header, Adressen, Betreff, Text, HTML, Flags | P; Aufbewahrung Mails; am Server gelöscht (Sync) |
 | `mail_attachments` + `<data>/attachments/<mailbox_id>/<attachment_id>` | Dateiname, Typ, Größe, Inhalt (Datei) | M, P; Aufbewahrung Anhänge |
-| `message_processing`, `processing_mailbox_settings` | Schritt, Status, Fehlercode; Opt-out je Postfach | M bzw. P |
+| `message_processing`, `processing_mailbox_settings` | Schritt, Status, Fehlercode, Zeitpunkt der automatischen Wiederholung; Opt-out je Postfach | M bzw. P |
 | `search_chunks`, `search_embeddings` | Textabschnitte aus Mails und Anhängen, Vektoren | M, A, P; Aufbewahrung Suchindex |
 | `search_index_state` | aktives Embedding-Modell (nicht personenbezogen) | – |
 | `triage_results` | Kategorie, Priorität, Begründung je Mail | M |

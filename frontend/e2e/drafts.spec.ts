@@ -101,6 +101,8 @@ test("cancel a running suggestion with Esc", async ({ page }) => {
   await expect(replyText(page)).toBeFocused();
   await page.keyboard.type("Mein Anfang");
   await editor(page).getByRole("button", { name: "Suggest draft" }).click();
+  // Enter submits the instruction form only once its field has the focus.
+  await expect(editor(page).getByLabel("Short instruction (optional)")).toBeFocused();
   await page.keyboard.press("Enter");
   await expect(replyText(page)).toHaveValue(/^Hallo Lena/);
 

@@ -13,6 +13,22 @@
     "cloudNotice": {
       "label": "Cloud AI active",
       "text": "{{provider}} receives mail content for: {{tasks}}"
+    },
+    "syncNotice": {
+      "label": "Mailbox not syncing",
+      "one": "{{mailbox}}: {{reason}}",
+      "many_one": "{{count}} mailbox cannot sync.",
+      "many_other": "{{count}} mailboxes cannot sync.",
+      "action": "Reconnect"
+    },
+    "modelNotice": {
+      "missing": "Model missing",
+      "missingText_one": "{{models}} is not installed; tasks, digest and search stay empty.",
+      "missingText_other": "{{models}} are not installed; tasks, digest and search stay empty.",
+      "unreachable": "Language model not reachable",
+      "unreachableText_one": "Endpoint {{endpoints}} does not respond.",
+      "unreachableText_other": "Endpoints {{endpoints}} do not respond.",
+      "action": "Show details"
     }
   },
   "nav": {
@@ -123,7 +139,71 @@
       "scimDescription": "Create, deactivate and delete users and groups from Entra ID or Okta.",
       "retentionDescription": "How long mails, attachments, search index, question history, digests and audit log are kept.",
       "mail": "Mail",
-      "sharedMailboxesDescription": "Team mailboxes like info@ or support@: connect once, assign to people and groups."
+      "sharedMailboxesDescription": "Team mailboxes like info@ or support@: connect once, assign to people and groups.",
+      "start": {
+        "title": "Getting started",
+        "done": "done",
+        "open": "open",
+        "models": "Language models ready",
+        "modelsDone": "Every task has its model installed.",
+        "modelsHint": "Download missing models or check the endpoint",
+        "mailbox": "Mailbox connected",
+        "mailboxDone_one": "{{count}} mailbox on this instance.",
+        "mailboxDone_other": "{{count}} mailboxes on this instance.",
+        "mailboxHint": "Connect your first mailbox",
+        "digest": "Daily digest turned on",
+        "digestDone": "Your digest is scheduled.",
+        "digestHint": "Turn on your daily digest",
+        "digestSchedulerOff": "Scheduled digests are switched off for this instance (OLLAMAIL_DIGEST_ENABLED).",
+        "publicUrl": "Public URL set",
+        "publicUrlDone": "Podcast feed and sign-in with OAuth providers use it.",
+        "publicUrlHint": "Needed for the podcast feed and OAuth sign-in. Set"
+      },
+      "models": {
+        "title": "Language models",
+        "state": {
+          "installed": "Installed",
+          "missing": "Missing",
+          "unreachable": "Not reachable",
+          "disabled": "Cloud disabled"
+        },
+        "pull": "Download",
+        "pullStarted": "Download started",
+        "queued": "Waiting for download…",
+        "downloading": "Downloading {{percent}} of {{size}}",
+        "pullFailed": "Last download failed: {{reason}}",
+        "pullErrors": {
+          "model_not_found": "the model does not exist on the server",
+          "llm_unavailable": "the endpoint is not reachable",
+          "llm_timeout": "the endpoint stopped responding",
+          "pull_rejected": "the endpoint rejected the request",
+          "pull_failed": "unknown error"
+        }
+      },
+      "processing": {
+        "title": "Processing per mailbox",
+        "empty": "No mailboxes connected yet.",
+        "note": "Only counts are shown, never mail content. Failed steps are retried after new mail.",
+        "shared": "Shared mailbox ({{type}})",
+        "unknownOwner": "Unknown owner",
+        "disabled": "processing off",
+        "syncError": "Sync error: {{reason}}",
+        "sync": {
+          "paused": "Paused",
+          "pending": "Not synced yet",
+          "importing": "Importing",
+          "syncing": "Syncing",
+          "idle": "Up to date",
+          "error": "Sync error"
+        },
+        "pending_one": "{{count}} pending",
+        "pending_other": "{{count}} pending",
+        "failed_one": "{{count}} failed",
+        "failed_other": "{{count}} failed",
+        "retry": "Retry failed",
+        "retried_one": "{{count}} mail queued again",
+        "retried_other": "{{count}} mails queued again"
+      }
     },
     "audit": {
       "title": "Audit log",
@@ -953,6 +1033,14 @@
       "providersDescription": "Connect Microsoft Entra ID, Google, GitHub or LDAP so that others can sign in with their existing account. You can do this later in the admin area.",
       "providersAction": "Set up identity provider",
       "continue": "Continue to inbox"
+    },
+    "insecure": {
+      "title": "Unencrypted connection (HTTP)",
+      "description": "ollamail is open via http://. Browsers discard its secure cookies on such connections (except on localhost), so setup and sign-in fail.",
+      "failedTitle": "The browser did not send the security cookie",
+      "failedDescription": "The server rejected the request (CSRF check). This usually happens when ollamail is open via http://: browsers then discard its secure cookies (except on localhost).",
+      "fix": "Set up HTTPS, for example with a reverse proxy. Only for tests in a trusted local network: set <code>OLLAMAIL_AUTH_COOKIE_SECURE=false</code>. Passwords and sessions are then transmitted unencrypted.",
+      "docs": "Guide: HTTPS and test operation without TLS"
     },
     "invite": {
       "title": "Set your password",

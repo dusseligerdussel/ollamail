@@ -13,6 +13,22 @@
     "cloudNotice": {
       "label": "Cloud-KI aktiv",
       "text": "{{provider}} erhält Mail-Inhalte für: {{tasks}}"
+    },
+    "syncNotice": {
+      "label": "Postfach synchronisiert nicht",
+      "one": "{{mailbox}}: {{reason}}",
+      "many_one": "{{count}} Postfach kann nicht synchronisieren.",
+      "many_other": "{{count}} Postfächer können nicht synchronisieren.",
+      "action": "Neu verbinden"
+    },
+    "modelNotice": {
+      "missing": "Modell fehlt",
+      "missingText_one": "{{models}} ist nicht installiert; Aufgaben, Digest und Suche bleiben leer.",
+      "missingText_other": "{{models}} sind nicht installiert; Aufgaben, Digest und Suche bleiben leer.",
+      "unreachable": "Sprachmodell nicht erreichbar",
+      "unreachableText_one": "Endpunkt {{endpoints}} antwortet nicht.",
+      "unreachableText_other": "Endpunkte {{endpoints}} antworten nicht.",
+      "action": "Details anzeigen"
     }
   },
   "nav": {
@@ -123,7 +139,71 @@
       "scimDescription": "Nutzer und Gruppen aus Entra ID oder Okta anlegen, deaktivieren und löschen.",
       "retentionDescription": "Wie lange Mails, Anhänge, Suchindex, Fragen-Verläufe, Digests und Audit-Log aufbewahrt werden.",
       "mail": "Mail",
-      "sharedMailboxesDescription": "Team-Postfächer wie info@ oder support@: einmal anbinden, Personen und Gruppen zuweisen."
+      "sharedMailboxesDescription": "Team-Postfächer wie info@ oder support@: einmal anbinden, Personen und Gruppen zuweisen.",
+      "start": {
+        "title": "Erste Schritte",
+        "done": "erledigt",
+        "open": "offen",
+        "models": "Sprachmodelle bereit",
+        "modelsDone": "Für jede Aufgabe ist das Modell installiert.",
+        "modelsHint": "Fehlende Modelle herunterladen oder Endpunkt prüfen",
+        "mailbox": "Postfach verbunden",
+        "mailboxDone_one": "{{count}} Postfach auf dieser Instanz.",
+        "mailboxDone_other": "{{count}} Postfächer auf dieser Instanz.",
+        "mailboxHint": "Erstes Postfach verbinden",
+        "digest": "Tägliche Zusammenfassung aktiviert",
+        "digestDone": "Deine Zusammenfassung ist geplant.",
+        "digestHint": "Tägliche Zusammenfassung aktivieren",
+        "digestSchedulerOff": "Geplante Zusammenfassungen sind auf dieser Instanz abgeschaltet (OLLAMAIL_DIGEST_ENABLED).",
+        "publicUrl": "Öffentliche URL gesetzt",
+        "publicUrlDone": "Podcast-Feed und Anmeldung über OAuth-Provider nutzen sie.",
+        "publicUrlHint": "Nötig für den Podcast-Feed und die Anmeldung per OAuth. Setze"
+      },
+      "models": {
+        "title": "Sprachmodelle",
+        "state": {
+          "installed": "Installiert",
+          "missing": "Fehlt",
+          "unreachable": "Nicht erreichbar",
+          "disabled": "Cloud abgeschaltet"
+        },
+        "pull": "Herunterladen",
+        "pullStarted": "Download gestartet",
+        "queued": "Download wartet…",
+        "downloading": "Lädt {{percent}} von {{size}}",
+        "pullFailed": "Letzter Download fehlgeschlagen: {{reason}}",
+        "pullErrors": {
+          "model_not_found": "das Modell gibt es auf dem Server nicht",
+          "llm_unavailable": "der Endpunkt ist nicht erreichbar",
+          "llm_timeout": "der Endpunkt antwortet nicht mehr",
+          "pull_rejected": "der Endpunkt hat die Anfrage abgelehnt",
+          "pull_failed": "unbekannter Fehler"
+        }
+      },
+      "processing": {
+        "title": "Verarbeitung je Postfach",
+        "empty": "Noch keine Postfächer verbunden.",
+        "note": "Angezeigt werden nur Zahlen, nie Mail-Inhalte. Fehlgeschlagene Schritte laufen hinter neuen Mails erneut.",
+        "shared": "Shared Mailbox ({{type}})",
+        "unknownOwner": "Unbekannter Besitzer",
+        "disabled": "Verarbeitung aus",
+        "syncError": "Sync-Fehler: {{reason}}",
+        "sync": {
+          "paused": "Pausiert",
+          "pending": "Noch nicht synchronisiert",
+          "importing": "Import läuft",
+          "syncing": "Synchronisiert gerade",
+          "idle": "Aktuell",
+          "error": "Sync-Fehler"
+        },
+        "pending_one": "{{count}} ausstehend",
+        "pending_other": "{{count}} ausstehend",
+        "failed_one": "{{count}} fehlgeschlagen",
+        "failed_other": "{{count}} fehlgeschlagen",
+        "retry": "Fehlgeschlagene erneut verarbeiten",
+        "retried_one": "{{count}} Mail erneut eingereiht",
+        "retried_other": "{{count}} Mails erneut eingereiht"
+      }
     },
     "audit": {
       "title": "Audit-Log",
@@ -953,6 +1033,14 @@
       "providersDescription": "Binde Microsoft Entra ID, Google, GitHub oder LDAP an, damit sich andere mit ihrem bestehenden Konto anmelden können. Das geht auch später im Admin-Bereich.",
       "providersAction": "Identity-Provider einrichten",
       "continue": "Weiter zum Posteingang"
+    },
+    "insecure": {
+      "title": "Unverschlüsselte Verbindung (HTTP)",
+      "description": "ollamail ist über http:// geöffnet. Browser verwerfen dabei die sicheren Cookies (außer auf localhost), deshalb schlagen Einrichtung und Anmeldung fehl.",
+      "failedTitle": "Der Browser hat das Sicherheits-Cookie nicht gesendet",
+      "failedDescription": "Der Server hat die Anfrage abgelehnt (CSRF-Prüfung). Das passiert meist, wenn ollamail über http:// geöffnet ist: Browser verwerfen dann die sicheren Cookies (außer auf localhost).",
+      "fix": "Richte HTTPS ein, zum Beispiel mit einem Reverse Proxy. Nur für Tests in einem vertrauenswürdigen lokalen Netz: <code>OLLAMAIL_AUTH_COOKIE_SECURE=false</code> setzen. Passwörter und Sitzungen werden dann unverschlüsselt übertragen.",
+      "docs": "Anleitung: HTTPS und Testbetrieb ohne TLS"
     },
     "invite": {
       "title": "Passwort festlegen",
