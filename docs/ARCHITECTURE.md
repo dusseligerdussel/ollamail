@@ -1135,7 +1135,10 @@ den Kontozähler zurück. Unbekannte Konten werden genauso gezählt und mit eine
 damit Antwort und Laufzeit nichts verraten. Die Schlüssel sind HMACs von IP bzw. E-Mail-Adresse.
 Argon2id (RFC 9106, 64 MiB) läuft in einem Thread, höchstens vier Hashes gleichzeitig; veraltete
 Parameter werden beim Login aktualisiert. Hinter einem Reverse Proxy kommt die Client-IP aus
-`X-Forwarded-For` (uvicorn `--forwarded-allow-ips`).
+`X-Forwarded-For` (#137): Caddy ermittelt sie strikt von rechts (`trusted_proxies_strict`, nur
+private Netze sind Proxys) und gibt genau einen Wert weiter; die API übernimmt ihn per
+`ProxyHeadersMiddleware` nur von `OLLAMAIL_FORWARDED_ALLOW_IPS` (uvicorn läuft mit
+`--no-proxy-headers`). Ein vom Client gefälschter Header erzeugt so keinen neuen IP-Zähler.
 
 **Zweiter Faktor** (#96, `app/auth/mfa/`, Details: [`auth/mfa.md`](auth/mfa.md)): Lokale Konten
 können Passkeys (WebAuthn mit `webauthn`, auch ohne Passwort), eine Authenticator-App (TOTP mit

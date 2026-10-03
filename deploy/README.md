@@ -164,7 +164,8 @@ Der `frontend`-Container spricht nur HTTP und ist standardmäßig nur unter `127
 Traefik, nginx) auf demselben Host davorsetzen. Direkter Zugriff aus dem LAN (unverschlüsseltes HTTP)
 nur bewusst: `OLLAMAIL_HTTP_BIND` auf die LAN-Adresse des Hosts oder `0.0.0.0` setzen.
 Konfigurationsbeispiele: [`docs/OPERATIONS.md`](../docs/OPERATIONS.md#4-reverse-proxy-und-tls).
-`X-Forwarded-*`-Header werden nur von privaten Netzen akzeptiert.
+`X-Forwarded-*`-Header werden nur von privaten Netzen akzeptiert; der äußere Proxy muss
+`X-Forwarded-For` auf die echte Client-IP setzen statt anzuhängen (Rate-Limits).
 
 ## Sicherheits-Header
 
