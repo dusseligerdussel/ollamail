@@ -9,6 +9,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import AuditAction
+from app.core.config import Settings
 from app.mail.models import Mailbox
 from app.mail.storage import AttachmentStorage
 from app.worker import resource_lock
@@ -117,6 +118,26 @@ async def test_connection_test_reports_error_code(erika: AsyncClient) -> None:
 
     assert response.status_code == 200
     assert response.json() == {"ok": False, "error": "authentication_failed", "folders": []}
+
+
+async def test_connection_tests_are_rate_limited_per_user(
+    erika: AsyncClient, bob: AsyncClient, server: FakeServer, settings: Settings
+) -> None:
+    settings.mail.connection_test_max_attempts = 2
+    assert (await erika.post("/mailboxes/test", json=mailbox_body())).status_code == 200
+    await add_mailbox(erika)
+    connections = len(server.connections)
+
+    throttled = await erika.post("/mailboxes/test", json=mailbox_body())
+    create = await erika.post("/mailboxes", json=mailbox_body(address="erika2@example.org"))
+
+    assert throttled.status_code == 429
+    assert throttled.json()["type"] == "urn:ollamail:problem:too-many-attempts"
+    assert 0 < throttled.json()["retry_after"] <= 10 * 60 + 1
+    assert create.status_code == 429
+    assert len(server.connections) == connections
+    # The limit is per user.
+    assert (await bob.post("/mailboxes/test", json=mailbox_body())).status_code == 200
 
 
 async def test_unavailable_type_is_rejected(erika: AsyncClient) -> None:

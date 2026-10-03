@@ -64,7 +64,7 @@ In `deploy/.env` mindestens setzen:
 | Variable | Wert |
 |---|---|
 | `OLLAMAIL_SECRET_KEY` | Zufälliger Master-Key, z. B. Ausgabe von `openssl rand -base64 32`. Verschlüsselt gespeicherte Zugangsdaten; ohne gültigen Key startet die API nicht. **Sicher aufbewahren**, siehe [Abschnitt 7](#7-schlüsselverwaltung). |
-| `POSTGRES_PASSWORD` | Datenbank-Passwort, z. B. `openssl rand -hex 24`. Hex vermeidet Sonderzeichen, die in `OLLAMAIL_DATABASE_URL` URL-kodiert werden müssten. |
+| `POSTGRES_PASSWORD` | Datenbank-Passwort, z. B. `openssl rand -hex 24`. Hex vermeidet Sonderzeichen, die in `OLLAMAIL_DATABASE_URL` URL-kodiert werden müssten. In `.env.example` bewusst leer: Ohne Wert startet Compose nicht, den früheren Platzhalter `change-me` lehnen `api`, `worker` und `migrate` ab. |
 
 Wichtig:
 
@@ -124,7 +124,11 @@ curl http://localhost:8080/api/readyz    # {"status":"ok","checks":{"database":"
 | `/api/healthz` | Liveness: Der API-Prozess läuft. |
 | `/api/readyz` | Readiness: `200`, wenn alle Abhängigkeiten erreichbar sind, sonst `503` mit der fehlgeschlagenen Prüfung. Geprüft wird `database`, mit `OLLAMAIL_LLM_READINESS_CHECK=true` zusätzlich `llm` (alle zugewiesenen Modelle vorhanden). |
 
-Die UI ist unter `http://<host>:8080` erreichbar. Identity-Provider (Entra ID, Google, OIDC,
+Die UI ist unter `http://localhost:8080` erreichbar – standardmäßig **nur auf dem Docker-Host
+selbst** (`OLLAMAIL_HTTP_BIND=127.0.0.1`). Für den Zugriff aus dem Netz einen Reverse Proxy mit TLS
+davorsetzen ([Abschnitt 4](#4-reverse-proxy-und-tls)) oder – bewusst, z. B. im Heimnetz –
+`OLLAMAIL_HTTP_BIND` auf die LAN-Adresse des Hosts bzw. `0.0.0.0` setzen; dann spricht die UI
+unverschlüsseltes HTTP mit jedem, der den Port erreicht. Identity-Provider (Entra ID, Google, OIDC,
 LDAP/Active Directory), Rollen-Zuordnung und Nutzer verwaltet der Admin unter Admin → Anmeldung
 bzw. Nutzer ([`auth/admin.md`](auth/admin.md)), ebenso GitHub ([`auth/github.md`](auth/github.md)) und SAML
 ([`auth/saml.md`](auth/saml.md)). Nutzer und Gruppen aus Entra ID oder Okta überträgt SCIM
@@ -135,7 +139,9 @@ der über `POST /api/setup` den ersten Admin anlegt und direkt anmeldet. Dafür
 ist ein Setup-Token nötig – `OLLAMAIL_SETUP_TOKEN` oder, falls leer, ein aus `OLLAMAIL_SECRET_KEY`
 abgeleiteter Wert. Die API schreibt ihn beim Start ins Log (Event `setup_pending`, Feld
 `setup_code`), solange die Instanz nicht eingerichtet ist. Ist `OLLAMAIL_SETUP_TOKEN` gesetzt,
-steht der Token nicht im Log. Eine der beiden Varianten genügt:
+steht der Token nicht im Log; ein eigener Token braucht mindestens 32 Zeichen (z. B.
+`openssl rand -hex 16`), sonst startet die API nicht. Setup-Versuche zählen wie Logins gegen das
+Limit pro Client-IP (`OLLAMAIL_AUTH_IP_MAX_ATTEMPTS`). Eine der beiden Varianten genügt:
 
 ```sh
 docker compose -f deploy/compose.yaml logs api | grep setup_pending
@@ -149,7 +155,8 @@ Beide schalten eine abgeschaltete lokale Anmeldung wieder ein ([`auth/admin.md`]
 
 **Cookies nur über HTTPS:** Sitzungs-Cookies sind `Secure`. Browser speichern sie über
 `http://<ip>:8080` nicht (Ausnahme `http://localhost`); die Anmeldung schlägt dann fehl. Also TLS
-davorsetzen oder – nur für Testinstallationen – `OLLAMAIL_AUTH_COOKIE_SECURE=false`.
+davorsetzen oder – nur für Testinstallationen – `OLLAMAIL_AUTH_COOKIE_SECURE=false`,
+siehe [2.6](#26-http-ohne-tls-testbetrieb).
 
 Für den Betrieb im Netz unbedingt TLS davorsetzen: [Abschnitt 4](#4-reverse-proxy-und-tls).
 
@@ -161,6 +168,28 @@ docker compose -f deploy/compose.yaml down      # Container stoppen, Daten bleib
 
 `down -v` löscht zusätzlich **alle Volumes inklusive Datenbank**. Nur verwenden, wenn die Daten
 wirklich weg sollen.
+
+### 2.6 HTTP ohne TLS (Testbetrieb)
+
+Sitzungs- und CSRF-Cookie sind standardmäßig `Secure` (`OLLAMAIL_AUTH_COOKIE_SECURE=true`).
+Über `http://<ip>:8080` oder einen anderen Hostnamen als `localhost` speichern Browser sie nicht.
+Jede Anfrage, die etwas ändert, lehnt die API dann mit `403` und `error_code: "csrf_failed"` ab:
+Setup und Anmeldung schlagen fehl. Setup- und Anmeldeseite zeigen in diesem Fall den Hinweis
+„Unverschlüsselte Verbindung (HTTP)“ bzw. „Der Browser hat das Sicherheits-Cookie nicht gesendet“.
+
+Lösung, in dieser Reihenfolge:
+
+1. **HTTPS einrichten** – Reverse Proxy mit TLS vor ollamail, siehe [Abschnitt 4](#4-reverse-proxy-und-tls).
+   Das ist auch im Heimnetz der empfohlene Weg.
+2. **Nur zum Ausprobieren** im eigenen, vertrauenswürdigen Netz: in `deploy/.env`
+   `OLLAMAIL_AUTH_COOKIE_SECURE=false` und – damit die UI aus dem LAN erreichbar ist –
+   `OLLAMAIL_HTTP_BIND` auf die LAN-Adresse des Hosts setzen (siehe [2.4](#24-prüfen)), dann
+   `docker compose -f deploy/compose.yaml up -d` ausführen.
+
+Risiken von `OLLAMAIL_AUTH_COOKIE_SECURE=false`: Passwörter, Sitzungs-Cookies und alle Mail-Inhalte
+gehen unverschlüsselt durchs Netz. Wer den Verkehr mitlesen kann (geteiltes WLAN, kompromittiertes
+Gerät im Netz), kann Sitzungen übernehmen. Für den regulären Betrieb und für jede Erreichbarkeit
+aus dem Internet nicht geeignet; nach dem Test wieder auf `true` setzen.
 
 ## 3. Hardware-Profile und LLM
 
@@ -215,14 +244,21 @@ eigenen Fehlercode `llm_timeout` („hat zu lange gebraucht“), getrennt von `l
 
 ```sh
 docker compose -f deploy/compose.yaml --profile ollama-cpu up -d
-# Modelle des Profils `cpu` laden (einmalig, landen im Volume `ollama-models`)
+```
+
+Die API lädt fehlende Modelle beim Start selbst aus Ollama (`OLLAMAIL_LLM_PULL_MISSING_MODELS=true`,
+Standard in `deploy/.env.example`; sie wartet dafür etwa eine Minute auf den Ollama-Container).
+Die Modelle landen im Volume `ollama-models`. Bis der Download fertig ist, zeigt die UI Admins
+einen Hinweis „Modell fehlt“. Auf der Admin-Seite (`/admin`, Abschnitt „Sprachmodelle“) steht der
+Zustand je Aufgabe; ein fehlendes Modell lässt sich dort auch per Button herunterladen (Job
+`ai.pull_model` mit Fortschrittsanzeige). Von Hand geht es weiterhin so:
+
+```sh
 docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull qwen2.5:3b
 docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull bge-m3
 ```
 
-Alternativ lädt die API fehlende Modelle beim Start selbst, wenn
-`OLLAMAIL_LLM_PULL_MISSING_MODELS=true` gesetzt ist. Mit `OLLAMAIL_LLM_READINESS_CHECK=true`
-meldet `/api/readyz` fehlende Modelle als `"llm":"failed"`.
+Mit `OLLAMAIL_LLM_READINESS_CHECK=true` meldet `/api/readyz` fehlende Modelle als `"llm":"failed"`.
 
 Ollama ist nur im internen Compose-Netz unter `http://ollama:11434` erreichbar, der Port wird nicht
 veröffentlicht. Modelle liegen im Volume `ollama-models`.
@@ -272,6 +308,8 @@ Ohne Ollama-Profil kann ein vorhandener Ollama-Server genutzt werden:
 - Ollama direkt auf dem Docker-Host: `OLLAMAIL_LLM_BASE_URL=http://host.docker.internal:11434`.
   Unter Linux braucht der Container dafür einen `extra_hosts`-Eintrag
   (`host.docker.internal:host-gateway`) in einer eigenen Compose-Override-Datei.
+- Wer die Modelle dieses Servers selbst verwaltet, setzt `OLLAMAIL_LLM_PULL_MISSING_MODELS=false`;
+  dann lädt nur noch der Button auf der Admin-Seite (`/admin`) auf ausdrücklichen Wunsch.
 
 Cloud-LLMs sind standardmäßig gesperrt (`OLLAMAIL_LLM_CLOUD_ENABLED=false`), siehe
 [Abschnitt 9](#9-datenschutz-hinweise-für-betreiber).
@@ -419,9 +457,19 @@ Anforderungen an den Proxy:
 
 - **Gesamten Pfad** (`/`) an `http://127.0.0.1:8080` weiterleiten. UI und API (`/api`) laufen über
   denselben Origin; die Content-Security-Policy erlaubt keine fremden Origins.
-- `Host`, `X-Forwarded-For` und `X-Forwarded-Proto` setzen. Der interne Caddy übernimmt
-  `X-Forwarded-*` nur von privaten Netzen (RFC 1918, Loopback); ein Proxy auf demselben Host oder
-  im selben LAN erfüllt das.
+- `Host`, `X-Forwarded-For` und `X-Forwarded-Proto` setzen. `X-Forwarded-For` muss die **echte
+  Client-IP setzen**, nicht an einen vom Client mitgeschickten Wert anhängen – sonst kann ein
+  Angreifer mit wechselnden Fantasiewerten die Rate-Limits (Login, Registrierung, SCIM) umgehen.
+  Die Beispiele unten tun das.
+- Der interne Caddy übernimmt `X-Forwarded-*` nur von privaten Netzen (RFC 1918, Loopback); ein
+  Proxy auf demselben Host oder im selben LAN erfüllt das. Als Client-IP gilt der rechteste
+  Eintrag in `X-Forwarded-For`, der nicht aus einem privaten Netz stammt (`trusted_proxies_strict`);
+  an die API gibt Caddy genau diesen einen Wert weiter. Die API wertet `X-Forwarded-*` nur von
+  `OLLAMAIL_FORWARDED_ALLOW_IPS` aus (Standard: Loopback und private Netze, also der Caddy im
+  Compose-Netz).
+- Wer ohne vorgeschalteten Proxy direkt aus einem privaten Netz (LAN, VPN) zugreift, gilt für Caddy
+  selbst als vertrauenswürdiger Proxy und kann seine IP per `X-Forwarded-For` frei wählen. Das
+  betrifft nur Clients im internen Netz; aus dem Internet ist der Header wirkungslos.
 - **Server-Sent Events** (Live-Updates, gestreamte Antworten von „Frag deine Inbox“):
   Antwort-Pufferung abschalten und lange Verbindungen erlauben. Der interne Caddy nutzt dafür
   bereits `flush_interval -1` und 1 h Timeout – der äußere Proxy muss mindestens genauso großzügig
@@ -442,7 +490,8 @@ mail.example.org {
 }
 ```
 
-Caddy setzt `X-Forwarded-*` automatisch.
+Caddy setzt `X-Forwarded-*` automatisch: Ohne `trusted_proxies` verwirft es einen vom Client
+mitgeschickten `X-Forwarded-For` und setzt die echte Client-IP.
 
 ### 4.2 nginx
 
@@ -459,7 +508,9 @@ server {
         proxy_pass http://127.0.0.1:8080;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
-        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        # Echte Client-IP setzen, nicht anhängen ($proxy_add_x_forwarded_for übernähme
+        # einen vom Client gefälschten Wert)
+        proxy_set_header X-Forwarded-For $remote_addr;
         proxy_set_header X-Forwarded-Proto $scheme;
         proxy_set_header Connection "";
         # Server-Sent Events: nicht puffern, lange Verbindungen zulassen
@@ -503,6 +554,11 @@ http:
           # Server-Sent Events sofort durchreichen
           flushInterval: -1
 ```
+
+Traefik verwirft `X-Forwarded-*` von Clients, die nicht in `forwardedHeaders.trustedIPs` des
+Entrypoints stehen, und setzt die echte Client-IP. Deshalb am Entrypoint **kein**
+`forwardedHeaders.insecure: true` setzen und `trustedIPs` nur mit den Adressen eines weiteren,
+vorgeschalteten Proxys (z. B. Load Balancer) füllen.
 
 Läuft Traefik selbst als Container, ist `127.0.0.1` dort der Traefik-Container. Dann die
 IP-Adresse des Docker-Hosts eintragen und `OLLAMAIL_HTTP_BIND` auf diese Adresse setzen – oder
@@ -705,6 +761,53 @@ PostgreSQL (`POSTGRES_IMAGE`, Standard `pgvector/pgvector:pg16`) und Ollama (`OL
 ist mit dem bestehenden Volume nicht möglich: Backup ziehen, neue Version mit leerem Volume
 starten, Backup einspielen (Abschnitt 5).
 
+### 6.6 Upgrade-Hinweise: sichere Standardwerte (#143)
+
+Seit diesem Stand sind einige Standardwerte strenger. Bestehende Installationen prüfen vor dem
+Update:
+
+1. **UI nur noch lokal veröffentlicht.** `compose.yaml` bindet Port 8080 ohne Angabe an
+   `127.0.0.1` statt an alle Schnittstellen. Steht in der eigenen `deploy/.env` bereits
+   `OLLAMAIL_HTTP_BIND=…`, ändert sich nichts. Wer die UI bisher direkt aus dem LAN aufgerufen hat
+   (ohne Reverse Proxy auf demselben Host), setzt den Zugriff bewusst wieder:
+
+   ```sh
+   OLLAMAIL_HTTP_BIND=0.0.0.0        # alle Schnittstellen, oder die LAN-Adresse des Hosts
+   ```
+
+   Ein Reverse Proxy auf demselben Host funktioniert mit dem neuen Standard unverändert.
+2. **Datenbank-Passwort `change-me` wird abgelehnt.** `api`, `worker` und `migrate` starten nicht,
+   wenn `OLLAMAIL_DATABASE_URL` noch den Platzhalter enthält (Log: `uses the placeholder password`).
+   Das Passwort in der Datenbank **und** in `deploy/.env` ändern – `POSTGRES_PASSWORD` wirkt nur
+   beim ersten Start:
+
+   ```sh
+   new="$(openssl rand -hex 24)"
+   docker compose -f deploy/compose.yaml exec postgres \
+     psql -U ollamail -d ollamail -c "ALTER USER ollamail PASSWORD '$new'"
+   sed -i "s|^POSTGRES_PASSWORD=.*|POSTGRES_PASSWORD=$new|" deploy/.env
+   docker compose -f deploy/compose.yaml up -d
+   ```
+
+   (Nutzer- und Datenbankname ggf. an `POSTGRES_USER`/`POSTGRES_DB` anpassen.)
+3. **Eigener Setup-Token mindestens 32 Zeichen.** Ein kürzeres `OLLAMAIL_SETUP_TOKEN` stoppt den
+   Start. Ist die Instanz eingerichtet, wird der Token nicht mehr gebraucht: Variable leeren.
+4. **Postfächer auf internen Adressen.** IMAP- und SMTP-Server müssen auf eine öffentliche Adresse
+   auflösen. Loopback, private Netze (RFC 1918), Link-Local, ULA usw. lehnt ollamail ab – mit
+   demselben Fehler wie bei einem nicht erreichbaren Server (`connection_failed`), damit Nutzer
+   darüber nicht das interne Netz abtasten können. Läuft der eigene Mailserver im LAN, auf dem
+   Docker-Host oder im Cluster, ihn bewusst erlauben:
+
+   ```sh
+   OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS=imap.lan,192.168.10.0/24
+   ```
+
+   Hostnamen gelten für jede Adresse, auf die sie auflösen; IP-Adressen und CIDR-Bereiche für
+   genau diese Ziele. Betroffene Postfächer zeigen bis dahin den Sync-Fehler `connection_failed`
+   und laufen nach dem Neustart von `api` und `worker` ohne weiteres Zutun weiter.
+5. **Verbindungstests begrenzt.** Pro Nutzer sind 20 Verbindungstests in 10 Minuten möglich
+   (Testen, Anlegen, Verbindung ändern; `OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS`).
+
 ## 7. Schlüsselverwaltung
 
 `OLLAMAIL_SECRET_KEY` ist der Master-Key für die Verschlüsselung gespeicherter Zugangsdaten
@@ -735,7 +838,9 @@ Standard 10) – zwei pro Postfach reichen. Laufen mehrere Worker mit `sync`, ü
 Teil der Postfächer; fällt einer aus, übernehmen die anderen innerhalb einer Minute.
 Mailserver mit selbstsigniertem Zertifikat: das CA-Zertifikat dem Container über
 `SSL_CERT_FILE` bekannt machen; `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS=true` (keine Prüfung,
-auch unverschlüsselt) nur in Testumgebungen.
+auch unverschlüsselt) nur in Testumgebungen. Mailserver im eigenen Netz (private oder
+Loopback-Adressen) müssen in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` stehen, sonst lehnt ollamail die
+Verbindung ab ([6.6](#66-upgrade-hinweise-sichere-standardwerte-143)).
 
 **Mail-Sync (Microsoft 365):** Keine dauerhafte Verbindung; der Worker pollt per Delta Query
 (`poll_interval_seconds`, Standard 5 Minuten). Change Notifications sind optional und brauchen
@@ -751,6 +856,43 @@ Polling (`poll_interval_seconds`, Standard 5 Minuten) über die Gmail-API ab. Au
 Worker HTTPS zu `gmail.googleapis.com` und `oauth2.googleapis.com` (bei Pub/Sub zusätzlich
 `pubsub.googleapis.com`). Die Service-Account-Schlüsseldatei (`OLLAMAIL_GMAIL_SERVICE_ACCOUNT_FILE`)
 als Docker-Secret einbinden, nie ins Image oder Repo.
+
+### 8.1 Ausfälle: hängende Jobs, LLM nicht erreichbar, fehlgeschlagene Schritte
+
+Der Worker erholt sich selbst von den häufigsten Störungen; manuelles SQL ist nicht nötig.
+
+- **Hängende Jobs.** Wird ein Worker mitten in einem Job beendet (OOM, `SIGKILL` nach der
+  Grace-Period), bliebe der Job für immer „läuft“ – und mit ihm der Lock, etwa der des Postfachs,
+  der jeden weiteren Sync blockiert. Der periodische Job `worker.retry_stalled_jobs` (alle
+  5 Minuten) reiht Jobs erneut ein, deren Worker seit `OLLAMAIL_WORKER_STALLED_AFTER_SECONDS`
+  (Standard 120) keinen Heartbeat mehr gesendet hat (Worker senden alle 10 s einen). Im Log:
+  `worker_stalled_job_retried` mit Job-ID, Task-Name und Queue.
+- **LLM nicht erreichbar.** Scheitern `OLLAMAIL_PROCESSING_LLM_BREAKER_THRESHOLD` (Standard 3)
+  Aufrufe in Folge, weil der Endpunkt nicht antwortet (Verbindungsfehler, HTTP 5xx/429), pausiert
+  der Worker diesen Endpunkt für `OLLAMAIL_PROCESSING_LLM_BREAKER_COOLDOWN_SECONDS` (Standard 30 s;
+  bleibt er unten, jeweils doppelt so lange, höchstens das 16-Fache). Danach testet genau ein
+  Aufruf, ob er wieder da ist. Verarbeitungsschritte warten in dieser Zeit, ohne Versuche zu
+  verbrauchen; es entsteht kein Retry-Sturm gegen den toten Endpunkt. Im Log: `llm_circuit_open`
+  und `llm_circuit_closed`, `processing_step_postponed`. Jeder Worker-Prozess entscheidet für sich.
+- **Fehlgeschlagene Schritte.** Ein Schritt, dessen Versuche aufgebraucht sind, steht auf `failed`.
+  Ist der Grund vorübergehend – LLM nicht erreichbar (`llm_unavailable_error`), Modell fehlt
+  (`model_not_available_error`, wird nicht sofort wiederholt) –, plant der periodische Job
+  `processing.retry_failed` (alle 5 Minuten) ihn automatisch neu ein: nach
+  `OLLAMAIL_PROCESSING_AUTO_RETRY_DELAY_MINUTES` (Standard 15), danach jeweils doppelt so lange
+  (höchstens ein Tag), insgesamt `OLLAMAIL_PROCESSING_AUTO_RETRY_ATTEMPTS`-mal (Standard 6, deckt
+  rund 16 Stunden ab). Zeitüberschreitungen (`llm_timeout_error`) nur
+  `OLLAMAIL_PROCESSING_AUTO_RETRY_TIMEOUT_ATTEMPTS`-mal (Standard 1). Dauerhafte Fehler (z. B.
+  ungültige Modellausgabe nach dem Korrektur-Retry, `llm_output_error`/`llm_output_invalid`)
+  bleiben fehlgeschlagen. Ein fehlendes Modell also einfach nachladen (`ollama pull …`); die
+  betroffenen Mails laufen danach von selbst durch.
+- **Von Hand neu verarbeiten:** `python -m app.cli processing reprocess [--mailbox ID]` setzt
+  auch dauerhafte Fehler zurück.
+
+Für die Statusanzeige zählt `app.processing.service.count_steps_by_mailbox` ausstehende,
+laufende und fehlgeschlagene Schritte (davon: automatische Wiederholung geplant) je Postfach;
+`reset_failed_steps` setzt die fehlgeschlagenen eines Postfachs zurück.
+
+### 8.2 Datenbankverbindungen
 
 Was heute schon gilt: Jeder API- bzw. Worker-Prozess öffnet bis zu
 `OLLAMAIL_DATABASE_POOL_SIZE + OLLAMAIL_DATABASE_MAX_OVERFLOW` Datenbankverbindungen (Standard
@@ -790,6 +932,7 @@ verarbeitet. Die vollständige Liste aller Tabellen und Dateien mit Löschweg st
 | Aufgaben-Export: Ziel, Server-URL, Benutzername, Passwort bzw. Google-Refresh-Token (verschlüsselt), Liste, Modus je Nutzer; Verweise auf die exportierten Aufgaben | PostgreSQL: `todo_export_targets` (Zugangsdaten verschlüsselt mit `OLLAMAIL_SECRET_KEY`), `todos.external_refs` | aktiv, nur mit `OLLAMAIL_TODOS_EXPORT_SINKS` (#40, Microsoft To Do #101, Google Tasks #102) |
 | Job-Queue (nur IDs und Parameter, keine Mail-Inhalte) | PostgreSQL (`procrastinate_*`) | aktiv |
 | Verarbeitungsstatus je Mail und Schritt (Version, Status, Fehlercode; keine Inhalte) | PostgreSQL (`message_processing`) | vorhanden (#19) |
+| Modell-Downloads (Endpunkt, Modellname, Status, Bytes, Fehlercode; nicht personenbezogen) | PostgreSQL (`ai_model_pulls`) | vorhanden (#139) |
 | LLM-Modelle (keine personenbezogenen Daten) | Volume `ollama-models` | vorhanden (Profil `ollama-*`) |
 | TTS-Stimmen (keine personenbezogenen Daten) | Daten-Volume, `tts/voices/<engine>/` | vorhanden (#27) |
 | Instanz-Secrets und Konfiguration | `deploy/.env` auf dem Host | vorhanden |
@@ -885,7 +1028,14 @@ curl http://localhost:8080/api/readyz
 | `/api/readyz` liefert `503` mit `"database":"failed"` | Datenbank nicht erreichbar. `logs postgres` und `OLLAMAIL_DATABASE_URL` prüfen (Sonderzeichen im Passwort URL-kodieren). |
 | `migrate` zeigt `Exited (0)` | Normal: einmaliger Migrationslauf. |
 | `error from registry: unauthorized` / `pull access denied` für `ghcr.io/dusseligerdussel/ollamail-*` | Kein Zugriff auf die GHCR-Images oder es gibt noch kein Release für `OLLAMAIL_VERSION` (`latest` erst ab dem ersten Release). Lokal bauen ([2.3](#23-starten), Weg A) oder `docker login ghcr.io` ([`deploy/README.md`](../deploy/README.md#zugriff-auf-die-images)). |
+| Setup meldet einen falschen Code oder die Anmeldung schlägt über `http://<ip>:8080` fehl, Hinweis „Unverschlüsselte Verbindung“; API antwortet `403` mit `csrf_failed` | Browser verwerfen die `Secure`-Cookies über HTTP. HTTPS einrichten oder nur zum Testen `OLLAMAIL_AUTH_COOKIE_SECURE=false`, siehe [2.6](#26-http-ohne-tls-testbetrieb). |
 | `setup_pending` im Log ohne `setup_code` | `OLLAMAIL_SETUP_TOKEN` ist gesetzt; diesen Wert im Setup-Assistenten eingeben. |
+| Sync eines Postfachs hängt nach einem Worker-Absturz | Löst sich nach spätestens 5 Minuten plus `OLLAMAIL_WORKER_STALLED_AFTER_SECONDS` von selbst (Abschnitt 8.1). Im Log `worker_stalled_job_retried`. |
+| Viele Mails ohne Triage/Aufgaben, Log `llm_circuit_open` | LLM-Endpunkt nicht erreichbar oder Modell fehlt. Ollama prüfen bzw. Modell laden; die Mails werden automatisch erneut verarbeitet (Abschnitt 8.1). |
+| `setup_token … must be at least 32 characters` (api startet nicht) | `OLLAMAIL_SETUP_TOKEN` zu kurz: `openssl rand -hex 16` eintragen oder leeren. |
+| `uses the placeholder password 'change-me'` (api/migrate starten nicht) | Datenbank-Passwort ändern, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
+| UI aus dem LAN nicht mehr erreichbar | Port ist standardmäßig nur an `127.0.0.1` gebunden; `OLLAMAIL_HTTP_BIND` setzen, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
+| Postfach im LAN meldet `connection_failed`, Log `mail_destination_refused` | Interne Adresse ohne Freigabe: Host in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` eintragen, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
 | `worker` startet ständig neu | `docker compose -f deploy/compose.yaml logs worker`; häufig ein ungültiger Wert in `OLLAMAIL_WORKER_QUEUES`. |
 | `toomanyrequests` / `429 Too Many Requests` beim Build oder Pull | Rate-Limit von Docker Hub. Mit `docker login` anmelden oder später erneut versuchen. |
 | `failed to bind host port … address already in use` oder `port is already allocated` | Port 8080 ist belegt. `OLLAMAIL_HTTP_PORT` in `deploy/.env` ändern. |

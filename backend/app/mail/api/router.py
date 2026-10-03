@@ -87,6 +87,9 @@ NOT_FOUND: dict[int | str, dict[str, Any]] = {404: {"description": "No such mail
 CONNECTION_FAILED: dict[int | str, dict[str, Any]] = {
     422: {"description": "Invalid request, unavailable mailbox type or failed connection test"}
 }
+THROTTLED: dict[int | str, dict[str, Any]] = {
+    429: {"description": "Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS)"}
+}
 
 
 async def _mailbox(
@@ -149,13 +152,20 @@ async def autodiscover(
     )
 
 
-@router.post("/test", responses=CONNECTION_FAILED)
+@router.post("/test", responses={**CONNECTION_FAILED, **THROTTLED})
 async def test_mailbox_connection(
-    body: MailboxConnection, _: CurrentSessionDep, providers: RegistryDep
+    body: MailboxConnection,
+    current: CurrentSessionDep,
+    db: DbDep,
+    settings: SettingsDep,
+    providers: RegistryDep,
 ) -> ConnectionTestResult:
     """Connect and list the folders without saving anything. A failed test is a normal
-    result (``ok: false`` with an error code), not an HTTP error."""
+    result (``ok: false`` with an error code), not an HTTP error; an unreachable server and
+    one on a refused internal address both give ``connection_failed``. Rate-limited per
+    user."""
     _require_type(providers, body.type)
+    await service.throttle_connection_tests(db, settings, current.user_id)
     return await service.check_connection(providers.create, service.connection_config(body))
 
 
@@ -175,20 +185,27 @@ async def list_mailboxes(current: CurrentSessionDep, db: DbDep) -> list[MailboxR
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
-    responses={**CONNECTION_FAILED, 409: {"description": "Mailbox already added"}},
+    responses={
+        **CONNECTION_FAILED,
+        **THROTTLED,
+        409: {"description": "Mailbox already added"},
+    },
 )
 async def create_mailbox(
     body: MailboxCreate,
     current: CurrentSessionDep,
     db: DbDep,
+    settings: SettingsDep,
     providers: RegistryDep,
     requester: SyncRequesterDep,
 ) -> MailboxRead:
-    """Add a mailbox. The connection is tested first; then the initial import starts
-    (unless ``sync_enabled`` is false)."""
+    """Add a mailbox. The connection is tested first (counts towards the rate limit of
+    ``POST /mailboxes/test``); then the initial import starts (unless ``sync_enabled`` is
+    false)."""
     _require_type(providers, body.type)
     if await service.find_duplicate(db, current.user_id, body):
         raise ProblemError(409, detail="This mailbox has already been added.")
+    await service.throttle_connection_tests(db, settings, current.user_id)
     result = await service.check_connection(providers.create, service.connection_config(body))
     if not result.ok:
         raise _connection_failed(result)
@@ -215,12 +232,13 @@ async def get_mailbox(mailbox_id: uuid.UUID, current: CurrentSessionDep, db: DbD
     return await _read_for(db, mailbox, current.user_id)
 
 
-@router.patch("/{mailbox_id}", responses={**NOT_FOUND, **CONNECTION_FAILED})
+@router.patch("/{mailbox_id}", responses={**NOT_FOUND, **CONNECTION_FAILED, **THROTTLED})
 async def update_mailbox(
     mailbox_id: uuid.UUID,
     body: MailboxUpdate,
     current: CurrentSessionDep,
     db: DbDep,
+    settings: SettingsDep,
     providers: RegistryDep,
     requester: SyncRequesterDep,
 ) -> MailboxRead:
@@ -231,6 +249,7 @@ async def update_mailbox(
     config = service.updated_config(mailbox, body)
     if config is not None:
         _require_type(providers, mailbox.type)
+        await service.throttle_connection_tests(db, settings, current.user_id)
         result = await service.check_connection(providers.create, config)
         if not result.ok:
             raise _connection_failed(result)

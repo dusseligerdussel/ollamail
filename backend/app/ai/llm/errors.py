@@ -19,6 +19,16 @@ class LLMTimeoutError(LLMUnavailableError):
     likely to time out again, so callers should retry it at most a few times."""
 
 
+class LLMCircuitOpenError(LLMUnavailableError):
+    """The endpoint failed repeatedly, so the gateway does not call it until
+    ``retry_after`` seconds have passed (circuit breaker, ``app.ai.llm.circuit``)."""
+
+    def __init__(self, endpoint: str, retry_after: float) -> None:
+        super().__init__(f"endpoint {endpoint!r} is paused for {retry_after:.0f} s")
+        self.endpoint = endpoint
+        self.retry_after = retry_after
+
+
 class LLMRequestError(LLMError):
     """The endpoint rejected the request (4xx)."""
 

@@ -1,3 +1,5 @@
+import asyncio
+
 import pytest
 from pydantic import BaseModel
 
@@ -6,6 +8,8 @@ from app.ai.llm.errors import (
     CloudLLMDisabledError,
     LLMNotReadyError,
     LLMOutputError,
+    LLMRequestError,
+    LLMUnavailableError,
     StructuredOutputUnsupportedError,
 )
 from app.ai.llm.gateway import LLMGateway, create_provider
@@ -236,3 +240,60 @@ def test_create_provider_by_kind() -> None:
 
     assert isinstance(create_provider(endpoints["default"]), OllamaProvider)
     assert isinstance(create_provider(endpoints["v"]), OpenAICompatibleProvider)
+
+
+async def test_model_status_per_task() -> None:
+    settings = LLMSettings.model_validate(
+        {
+            "default_chat_model": "chat:1b",
+            "endpoints": {
+                "down": {"provider": "openai_compatible", "base_url": "http://down/v1"},
+                **CLOUD_ENDPOINTS,
+            },
+            "task_rag_chat_endpoint": "down",
+            "task_digest_endpoint": "cloud",
+        }
+    )
+    down = FakeProvider()
+
+    async def unreachable() -> list[str]:
+        raise LLMUnavailableError("LLM endpoint unreachable")
+
+    down.list_models = unreachable  # type: ignore[method-assign]
+    gateway, _, _ = _gateway(settings, default=FakeProvider(models=["chat:1b"]), down=down)
+
+    states = {status.task: status.state for status in await gateway.model_status()}
+
+    assert states == {
+        LLMTask.TRIAGE: "installed",
+        LLMTask.TODOS: "installed",
+        LLMTask.DIGEST: "disabled",
+        LLMTask.RAG_CHAT: "unreachable",
+        LLMTask.REPLY_DRAFT: "installed",
+        LLMTask.EMBEDDINGS: "missing",
+    }
+
+
+async def test_model_status_bounds_slow_endpoints() -> None:
+    slow = FakeProvider()
+
+    async def hang() -> list[str]:
+        await asyncio.sleep(10)
+        return []
+
+    slow.list_models = hang  # type: ignore[method-assign]
+    gateway, _, _ = _gateway(default=slow)
+
+    statuses = await gateway.model_status(wait=0.05)
+
+    assert {status.state for status in statuses} == {"unreachable"}
+
+
+async def test_pull_model_only_for_assigned_ollama_models() -> None:
+    gateway, _, _ = _gateway(default=FakeProvider())
+
+    with pytest.raises(LLMRequestError, match="not assigned"):
+        _ = [p async for p in gateway.pull_model("default", "other:7b")]
+    # Fakes are not Ollama providers: they cannot download.
+    with pytest.raises(LLMRequestError, match="cannot download"):
+        _ = [p async for p in gateway.pull_model("default", "chat:1b")]

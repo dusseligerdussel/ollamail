@@ -9,6 +9,13 @@ import { setCoarsePointer, setPrefersDark, setViewportWidth } from "./media";
 window.scrollTo = vi.fn() as typeof window.scrollTo;
 Element.prototype.scrollIntoView = vi.fn();
 
+// jsdom has no secure-context notion; tests run like a page on http://localhost.
+Object.defineProperty(window, "isSecureContext", {
+  value: true,
+  configurable: true,
+  writable: true,
+});
+
 // Used by cmdk and react-resizable-panels.
 window.ResizeObserver ??= class {
   observe() {}
