@@ -35,6 +35,9 @@ CSRF_HEADER = "X-CSRF-Token"
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS", "TRACE"})
 _NONCE_BYTES = 16
 _MAC_BYTES = 16
+# Stable ``error_code`` of the 403 response, so clients can tell a missing or rejected CSRF
+# cookie (typically: a ``Secure`` cookie dropped on plain ``http://``) from other 403s.
+CSRF_ERROR_CODE = "csrf_failed"
 
 
 def _b64(data: bytes) -> str:
@@ -114,7 +117,9 @@ class CSRFMiddleware:
                 and hmac.compare_digest(header_token, cookie_token)
             )
             if cross_site or not matches:
-                response = problem_response(403, detail="CSRF token missing or invalid.")
+                response = problem_response(
+                    403, detail="CSRF token missing or invalid.", error_code=CSRF_ERROR_CODE
+                )
                 await response(scope, receive, send_with_cookie)
                 return
 

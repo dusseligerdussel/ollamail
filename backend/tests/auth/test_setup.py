@@ -85,6 +85,8 @@ async def test_setup_requires_the_token(
     response = await db_client.post("/setup", json=_setup_body(settings, setup_token="guess"))
 
     assert response.status_code == 403
+    # Distinguishable from a CSRF failure (#142).
+    assert "error_code" not in response.json()
     assert await db_session.scalar(select(func.count()).select_from(User)) == 0
 
 
