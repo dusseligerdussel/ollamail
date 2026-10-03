@@ -12,7 +12,7 @@ from app.ai.llm.circuit import CircuitBreaker
 from app.ai.llm.gateway import LLMGateway
 from app.ai.settings.resolver import DbConfigResolver
 from app.core.config import Settings, get_settings
-from app.core.db import Database, libpq_url
+from app.core.db import Database, libpq_url, process_database
 
 _resolver: DbConfigResolver | None = None
 _gateway: LLMGateway | None = None
@@ -35,7 +35,7 @@ def worker_resolver() -> DbConfigResolver:
     if _resolver is None:
         settings = get_settings()
         # Created inside a job, so the listener can start on first use.
-        _resolver = build_resolver(settings, Database(settings.database), autostart=True)
+        _resolver = build_resolver(settings, process_database(), autostart=True)
     return _resolver
 
 

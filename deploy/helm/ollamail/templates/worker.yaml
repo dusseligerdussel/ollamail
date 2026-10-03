@@ -48,6 +48,12 @@ spec:
           command: ["python", "-m", "app.worker"]
           securityContext:
             {{- toYaml $.Values.containerSecurityContext | nindent 12 }}
+          {{- if $.Values.metrics.enabled }}
+          ports:
+            - name: metrics
+              containerPort: {{ $.Values.metrics.workerPort }}
+              protocol: TCP
+          {{- end }}
           {{- include "ollamail.backendEnv" (dict "root" $ "overrides" $overrides) | nindent 10 }}
           {{- with $.Values.worker.livenessProbe }}
           livenessProbe:

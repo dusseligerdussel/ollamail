@@ -141,6 +141,37 @@ Mailboxes).
 Postfach-Zugangsdaten und OAuth-Tokens werden verschlüsselt gespeichert (siehe `PRIVACY.md`;
 Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto.py`).
 
+#### Mail-Aktionen auf dem Server
+
+ollamail ist ein Analyse-Werkzeug, kein Mail-Client: keine neuen Mails, keine Ordnerverwaltung,
+kein endgültiges Löschen. Aus der App heraus gehen nur diese Änderungen an den Server, jede erst
+nach einer ausdrücklichen Aktion des Nutzers:
+
+| Aktion | Wo | Provider-Methode | Recht |
+|---|---|---|---|
+| Gelesen/ungelesen, Markieren (Flag/Stern) | `PATCH /messages/{id}`, Job `mail.write_flags` | `set_flags` | `act` |
+| Archivieren, Verschieben, In den Papierkorb (#148) | `POST /messages/{id}/actions` (`app/mail/actions.py`) | `move` | `act` |
+| Antwort senden | `POST /drafts/{id}/send` (§4.6) | `send` | `send` |
+| Triage-Kategorie zurückschreiben (opt-in je Postfach) | `app/triage/writeback.py` (§4.2) | `apply_label`/`remove_label` bzw. `move` | `manage` |
+
+**Archivieren, Verschieben, Papierkorb** (#148): Ziel ist ein Ordner des Postfachs, über seine
+Rolle gefunden – Archivieren in den Ordner mit Rolle `archive` (Gmail: das Label „All Mail“, also
+`INBOX` entfernen), Papierkorb in den mit Rolle `trash`, Verschieben in einen beliebigen Ordner
+bzw. ein Label (Gmail: Label hinzu, `INBOX`/`SPAM`/`TRASH` weg). Damit genügt allen Providern
+`move`; ohne passenden Ordner antwortet die API 409 `no_archive_folder` bzw. `no_trash_folder`.
+Die Aktion läuft synchron im Request (Zeile gesperrt, damit Aktion und Sync sich nicht
+überholen): erst auf dem Server, dann folgt die gespeicherte Mail – neue `remote_ref` (IMAP-UIDs
+ändern sich) und Ordner. Der nächste Sync bestätigt das, ohne Kopie. Die Antwort nennt
+`undo_folder_id` (der Posteingang, wenn die Mail dort lag, sonst ihr bisheriger Ordner);
+„Rückgängig“ ist ein `move` dorthin. Fehler des Servers ändern lokal nichts (`409
+message_not_found`, `502` mit Code, `503` bei Verbindungsfehlern). Jede Aktion steht im Audit-Log
+(`mail.moved`, Markieren `mail.flagged`; nur IDs), Events `message.updated` gehen an alle Leser
+des Postfachs.
+
+Bekannte Grenze: Der Papierkorb ist standardmäßig vom Sync ausgeschlossen. Bei IMAP bleibt eine
+dorthin verschobene Mail deshalb gespeichert (unter ihrer neuen Referenz), bei Graph und Gmail
+entfernt sie der nächste Sync; „Rückgängig“ wirkt dort nur bis zu diesem Sync (danach 404).
+
 #### IMAP-Provider (`backend/app/mail/providers/imap*.py`)
 
 - **Client:** eigener schlanker asyncio-Client (`imap_client.py`, Parser in `imap_protocol.py`)
@@ -264,6 +295,13 @@ Design und Einrichtung: [`providers/gmail.md`](providers/gmail.md). Kurzfassung:
 - **Job** `mail.sync_mailbox` (Queue `sync`, `lock` und `queueing_lock` pro Postfach); anstoßen mit
   `app.mail.sync.tasks.request_sync(mailbox_id)`. Verbindungsfehler lösen Retries aus,
   Anmelde- und Konfigurationsfehler nicht.
+- **Zeitscheiben (#141):** Ein Lauf importiert höchstens `OLLAMAIL_MAIL_SYNC_SLICE_BATCHES`
+  Batches bzw. `OLLAMAIL_MAIL_SYNC_SLICE_MINUTES` Minuten Altbestand (Events mit `initial=True`).
+  Danach endet er am zuletzt committeten Cursor, die übrigen Ordner bekommen nur noch Änderungen
+  und neue Mails, und `SyncStats.incomplete` ist gesetzt; der Job reiht einen Folgelauf mit
+  niedrigerer Priorität (`CONTINUE_PRIORITY`) ein. Weil die Provider neue Mails vor dem
+  Weiterimport liefern, warten neue Mails höchstens eine Zeitscheibe. Ein Resync ohne
+  Zwischen-Cursor (`reconcile`) wird nicht geteilt.
 - **Watcher** (`watcher.py`): läuft im Worker-Prozess neben den Job-Workern (kein Job, damit er
   keinen Worker-Slot dauerhaft belegt). Pro Postfach eine `IDLE`-Verbindung; jedes Push-Event
   stößt einen Sync an, zusätzlich alle `poll_interval_seconds` (andere Ordner, Server ohne
@@ -292,8 +330,8 @@ und `delete_mailbox`; sie baut nichts davon nach.
 | `GET /mailboxes/providers` | Postfachtypen, die sich auf dieser Instanz anlegen lassen: `credentials` (Formular, z. B. IMAP) oder `oauth` mit `oauth_start_path`. OAuth-Typen erscheinen nur, wenn der Provider registriert und sein OAuth-Client konfiguriert ist (`app/mail/api/providers.py`, ein Eintrag je Provider) |
 
 - **Zugriff:** ausschließlich über `app/mail/access.py` (`accessible_mailbox_ids`, `visible_to`,
-  `get_mailbox`, Berechtigungen `read`/`sync`/`manage`/`act`). Besitzer haben alle, Nutzer eines
-  Shared Mailbox nur `read`. Fremde Postfächer verhalten sich wie nicht vorhandene (404).
+  `get_mailbox`, Berechtigungen `read`/`sync`/`manage`/`act`/`send`). Besitzer haben alle, Nutzer
+  eines Shared Mailbox `read` und mit einer `act`-Zuweisung zusätzlich `act`, nie `send`. Fremde Postfächer verhalten sich wie nicht vorhandene (404).
   `MailboxRead.permissions` nennt die Berechtigungen des angemeldeten Nutzers;
   `provider_settings` sehen nur Nutzer mit `manage`. `GET /mailboxes/{id}/members` listet alle,
   die das Postfach lesen dürfen (für die Zuweisung von Team-Todos).
@@ -339,7 +377,8 @@ synthetischen Mails: `backend/tests/perf/` (`OLLAMAIL_TEST_PERF=1`, in der CI ak
 | `GET /messages` | Eine Zeile je Mail, neueste zuerst, Keyset-Paging (`cursor`, `limit` ≤ 200), `total` für die virtualisierte Liste (nur auf der ersten Seite, danach `null`). Filter: `mailbox_id`, `folder_id` (ohne: Ordner mit Rolle `inbox`), `unread`. Ohne Bodies; nur ein Snippet aus `body_main` |
 | `GET /messages/{id}/thread` | Konversation der Mail, älteste zuerst (höchstens die neuesten 100), mit Empfängern, Text, sanitisiertem HTML (`body.html`, `body.blocked_images`) und Anhängen |
 | `GET /messages/{id}/body?external_images=true` | HTML mit externen Bildern – erst, wenn der Nutzer sie für diese Mail anfordert |
-| `PATCH /messages/{id}` | `{"seen": bool}`: gelesen/ungelesen. Sofort gespeichert, Event `message.updated`, Job `mail.write_flags` schreibt die Flags auf den Server. Braucht `act`; in Shared Mailboxes 403 `read_only` (der Status gilt für das ganze Postfach) |
+| `PATCH /messages/{id}` | `{"seen": bool, "flagged": bool}` (beide optional): gelesen/ungelesen, markieren. Sofort gespeichert, Event `message.updated` an alle Leser, Job `mail.write_flags` schreibt die Flags auf den Server; Markieren steht im Audit-Log (`mail.flagged`). Braucht `act`, sonst 403 `read_only` (der Status gilt für das ganze Postfach) |
+| `POST /messages/{id}/actions` | `{"action": "archive" \| "trash" \| "move", "folder_id"}` (#148, `app/mail/api/actions.py`): synchron auf dem Server, Antwort mit neuen `folder_ids` und `undo_folder_id`. Braucht `act` (403 `read_only`); 409 `no_archive_folder`/`no_trash_folder`/`message_not_found`, 422 `unknown_folder`, 502/503 bei Serverfehlern. Siehe §3.1, „Mail-Aktionen auf dem Server“ |
 | `GET /messages/{id}/attachments/{attachment_id}` | Download (`Content-Disposition: attachment`, `application/octet-stream`, `nosniff`, CSP `sandbox`). `?inline=true` nur für PNG/JPEG/GIF/WebP (`cid:`-Bilder im HTML) |
 
 - **HTML:** immer serverseitig mit `sanitize_html` bereinigt; das Roh-HTML verlässt den Server nie.
@@ -388,7 +427,7 @@ ai/llm/
   profiles.py       Hardware-Profile cpu / gpu-consumer / gpu-server
   structured.py     Pydantic → JSON-Schema, Validierung, Retry, Prompt-Fallback
   context.py        Token-Schätzung, Kürzen langer Mails
-  metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call`)
+  metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call` und Prometheus-Zähler)
   gateway.py        LLMGateway – einziger Einstiegspunkt für Features
 ai/prompts/         versionierte, sprachabhängige Prompt-Templates (`name@version`)
 ai/settings/        KI-Einstellungen in der DB (#18): Modelle, Store, DbConfigResolver, Admin-API
@@ -477,6 +516,10 @@ sechsmal im Abstand von 10 s erneut.
 - `POST /api/admin/system/mailboxes/{id}/retry-failed`: setzt nur die fehlgeschlagenen Schritte
   des Postfachs auf `pending` (`processing.service.reset_failed_steps`) und reiht die Mails mit
   `Priority.REPROCESS` ein, also hinter neuen Mails.
+- `POST /api/admin/system/mailboxes/{id}/include-older`: „Ältere Mails auch klassifizieren“
+  (`processing.service.include_older`): setzt `include_older` des Postfachs, die übersprungenen
+  Schritte auf `pending` und reiht die Mails mit `REPROCESS` ein. Die Übersicht zeigt dazu je
+  Postfach `skipped_messages` und `include_older`.
 - **UI:** Die Admin-Seite (`/admin`) zeigt Checkliste, Modellzustand mit Download-Button und
   Fortschritt sowie die Verarbeitung je Postfach. Die App-Shell zeigt unter dem Cloud-Hinweis
   dezente Hinweisleisten (`components/system-notices.tsx`): Admins sehen „Modell fehlt“ bzw.
@@ -623,6 +666,16 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Status:** `pending` → `running` → `done` bzw. `failed`. Ein fehlgeschlagener Versuch, der
   wiederholt wird, steht wieder auf `pending` (mit Fehlercode); `failed` heißt „aufgegeben“
   (Retries erschöpft oder `StepError(code, permanent=True)`). Gespeichert werden nur Fehlercodes.
+  `skipped` heißt „bewusst nicht ausgeführt“ (Altbestand, siehe unten); für `after` und das
+  Event `message.processed` zählt es wie erledigt.
+- **Altbestand (#141):** Schritte mit `recent_only=True` (Triage, Todos) laufen nur für Mails, die
+  nach `now − OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS` eingegangen sind (`received_at`, sonst
+  `sent_at`/`created_at`; `0` = alle). Ältere Mails bekommen nur die übrigen Schritte (Index,
+  Embeddings); `plan` setzt die übersprungenen und die per `depends_on` davon abhängigen Schritte
+  auf `skipped`. Bereits erledigte Schritte bleiben erledigt. Je Postfach hebt
+  `processing_mailbox_settings.include_older` die Grenze auf (Admin-Systemstatus oder
+  `python -m app.cli processing include-older <mailbox-id>`); `plan` setzt `skipped` dann wieder
+  auf `pending`. Übersprungene Schritte gelten nicht als veraltet (`requeue_outdated`).
 - **Automatische Wiederholung:** War der Grund vorübergehend (`LLMUnavailableError`,
   `ModelNotAvailableError`, begrenzt `LLMTimeoutError`), setzt `fail_step` `retry_at`;
   `processing.retry_failed` (alle 5 Minuten) setzt fällige Schritte wieder auf `pending`
@@ -635,7 +688,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   den Schritt dann zurück auf `pending` (ohne einen Versuch zu verbrauchen) und plant einen neuen
   Job nach Ablauf der Pause. Nach der Pause prüft ein einzelner Aufruf den Endpunkt.
 - **Zählen:** `count_steps_by_mailbox` liefert `StepCounts(pending, running, failed,
-  retry_scheduled)` je Postfach (Systemstatus), `reset_failed_steps` setzt fehlgeschlagene
+  retry_scheduled, skipped_messages)` je Postfach (Systemstatus; `skipped_messages` zählt Mails), `reset_failed_steps` setzt fehlgeschlagene
   Schritte eines Postfachs zurück.
 - **Versionen:** Erhöht ein Schritt seine `version` (z. B. neuer Prompt), reiht der periodische Job
   `processing.requeue_outdated` (alle 10 Minuten, `OLLAMAIL_PROCESSING_REQUEUE_BATCH_SIZE` Mails,
@@ -1057,8 +1110,8 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
   Mail) und `reply_draft_settings` (Signatur, Stilbeispiele an/aus; am Nutzer).
 - **Zugriff:** Ein Entwurf ist nur für seinen Autor sichtbar und nur, solange er das Postfach
   lesen darf (`accessible_mailbox_ids`, bei jeder Anfrage in SQL); sonst 404. Erzeugen braucht
-  Leserecht auf die Mail, Senden zusätzlich `MailboxPermission.ACT` (Eigentümer; Shared
-  Mailboxes sind vorerst nur lesbar → 403 `read_only`).
+  Leserecht auf die Mail, Senden zusätzlich `MailboxPermission.SEND` (nur Eigentümer; auch mit
+  `act`-Zuweisung wird aus Shared Mailboxes nicht gesendet → 403 `read_only`).
 - **Generierung** (Aufgabe `reply_draft` im LLM-Gateway, Modell im KI-Admin zuweisbar,
   Prompt `reply_draft@1`, gestreamt per SSE): Kontext ist der Thread bis zur beantworteten Mail
   (höchstens `OLLAMAIL_DRAFTS_THREAD_MESSAGES` Mails, je `OLLAMAIL_DRAFTS_MESSAGE_CHARS` Zeichen
@@ -1271,8 +1324,9 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 **Umsetzung (#34):**
 
 - **Zuweisungen** (`mail_mailbox_assignments`, `app/mail/models.py`): je Zeile genau ein Nutzer
-  (`user_id`) oder eine Gruppe (`group_name`, optional `provider`), Recht `read` (Aktionen
-  später). Gruppen sind die, die eine Identität des Nutzers beim letzten Login gemeldet hat
+  (`user_id`) oder eine Gruppe (`group_name`, optional `provider`), Recht `read` oder `act`
+  („Mails verwalten“: zusätzlich gelesen/ungelesen, markieren, archivieren, verschieben,
+  Papierkorb; #148). Senden aus Shared Mailboxes gibt es nicht (`send` nur für Besitzer). Gruppen sind die, die eine Identität des Nutzers beim letzten Login gemeldet hat
   (`auth_identities.groups`: OIDC-Gruppen-Claim, LDAP-Gruppen-DNs, GitHub-Teams), verglichen ohne
   Groß-/Kleinschreibung wie beim Rollen-Mapping (#33). Änderungen der Gruppenmitgliedschaft im
   Verzeichnis wirken mit dem nächsten Login.
@@ -1287,18 +1341,21 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 - **Admin-API** (`/admin/shared-mailboxes`, nur Admins, `app/mail/api/shared.py`): anlegen
   (Verbindungstest, Zugangsdaten verschlüsselt), umbenennen, Zugangsdaten/Sync-Einstellungen,
   pausieren, Ordner, Sync anstoßen, entfernen (`delete_mailbox`), Zuweisungen ersetzen
-  (`PUT …/assignments`, `{"users": [...], "groups": [{"group", "provider"}]}`). Antworten enthalten
+  (`PUT …/assignments`, `{"users": [...], "act_users": [...], "groups": [{"group", "provider",
+  "permission"}]}`; `act_users` erhalten `act`). Antworten enthalten
   nur Metadaten (Status, Anzahlen, Zuweisungen, `reader_count`), nie Mails. Admins lesen ein
   Shared Mailbox nur, wenn sie sich zuweisen – sichtbar im Audit-Log.
-- **Audit:** `mailbox.shared` und `mailbox.unshared` je Nutzer bzw. Gruppe (Nutzer-ID bzw.
-  Gruppenname, falls kurz und ohne `@`, sonst nur die Zuweisungs-ID), in derselben Transaktion.
+- **Audit:** `mailbox.shared` (mit `permission`, auch wenn sich nur das Recht ändert) und
+  `mailbox.unshared` je Nutzer bzw. Gruppe (Nutzer-ID bzw. Gruppenname, falls kurz und ohne `@`,
+  sonst nur die Zuweisungs-ID), in derselben Transaktion.
 - **Einmal synchronisiert:** Ein Shared Mailbox ist eine Zeile in `mail_mailboxes`; Sync-Job,
   Mails, Verarbeitung (Triage, Todos, Suchindex) gibt es genau einmal, egal wie viele es lesen.
   Events (`mailbox.sync`, `mailbox.changed`, `message.processed`) gehen an alle aktuellen Leser
   (`app.mail.access.publish_to_readers`); wer Zugriff erhält oder verliert, bekommt
   `mailbox.changed` (`assigned`/`revoked`).
-- **Nur lesen:** Nutzer eines Shared Mailbox dürfen weder Einstellungen ändern noch synchronisieren
-  noch gelesen/ungelesen setzen (der Status gehört dem Postfach). Triage-Korrekturen sind erlaubt
+- **Nur lesen bzw. Mails verwalten:** Nutzer eines Shared Mailbox dürfen weder Einstellungen
+  ändern noch synchronisieren noch senden. Gelesen/ungelesen, Markierungen und Ordner gehören dem
+  Postfach; ändern dürfen sie nur Nutzer mit `act`-Zuweisung. Triage-Korrekturen sind erlaubt
   und wirken postfachweit (§4.2).
 - **Löschen:** Wird ein Nutzer gelöscht, verschwinden nur seine Zuweisungen (`ON DELETE
   CASCADE`) und seine Team-Todo-Zuweisungen (`SET NULL`); das Shared Mailbox bleibt.
@@ -1331,8 +1388,13 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 
 - Konfiguration per Env (`OLLAMAIL_*`), dokumentiert in `deploy/.env.example`. Start mit Docker Compose: `deploy/README.md`.
 - Kubernetes: Helm-Chart `deploy/helm/ollamail`, Doku in [`operations/kubernetes.md`](operations/kubernetes.md).
-- Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar).
-- Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional OpenTelemetry-Metriken.
+- Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar); der Worker
+  meldet Liveness über eine Heartbeat-Datei (`app/core/heartbeat.py`).
+- Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional Prometheus-Metriken
+  (`OLLAMAIL_METRICS_ENABLED`, nur intern bzw. mit Token; nur IDs, Codes und Zähler,
+  `app/core/metrics.py`, `app/admin/metrics.py`).
+- Datenbank: ein gemeinsamer Verbindungspool je Prozess (`app.core.db.process_database`);
+  Verbindungsbudget und `max_connections` in [`OPERATIONS.md` §8.2](OPERATIONS.md#82-datenbankverbindungen).
 - Backups: `pg_dump` + Daten-Volume; Doku in [`OPERATIONS.md`](OPERATIONS.md#5-backup-und-restore).
 - Images: `ghcr.io/<owner>/ollamail-{api,frontend}` für `linux/amd64` und `linux/arm64`.
 

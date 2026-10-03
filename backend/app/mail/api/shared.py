@@ -7,8 +7,10 @@ contents (docs/PRIVACY.md, Admin ≠ Leser). An admin reads a shared mailbox onl
 assigned to it like any other user, which the audit log shows. The mailbox is synced
 once, however many people read it.
 
-Every change of the assignments is recorded in the audit log (``mailbox.shared`` /
-``mailbox.unshared``, one entry per user or group) and takes effect with the next request
+An assignment grants ``read`` or ``act`` (also archive, move, trash, flag and mark read,
+#148); sending stays with owners. Every change of the assignments is recorded in the audit
+log (``mailbox.shared`` with the permission, also when it changes, / ``mailbox.unshared``,
+one entry per user or group) and takes effect with the next request
 of the affected users (``app.mail.access``).
 """
 
@@ -151,13 +153,17 @@ async def _set_assignments(
     users: Sequence[uuid.UUID],
     groups: Sequence[GroupAssignment],
     actor: audit.Actor,
+    act_users: Sequence[uuid.UUID] = (),
 ) -> tuple[int, int]:
-    """Replace the assignments; returns (added, removed). Audits each change and tells
-    the users who gained or lost access (events are delivered on commit)."""
-    wanted_users = set(users)
+    """Replace the assignments; returns (added, removed). Audits each change (also a
+    changed permission) and tells the users who gained or lost access (events are
+    delivered on commit)."""
+    wanted_users = {
+        user_id: AssignmentPermission.READ for user_id in users if user_id not in act_users
+    } | {user_id: AssignmentPermission.ACT for user_id in act_users}
     if wanted_users:
         known = set(await db.scalars(select(User.id).where(User.id.in_(wanted_users))))
-        if known != wanted_users:
+        if known != set(wanted_users):
             raise ProblemError(422, detail="Unknown user.", error_code="unknown_user")
     wanted_groups: dict[tuple[str, str], GroupAssignment] = {}
     for group in groups:
@@ -170,21 +176,27 @@ async def _set_assignments(
         )
     )
     removed: list[MailboxAssignment] = []
+    changed: list[MailboxAssignment] = []
     for assignment in current:
+        wanted: AssignmentPermission | None
         if assignment.user_id is not None:
-            if assignment.user_id in wanted_users:
-                wanted_users.discard(assignment.user_id)
-                continue
+            wanted = wanted_users.pop(assignment.user_id, None)
         else:
             key = _group_key(assignment.group_name or "", assignment.provider)
-            if wanted_groups.pop(key, None) is not None:
-                continue
-        removed.append(assignment)
+            match = wanted_groups.pop(key, None)
+            wanted = match.permission if match is not None else None
+        if wanted is None:
+            removed.append(assignment)
+        elif wanted != assignment.permission:
+            assignment.permission = wanted
+            changed.append(assignment)
     added = [
-        MailboxAssignment(mailbox_id=mailbox.id, user_id=user_id)
-        for user_id in sorted(wanted_users)
+        MailboxAssignment(mailbox_id=mailbox.id, user_id=user_id, permission=permission)
+        for user_id, permission in sorted(wanted_users.items())
     ] + [
-        MailboxAssignment(mailbox_id=mailbox.id, group_name=g.group, provider=g.provider)
+        MailboxAssignment(
+            mailbox_id=mailbox.id, group_name=g.group, provider=g.provider, permission=g.permission
+        )
         for g in wanted_groups.values()
     ]
     target = audit.Target.of(audit.TargetType.MAILBOX, mailbox.id)
@@ -194,9 +206,9 @@ async def _set_assignments(
         )
         await db.delete(assignment)
     for assignment in added:
-        assignment.permission = AssignmentPermission.READ
         db.add(assignment)
-        await db.flush()
+    await db.flush()
+    for assignment in [*added, *changed]:
         await audit.record(
             db,
             actor,
@@ -208,7 +220,10 @@ async def _set_assignments(
     after = set(await db.scalars(access.readers(mailbox.id)))
     await _notify_users(db, mailbox.id, before - after, "revoked")
     await _notify_users(db, mailbox.id, after - before, "assigned")
-    return len(added), len(removed)
+    if changed:
+        # Readers reload the mailbox list, which carries their ``permissions``.
+        await _notify_users(db, mailbox.id, after & before, "updated")
+    return len(added) + len(changed), len(removed)
 
 
 @router.get("")
@@ -256,7 +271,7 @@ async def create_shared_mailbox(
         audit.Target.of(audit.TargetType.MAILBOX, mailbox.id),
         {"type": mailbox.type.value, "shared": True},
     )
-    await _set_assignments(db, mailbox, body.users, body.groups, actor)
+    await _set_assignments(db, mailbox, body.users, body.groups, actor, body.act_users)
     await db.commit()
     log.info("mail_shared_mailbox_created", mailbox_id=str(mailbox.id), type=mailbox.type.value)
     if mailbox.sync_enabled:
@@ -306,12 +321,13 @@ async def update_shared_mailbox(
 async def set_shared_mailbox_assignments(
     mailbox_id: uuid.UUID, body: MailboxAssignmentsUpdate, admin: AdminSessionDep, db: DbDep
 ) -> SharedMailboxRead:
-    """Replace who may read the mailbox. Removing a user or group revokes access at once:
-    from the next request on, its mails, triage, todos, search hits, answers and digests
-    are no longer visible to them."""
+    """Replace who may read the mailbox and who may also act on its mails (``act_users``,
+    group ``permission``). Removing a user or group revokes access at once: from the next
+    request on, its mails, triage, todos, search hits, answers and digests are no longer
+    visible to them."""
     mailbox = await _shared(db, mailbox_id)
     added, removed = await _set_assignments(
-        db, mailbox, body.users, body.groups, audit.Actor.user(admin.user_id)
+        db, mailbox, body.users, body.groups, audit.Actor.user(admin.user_id), body.act_users
     )
     await db.commit()
     log.info(

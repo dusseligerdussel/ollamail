@@ -11,6 +11,22 @@ spec:
   imageName: ghcr.io/cloudnative-pg/postgresql:16.15-standard-trixie
   storage:
     size: 20Gi
+  # Tuning for the pgvector search index (docs/OPERATIONS.md, section 8.2); sized for a
+  # node with 8 GB RAM. With a large index (e.g. 1M chunks of bge-m3) raise shared_buffers
+  # to ~25 % of the memory limit and maintenance_work_mem to 2-4 GB. max_connections must
+  # cover all api and worker pods (formula in section 8.2).
+  postgresql:
+    parameters:
+      max_connections: "200"
+      shared_buffers: 512MB
+      effective_cache_size: 2GB
+      maintenance_work_mem: 512MB
+      work_mem: 16MB
+  resources:
+    requests:
+      memory: 1Gi
+    limits:
+      memory: 4Gi
   bootstrap:
     initdb:
       database: ollamail

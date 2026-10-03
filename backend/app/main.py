@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager, suppress
 from fastapi import FastAPI
 from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
+from app.admin.metrics import router as metrics_router
 from app.admin.system import router as admin_system_router
 from app.ai.llm import LLMGateway
 from app.ai.settings.router import router as ai_settings_router
@@ -26,7 +27,7 @@ from app.auth.router import setup_router
 from app.auth.setup import log_setup_status
 from app.core.config import Settings, get_settings
 from app.core.crypto import configure_keyring
-from app.core.db import Database
+from app.core.db import Database, bind_process_database
 from app.core.errors import install_error_handlers
 from app.core.events import EventBroker
 from app.core.events import router as events_router
@@ -39,6 +40,7 @@ from app.core.openapi import generate_operation_id
 from app.digest.router import feed_router as digest_feed_router
 from app.digest.router import router as digests_router
 from app.drafts.router import router as drafts_router
+from app.mail.api.actions import router as message_actions_router
 from app.mail.api.messages import providers_router as mailbox_providers_router
 from app.mail.api.messages import router as messages_router
 from app.mail.api.router import router as mailboxes_router
@@ -81,7 +83,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         pull = None
         if settings.llm.pull_missing_models:
             pull = asyncio.create_task(llm.pull_missing_models())
-        yield
+        # Code shared with the worker (``process_database``) uses the api's engine.
+        with bind_process_database(database):
+            yield
         if pull is not None:
             pull.cancel()
             with suppress(asyncio.CancelledError):
@@ -126,6 +130,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     # header handling (started with --no-proxy-headers, see backend/Dockerfile).
     app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.security.forwarded_allow_ips)
     app.include_router(health_router)
+    app.include_router(metrics_router)
     app.include_router(events_router)
     app.include_router(setup_router)
     app.include_router(auth_router)
@@ -150,6 +155,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(mailboxes_router)
     app.include_router(shared_mailboxes_router)
     app.include_router(messages_router)
+    app.include_router(message_actions_router)
     app.include_router(gmail_connect_router)
     app.include_router(graph_router)
     app.include_router(digests_router)

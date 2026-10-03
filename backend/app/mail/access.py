@@ -13,16 +13,22 @@ A user may read
   (``MailboxAssignment``). Groups are the ones an identity of the user reported at its
   last login (``auth_identities.groups``), compared case-insensitively.
 
+An assignment with ``AssignmentPermission.ACT`` (directly or through a group) also grants
+``ACT`` on the shared mailbox: changing read state, flags and folders of its mails (#148).
+Sending (``SEND``) stays with owners.
+
 Admins get no implicit access: they manage shared mailboxes (connection, assignments)
 but read their mails only if assigned like anybody else (docs/PRIVACY.md, Admin ≠ Leser).
 
 Mailbox endpoints use ``get_mailbox`` with a ``MailboxPermission``: owners hold all of
-them, assigned users ``READ`` only. A mailbox without access behaves like a missing one
-(404), so IDs of other mailboxes cannot be probed.
+them, assigned users ``READ`` and, with an ``act`` assignment, ``ACT``. A mailbox
+without access behaves like a missing one (404), so IDs of other mailboxes cannot be
+probed.
 """
 
 import enum
 import uuid
+from collections.abc import Sequence
 
 from sqlalchemy import (
     ColumnElement,
@@ -39,7 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.models import Identity
 from app.core.events import Event, publish
-from app.mail.models import Mailbox, MailboxAssignment
+from app.mail.models import AssignmentPermission, Mailbox, MailboxAssignment
 from app.users.models import User
 
 
@@ -50,13 +56,19 @@ class MailboxPermission(enum.StrEnum):
     SYNC = "sync"
     # Change settings, credentials and folder selection; remove the mailbox.
     MANAGE = "manage"
-    # Act on mails, e.g. mark read/unread (written back to the server). Not yet granted
-    # by assignments to shared mailboxes.
+    # Act on mails: read/unread, flag, archive, move, trash (written back to the server).
+    # Assigned users of a shared mailbox hold it with an ``act`` assignment.
     ACT = "act"
+    # Send replies from the mailbox (owners only).
+    SEND = "send"
 
 
-def _assigned(user_id: uuid.UUID | SQLColumnExpression[uuid.UUID]) -> ColumnElement[bool]:
-    """``Mailbox`` is assigned to ``user_id``, directly or through one of their groups."""
+def _assigned(
+    user_id: uuid.UUID | SQLColumnExpression[uuid.UUID],
+    permission: AssignmentPermission | None = None,
+) -> ColumnElement[bool]:
+    """``Mailbox`` is assigned to ``user_id``, directly or through one of their groups;
+    with ``permission`` only by assignments granting it."""
     groups = (
         func.unnest(Identity.groups).table_valued("name").render_derived("identity_group").lateral()
     )
@@ -74,17 +86,16 @@ def _assigned(user_id: uuid.UUID | SQLColumnExpression[uuid.UUID]) -> ColumnElem
         # Explicit: ``user_id`` may be a column of an enclosing query (``readers``).
         .correlate_except(Identity, groups)
     )
-    return exists(
-        select(MailboxAssignment.id)
-        .where(
-            MailboxAssignment.mailbox_id == Mailbox.id,
-            or_(
-                MailboxAssignment.user_id == user_id,
-                and_(MailboxAssignment.group_name.is_not(None), via_group),
-            ),
-        )
-        .correlate_except(MailboxAssignment)
+    query = select(MailboxAssignment.id).where(
+        MailboxAssignment.mailbox_id == Mailbox.id,
+        or_(
+            MailboxAssignment.user_id == user_id,
+            and_(MailboxAssignment.group_name.is_not(None), via_group),
+        ),
     )
+    if permission is not None:
+        query = query.where(MailboxAssignment.permission == permission)
+    return exists(query.correlate_except(MailboxAssignment))
 
 
 def _readable(user_id: uuid.UUID | SQLColumnExpression[uuid.UUID]) -> ColumnElement[bool]:
@@ -103,12 +114,44 @@ def visible_to(user_id: uuid.UUID) -> ColumnElement[bool]:
     return Mailbox.id.in_(accessible_mailbox_ids(user_id))
 
 
-def permissions(mailbox: Mailbox, user_id: uuid.UUID) -> frozenset[MailboxPermission]:
-    """Permissions on a mailbox already known to be readable by ``user_id``."""
+def permissions(
+    mailbox: Mailbox, user_id: uuid.UUID, *, act: bool = False
+) -> frozenset[MailboxPermission]:
+    """Permissions on a mailbox already known to be readable by ``user_id``; ``act``:
+    an assignment grants ``ACT`` (see ``acting_mailbox_ids``)."""
     if mailbox.owner_user_id == user_id:
         return frozenset(MailboxPermission)
-    # Assigned shared mailbox: read only for now; actions follow later (#34).
+    if act:
+        return frozenset({MailboxPermission.READ, MailboxPermission.ACT})
     return frozenset({MailboxPermission.READ})
+
+
+async def acting_mailbox_ids(
+    session: AsyncSession, user_id: uuid.UUID, mailbox_ids: Sequence[uuid.UUID]
+) -> set[uuid.UUID]:
+    """Those of the shared ``mailbox_ids`` on which an assignment grants ``user_id`` ``ACT``."""
+    if not mailbox_ids:
+        return set()
+    return set(
+        await session.scalars(
+            select(Mailbox.id).where(
+                Mailbox.id.in_(mailbox_ids),
+                Mailbox.is_shared,
+                _assigned(user_id, AssignmentPermission.ACT),
+            )
+        )
+    )
+
+
+async def mailbox_permissions(
+    session: AsyncSession, mailboxes: Sequence[Mailbox], user_id: uuid.UUID
+) -> dict[uuid.UUID, frozenset[MailboxPermission]]:
+    """``permissions`` of ``user_id`` on each of ``mailboxes`` (all readable by them)."""
+    shared = [mailbox.id for mailbox in mailboxes if mailbox.owner_user_id != user_id]
+    acting = await acting_mailbox_ids(session, user_id, shared)
+    return {
+        mailbox.id: permissions(mailbox, user_id, act=mailbox.id in acting) for mailbox in mailboxes
+    }
 
 
 async def get_mailbox(
@@ -121,7 +164,14 @@ async def get_mailbox(
     mailbox = await session.scalar(
         select(Mailbox).where(Mailbox.id == mailbox_id, visible_to(user_id))
     )
-    if mailbox is None or permission not in permissions(mailbox, user_id):
+    if mailbox is None:
+        return None
+    act = (
+        permission == MailboxPermission.ACT
+        and mailbox.owner_user_id != user_id
+        and bool(await acting_mailbox_ids(session, user_id, [mailbox.id]))
+    )
+    if permission not in permissions(mailbox, user_id, act=act):
         return None
     return mailbox
 

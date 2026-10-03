@@ -107,6 +107,7 @@ async def _message(db: AsyncSession, mailbox: Mailbox, **steps: StepStatus) -> u
         ("POST", "/admin/system/models/pull"),
         ("GET", "/admin/system/overview"),
         ("POST", f"/admin/system/mailboxes/{uuid.uuid4()}/retry-failed"),
+        ("POST", f"/admin/system/mailboxes/{uuid.uuid4()}/include-older"),
     ],
 )
 async def test_only_admins_have_access(
@@ -199,7 +200,7 @@ async def test_overview_shows_counts_and_never_content(
     quiet = await _mailbox(db_session, None, "Support")
     await _message(db_session, busy, normalize=StepStatus.DONE, triage=StepStatus.FAILED)
     await _message(db_session, busy, normalize=StepStatus.PENDING, triage=StepStatus.PENDING)
-    await _message(db_session, quiet, normalize=StepStatus.DONE)
+    await _message(db_session, quiet, normalize=StepStatus.DONE, triage=StepStatus.SKIPPED)
     db_session.add(DigestUserSettings(user_id=admin.id, enabled=True))
     await db_session.flush()
 
@@ -224,6 +225,8 @@ async def test_overview_shows_counts_and_never_content(
     assert second["id"] == str(quiet.id)
     assert second["owner_name"] is None
     assert (second["pending"], second["failed"]) == (0, 0)
+    assert (first["skipped_messages"], second["skipped_messages"]) == (0, 1)
+    assert first["include_older"] is second["include_older"] is False
 
 
 async def test_retry_failed_resets_only_failed_steps(
@@ -254,4 +257,36 @@ async def test_retry_failed_resets_only_failed_steps(
     assert rows[(failed, "normalize")].status == StepStatus.DONE
     assert rows[(elsewhere, "triage")].status == StepStatus.FAILED
     missing = await db_client.post(f"/admin/system/mailboxes/{uuid.uuid4()}/retry-failed")
+    assert missing.status_code == 404
+
+
+async def test_include_older_queues_skipped_mail(
+    db_client: AsyncClient, db_session: AsyncSession, queued: dict[str, list[Any]]
+) -> None:
+    await _sign_in(db_client, db_session, UserRole.ADMIN)
+    owner = await make_user(db_session)
+    mailbox = await _mailbox(db_session, owner)
+    other = await _mailbox(db_session, owner, "Other")
+    old = await _message(db_session, mailbox, index=StepStatus.DONE, triage=StepStatus.SKIPPED)
+    await _message(db_session, mailbox, index=StepStatus.DONE, triage=StepStatus.DONE)
+    elsewhere = await _message(db_session, other, triage=StepStatus.SKIPPED)
+
+    response = await db_client.post(f"/admin/system/mailboxes/{mailbox.id}/include-older")
+
+    assert response.status_code == 200
+    assert response.json() == {"queued": 1}
+    # Behind new mail.
+    assert queued["messages"] == [([old], -10)]
+    rows = {
+        (row.message_id, row.step): row.status
+        for row in await db_session.scalars(select(MessageProcessing))
+    }
+    assert rows[(old, "triage")] == StepStatus.PENDING
+    assert rows[(old, "index")] == StepStatus.DONE
+    assert rows[(elsewhere, "triage")] == StepStatus.SKIPPED
+    overview = (await db_client.get("/admin/system/overview")).json()
+    flags = {item["id"]: item["include_older"] for item in overview["mailboxes"]}
+    assert flags == {str(mailbox.id): True, str(other.id): False}
+
+    missing = await db_client.post(f"/admin/system/mailboxes/{uuid.uuid4()}/include-older")
     assert missing.status_code == 404

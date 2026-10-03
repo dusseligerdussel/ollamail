@@ -66,7 +66,7 @@ def use_llm(gateway: LLMGateway) -> Iterator[None]:
         _llm = saved
 
 
-@registry.step("triage", version=TRIAGE_STEP_VERSION, queue="llm")
+@registry.step("triage", version=TRIAGE_STEP_VERSION, queue="llm", recent_only=True)
 async def triage_step(ctx: StepContext) -> None:
     result = await triage_message(
         ctx.session, ctx.message_id, llm=get_llm(), settings=get_settings().triage
