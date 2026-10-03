@@ -4,7 +4,7 @@ Mails older than the backfill window skip the LLM classification steps (#141): n
 status ``skipped`` and the per-mailbox opt-in ``include_older``.
 
 Revision ID: 347034e8fdc2
-Revises: 69dd8258f443
+Revises: 7150e49202cb
 Create Date: 2026-10-03 07:10:38.732045+00:00
 """
 
@@ -14,7 +14,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "347034e8fdc2"
-down_revision: str | Sequence[str] | None = "69dd8258f443"
+down_revision: str | Sequence[str] | None = "7150e49202cb"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
