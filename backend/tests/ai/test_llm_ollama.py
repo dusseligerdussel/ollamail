@@ -164,3 +164,47 @@ async def test_pull(provider: OllamaProvider) -> None:
 
     assert json.loads(route.calls.last.request.content) == {"model": "bge-m3", "stream": False}
     await provider.aclose()
+
+
+def _ndjson(*lines: dict[str, object]) -> bytes:
+    return "\n".join(json.dumps(line) for line in lines).encode()
+
+
+@respx.mock
+async def test_pull_progress_sums_layers(provider: OllamaProvider) -> None:
+    route = respx.post(f"{BASE}/api/pull").respond(
+        200,
+        content=_ndjson(
+            {"status": "pulling manifest"},
+            {"status": "pulling a", "digest": "sha256:a", "total": 100, "completed": 40},
+            {"status": "pulling b", "digest": "sha256:b", "total": 50},
+            {"status": "pulling a", "digest": "sha256:a", "total": 100, "completed": 100},
+            {"status": "pulling b", "digest": "sha256:b", "total": 50, "completed": 50},
+            {"status": "success"},
+        ),
+    )
+
+    progress = [p async for p in provider.pull_progress("qwen2.5:3b")]
+
+    assert json.loads(route.calls[0].request.content) == {"model": "qwen2.5:3b", "stream": True}
+    assert progress == [(40, 100), (40, 150), (100, 150), (150, 150)]
+
+
+@respx.mock
+async def test_pull_progress_error_hides_server_text(provider: OllamaProvider) -> None:
+    respx.post(f"{BASE}/api/pull").respond(
+        200, content=_ndjson({"error": "pull model manifest: file does not exist"})
+    )
+
+    with pytest.raises(ModelNotAvailableError) as info:
+        _ = [p async for p in provider.pull_progress("nope:1b")]
+
+    assert "manifest" not in str(info.value)
+
+
+@respx.mock
+async def test_pull_progress_without_success_fails(provider: OllamaProvider) -> None:
+    respx.post(f"{BASE}/api/pull").respond(200, content=_ndjson({"status": "pulling manifest"}))
+
+    with pytest.raises(LLMUnavailableError):
+        _ = [p async for p in provider.pull_progress("qwen2.5:3b")]

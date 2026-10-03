@@ -74,7 +74,7 @@ COPY . .
 
 USER 10001:10001
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/api", \
-     "--forwarded-allow-ips", "*", "--reload", "--reload-dir", "app"]
+     "--no-proxy-headers", "--reload", "--reload-dir", "app"]
 
 # ---------------------------------------------------------------------------
 # runtime (default target): production image
@@ -89,5 +89,6 @@ USER 10001:10001
 
 # The frontend proxy serves the API under /api and strips the prefix; --root-path keeps
 # generated URLs (OpenAPI docs) correct. Only the proxy can reach this port.
+# X-Forwarded-* is handled by the app (OLLAMAIL_FORWARDED_ALLOW_IPS), not by uvicorn.
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000", "--root-path", "/api", \
-     "--forwarded-allow-ips", "*"]
+     "--no-proxy-headers"]

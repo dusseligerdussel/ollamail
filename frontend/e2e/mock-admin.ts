@@ -623,6 +623,71 @@ function json(route: Route, body: unknown, status = 200) {
   return route.fulfill({ status, json: body });
 }
 
+const llmTasks = ["triage", "todos", "digest", "rag_chat", "reply_draft", "embeddings"] as const;
+
+/** Model state per task; `missing` tasks can be downloaded (Ollama). */
+export function systemModels(
+  states: Partial<Record<(typeof llmTasks)[number], "installed" | "missing" | "unreachable">> = {},
+  pull: Record<string, unknown> | null = null,
+) {
+  return llmTasks.map((task) => {
+    const state = states[task] ?? "installed";
+    return {
+      task,
+      endpoint: "default",
+      provider: "ollama",
+      model: task === "embeddings" ? "bge-m3" : "qwen2.5:3b",
+      state,
+      can_pull: state === "missing",
+      pull: state === "missing" ? pull : null,
+    };
+  });
+}
+
+export const processingMailboxIds = {
+  work: "0192f200-0000-7000-8000-000000000001",
+};
+
+/** Checklist facts and processing counts; counts only, never mail content. */
+export function systemOverview(empty: boolean) {
+  return {
+    mailbox_count: empty ? 0 : 2,
+    digest_enabled: false,
+    digest_scheduler_enabled: true,
+    public_url_set: !empty,
+    mailboxes: empty
+      ? []
+      : [
+          {
+            id: processingMailboxIds.work,
+            type: "imap",
+            display_name: null,
+            is_shared: false,
+            owner_name: "Erika Muster",
+            sync_phase: "idle",
+            sync_error: null,
+            processing_enabled: true,
+            pending: 12,
+            running: 1,
+            failed: 3,
+          },
+          {
+            id: sharedMailboxIds.support,
+            type: "graph",
+            display_name: "Support",
+            is_shared: true,
+            owner_name: null,
+            sync_phase: "error",
+            sync_error: "authentication_failed",
+            processing_enabled: true,
+            pending: 0,
+            running: 0,
+            failed: 0,
+          },
+        ],
+  };
+}
+
 function notFound(route: Route) {
   return route.fulfill({
     status: 404,
@@ -639,6 +704,11 @@ export async function mockAdmin(page: Page, { empty = false }: MockAdmin = {}) {
     },
     "GET /api/admin/ai/settings": aiSettings(empty),
     "GET /api/admin/ai/providers": empty ? aiProviders.slice(0, 1) : aiProviders,
+    // A fresh instance: no models downloaded yet; otherwise only the embedding model is missing.
+    "GET /api/admin/system/models": empty
+      ? systemModels(Object.fromEntries(llmTasks.map((task) => [task, "missing"])))
+      : systemModels({ embeddings: "missing" }),
+    "GET /api/admin/system/overview": systemOverview(empty),
     "GET /api/audit/events": { items: list(auditEvents), next_before: null },
     "GET /api/triage/organization/categories": list(organizationCategories),
     "GET /api/admin/privacy/retention": retention(empty),

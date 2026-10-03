@@ -1,6 +1,7 @@
 import io
 import json
 
+import httpx
 import respx
 from httpx import ASGITransport, AsyncClient
 
@@ -83,11 +84,30 @@ async def test_pull_missing_models_pulls_only_missing() -> None:
 
 @respx.mock
 async def test_pull_failure_is_logged_not_raised() -> None:
-    respx.get(f"{OLLAMA}/api/tags").respond(500)
+    tags = respx.get(f"{OLLAMA}/api/tags").respond(500)
     gateway = LLMGateway(EnvConfigResolver(LLMSettings(base_url=OLLAMA)))
 
-    await gateway.pull_missing_models()
+    await gateway.pull_missing_models(attempts=2, interval=0)
     await gateway.aclose()
+
+    assert tags.call_count == 2
+
+
+@respx.mock
+async def test_pull_waits_for_ollama_to_start() -> None:
+    respx.get(f"{OLLAMA}/api/tags").mock(
+        side_effect=[
+            httpx.ConnectError("refused"),
+            httpx.Response(200, json={"models": [{"name": "qwen2.5:3b"}]}),
+        ]
+    )
+    pull = respx.post(f"{OLLAMA}/api/pull").respond(json={"status": "success"})
+    gateway = LLMGateway(EnvConfigResolver(LLMSettings(base_url=OLLAMA)))
+
+    await gateway.pull_missing_models(interval=0)
+    await gateway.aclose()
+
+    assert pull.call_count == 1
 
 
 async def test_metrics_log_contains_no_content() -> None:

@@ -54,6 +54,17 @@ export function isApiError(error: unknown): error is ApiError {
   return error instanceof ApiError;
 }
 
+/** `error_code` of the backend's CSRF rejection (`app/auth/csrf.py`). */
+export const CSRF_ERROR_CODE = "csrf_failed";
+
+/**
+ * The server rejected a state-changing request because the CSRF cookie was missing or
+ * invalid, typically because the browser dropped the `Secure` cookie on plain `http://`.
+ */
+export function isCsrfError(error: unknown): boolean {
+  return isApiError(error) && error.status === 403 && error.problem?.error_code === CSRF_ERROR_CODE;
+}
+
 const messageKeys = {
   0: "errors.network",
   400: "errors.badRequest",

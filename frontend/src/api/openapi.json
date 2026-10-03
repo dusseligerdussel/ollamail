@@ -4783,6 +4783,99 @@
         "title": "MailboxPermission",
         "type": "string"
       },
+      "MailboxProcessingRead": {
+        "description": "Sync status and processing counts of one mailbox; no content, no address.",
+        "properties": {
+          "display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Display Name"
+          },
+          "failed": {
+            "title": "Failed",
+            "type": "integer"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "is_shared": {
+            "title": "Is Shared",
+            "type": "boolean"
+          },
+          "owner_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Owner Name"
+          },
+          "pending": {
+            "title": "Pending",
+            "type": "integer"
+          },
+          "processing_enabled": {
+            "title": "Processing Enabled",
+            "type": "boolean"
+          },
+          "running": {
+            "title": "Running",
+            "type": "integer"
+          },
+          "sync_error": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sync Error"
+          },
+          "sync_phase": {
+            "enum": [
+              "paused",
+              "pending",
+              "importing",
+              "syncing",
+              "idle",
+              "error"
+            ],
+            "title": "Sync Phase",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/MailboxType"
+          }
+        },
+        "required": [
+          "id",
+          "type",
+          "display_name",
+          "is_shared",
+          "owner_name",
+          "sync_phase",
+          "sync_error",
+          "processing_enabled",
+          "pending",
+          "running",
+          "failed"
+        ],
+        "title": "MailboxProcessingRead",
+        "type": "object"
+      },
       "MailboxProviderRead": {
         "description": "A mailbox type that can be added on this instance.",
         "properties": {
@@ -5475,6 +5568,133 @@
           "code"
         ],
         "title": "MfaVerifyRequest",
+        "type": "object"
+      },
+      "ModelPullRead": {
+        "properties": {
+          "completed": {
+            "title": "Completed",
+            "type": "integer"
+          },
+          "error_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Error Code"
+          },
+          "status": {
+            "$ref": "#/components/schemas/PullStatus"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total"
+          },
+          "updated_at": {
+            "format": "date-time",
+            "title": "Updated At",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "completed",
+          "total",
+          "error_code",
+          "updated_at"
+        ],
+        "title": "ModelPullRead",
+        "type": "object"
+      },
+      "ModelPullRequest": {
+        "properties": {
+          "endpoint": {
+            "maxLength": 64,
+            "minLength": 1,
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "model": {
+            "maxLength": 255,
+            "minLength": 1,
+            "title": "Model",
+            "type": "string"
+          }
+        },
+        "required": [
+          "endpoint",
+          "model"
+        ],
+        "title": "ModelPullRequest",
+        "type": "object"
+      },
+      "ModelStatusRead": {
+        "properties": {
+          "can_pull": {
+            "title": "Can Pull",
+            "type": "boolean"
+          },
+          "endpoint": {
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "model": {
+            "title": "Model",
+            "type": "string"
+          },
+          "provider": {
+            "enum": [
+              "ollama",
+              "openai_compatible"
+            ],
+            "title": "Provider",
+            "type": "string"
+          },
+          "pull": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ModelPullRead"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "state": {
+            "enum": [
+              "installed",
+              "missing",
+              "unreachable",
+              "disabled"
+            ],
+            "title": "State",
+            "type": "string"
+          },
+          "task": {
+            "$ref": "#/components/schemas/LLMTask"
+          }
+        },
+        "required": [
+          "task",
+          "endpoint",
+          "provider",
+          "model",
+          "state",
+          "can_pull",
+          "pull"
+        ],
+        "title": "ModelStatusRead",
         "type": "object"
       },
       "MsTodoConnectRequest": {
@@ -6456,6 +6676,16 @@
         "title": "ProfileUpdate",
         "type": "object"
       },
+      "PullStatus": {
+        "enum": [
+          "queued",
+          "running",
+          "done",
+          "failed"
+        ],
+        "title": "PullStatus",
+        "type": "string"
+      },
       "RagFilters": {
         "additionalProperties": false,
         "description": "Filters set in the UI; each one narrows the mailboxes the user may read.",
@@ -6959,6 +7189,19 @@
           "audit_days"
         ],
         "title": "RetentionValues",
+        "type": "object"
+      },
+      "RetryFailedRead": {
+        "properties": {
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued"
+        ],
+        "title": "RetryFailedRead",
         "type": "object"
       },
       "RoleMappingRead": {
@@ -8683,6 +8926,43 @@
           }
         },
         "title": "SyncSettingsUpdate",
+        "type": "object"
+      },
+      "SystemOverviewRead": {
+        "description": "Facts for the getting-started checklist and the processing table.",
+        "properties": {
+          "digest_enabled": {
+            "title": "Digest Enabled",
+            "type": "boolean"
+          },
+          "digest_scheduler_enabled": {
+            "title": "Digest Scheduler Enabled",
+            "type": "boolean"
+          },
+          "mailbox_count": {
+            "title": "Mailbox Count",
+            "type": "integer"
+          },
+          "mailboxes": {
+            "items": {
+              "$ref": "#/components/schemas/MailboxProcessingRead"
+            },
+            "title": "Mailboxes",
+            "type": "array"
+          },
+          "public_url_set": {
+            "title": "Public Url Set",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "mailbox_count",
+          "digest_enabled",
+          "digest_scheduler_enabled",
+          "public_url_set",
+          "mailboxes"
+        ],
+        "title": "SystemOverviewRead",
         "type": "object"
       },
       "TargetType": {
@@ -11892,6 +12172,160 @@
           }
         },
         "summary": "Sync Shared Mailbox",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/system/mailboxes/{mailbox_id}/retry-failed": {
+      "post": {
+        "description": "Process the failed steps of a mailbox again, behind new mail (``REPROCESS``).",
+        "operationId": "admin_retry_failed_processing",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/RetryFailedRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Retry Failed Processing",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/system/models": {
+      "get": {
+        "description": "Each task's model: installed, missing, endpoint unreachable, or disabled (cloud\nendpoint while cloud LLMs are off). Asks every endpoint for its models.",
+        "operationId": "admin_get_model_status",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/ModelStatusRead"
+                  },
+                  "title": "Response Admin Get Model Status",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "Get Model Status",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/system/models/pull": {
+      "post": {
+        "description": "Download a model that a task uses onto its Ollama endpoint, as a background job.\nPoll ``GET /admin/system/models`` for the progress.",
+        "operationId": "admin_pull_model",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ModelPullRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ModelPullRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "422": {
+            "description": "Model not assigned to a task on this Ollama endpoint"
+          }
+        },
+        "summary": "Pull Model",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/system/overview": {
+      "get": {
+        "description": "Facts for the getting-started checklist and, per mailbox, sync status and the\nnumber of pending and failed processing steps.",
+        "operationId": "admin_get_system_overview",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SystemOverviewRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          }
+        },
+        "summary": "Get System Overview",
         "tags": [
           "admin"
         ]
@@ -15450,7 +15884,7 @@
         ]
       },
       "post": {
-        "description": "Add a mailbox. The connection is tested first; then the initial import starts\n(unless ``sync_enabled`` is false).",
+        "description": "Add a mailbox. The connection is tested first (counts towards the rate limit of\n``POST /mailboxes/test``); then the initial import starts (unless ``sync_enabled`` is\nfalse).",
         "operationId": "mailboxes_create_mailbox",
         "requestBody": {
           "content": {
@@ -15481,6 +15915,9 @@
           },
           "422": {
             "description": "Invalid request, unavailable mailbox type or failed connection test"
+          },
+          "429": {
+            "description": "Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS)"
           }
         },
         "summary": "Create Mailbox",
@@ -15565,7 +16002,7 @@
     },
     "/mailboxes/test": {
       "post": {
-        "description": "Connect and list the folders without saving anything. A failed test is a normal\nresult (``ok: false`` with an error code), not an HTTP error.",
+        "description": "Connect and list the folders without saving anything. A failed test is a normal\nresult (``ok: false`` with an error code), not an HTTP error; an unreachable server and\none on a refused internal address both give ``connection_failed``. Rate-limited per\nuser.",
         "operationId": "mailboxes_test_mailbox_connection",
         "requestBody": {
           "content": {
@@ -15593,6 +16030,9 @@
           },
           "422": {
             "description": "Invalid request, unavailable mailbox type or failed connection test"
+          },
+          "429": {
+            "description": "Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS)"
           }
         },
         "summary": "Test Mailbox Connection",
@@ -15741,6 +16181,9 @@
           },
           "422": {
             "description": "Invalid request, unavailable mailbox type or failed connection test"
+          },
+          "429": {
+            "description": "Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS)"
           }
         },
         "summary": "Update Mailbox",
@@ -17193,7 +17636,7 @@
     },
     "/setup": {
       "post": {
-        "description": "Create the first admin and sign them in. Only possible while no user exists.",
+        "description": "Create the first admin and sign them in. Only possible while no user exists.\nAttempts count towards the per-IP limit of the login (``OLLAMAIL_AUTH_IP_MAX_ATTEMPTS``).",
         "operationId": "setup_create_admin",
         "requestBody": {
           "content": {
@@ -17231,6 +17674,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts (rate limit or account lockout)"
           }
         },
         "summary": "Create Admin",

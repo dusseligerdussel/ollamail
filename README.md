@@ -36,8 +36,13 @@ docker compose -f deploy/compose.yaml exec api python -m app.cli setup-token
 ```
 
 Dann <http://localhost:8080> öffnen, mit dem Setup-Code den ersten Admin anlegen und unter
-Einstellungen → Postfächer ein Postfach verbinden. Für den Zugriff über das Netz TLS davorsetzen
-(Sitzungs-Cookies sind `Secure`). Alles Weitere – fertige Images, Reverse Proxy, Backup,
+Einstellungen → Postfächer ein Postfach verbinden. Die UI ist standardmäßig nur auf dem Host
+selbst erreichbar (`OLLAMAIL_HTTP_BIND=127.0.0.1`). Für den Zugriff über das Netz TLS davorsetzen
+(Sitzungs-Cookies sind `Secure`): Über `http://<LAN-IP>:8080` speichern Browser die Cookies nicht,
+Setup und Anmeldung schlagen dann mit dem Hinweis „Unverschlüsselte Verbindung“ fehl. Nur für Tests
+im eigenen Netz helfen `OLLAMAIL_HTTP_BIND` und `OLLAMAIL_AUTH_COOKIE_SECURE=false` – mit
+unverschlüsselten Passwörtern und Sitzungen, siehe
+[Betrieb 2.6](docs/OPERATIONS.md#26-http-ohne-tls-testbetrieb). Alles Weitere – fertige Images, Reverse Proxy, Backup,
 Updates, Fehlersuche – steht in [`docs/OPERATIONS.md`](docs/OPERATIONS.md).
 
 ## Dokumentation

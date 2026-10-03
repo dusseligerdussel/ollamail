@@ -14,6 +14,11 @@ Priorities: the priority given to ``enqueue_processing`` is inherited by all ste
 that message. Workers always take the job with the highest priority first, so new mails
 (``Priority.NEW``) overtake the backlog of an initial import (``Priority.BACKFILL``) and
 reprocessing (``Priority.REPROCESS``) on every queue.
+
+Failures (#138): a step that keeps failing is marked ``failed``. If the reason passes
+(LLM unreachable, model missing, timeout), ``processing.retry_failed`` runs it again
+later with a growing delay (``OLLAMAIL_PROCESSING_AUTO_RETRY_*``). While the worker's
+circuit breaker pauses a dead LLM endpoint, steps are postponed instead of failing.
 """
 
 import contextlib
@@ -21,13 +26,19 @@ import enum
 import re
 from collections.abc import Iterator, Sequence
 from contextlib import contextmanager
+from datetime import timedelta
 from uuid import UUID
 
 from procrastinate import BaseRetryStrategy, JobContext, RetryDecision
 from procrastinate.exceptions import AlreadyEnqueued
 from procrastinate.jobs import Job
 
-from app.ai.llm.errors import LLMTimeoutError
+from app.ai.llm.errors import (
+    LLMCircuitOpenError,
+    LLMTimeoutError,
+    LLMUnavailableError,
+    ModelNotAvailableError,
+)
 from app.core.config import get_settings
 from app.core.db import Database
 from app.core.logging import get_logger
@@ -94,10 +105,14 @@ def error_code(exc: BaseException) -> str:
 class StepRetry(BaseRetryStrategy):
     """Retries a step job with the ``retry`` strategy of its step. An LLM call that timed
     out is retried at most ``OLLAMAIL_PROCESSING_LLM_TIMEOUT_ATTEMPTS`` times in total:
-    the same mail would most likely time out again and block the LLM slot each time."""
+    the same mail would most likely time out again and block the LLM slot each time. A
+    missing model is not retried at once (it will not appear within minutes); the
+    automatic retry (``auto_retry``) runs the step again later."""
 
     def get_retry_decision(self, *, exception: BaseException, job: Job) -> RetryDecision | None:
         if isinstance(exception, StepError) and exception.permanent:
+            return None
+        if isinstance(exception, ModelNotAvailableError):
             return None
         if isinstance(exception, LLMTimeoutError) and (
             # ``job.attempts`` counts the previous attempts.
@@ -181,6 +196,9 @@ async def run_step(context: JobContext, message_id: str, step: str) -> None:
             await definition.handler(StepContext(session, message_uuid, mailbox_id))
             ready = await service.finish_step(session, message_uuid, mailbox_id, definition, steps)
             await session.commit()
+    except LLMCircuitOpenError as exc:
+        await _postpone(context, database, message_uuid, definition, exc.retry_after)
+        return
     except Exception as exc:
         await _record_failure(context, database, message_uuid, mailbox_id, definition, exc)
         if isinstance(exc, StepError) and exc.permanent:
@@ -188,6 +206,48 @@ async def run_step(context: JobContext, message_id: str, step: str) -> None:
         raise
     log.info("processing_step_done", message_id=message_id, step=step)
     await _defer_steps(message_id, ready, _priority(context))
+
+
+# Wake postponed steps just after the pause has ended, not just before it.
+_POSTPONE_MARGIN_SECONDS = 1
+
+
+async def _postpone(
+    context: JobContext,
+    database: Database,
+    message_id: UUID,
+    step: ProcessingStep,
+    retry_after: float,
+) -> None:
+    """The LLM endpoint is paused by the circuit breaker: run the step again once the
+    pause is over, in a new job, without using up an attempt of this one."""
+    async with database.sessionmaker() as session:
+        await service.postpone_step(session, message_id, step)
+        await session.commit()
+    lock = _step_lock(message_id, step.name)
+    with contextlib.suppress(AlreadyEnqueued):
+        # A job already waiting for this step runs it anyway.
+        await run_step.configure(
+            queue=step.queue,
+            priority=_priority(context),
+            lock=lock,
+            queueing_lock=lock,
+            schedule_in={"seconds": round(retry_after) + _POSTPONE_MARGIN_SECONDS},
+        ).defer_async(message_id=str(message_id), step=step.name)
+    log.info("processing_step_postponed", message_id=str(message_id), step=step.name)
+
+
+def auto_retry(exc: BaseException) -> service.AutoRetry | None:
+    """Automatic retries for a failure whose reason may pass; ``None`` for permanent
+    ones (invalid model output, rejected request, bugs)."""
+    settings = get_settings().processing
+    if isinstance(exc, LLMTimeoutError):
+        limit = settings.auto_retry_timeout_attempts
+    elif isinstance(exc, LLMUnavailableError | ModelNotAvailableError):
+        limit = settings.auto_retry_attempts
+    else:
+        return None
+    return service.AutoRetry(limit, timedelta(minutes=settings.auto_retry_delay_minutes))
 
 
 async def _record_failure(
@@ -205,7 +265,14 @@ async def _record_failure(
     )
     async with database.sessionmaker() as session:
         ready = await service.fail_step(
-            session, message_id, mailbox_id, step, code, final=final, steps=registry.ordered()
+            session,
+            message_id,
+            mailbox_id,
+            step,
+            code,
+            final=final,
+            steps=registry.ordered(),
+            auto_retry=auto_retry(exc),
         )
         await session.commit()
     log.warning(
@@ -244,3 +311,23 @@ async def requeue_outdated(timestamp: int) -> None:
     await requeue_messages(message_ids, Priority.REPROCESS)
     if message_ids:
         log.info("processing_requeued", count=len(message_ids))
+
+
+@app.periodic(cron="*/5 * * * *", periodic_id="processing_retry_failed")
+@app.task(
+    name="processing.retry_failed",
+    queue="default",
+    queueing_lock="processing.retry_failed",
+)
+async def retry_failed(timestamp: int) -> None:
+    """Every 5 minutes: queue steps that failed for a passing reason and whose retry
+    time has come (``OLLAMAIL_PROCESSING_AUTO_RETRY_*``), behind all other work."""
+    settings = get_settings().processing
+    if not settings.enabled:
+        return
+    async with get_database().sessionmaker() as session:
+        message_ids = await service.requeue_due_retries(session, limit=settings.requeue_batch_size)
+        await session.commit()
+    await requeue_messages(message_ids, Priority.REPROCESS)
+    if message_ids:
+        log.info("processing_retry_failed", count=len(message_ids))

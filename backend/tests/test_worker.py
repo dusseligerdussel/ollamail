@@ -26,6 +26,7 @@ from app.worker import (
     build_connector,
     remove_old_jobs,
     resource_lock,
+    retry_stalled_jobs,
     run,
     worker_groups,
 )
@@ -116,6 +117,8 @@ def test_periodic_cleanup_is_registered() -> None:
 
     assert periodic["remove_old_jobs"].task is remove_old_jobs
     assert remove_old_jobs.queue == "default"
+    assert periodic["retry_stalled_jobs"].task is retry_stalled_jobs
+    assert retry_stalled_jobs.queue == "default"
 
 
 def test_vendored_schema_matches_installed_procrastinate() -> None:
@@ -253,6 +256,81 @@ async def test_worker_process_runs_task_and_stops_on_sigterm(
     assert events[-1] == "worker_stopped"
     # Graceful shutdown unregisters the workers.
     assert await _execute("SELECT count(*) FROM procrastinate_workers") == [(0,)]
+
+
+@pytest.fixture
+async def registered_workers(queue_database: DatabaseSettings) -> AsyncIterator[list[int]]:
+    """IDs of workers a test registers by hand; removed afterwards (other tests count
+    the rows of ``procrastinate_workers``)."""
+    worker_ids: list[int] = []
+    yield worker_ids
+    for worker_id in worker_ids:
+        await _execute(f"DELETE FROM procrastinate_workers WHERE id = {int(worker_id)}")
+
+
+async def _start_job_on_dead_worker(lock: str, worker_ids: list[int]) -> int:
+    """A ``tests.record`` job in ``doing`` whose worker stopped sending heartbeats, as
+    after an OOM kill."""
+    async with app.open_async():
+        job_id = await record.configure(lock=lock).defer_async(item_id="stalled")
+        worker_id = await app.job_manager.register_worker()
+        worker_ids.append(worker_id)
+        job = await app.job_manager.fetch_job(["sync"], worker_id)
+    assert job is not None and job.id == job_id
+    await _execute(
+        "UPDATE procrastinate_workers SET last_heartbeat = now() - interval '10 minutes' "
+        f"WHERE id = {int(worker_id)}"
+    )
+    return job_id
+
+
+async def _run_default_queue_once() -> None:
+    from procrastinate.periodic import PeriodicRegistry
+
+    registry, app.periodic_registry = app.periodic_registry, PeriodicRegistry()
+    try:
+        async with app.open_async():
+            await app.run_worker_async(
+                queues=["default"], wait=False, install_signal_handlers=False, listen_notify=False
+            )
+    finally:
+        app.periodic_registry = registry
+
+
+@pytest.mark.db
+async def test_stalled_job_of_a_dead_worker_is_retried(registered_workers: list[int]) -> None:
+    lock = resource_lock("mailbox", "m-stalled")
+    stalled = await _start_job_on_dead_worker(lock, registered_workers)
+    async with app.open_async():
+        # The stalled job holds the mailbox lock: a new job for it could never start.
+        waiting = await record.configure(lock=lock).defer_async(item_id="next")
+        await retry_stalled_jobs.defer_async(timestamp=0)
+
+    await _run_default_queue_once()
+
+    assert await _job_status(stalled) == "todo"
+    executed.clear()
+    async with app.open_async():
+        await app.run_worker_async(
+            queues=["sync"], wait=False, install_signal_handlers=False, listen_notify=False
+        )
+    assert sorted(executed) == ["next", "stalled"]
+    assert await _job_status(waiting) == "succeeded"
+
+
+@pytest.mark.db
+async def test_running_job_with_live_worker_is_left_alone(registered_workers: list[int]) -> None:
+    async with app.open_async():
+        await record.defer_async(item_id="busy")
+        worker_id = await app.job_manager.register_worker()
+        registered_workers.append(worker_id)
+        job = await app.job_manager.fetch_job(["sync"], worker_id)
+        assert job is not None and job.id is not None
+        await retry_stalled_jobs.defer_async(timestamp=0)
+
+    await _run_default_queue_once()
+
+    assert await _job_status(job.id) == "doing"
 
 
 @pytest.mark.db

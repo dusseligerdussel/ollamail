@@ -5,7 +5,9 @@ from collections.abc import AsyncIterator
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
+from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 
+from app.admin.system import router as admin_system_router
 from app.ai.llm import LLMGateway
 from app.ai.settings.router import router as ai_settings_router
 from app.ai.settings.router import status_router as ai_status_router
@@ -119,6 +121,9 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         exempt_paths=[NOTIFICATIONS_PATH, SCIM_PATH_PREFIX, saml.ACS_PATH],
     )
     app.add_middleware(RequestContextMiddleware)
+    # Outermost: everything inside sees the real client IP. Replaces uvicorn's own proxy
+    # header handling (started with --no-proxy-headers, see backend/Dockerfile).
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=settings.security.forwarded_allow_ips)
     app.include_router(health_router)
     app.include_router(events_router)
     app.include_router(setup_router)
@@ -137,6 +142,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(audit_router)
     app.include_router(ai_settings_router)
     app.include_router(ai_status_router)
+    app.include_router(admin_system_router)
     # Before the mailbox router: ``/mailboxes/providers`` must not match ``/{mailbox_id}``.
     app.include_router(mailbox_providers_router)
     app.include_router(mailboxes_router)
