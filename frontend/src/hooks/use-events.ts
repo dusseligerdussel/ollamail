@@ -30,6 +30,14 @@ export const invalidationRules: Record<string, InvalidationRule> = {
   "mailbox.changed": () => [["mailbox"], ["message"]],
   // A message got its category (#21): labels and the inbox by category, not the threads.
   "message.triaged": () => [["message", "triage"]],
+  // A message is processed (#140): its tasks and labels may be new, the search finds it. Not
+  // the threads and lists: processing changes neither, and during an import every message
+  // sends this event.
+  "message.processed": () => [
+    ["message", "todos"],
+    ["message", "triage"],
+    ["message", "search"],
+  ],
 };
 
 export function defaultInvalidation(event: ServerEvent): QueryKey[] {
@@ -52,15 +60,84 @@ export function parseServerEvent(message: MessageEvent<unknown>): ServerEvent | 
   return { ...record, type };
 }
 
-export function applyServerEvent(
-  queryClient: QueryClient,
+export function invalidationsFor(
   event: ServerEvent,
   rules: Record<string, InvalidationRule> = invalidationRules,
-) {
+): QueryKey[] {
   const rule = Object.hasOwn(rules, event.type) ? rules[event.type] : undefined;
-  for (const queryKey of (rule ?? defaultInvalidation)(event)) {
-    void queryClient.invalidateQueries({ queryKey });
-  }
+  return (rule ?? defaultInvalidation)(event);
+}
+
+/** Quiet time after the last event before a batch of invalidations is applied. */
+export const INVALIDATION_DEBOUNCE_MS = 2_000;
+/** Longest an event waits while events keep coming (e.g. during an import). */
+export const INVALIDATION_MAX_WAIT_MS = 5_000;
+
+function startsWith(key: QueryKey, prefix: QueryKey) {
+  return (
+    prefix.length <= key.length &&
+    prefix.every((part, index) => JSON.stringify(part) === JSON.stringify(key[index]))
+  );
+}
+
+/**
+ * Bundles invalidations (#140): an event after a quiet period applies at once; events that
+ * follow are collected and applied together once no event came for `debounceMs`, or at the
+ * latest `maxWaitMs` after the batch started. Each key is invalidated once per batch, and
+ * not at all if a shorter key of the same batch covers it. So an import of thousands of
+ * messages refetches the lists every few seconds instead of once per message.
+ */
+export function createInvalidationBatcher(
+  queryClient: QueryClient,
+  { debounceMs = INVALIDATION_DEBOUNCE_MS, maxWaitMs = INVALIDATION_MAX_WAIT_MS } = {},
+) {
+  const pending = new Map<string, QueryKey>();
+  let timer: ReturnType<typeof setTimeout> | undefined;
+  // Start of the current batch; `undefined` while quiet.
+  let batchStart: number | undefined;
+
+  const invalidate = (keys: QueryKey[]) => {
+    for (const queryKey of keys) {
+      if (keys.some((other) => other.length < queryKey.length && startsWith(queryKey, other)))
+        continue;
+      void queryClient.invalidateQueries({ queryKey });
+    }
+  };
+  const flush = () => {
+    timer = undefined;
+    if (pending.size === 0) {
+      batchStart = undefined;
+      return;
+    }
+    const keys = [...pending.values()];
+    pending.clear();
+    invalidate(keys);
+    batchStart = Date.now();
+    timer = setTimeout(flush, debounceMs);
+  };
+
+  return {
+    add(keys: QueryKey[]) {
+      if (keys.length === 0) return;
+      if (batchStart === undefined) {
+        batchStart = Date.now();
+        invalidate([...new Map(keys.map((key) => [JSON.stringify(key), key])).values()]);
+        timer = setTimeout(flush, debounceMs);
+        return;
+      }
+      for (const key of keys) pending.set(JSON.stringify(key), key);
+      clearTimeout(timer);
+      const left = batchStart + maxWaitMs - Date.now();
+      timer = setTimeout(flush, Math.max(0, Math.min(debounceMs, left)));
+    },
+    /** Drops what is pending (everything is refetched anyway, or nobody listens anymore). */
+    cancel() {
+      clearTimeout(timer);
+      timer = undefined;
+      pending.clear();
+      batchStart = undefined;
+    },
+  };
 }
 
 export interface UseEventsOptions {
@@ -70,7 +147,8 @@ export interface UseEventsOptions {
 }
 
 /**
- * Subscribes to server events and turns them into TanStack Query invalidations.
+ * Subscribes to server events and turns them into TanStack Query invalidations, bundled by
+ * `createInvalidationBatcher`.
  *
  * The browser reconnects on its own after network errors. Events missed while disconnected
  * are not replayed, so after a reconnect all queries are refetched.
@@ -86,14 +164,18 @@ export function useEvents({
     if (!enabled || typeof EventSource === "undefined") return;
 
     const source = new EventSource(url, { withCredentials: true });
+    const batcher = createInvalidationBatcher(queryClient);
     let disconnected = false;
 
     const onMessage = (message: MessageEvent<unknown>) => {
       const event = parseServerEvent(message);
-      if (event) applyServerEvent(queryClient, event, rules);
+      if (event) batcher.add(invalidationsFor(event, rules));
     };
     const onOpen = () => {
-      if (disconnected) void queryClient.invalidateQueries();
+      if (disconnected) {
+        batcher.cancel();
+        void queryClient.invalidateQueries();
+      }
       disconnected = false;
     };
     const onError = () => {
@@ -108,6 +190,7 @@ export function useEvents({
 
     return () => {
       source.close();
+      batcher.cancel();
     };
   }, [queryClient, url, enabled, rules]);
 }

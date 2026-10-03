@@ -372,7 +372,8 @@ export async function mockMail(
         const items = all.slice(offset, offset + limit);
         return json(route, {
           items,
-          total: all.length,
+          // Like the API: counted for the first page only.
+          total: offset === 0 ? all.length : null,
           next_cursor: offset + limit < all.length ? String(offset + limit) : null,
         });
       }
