@@ -21,6 +21,7 @@ from app.auth.mfa.router import router as mfa_router
 from app.auth.providers import AuthProviderRegistry, github, oidc, saml
 from app.auth.providers.ldap.router import login_router as ldap_login_router
 from app.auth.providers.ldap.router import router as ldap_router
+from app.auth.reauth import router as reauth_router
 from app.auth.router import router as auth_router
 from app.auth.router import setup_router
 from app.auth.setup import log_setup_status
@@ -133,6 +134,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(setup_router)
     app.include_router(auth_router)
     app.include_router(mfa_router)
+    app.include_router(reauth_router)
     app.include_router(ldap_login_router)
     app.include_router(ldap_router)
     app.include_router(users_router)

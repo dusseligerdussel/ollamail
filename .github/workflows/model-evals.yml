@@ -1,0 +1,105 @@
+# Model evaluation (docs/operations/model-evals.md): triage, todos, digest and RAG on the
+# synthetic data set, with real models in Ollama on the CPU of a GitHub runner.
+# Manual only: slow (hours for the full data set) and not part of `ci-ok`.
+name: Model evals
+
+on:
+  workflow_dispatch:
+    inputs:
+      models:
+        description: "Chat models (Ollama names, space-separated)"
+        required: true
+        default: "qwen2.5:3b"
+      embedding_model:
+        description: "Embedding model for the RAG index"
+        required: true
+        default: "bge-m3"
+      stages:
+        description: "Stages (space-separated: triage todos digest rag)"
+        required: true
+        default: "triage todos digest rag"
+      limit:
+        description: "Evenly spaced sample of N mails (empty: all)"
+        required: false
+        default: "60"
+      judge_model:
+        description: "Optional LLM judge for RAG answers (empty: rules only)"
+        required: false
+        default: ""
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  evals:
+    name: Evaluate models
+    runs-on: ubuntu-latest
+    timeout-minutes: 350
+    defaults:
+      run:
+        working-directory: backend
+    services:
+      postgres:
+        image: pgvector/pgvector:pg16
+        env:
+          POSTGRES_USER: ollamail
+          POSTGRES_PASSWORD: ollamail
+          POSTGRES_DB: ollamail_eval
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ollamail -d ollamail_eval"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      OLLAMAIL_DATABASE_URL: postgresql+asyncpg://ollamail:ollamail@localhost:5432/ollamail_eval
+      OLLAMAIL_EVAL_DATABASE_URL: postgresql+asyncpg://ollamail:ollamail@localhost:5432/ollamail_eval
+      OLLAMAIL_LLM_BASE_URL: http://localhost:11434
+      MODELS: ${{ inputs.models }}
+      EMBEDDING_MODEL: ${{ inputs.embedding_model }}
+      STAGES: ${{ inputs.stages }}
+      LIMIT: ${{ inputs.limit }}
+      JUDGE_MODEL: ${{ inputs.judge_model }}
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - uses: astral-sh/setup-uv@c18668ad3cf93ea998bef934396af7bb5c839dc7 # v10.2.0
+        with:
+          working-directory: backend
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Start Ollama
+        run: docker run -d --name ollama -p 11434:11434 ollama/ollama:0.35.0
+      - name: Install dependencies
+        run: uv sync --locked
+      - name: Migrate database
+        run: uv run alembic upgrade head
+      - name: Pull models
+        run: |
+          for model in $MODELS $EMBEDDING_MODEL $JUDGE_MODEL; do
+            docker exec ollama ollama pull "$model"
+          done
+      - name: Run evaluation
+        run: |
+          args=(--output ../eval-results --embedding-model "$EMBEDDING_MODEL")
+          for model in $MODELS; do args+=(--model "$model"); done
+          for stage in $STAGES; do args+=(--stage "$stage"); done
+          if [ -n "$LIMIT" ]; then args+=(--limit "$LIMIT"); fi
+          if [ -n "$JUDGE_MODEL" ]; then args+=(--judge-model "$JUDGE_MODEL"); fi
+          uv run python -m app.evals "${args[@]}"
+      - name: Summary
+        if: always()
+        run: cat ../eval-results/report.md >> "$GITHUB_STEP_SUMMARY" || true
+      - name: Upload report
+        if: always()
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: model-evals
+          path: eval-results/
+          if-no-files-found: ignore

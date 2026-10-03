@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { pageNavigation } from "@/api/auth";
 import { isApiError } from "@/api/errors";
 import { accountPrivacyQueryOptions, useDeleteAccount } from "@/api/privacy";
+import { isReauthCancelled } from "@/api/reauth";
 import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
 import {
@@ -89,6 +90,7 @@ export function DeleteAccountSection() {
               onChange={(event) => setConfirmation(event.target.value)}
             />
             {remove.isError &&
+              !isReauthCancelled(remove.error) &&
               (isApiError(remove.error) && remove.error.status === 409 ? (
                 <p role="alert" className="text-ui text-destructive">
                   {t("privacy.delete.lastAdmin")}
