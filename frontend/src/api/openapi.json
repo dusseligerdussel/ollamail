@@ -3954,6 +3954,19 @@
         "title": "InboxMessage",
         "type": "object"
       },
+      "IncludeOlderRead": {
+        "properties": {
+          "queued": {
+            "title": "Queued",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "queued"
+        ],
+        "title": "IncludeOlderRead",
+        "type": "object"
+      },
       "InvitationAccept": {
         "properties": {
           "password": {
@@ -4741,7 +4754,7 @@
         "type": "object"
       },
       "MailboxDeleted": {
-        "description": "Confirmation of a removal: the mailbox and all data derived from it (mails,\nattachments and their files, threads, folders, sync state, processing results, todos,\ntriage results, search index) are deleted.",
+        "description": "Confirmation of a removal: the mailbox and all data derived from it (mails,\nattachments and their files, threads, folders, sync state, processing results, todos,\ntriage results, search index) are hidden at once and deleted by a background job\n(#147); ``mailbox.changed`` with ``deleted`` reports the end.",
         "properties": {
           "attachments": {
             "title": "Attachments",
@@ -4825,6 +4838,10 @@
             "title": "Id",
             "type": "string"
           },
+          "include_older": {
+            "title": "Include Older",
+            "type": "boolean"
+          },
           "is_shared": {
             "title": "Is Shared",
             "type": "boolean"
@@ -4852,6 +4869,10 @@
             "title": "Running",
             "type": "integer"
           },
+          "skipped_messages": {
+            "title": "Skipped Messages",
+            "type": "integer"
+          },
           "sync_error": {
             "anyOf": [
               {
@@ -4865,6 +4886,7 @@
           },
           "sync_phase": {
             "enum": [
+              "deleting",
               "paused",
               "pending",
               "importing",
@@ -4890,7 +4912,9 @@
           "processing_enabled",
           "pending",
           "running",
-          "failed"
+          "failed",
+          "skipped_messages",
+          "include_older"
         ],
         "title": "MailboxProcessingRead",
         "type": "object"
@@ -5006,7 +5030,7 @@
         "type": "object"
       },
       "MailboxSyncStatus": {
-        "description": "``phase`` summarises the fields: ``paused`` (sync disabled), ``error`` (the last sync\nfailed for the whole mailbox), ``syncing`` (a sync job is queued or running),\n``pending`` (never synced), ``importing`` (initial import of some folder unfinished),\nelse ``idle``.",
+        "description": "``phase`` summarises the fields: ``deleting`` (removal requested, a background job\ndeletes the data; nothing else can be done with the mailbox), ``paused`` (sync\ndisabled), ``error`` (the last sync failed for the whole mailbox), ``syncing`` (a sync\njob is queued or running), ``pending`` (never synced), ``importing`` (initial import of\nsome folder unfinished), else ``idle``.",
         "properties": {
           "folders_failed": {
             "title": "Folders Failed",
@@ -5049,6 +5073,7 @@
           },
           "phase": {
             "enum": [
+              "deleting",
               "paused",
               "pending",
               "importing",
@@ -12050,7 +12075,7 @@
     },
     "/admin/shared-mailboxes/{mailbox_id}": {
       "delete": {
-        "description": "Remove the shared mailbox with all its data (as ``DELETE /mailboxes/{id}``) and\nits assignments.",
+        "description": "Remove the shared mailbox with all its data and its assignments, in the background\n(as ``DELETE /mailboxes/{id}``).",
         "operationId": "admin_delete_shared_mailbox",
         "parameters": [
           {
@@ -12065,7 +12090,7 @@
           }
         ],
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {
@@ -12432,6 +12457,59 @@
           }
         },
         "summary": "Sync Shared Mailbox",
+        "tags": [
+          "admin"
+        ]
+      }
+    },
+    "/admin/system/mailboxes/{mailbox_id}/include-older": {
+      "post": {
+        "description": "Classify the older mails of a mailbox too: triage and todos run for the mails\noutside the backfill window (``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``), behind new\nmail (``REPROCESS``), and for every older mail of this mailbox from now on.",
+        "operationId": "admin_include_older_mails",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "mailbox_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Mailbox Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/IncludeOlderRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Not an admin"
+          },
+          "404": {
+            "description": "No such mailbox"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Include Older Mails",
         "tags": [
           "admin"
         ]
@@ -16499,7 +16577,7 @@
     },
     "/mailboxes/{mailbox_id}": {
       "delete": {
-        "description": "Remove the mailbox and everything derived from it: mails, attachments (including\nthe files), threads, folders, sync state, processing results, todos, triage results\nand the search index. Hard delete; returns what was removed as confirmation.",
+        "description": "Remove the mailbox and everything derived from it: mails, attachments (including\nthe files), threads, folders, sync state, processing results, todos, triage results\nand the search index. Hard delete in the background (#147): from this response on the\nmailbox and its data are hidden everywhere; the mailbox list shows it with the status\n``deleting`` until the job is done (``mailbox.changed`` ``deleted``). Returns what is\nbeing removed as confirmation.",
         "operationId": "mailboxes_delete_mailbox",
         "parameters": [
           {
@@ -16514,7 +16592,7 @@
           }
         ],
         "responses": {
-          "200": {
+          "202": {
             "content": {
               "application/json": {
                 "schema": {

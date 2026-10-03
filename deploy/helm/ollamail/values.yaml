@@ -86,6 +86,11 @@ config:
   # OLLAMAIL_PROCESSING_AUTO_RETRY_TIMEOUT_ATTEMPTS: "1"
   # OLLAMAIL_PROCESSING_LLM_BREAKER_THRESHOLD: "3"
   # OLLAMAIL_PROCESSING_LLM_BREAKER_COOLDOWN_SECONDS: "30"
+  # Initial import on CPU (docs/OPERATIONS.md); defaults shown. Triage and todos only for
+  # mails of the last N days (0 = all); sync jobs import in slices of batches/minutes.
+  # OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS: "14"
+  # OLLAMAIL_MAIL_SYNC_SLICE_BATCHES: "20"
+  # OLLAMAIL_MAIL_SYNC_SLICE_MINUTES: "5"
   # Database connections per process (docs/OPERATIONS.md, section 8.2); defaults shown.
   # Size max_connections of PostgreSQL for all api and worker pods together.
   # OLLAMAIL_DATABASE_POOL_SIZE: "5"

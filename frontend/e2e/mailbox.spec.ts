@@ -62,4 +62,21 @@ test("add a mailbox on the IMAP test server → its mails appear in the inbox", 
   await messages.getByText(subjects[1] ?? "").click();
   await expect(page.getByRole("heading", { level: 2, name: subjects[1] })).toBeVisible();
   await expect(page.getByRole("article").getByText("Synthetic body 1.")).toBeVisible();
+
+  // Removing hides the mails at once; the worker deletes them in the background (#147) and
+  // the row disappears when it is done.
+  await page.goto("/settings/mailboxes");
+  await row.getByRole("button", { name: `Actions for ${address}` }).click();
+  await page.getByRole("menuitem", { name: "Remove" }).click();
+  await page
+    .getByRole("dialog", { name: "Remove mailbox?" })
+    .getByRole("button", { name: "Remove" })
+    .click();
+  await expect(page.getByText("Removing mailbox (3 messages)")).toBeVisible();
+  await expect(row).toHaveCount(0, { timeout: 60_000 });
+  await page.goto("/inbox");
+  await expect(page.getByRole("heading", { level: 1 }).first()).toBeVisible();
+  for (const subject of subjects) {
+    await expect(page.getByText(subject)).toHaveCount(0);
+  }
 });

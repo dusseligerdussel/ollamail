@@ -204,3 +204,14 @@ def test_dates() -> None:
     assert parse_internaldate("31-Feb-2026 00:00:00 +0000") is None
     assert parse_internaldate("garbage") is None
     assert parse_internaldate(None) is None
+
+
+def test_uid_set_newest() -> None:
+    uids = UidSet.parse("1:3,7,10:12")
+
+    assert str(uids.newest(2)) == "11:12"
+    assert str(uids.newest(4)) == "7,10:12"
+    assert str(uids.newest(5)) == "3,7,10:12"
+    assert uids.newest(100) == uids
+    assert not uids.newest(0)
+    assert not UidSet().newest(3)

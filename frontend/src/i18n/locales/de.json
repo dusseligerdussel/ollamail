@@ -183,7 +183,7 @@
       "processing": {
         "title": "Verarbeitung je Postfach",
         "empty": "Noch keine Postfächer verbunden.",
-        "note": "Angezeigt werden nur Zahlen, nie Mail-Inhalte. Fehlgeschlagene Schritte laufen hinter neuen Mails erneut.",
+        "note": "Angezeigt werden nur Zahlen, nie Mail-Inhalte. Fehlgeschlagene Schritte laufen hinter neuen Mails erneut. Ältere Mails aus dem Import werden nur für die Suche erfasst, ohne Triage und Aufgaben, bis sie hier freigegeben werden.",
         "shared": "Shared Mailbox ({{type}})",
         "unknownOwner": "Unbekannter Besitzer",
         "disabled": "Verarbeitung aus",
@@ -194,7 +194,8 @@
           "importing": "Import läuft",
           "syncing": "Synchronisiert gerade",
           "idle": "Aktuell",
-          "error": "Sync-Fehler"
+          "error": "Sync-Fehler",
+          "deleting": "Wird gelöscht"
         },
         "pending_one": "{{count}} ausstehend",
         "pending_other": "{{count}} ausstehend",
@@ -202,7 +203,12 @@
         "failed_other": "{{count}} fehlgeschlagen",
         "retry": "Fehlgeschlagene erneut verarbeiten",
         "retried_one": "{{count}} Mail erneut eingereiht",
-        "retried_other": "{{count}} Mails erneut eingereiht"
+        "retried_other": "{{count}} Mails erneut eingereiht",
+        "skipped_one": "{{count}} ältere Mail nur durchsuchbar",
+        "skipped_other": "{{count}} ältere Mails nur durchsuchbar",
+        "includeOlder": "Ältere Mails auch klassifizieren",
+        "olderQueued_one": "{{count}} ältere Mail für Triage und Aufgaben eingereiht",
+        "olderQueued_other": "{{count}} ältere Mails für Triage und Aufgaben eingereiht"
       }
     },
     "audit": {
@@ -864,7 +870,7 @@
       "removeTitle": "Geteiltes Postfach entfernen?",
       "removeDescription_one": "„{{name}}“ und seine {{formatted}} Mail werden für alle gelöscht, samt Triage, Aufgaben, Suchindex und Zugriffen. Die Mails auf dem Server bleiben erhalten.",
       "removeDescription_other": "„{{name}}“ und seine {{formatted}} Mails werden für alle gelöscht, samt Triage, Aufgaben, Suchindex und Zugriffen. Die Mails auf dem Server bleiben erhalten.",
-      "removed": "Geteiltes Postfach entfernt",
+      "removed": "Geteiltes Postfach wird entfernt",
       "cancel": "Abbrechen",
       "notFound": "Dieses geteilte Postfach gibt es nicht (mehr).",
       "permissions": {
@@ -1379,8 +1385,8 @@
     "removeTitle": "Postfach entfernen?",
     "removeDescription_one": "{{name}} und seine {{formatted}} Nachricht werden mit Anhängen, Aufgaben und Suchindex aus ollamail gelöscht. Der Mailserver bleibt unverändert.",
     "removeDescription_other": "{{name}} und seine {{formatted}} Nachrichten werden mit Anhängen, Aufgaben und Suchindex aus ollamail gelöscht. Der Mailserver bleibt unverändert.",
-    "removed_one": "Postfach entfernt ({{formatted}} Nachricht gelöscht)",
-    "removed_other": "Postfach entfernt ({{formatted}} Nachrichten gelöscht)",
+    "removed_one": "Postfach wird entfernt ({{formatted}} Nachricht)",
+    "removed_other": "Postfach wird entfernt ({{formatted}} Nachrichten)",
     "cancel": "Abbrechen",
     "noProviders": "Auf diesem Server sind keine Postfachtypen verfügbar. Wende dich an deine Administration.",
     "providerLabel": "Anbieter",
@@ -1451,6 +1457,7 @@
       "duplicate": "Dieses Postfach wurde bereits hinzugefügt."
     },
     "status": {
+      "deleting": "Wird gelöscht",
       "paused": "Pausiert",
       "error": "Fehler: {{error}}",
       "pending": "Wartet auf die erste Synchronisierung",

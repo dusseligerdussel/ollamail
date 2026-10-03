@@ -546,8 +546,8 @@ export interface paths {
         post?: never;
         /**
          * Delete Shared Mailbox
-         * @description Remove the shared mailbox with all its data (as ``DELETE /mailboxes/{id}``) and
-         *     its assignments.
+         * @description Remove the shared mailbox with all its data and its assignments, in the background
+         *     (as ``DELETE /mailboxes/{id}``).
          */
         delete: operations["admin_delete_shared_mailbox"];
         options?: never;
@@ -615,6 +615,28 @@ export interface paths {
         put?: never;
         /** Sync Shared Mailbox */
         post: operations["admin_sync_shared_mailbox"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/admin/system/mailboxes/{mailbox_id}/include-older": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Include Older Mails
+         * @description Classify the older mails of a mailbox too: triage and todos run for the mails
+         *     outside the backfill window (``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS``), behind new
+         *     mail (``REPROCESS``), and for every older mail of this mailbox from now on.
+         */
+        post: operations["admin_include_older_mails"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2083,7 +2105,10 @@ export interface paths {
          * Delete Mailbox
          * @description Remove the mailbox and everything derived from it: mails, attachments (including
          *     the files), threads, folders, sync state, processing results, todos, triage results
-         *     and the search index. Hard delete; returns what was removed as confirmation.
+         *     and the search index. Hard delete in the background (#147): from this response on the
+         *     mailbox and its data are hidden everywhere; the mailbox list shows it with the status
+         *     ``deleting`` until the job is done (``mailbox.changed`` ``deleted``). Returns what is
+         *     being removed as confirmation.
          */
         delete: operations["mailboxes_delete_mailbox"];
         options?: never;
@@ -4573,6 +4598,11 @@ export interface components {
             /** Subject */
             subject: string;
         };
+        /** IncludeOlderRead */
+        IncludeOlderRead: {
+            /** Queued */
+            queued: number;
+        };
         /** InvitationAccept */
         InvitationAccept: {
             /** Password */
@@ -4870,7 +4900,8 @@ export interface components {
          * MailboxDeleted
          * @description Confirmation of a removal: the mailbox and all data derived from it (mails,
          *     attachments and their files, threads, folders, sync state, processing results, todos,
-         *     triage results, search index) are deleted.
+         *     triage results, search index) are hidden at once and deleted by a background job
+         *     (#147); ``mailbox.changed`` with ``deleted`` reports the end.
          */
         MailboxDeleted: {
             /** Attachments */
@@ -4921,6 +4952,8 @@ export interface components {
              * Format: uuid
              */
             id: string;
+            /** Include Older */
+            include_older: boolean;
             /** Is Shared */
             is_shared: boolean;
             /** Owner Name */
@@ -4931,13 +4964,15 @@ export interface components {
             processing_enabled: boolean;
             /** Running */
             running: number;
+            /** Skipped Messages */
+            skipped_messages: number;
             /** Sync Error */
             sync_error: string | null;
             /**
              * Sync Phase
              * @enum {string}
              */
-            sync_phase: "paused" | "pending" | "importing" | "syncing" | "idle" | "error";
+            sync_phase: "deleting" | "paused" | "pending" | "importing" | "syncing" | "idle" | "error";
             type: components["schemas"]["MailboxType"];
         };
         /**
@@ -4993,10 +5028,11 @@ export interface components {
         };
         /**
          * MailboxSyncStatus
-         * @description ``phase`` summarises the fields: ``paused`` (sync disabled), ``error`` (the last sync
-         *     failed for the whole mailbox), ``syncing`` (a sync job is queued or running),
-         *     ``pending`` (never synced), ``importing`` (initial import of some folder unfinished),
-         *     else ``idle``.
+         * @description ``phase`` summarises the fields: ``deleting`` (removal requested, a background job
+         *     deletes the data; nothing else can be done with the mailbox), ``paused`` (sync
+         *     disabled), ``error`` (the last sync failed for the whole mailbox), ``syncing`` (a sync
+         *     job is queued or running), ``pending`` (never synced), ``importing`` (initial import of
+         *     some folder unfinished), else ``idle``.
          */
         MailboxSyncStatus: {
             /** Folders Failed */
@@ -5015,7 +5051,7 @@ export interface components {
              * Phase
              * @enum {string}
              */
-            phase: "paused" | "pending" | "importing" | "syncing" | "idle" | "error";
+            phase: "deleting" | "paused" | "pending" | "importing" | "syncing" | "idle" | "error";
             /** Sync Queued */
             sync_queued: boolean;
         };
@@ -8836,7 +8872,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9135,6 +9171,58 @@ export interface operations {
             };
             /** @description Syncing is paused */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    admin_include_older_mails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                mailbox_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IncludeOlderRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not an admin */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such mailbox */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -12806,7 +12894,7 @@ export interface operations {
         requestBody?: never;
         responses: {
             /** @description Successful Response */
-            200: {
+            202: {
                 headers: {
                     [name: string]: unknown;
                 };

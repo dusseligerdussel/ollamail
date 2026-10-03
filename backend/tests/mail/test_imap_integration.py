@@ -19,6 +19,7 @@ from app.mail.providers.base import (
     ConnectionFailedError,
     CursorAdvanced,
     CursorInvalidError,
+    FlagsReported,
     MessageDeleted,
     MessageFetched,
     MessageNotFoundError,
@@ -28,7 +29,7 @@ from app.mail.providers.base import (
 )
 from app.mail.providers.imap import parse_ref
 from app.mail.providers.imap_client import ImapConnection, SelectInfo
-from tests.mail.imap_server import TestAccount, message
+from tests.mail.imap_server import INSECURE, TestAccount, message
 
 pytestmark = pytest.mark.imap
 
@@ -51,6 +52,18 @@ async def collect(events: AsyncIterator[SyncEvent]) -> list[SyncEvent]:
 
 def fetched_uids(events: list[SyncEvent]) -> list[int]:
     return [parse_ref(e.message.remote_ref)[2] for e in events if isinstance(e, MessageFetched)]
+
+
+def flag_changes(events: list[SyncEvent]) -> dict[str, frozenset[str] | None]:
+    """Flags per reference, one by one (``MessageUpdated``) or in bulk (``FlagsReported``,
+    servers without CONDSTORE)."""
+    flags: dict[str, frozenset[str] | None] = {}
+    for event in events:
+        if isinstance(event, MessageUpdated):
+            flags[event.remote_ref] = event.flags
+        elif isinstance(event, FlagsReported):
+            flags.update(event.flags)
+    return flags
 
 
 def last_cursor(events: list[SyncEvent]) -> SyncCursor:
@@ -193,13 +206,63 @@ async def test_incremental_sync(imap_account: TestAccount, disabled: frozenset[s
     uidvalidity = cursor.data["uidvalidity"]
     deleted = [e.remote_ref for e in events if isinstance(e, MessageDeleted)]
     assert deleted == [f"{uidvalidity}:3:INBOX"]
-    updates = {e.remote_ref: e.flags for e in events if isinstance(e, MessageUpdated)}
+    updates = flag_changes(events)
     assert updates[f"{uidvalidity}:2:INBOX"] == frozenset({"seen", "flagged"})
-    if not disabled:
+    if "CONDSTORE" in disabled:
+        # Without CONDSTORE the flags of the checked range come in bulk.
+        assert not [e for e in events if isinstance(e, MessageUpdated)]
+        assert set(updates) == {f"{uidvalidity}:{uid}:INBOX" for uid in (1, 2, 4)}
+    elif not disabled:
         # With CONDSTORE only changed messages are reported.
         assert set(updates) == {f"{uidvalidity}:2:INBOX"}
     assert fetched_uids(events) == [5]
     assert last_cursor(events).data["known"] == "1:2,4:5"
+
+
+async def test_flags_without_condstore_newest_each_sync_all_rarely(
+    imap_account: TestAccount,
+) -> None:
+    """#147: without CONDSTORE a sync checks the flags of the newest messages only, finds
+    deletions anywhere, and checks all flags once ``imap_full_flag_scan_hours`` passed."""
+    for number in range(1, 6):
+        await imap_account.append(message(number))
+    settings = INSECURE.model_copy(update={"imap_flag_window": 2})
+    provider = imap_account.provider(mail_settings=settings, disabled_extensions=MODES["plain"])
+    try:
+        cursor = last_cursor(await collect(provider.fetch_since("INBOX", None)))
+        uidvalidity = cursor.data["uidvalidity"]
+
+        def ref(uid: int) -> str:
+            return f"{uidvalidity}:{uid}:INBOX"
+
+        # The first sync with known messages checks everything.
+        first = await collect(provider.fetch_since("INBOX", cursor))
+        assert set(flag_changes(first)) == {ref(uid) for uid in range(1, 6)}
+        cursor = last_cursor(first)
+        assert cursor.data["flags_at"]
+
+        await imap_account.run("UID STORE", "1", "+FLAGS", "(\\Seen)", folder="INBOX")
+        await imap_account.run("UID STORE", "5", "+FLAGS", "(\\Flagged)", folder="INBOX")
+        await imap_account.run("UID STORE", "2", "+FLAGS", "(\\Deleted)", folder="INBOX")
+        await imap_account.run("EXPUNGE")
+
+        events = await collect(provider.fetch_since("INBOX", cursor))
+        # Newest two only; the old deletion is found all the same.
+        assert flag_changes(events) == {ref(4): frozenset(), ref(5): frozenset({"flagged"})}
+        assert [e.remote_ref for e in events if isinstance(e, MessageDeleted)] == [ref(2)]
+        cursor = last_cursor(events)
+        assert cursor.data["known"] == "1,3:5"
+
+        # A day later: everything again, including the change of the oldest message.
+        stale = (datetime.now(UTC) - timedelta(hours=25)).isoformat()
+        cursor = SyncCursor({**cursor.data, "flags_at": stale})
+        events = await collect(provider.fetch_since("INBOX", cursor))
+        changes = flag_changes(events)
+        assert set(changes) == {ref(1), ref(3), ref(4), ref(5)}
+        assert changes[ref(1)] == frozenset({"seen"})
+        assert last_cursor(events).data["flags_at"] > stale
+    finally:
+        await provider.aclose()
 
 
 async def test_new_uidvalidity_invalidates_cursor(imap_account: TestAccount) -> None:
@@ -229,8 +292,7 @@ async def test_actions(imap_account: TestAccount, disabled: frozenset[str]) -> N
         await provider.apply_label(ref, "Wichtig")
         await provider.remove_label(ref, "Warten auf")
         changes = await collect(provider.fetch_since("INBOX", last_cursor(events)))
-        flags = [e.flags for e in changes if isinstance(e, MessageUpdated) and e.remote_ref == ref]
-        assert flags == [frozenset({"seen", "Wichtig"})]
+        assert flag_changes(changes)[ref] == frozenset({"seen", "Wichtig"})
 
         new_ref = await provider.move(ref, "Archiv")
         folder, _, _ = parse_ref(new_ref)

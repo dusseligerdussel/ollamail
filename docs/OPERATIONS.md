@@ -269,6 +269,36 @@ Das Profil muss bei `up` und `down` mit angegeben werden, sonst wird der Dienst 
 bzw. nicht gestoppt (`exec` und `logs` auf einen laufenden Dienst gehen auch ohne). Alternativ
 `COMPOSE_PROFILES=ollama-cpu` in der Shell oder in `deploy/.env` setzen.
 
+#### Erstimport auf CPU: Dauer, Altbestand, Zeitscheiben (#141)
+
+Auf CPU mit `qwen2.5:3b` brauchen Triage und Aufgaben zusammen etwa **20–60 s pro Mail**
+(Messung auf 4 vCPUs, [`operations/model-evals.md`](operations/model-evals.md), Abschnitt 4.1:
+Triage im Mittel 9,5 s, Aufgaben 46,3 s, Median 14,1 s). Würde jede importierte Mail
+klassifiziert, dauerte der Standard-Import (90 Tage, oft 5.000–10.000 Mails) **1–4 Tage**. Der
+Suchindex ist dagegen billig: Embeddings für 200 Mails brauchten 35 s, für 10.000 Mails also
+rund eine halbe Stunde. Deshalb gilt:
+
+- **Nur jüngere Mails werden klassifiziert.** Mails, die vor mehr als
+  `OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS` Tagen (Standard **14**) eingegangen sind, bekommen nur
+  Volltextindex und Embeddings – Suche und „Frag dein Postfach“ funktionieren –, aber keine Triage
+  und keine Aufgaben (Schritte im Status `skipped`). Auch Aufgaben aus monatealten Mails entfallen
+  so. Bei 14 Tagen sind das typischerweise einige hundert bis gut tausend Mails, also grob
+  **3–17 Stunden** LLM-Zeit statt Tagen; neue Mails überholen den Rückstand trotzdem sofort.
+  `0` klassifiziert alle Mails.
+- **Ältere Mails nachträglich klassifizieren:** Admin › Systemstatus, Abschnitt „Verarbeitung je
+  Postfach“, Button „Ältere Mails auch klassifizieren“, oder
+  `python -m app.cli processing include-older <mailbox-id>`. Die übersprungenen Mails laufen dann
+  hinter neuen Mails durch; für dieses Postfach gilt die Grenze danach nicht mehr (auch nicht für
+  später importierte Mails).
+- **Der Import läuft in Zeitscheiben.** Ein Sync-Job beendet den Import nach
+  `OLLAMAIL_MAIL_SYNC_SLICE_BATCHES` Batches (Standard 20, à `OLLAMAIL_MAIL_SYNC_BATCH_SIZE` = 50
+  Mails) oder `OLLAMAIL_MAIL_SYNC_SLICE_MINUTES` Minuten (Standard 5) und plant sich mit
+  niedrigerer Priorität neu ein. Der nächste Lauf holt zuerst neue Mails und Änderungen, dann geht
+  der Import weiter. Neue Mails warten so höchstens eine Zeitscheibe statt bis zum Ende des
+  Imports. Ausnahme Microsoft 365: Die Delta-Abfrage eines Ordners liefert neue Mails erst, wenn
+  dessen Erstimport durch ist; andere Ordner sind davon nicht betroffen. `0` schaltet die jeweilige
+  Grenze ab.
+
 ### 3.3 Consumer-GPU (Profil `ollama-gpu`)
 
 Voraussetzungen auf dem Host:
@@ -476,6 +506,11 @@ Anforderungen an den Proxy:
   Antwort-Pufferung abschalten und lange Verbindungen erlauben. Der interne Caddy nutzt dafür
   bereits `flush_interval -1` und 1 h Timeout – der äußere Proxy muss mindestens genauso großzügig
   sein.
+- **Kompression:** Der interne Caddy komprimiert JSON-Antworten der API (`zstd`, `gzip`) und die
+  statischen Dateien, Server-Sent Events (`text/event-stream`) bewusst nicht: komprimierte
+  Streams würden gepuffert. Der äußere Proxy muss nichts komprimieren; wer es dort einschaltet,
+  nimmt `text/event-stream` aus (nginx: nicht in `gzip_types` aufnehmen; Caddy: `encode` mit
+  `match` auf `application/json*`, siehe `frontend/caddy/Caddyfile`).
 
 Die folgenden Beispiele verwenden `mail.example.org` als Hostnamen.
 
@@ -843,6 +878,10 @@ Mailserver mit selbstsigniertem Zertifikat: das CA-Zertifikat dem Container übe
 auch unverschlüsselt) nur in Testumgebungen. Mailserver im eigenen Netz (private oder
 Loopback-Adressen) müssen in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` stehen, sonst lehnt ollamail die
 Verbindung ab ([6.6](#66-upgrade-hinweise-sichere-standardwerte-143)).
+IMAP-Server ohne CONDSTORE (z. B. manche Hoster) melden nicht, welche Flags sich geändert haben;
+ollamail prüft dann je Sync nur die neuesten `OLLAMAIL_MAIL_IMAP_FLAG_WINDOW` Mails (Standard
+1000) und alle Mails einmal in `OLLAMAIL_MAIL_IMAP_FULL_FLAG_SCAN_HOURS` (Standard 24).
+Gelöschte und verschobene Mails werden trotzdem bei jedem Sync erkannt.
 
 **Mail-Sync (Microsoft 365):** Keine dauerhafte Verbindung; der Worker pollt per Delta Query
 (`poll_interval_seconds`, Standard 5 Minuten). Change Notifications sind optional und brauchen
@@ -887,6 +926,11 @@ Der Worker erholt sich selbst von den häufigsten Störungen; manuelles SQL ist 
   ungültige Modellausgabe nach dem Korrektur-Retry, `llm_output_error`/`llm_output_invalid`)
   bleiben fehlgeschlagen. Ein fehlendes Modell also einfach nachladen (`ollama pull …`); die
   betroffenen Mails laufen danach von selbst durch.
+- **Postfach entfernen.** Das Entfernen läuft als Job `mail.delete_mailbox` im Hintergrund
+  (Batches zu 500 Mails, gemessen rund 6 s je 100k Mails ohne Embeddings); bis dahin zeigt die
+  Postfachliste „Wird gelöscht“, die Daten sind schon für niemanden mehr sichtbar. Im Log:
+  `mail_mailbox_deletion_requested` und am Ende `mail_mailbox_deleted`. Bricht der Job ab, setzt
+  `mail.resume_deletions` (alle 15 Minuten) fort.
 - **Von Hand neu verarbeiten:** `python -m app.cli processing reprocess [--mailbox ID]` setzt
   auch dauerhafte Fehler zurück.
 

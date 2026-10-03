@@ -130,6 +130,8 @@ async def find_duplicate(
     duplicate = await session.scalar(
         select(Mailbox.id).where(
             owner,
+            # One being removed does not count: it may be added again right away.
+            Mailbox.deletion_requested_at.is_(None),
             Mailbox.type == body.type,
             func.lower(Mailbox.address) == body.address.lower(),
         )
@@ -299,7 +301,9 @@ async def statuses(
         failed = sum(1 for s in folder_states if s and s.last_error)
         overall = states.get((mailbox.id, None))
         phase: SyncPhase
-        if not mailbox.sync_enabled:
+        if mailbox.deletion_requested_at is not None:
+            phase = "deleting"
+        elif not mailbox.sync_enabled:
             phase = "paused"
         elif overall is not None and overall.last_error:
             phase = "error"

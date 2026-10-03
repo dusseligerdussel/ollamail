@@ -123,6 +123,24 @@ describe("mailbox list", () => {
         body: undefined,
       }),
     );
+    // The data is deleted in the background; the list shows the mailbox until then.
+    expect(await screen.findByText("Removing mailbox (3 messages)")).toBeInTheDocument();
+  });
+
+  it("shows a mailbox being removed without actions", async () => {
+    mockMailboxApi({
+      mailboxes: [
+        testMailbox({
+          sync_enabled: false,
+          status: { ...testMailbox().status, phase: "deleting" },
+        }),
+      ],
+    });
+    await renderApp("/settings/mailboxes");
+    const list = await screen.findByRole("list", { name: "Mailboxes" });
+    expect(within(list).getByText("Being removed")).toBeInTheDocument();
+    expect(within(list).getByText("Arbeit")).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "Actions for Arbeit" })).not.toBeInTheDocument();
   });
 
   it("pauses syncing", async () => {
