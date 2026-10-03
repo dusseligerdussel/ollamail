@@ -268,6 +268,11 @@ Requests ohne Änderungen sind billig.
 | `set_flags(ref, flags)` | `PATCH /messages/{id}` mit `isRead`, `flag.flagStatus`, `categories` |
 | `apply_label` / `remove_label` | Kategorie hinzufügen/entfernen (`PATCH categories`) |
 
+In der App (#148): Archivieren verschiebt in den Well-known-Ordner `archive`, Papierkorb in
+`deleteditems`, Markieren setzt `flag.flagStatus`. Fehlt der Archivordner (z. B. Postfächer ohne
+Online-Archiv-Ordner), antwortet die API 409 `no_archive_folder`. Nötig ist `Mail.ReadWrite`
+bzw. `Mail.ReadWrite.Shared`, wie für gelesen/ungelesen.
+
 ## 8. Fehler, Drosselung, Batching
 
 - **429/503/504:** Warten gemäß `Retry-After` (höchstens 120 s je Versuch, sonst exponentiell),

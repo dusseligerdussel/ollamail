@@ -3,7 +3,7 @@
 Access: a draft is visible only to its author and only while they can read its mailbox
 (``accessible_mailbox_ids``, in SQL, on every request); anything else behaves like a
 missing draft. Generating needs read access to the answered mail; sending additionally
-needs ``MailboxPermission.ACT`` (owners; shared mailboxes are read-only for now).
+needs ``MailboxPermission.SEND`` (owners only; never granted on shared mailboxes).
 
 Generation (:meth:`DraftService.generate`) runs as a stream of events like "ask your
 inbox": context from the database (thread up to the answered mail, shortened; the user's
@@ -134,7 +134,7 @@ async def own_draft(
 
 
 async def can_send(session: AsyncSession, user_id: uuid.UUID, mailbox_id: uuid.UUID) -> bool:
-    mailbox = await access.get_mailbox(session, user_id, mailbox_id, MailboxPermission.ACT)
+    mailbox = await access.get_mailbox(session, user_id, mailbox_id, MailboxPermission.SEND)
     return mailbox is not None
 
 

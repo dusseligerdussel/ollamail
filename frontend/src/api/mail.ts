@@ -22,6 +22,8 @@ export type MessageBody = components["schemas"]["MessageBody"];
 export type Thread = components["schemas"]["ThreadRead"];
 export type Attachment = components["schemas"]["AttachmentRead"];
 export type Address = components["schemas"]["AddressRead"];
+export type MessageAction = components["schemas"]["MessageAction"];
+export type MessageActionResult = components["schemas"]["MessageActionResult"];
 
 /**
  * Query keys. Server events invalidate by their resource (`mailbox.*` → `["mailbox"]`,
@@ -129,6 +131,25 @@ export function setSeen(messageId: string, seen: boolean) {
     api.PATCH("/messages/{message_id}", {
       params: { path: { message_id: messageId } },
       body: { seen },
+    }),
+  );
+}
+
+export function setFlagged(messageId: string, flagged: boolean) {
+  return unwrap(
+    api.PATCH("/messages/{message_id}", {
+      params: { path: { message_id: messageId } },
+      body: { flagged },
+    }),
+  );
+}
+
+/** Archive, trash or move a message on the mail server (#148). */
+export function runMessageAction(messageId: string, action: MessageAction, folderId?: string) {
+  return unwrap(
+    api.POST("/messages/{message_id}/actions", {
+      params: { path: { message_id: messageId } },
+      body: { action, folder_id: folderId ?? null },
     }),
   );
 }

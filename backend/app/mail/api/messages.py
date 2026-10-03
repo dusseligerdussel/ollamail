@@ -1,4 +1,5 @@
-"""Read API for mails: inbox list, thread, sanitised body, attachments, read/unread.
+"""Read API for mails: inbox list, thread, sanitised body, attachments, read/unread and
+flags (archive, move and trash: ``app.mail.api.actions``).
 
 Access goes through the mailbox access rules (``app.mail.access.visible_to``): a
 message of a mailbox the user cannot read answers 404, like a missing one. HTML is
@@ -22,10 +23,11 @@ from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app import audit
 from app.auth.dependencies import CurrentSessionDep, SettingsDep
 from app.core.db import get_db
 from app.core.errors import ProblemError
-from app.core.events import Event, publish
+from app.core.events import Event
 from app.core.jobs import JobQueue
 from app.core.logging import get_logger
 from app.mail import access, listing
@@ -300,29 +302,46 @@ async def update_message(
     db: DbDep,
     write_flags: FlagWriterDep,
 ) -> MessageSummary:
-    """Mark read or unread. Stored at once, written back to the server by a job. Users of
-    a shared mailbox may only read it (403 ``read_only``): the flag is the mailbox's."""
+    """Mark read or unread, flag or unflag. Stored at once, written back to the server by
+    a job. Needs ``act`` on the mailbox (403 ``read_only``): in a shared mailbox the
+    state is the mailbox's, so only users assigned with ``act`` may change it."""
     message = await _message(db, current.user_id, message_id)
     if (
         await access.get_mailbox(db, current.user_id, message.mailbox_id, MailboxPermission.ACT)
         is None
     ):
         raise ProblemError(403, detail="This mailbox is read-only for you.", error_code="read_only")
-    flags = [flag for flag in message.flags or [] if flag != Flag.SEEN.value]
-    if body.seen:
-        flags.append(Flag.SEEN.value)
-    changed = set(flags) != set(message.flags or [])
-    if changed:
-        message.flags = flags
-        await publish(
-            db,
-            current.user_id,
-            Event(
-                type="message.updated",
-                ids={"message_id": message.id, "mailbox_id": message.mailbox_id},
-                status="seen" if body.seen else "unseen",
-            ),
+    before = set(message.flags or [])
+    flags = set(before)
+    for flag, value in ((Flag.SEEN, body.seen), (Flag.FLAGGED, body.flagged)):
+        if value is True:
+            flags.add(flag.value)
+        elif value is False:
+            flags.discard(flag.value)
+    if flags != before:
+        message.flags = [flag for flag in message.flags or [] if flag in flags] + sorted(
+            flags - before
         )
+        ids = {"message_id": message.id, "mailbox_id": message.mailbox_id}
+        seen = Flag.SEEN.value in flags
+        flagged = Flag.FLAGGED.value in flags
+        changes = []
+        if seen != (Flag.SEEN.value in before):
+            changes.append("seen" if seen else "unseen")
+        if flagged != (Flag.FLAGGED.value in before):
+            changes.append("flagged" if flagged else "unflagged")
+            await audit.record(
+                db,
+                audit.Actor.user(current.user_id),
+                audit.AuditAction.MAIL_FLAGGED,
+                audit.Target.of(audit.TargetType.MAILBOX, message.mailbox_id),
+                {"message_id": message.id, "flagged": flagged},
+            )
+        # Everybody who reads the mailbox sees the change (shared mailboxes).
+        for change in changes:
+            await access.publish_to_readers(
+                db, message.mailbox_id, Event(type="message.updated", ids=ids, status=change)
+            )
         await db.commit()
         await db.refresh(message)
         try:

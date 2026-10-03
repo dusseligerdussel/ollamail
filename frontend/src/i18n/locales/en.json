@@ -291,7 +291,9 @@
           "unshared": "Mailbox access revoked"
         },
         "mail": {
-          "sent": "Mail sent"
+          "sent": "Mail sent",
+          "moved": "Mail moved",
+          "flagged": "Mail flagged"
         },
         "data": {
           "exported": "Data exported",
@@ -864,7 +866,13 @@
       "removeDescription_other": "“{{name}}” and its {{formatted}} messages are deleted for everybody, with triage, tasks, search index and access. The mails on the server stay.",
       "removed": "Shared mailbox removed",
       "cancel": "Cancel",
-      "notFound": "This shared mailbox does not exist (any more)."
+      "notFound": "This shared mailbox does not exist (any more).",
+      "permissions": {
+        "read": "Read only",
+        "act": "Manage mails"
+      },
+      "permissionsDescription": "“Manage mails” also allows archiving, moving, deleting, flagging and marking read or unread. Sending from shared mailboxes is not possible.",
+      "permissionFor": "Permission for {{name}}"
     }
   },
   "digest": {
@@ -1312,13 +1320,41 @@
     "shortcuts": {
       "open": "Open message",
       "close": "Close message",
-      "toggleUnread": "Mark as read or unread"
+      "toggleUnread": "Mark as read or unread",
+      "archive": "Archive (done)",
+      "trash": "Move to trash",
+      "move": "Move to a folder",
+      "flag": "Flag or remove flag"
     },
     "ownMailboxes": "My mailboxes",
     "sharedMailboxes": "Shared mailboxes",
     "readOnly": "Shared mailbox, read only",
-    "readOnlyHint": "Read and unread are kept per mailbox; in shared mailboxes only your administrator can change them.",
-    "foundInAttachment": "Match found in this attachment"
+    "readOnlyHint": "Read state, flags and folders are kept per mailbox. Only people your administrator allows to “manage mails” can change them.",
+    "foundInAttachment": "Match found in this attachment",
+    "actions": {
+      "archive": "Archive",
+      "move": "Move",
+      "moveTo": "Move to",
+      "trash": "Move to trash",
+      "flag": "Flag",
+      "unflag": "Remove flag",
+      "undo": "Undo",
+      "foldersFailed": "The folders could not be loaded.",
+      "noFolders": "No folders to move to.",
+      "done": {
+        "archive": "Archived",
+        "trash": "Moved to trash",
+        "move": "Moved"
+      },
+      "errors": {
+        "no_archive_folder": "This mailbox has no archive folder.",
+        "no_trash_folder": "This mailbox has no trash folder.",
+        "message_not_found": "This mail no longer exists on the server.",
+        "read_only": "You may only read this mailbox.",
+        "unknown_folder": "This folder no longer exists."
+      }
+    },
+    "flagged": "Flagged"
   },
   "mailboxes": {
     "title": "Mailboxes",

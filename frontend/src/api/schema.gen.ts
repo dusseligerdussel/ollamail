@@ -570,9 +570,10 @@ export interface paths {
         get?: never;
         /**
          * Set Shared Mailbox Assignments
-         * @description Replace who may read the mailbox. Removing a user or group revokes access at once:
-         *     from the next request on, its mails, triage, todos, search hits, answers and digests
-         *     are no longer visible to them.
+         * @description Replace who may read the mailbox and who may also act on its mails (``act_users``,
+         *     group ``permission``). Removing a user or group revokes access at once: from the next
+         *     request on, its mails, triage, todos, search hits, answers and digests are no longer
+         *     visible to them.
          */
         put: operations["admin_set_shared_mailbox_assignments"];
         post?: never;
@@ -2220,10 +2221,32 @@ export interface paths {
         head?: never;
         /**
          * Update Message
-         * @description Mark read or unread. Stored at once, written back to the server by a job. Users of
-         *     a shared mailbox may only read it (403 ``read_only``): the flag is the mailbox's.
+         * @description Mark read or unread, flag or unflag. Stored at once, written back to the server by
+         *     a job. Needs ``act`` on the mailbox (403 ``read_only``): in a shared mailbox the
+         *     state is the mailbox's, so only users assigned with ``act`` may change it.
          */
         patch: operations["messages_update_message"];
+        trace?: never;
+    };
+    "/messages/{message_id}/actions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Run Message Action
+         * @description Archive, move or trash a message on the mail server. Synchronous: when the answer
+         *     arrives, the server has done it. Recorded in the audit log (``mail.moved``).
+         */
+        post: operations["messages_run_message_action"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
         trace?: never;
     };
     "/messages/{message_id}/attachments/{attachment_id}": {
@@ -3460,7 +3483,7 @@ export interface components {
          * AssignmentPermission
          * @enum {string}
          */
-        AssignmentPermission: "read";
+        AssignmentPermission: "read" | "act";
         /** AttachmentRead */
         AttachmentRead: {
             /** Content Type */
@@ -3481,7 +3504,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -4492,6 +4515,8 @@ export interface components {
         GroupAssignment: {
             /** Group */
             group: string;
+            /** @default read */
+            permission: components["schemas"]["AssignmentPermission"];
             /** Provider */
             provider?: string | null;
         };
@@ -4795,6 +4820,8 @@ export interface components {
          * @description Who may read a shared mailbox; replaces the current assignments.
          */
         MailboxAssignmentsUpdate: {
+            /** Act Users */
+            act_users?: string[];
             /** Groups */
             groups?: components["schemas"]["GroupAssignment"][];
             /** Users */
@@ -4879,7 +4906,7 @@ export interface components {
          * MailboxPermission
          * @enum {string}
          */
-        MailboxPermission: "read" | "sync" | "manage" | "act";
+        MailboxPermission: "read" | "sync" | "manage" | "act" | "send";
         /**
          * MailboxProcessingRead
          * @description Sync status and processing counts of one mailbox; no content, no address.
@@ -5022,6 +5049,29 @@ export interface components {
             sync_settings?: components["schemas"]["SyncSettingsUpdate"] | null;
         };
         /**
+         * MessageAction
+         * @enum {string}
+         */
+        MessageAction: "archive" | "move" | "trash";
+        /**
+         * MessageActionRequest
+         * @description ``archive``, ``trash`` (to the trash folder, never deleted for good) or ``move``
+         *     into ``folder_id`` (a folder or label of the message's mailbox).
+         */
+        MessageActionRequest: {
+            action: components["schemas"]["MessageAction"];
+            /** Folder Id */
+            folder_id?: string | null;
+        };
+        /** MessageActionResult */
+        MessageActionResult: {
+            /** Folder Ids */
+            folder_ids: string[];
+            message: components["schemas"]["MessageSummary"];
+            /** Undo Folder Id */
+            undo_folder_id: string | null;
+        };
+        /**
          * MessageBody
          * @description Sanitised HTML of a message. External images are removed unless requested.
          */
@@ -5118,10 +5168,15 @@ export interface components {
             /** Unread */
             unread: boolean;
         };
-        /** MessageUpdate */
+        /**
+         * MessageUpdate
+         * @description Fields left out stay as they are. Both are written back to the mail server.
+         */
         MessageUpdate: {
+            /** Flagged */
+            flagged?: boolean | null;
             /** Seen */
-            seen: boolean;
+            seen?: boolean | null;
         };
         /**
          * MfaChallenge
@@ -6275,6 +6330,8 @@ export interface components {
          * @description A shared mailbox and, optionally, its first assignments.
          */
         SharedMailboxCreate: {
+            /** Act Users */
+            act_users?: string[];
             /** Address */
             address: string;
             /** Credentials */
@@ -13167,6 +13224,81 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    messages_run_message_action: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MessageActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MessageActionResult"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Read-only mailbox (error_code read_only) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No archive or trash folder (no_archive_folder, no_trash_folder), the mail is gone on the server (message_not_found) or the mailbox does not allow changes (error_code) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown or missing folder (unknown_folder) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The mail server refused the action (error_code) */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description The mail server is unreachable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
