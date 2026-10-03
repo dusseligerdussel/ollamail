@@ -1,12 +1,10 @@
 # syntax=docker/dockerfile:1
 
-ARG NODE_IMAGE=node:22-alpine
-ARG CADDY_IMAGE=caddy:2.11-alpine
-
 # ---------------------------------------------------------------------------
 # deps: install dependencies from pnpm-lock.yaml (pnpm version from package.json)
 # ---------------------------------------------------------------------------
-FROM ${NODE_IMAGE} AS deps
+# Literal tags, not ARGs: Dependabot only updates literal FROM lines (.github/dependabot.yml).
+FROM node:22-alpine AS deps
 
 ENV PNPM_HOME=/pnpm \
     COREPACK_HOME=/opt/corepack \
@@ -39,7 +37,7 @@ CMD ["pnpm", "dev", "--host", "0.0.0.0", "--port", "5173", "--strictPort"]
 # ---------------------------------------------------------------------------
 # proxy: Caddy as unprivileged user, without the bundle (used by compose.dev.yaml)
 # ---------------------------------------------------------------------------
-FROM ${CADDY_IMAGE} AS proxy
+FROM caddy:2.11-alpine AS proxy
 
 # Caddy keeps its state in XDG directories; point them to a writable location so the
 # container also works with a read-only root filesystem (only /tmp needs to be writable).

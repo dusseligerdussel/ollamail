@@ -262,7 +262,9 @@
           "session_revoked": "Sessions ended",
           "mfa_enabled": "Two-factor method added",
           "mfa_disabled": "Two-factor method removed",
-          "mfa_recovery_codes_generated": "Recovery codes created"
+          "mfa_recovery_codes_generated": "Recovery codes created",
+          "reauthenticated": "Identity confirmed",
+          "reauth_failed": "Confirmation failed"
         },
         "user": {
           "created": "User created",
@@ -1095,6 +1097,37 @@
       },
       "otherMethods": "Other methods",
       "passkeyName": "Passkey"
+    },
+    "reauth": {
+      "title": "Confirm it is you",
+      "description_one": "This action needs a recent confirmation. It stays valid for {{count}} minute.",
+      "description_other": "This action needs a recent confirmation. It stays valid for {{count}} minutes.",
+      "loading": "Loading options…",
+      "passwordLabel": "Password",
+      "totpLabel": "Code from your authenticator app",
+      "passkeyHint": "Use one of the passkeys you added to this account.",
+      "ssoHint": "You signed in with {{provider}}. Sign in there again to continue; you will come back to this page.",
+      "signinHint": "Sign out and sign in again to continue. You will come back to this page.",
+      "confirm": "Confirm",
+      "confirming": "Confirming…",
+      "usePasskey": "Use passkey",
+      "waiting": "Waiting for your device…",
+      "continueWith": "Continue with {{provider}}",
+      "signIn": "Sign in again",
+      "cancel": "Cancel",
+      "wrongPassword": "The password is not correct.",
+      "wrongCode": "The code is not correct. Try again.",
+      "passkeyFailed": "This passkey was not accepted.",
+      "passkeyCancelled": "No passkey was used. Try again or choose another method.",
+      "throttled": "Too many attempts. Try again later.",
+      "otherMethods": "Other ways to confirm",
+      "switch": {
+        "password": "Use your password",
+        "totp": "Use your authenticator app",
+        "webauthn": "Use a passkey",
+        "sso": "Sign in with {{provider}} again",
+        "signin": "Sign out and sign in again"
+      }
     }
   },
   "account": {

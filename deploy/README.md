@@ -83,7 +83,8 @@ docker compose -f deploy/compose.yaml up -d
 ```
 
 Jedes Image enthält eine SBOM und eine SLSA-Provenance-Attestation (BuildKit) und wird vor dem
-Veröffentlichen mit Trivy geprüft; behebbare kritische CVEs brechen den Build ab. Anzeigen z. B. mit
+Veröffentlichen mit Trivy geprüft; behebbare CVEs der Stufen HIGH und CRITICAL brechen den Build ab
+(akzeptierte Ausnahmen mit Begründung in [`.trivyignore`](../.trivyignore)). Anzeigen z. B. mit
 `docker buildx imagetools inspect ghcr.io/dusseligerdussel/ollamail-api:<tag> --format '{{ json .SBOM }}'`.
 
 ### Zugriff auf die Images
@@ -156,6 +157,11 @@ Key wechseln:
 3. `docker compose -f deploy/compose.yaml run --rm api python -m app.cli rotate-keys`
    verschlüsselt alle gespeicherten Secrets mit dem neuen Key (in einer Transaktion).
 4. `OLLAMAIL_SECRET_KEYS_OLD` leeren und neu starten.
+
+Wiederherstellungscodes für die Zwei-Faktor-Anmeldung sind nur als HMAC gespeichert und lassen
+sich nicht umschlüsseln. Sie funktionieren nach der Rotation weiter, solange der alte Key in
+`OLLAMAIL_SECRET_KEYS_OLD` steht; nach Schritt 4 nicht mehr. Vor Schritt 4 die Nutzer bitten,
+neue Codes zu erzeugen, oder den alten Key dort belassen (`docs/auth/mfa.md`).
 
 ## TLS / Reverse Proxy
 

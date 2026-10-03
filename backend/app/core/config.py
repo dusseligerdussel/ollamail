@@ -498,6 +498,10 @@ class AuthSettings(BaseSettings):
     # Unset: both derived from public_url. Without either, passkeys are unavailable.
     webauthn_rp_id: str | None = None
     webauthn_origins: list[str] = Field(default_factory=list)
+    # Sensitive actions (removing a second factor, new recovery codes, full data export,
+    # deleting the account) need a confirmation of the password, a second factor, a passkey
+    # or a new sign-in within this many minutes (app/auth/reauth.py).
+    reauth_minutes: int = Field(default=10, ge=1, le=24 * 60)
 
     @field_validator("public_url")
     @classmethod

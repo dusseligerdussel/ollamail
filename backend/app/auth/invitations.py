@@ -4,8 +4,9 @@ An admin invites someone by e-mail address: the account is created with a local 
 but no password, and the admin gets a one-time link to pass on (ollamail sends no mail
 itself). The link carries 256 random bits in the URL fragment (``/invite#<token>``), so it
 never reaches server logs or ``Referer`` headers; only its SHA-256 is stored. Accepting
-sets the password, deletes the invitation and signs the user in. A new link replaces the
-old one.
+sets the password, deletes the invitation and continues like a login: with a second
+factor (or while 2FA is enforced for the account) the next step is ``/auth/mfa`` (202
+``MfaChallenge``), otherwise the user is signed in. A new link replaces the old one.
 """
 
 import secrets
@@ -15,6 +16,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Request, Response, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -22,6 +24,9 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import audit
 from app.auth import service
 from app.auth.dependencies import SettingsDep
+from app.auth.mfa import service as mfa_service
+from app.auth.mfa.router import second_step as mfa_second_step
+from app.auth.mfa.schemas import MfaChallenge
 from app.auth.models import LOCAL_PROVIDER, Identity, Invitation
 from app.auth.passwords import hash_password
 from app.auth.policy import local_login_enabled
@@ -136,15 +141,24 @@ async def lookup_invitation(
     )
 
 
-@router.post("/accept", status_code=status.HTTP_200_OK, responses=_ERRORS)
+@router.post(
+    "/accept",
+    status_code=status.HTTP_200_OK,
+    response_model=UserRead,
+    responses={
+        **_ERRORS,
+        202: {"model": MfaChallenge, "description": "Password set, second step needed"},
+    },
+)
 async def accept_invitation(
     body: InvitationAccept,
     request: Request,
     response: Response,
     db: DbDep,
     settings: SettingsDep,
-) -> UserRead:
-    """Set the password of the invited account and sign in."""
+) -> UserRead | JSONResponse:
+    """Set the password of the invited account and sign in. Like ``POST /auth/login``,
+    accounts with a second factor or under enforced 2FA get 202 and no session yet."""
     await service.throttle_ip(db, settings, request)
     if not await local_login_enabled(db):
         raise ProblemError(
@@ -181,6 +195,11 @@ async def accept_invitation(
         audit.Target.of(audit.TargetType.USER, user.id),
         {"via": "invitation"},
     )
+    step = await mfa_service.login_step(db, user)
+    if step is not None:
+        # Commits the password together with the pending second step.
+        log.info("invitation_accepted", user_id=user.id, second_step=step)
+        return await mfa_second_step(db, settings, request, user, step)
     await service.start_session(db, settings, request, response, user, provider=LOCAL_PROVIDER)
     log.info("invitation_accepted", user_id=user.id)
     return UserRead.model_validate(user)

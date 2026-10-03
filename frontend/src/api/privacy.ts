@@ -1,5 +1,5 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
-
+import { useReauth } from "@/components/auth/reauth";
 import { API_BASE_PATH, api, unwrap } from "./client";
 import { isApiError } from "./errors";
 import type { components } from "./schema.gen";
@@ -53,8 +53,10 @@ export function exportDownloadUrl(id: string) {
 
 export function useRequestExport() {
   const queryClient = useQueryClient();
+  const withReauth = useReauth();
   return useMutation({
-    mutationFn: () => unwrap(api.POST("/privacy/exports")),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: () => withReauth(() => unwrap(api.POST("/privacy/exports"))),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: exportsQueryOptions.queryKey }),
   });
 }
@@ -69,11 +71,15 @@ export function useDeleteExport() {
 }
 
 export function useDeleteAccount() {
+  const withReauth = useReauth();
   return useMutation({
     // Shown inline in the confirmation dialog.
     meta: { errorToast: false },
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: (confirmEmail: string) =>
-      unwrap(api.DELETE("/privacy/account", { body: { confirm_email: confirmEmail } })),
+      withReauth(() =>
+        unwrap(api.DELETE("/privacy/account", { body: { confirm_email: confirmEmail } })),
+      ),
   });
 }
 

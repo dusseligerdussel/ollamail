@@ -937,6 +937,8 @@
           "auth.mfa_enabled",
           "auth.mfa_disabled",
           "auth.mfa_recovery_codes_generated",
+          "auth.reauthenticated",
+          "auth.reauth_failed",
           "user.created",
           "user.role_changed",
           "user.deactivated",
@@ -6843,6 +6845,133 @@
           "checks"
         ],
         "title": "ReadinessStatus",
+        "type": "object"
+      },
+      "ReauthOptions": {
+        "description": "How the signed-in user can confirm who they are.",
+        "properties": {
+          "login_path": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Login Path"
+          },
+          "methods": {
+            "items": {
+              "enum": [
+                "password",
+                "totp",
+                "webauthn",
+                "sso",
+                "signin"
+              ],
+              "type": "string"
+            },
+            "title": "Methods",
+            "type": "array"
+          },
+          "provider_display_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Display Name"
+          },
+          "reauth_minutes": {
+            "title": "Reauth Minutes",
+            "type": "integer"
+          },
+          "valid_until": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Valid Until"
+          }
+        },
+        "required": [
+          "methods",
+          "reauth_minutes",
+          "valid_until"
+        ],
+        "title": "ReauthOptions",
+        "type": "object"
+      },
+      "ReauthRequest": {
+        "properties": {
+          "code": {
+            "anyOf": [
+              {
+                "maxLength": 16,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Code"
+          },
+          "method": {
+            "enum": [
+              "password",
+              "totp"
+            ],
+            "title": "Method",
+            "type": "string"
+          },
+          "password": {
+            "anyOf": [
+              {
+                "maxLength": 1024,
+                "minLength": 1,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Password"
+          }
+        },
+        "required": [
+          "method"
+        ],
+        "title": "ReauthRequest",
+        "type": "object"
+      },
+      "ReauthStatus": {
+        "properties": {
+          "authenticated_at": {
+            "format": "date-time",
+            "title": "Authenticated At",
+            "type": "string"
+          },
+          "valid_until": {
+            "format": "date-time",
+            "title": "Valid Until",
+            "type": "string"
+          }
+        },
+        "required": [
+          "authenticated_at",
+          "valid_until"
+        ],
+        "title": "ReauthStatus",
         "type": "object"
       },
       "Recipient": {
@@ -12884,7 +13013,7 @@
     },
     "/auth/invitations/accept": {
       "post": {
-        "description": "Set the password of the invited account and sign in.",
+        "description": "Set the password of the invited account and sign in. Like ``POST /auth/login``,\naccounts with a second factor or under enforced 2FA get 202 and no session yet.",
         "operationId": "auth_accept_invitation",
         "requestBody": {
           "content": {
@@ -12906,6 +13035,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallenge"
+                }
+              }
+            },
+            "description": "Password set, second step needed"
           },
           "403": {
             "description": "Local login is disabled"
@@ -13663,7 +13802,7 @@
     },
     "/auth/mfa/passkeys/{passkey_id}": {
       "delete": {
-        "description": "Remove one of the own passkeys.",
+        "description": "Remove one of the own passkeys. Needs a recent confirmation.",
         "operationId": "auth_remove_passkey",
         "parameters": [
           {
@@ -13683,6 +13822,9 @@
           },
           "401": {
             "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
           },
           "404": {
             "description": "No such passkey"
@@ -13709,7 +13851,7 @@
     },
     "/auth/mfa/recovery-codes": {
       "post": {
-        "description": "New recovery codes; the previous ones stop working.",
+        "description": "New recovery codes; the previous ones stop working. Needs a recent confirmation.",
         "operationId": "auth_regenerate_recovery_codes",
         "responses": {
           "200": {
@@ -13725,6 +13867,9 @@
           "401": {
             "description": "Not signed in"
           },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
+          },
           "409": {
             "description": "No second factor set up"
           }
@@ -13737,7 +13882,7 @@
     },
     "/auth/mfa/totp": {
       "delete": {
-        "description": "Remove the authenticator app.",
+        "description": "Remove the authenticator app. Needs a recent confirmation (app/auth/reauth.py).",
         "operationId": "auth_remove_totp",
         "responses": {
           "204": {
@@ -13745,6 +13890,9 @@
           },
           "401": {
             "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
           },
           "404": {
             "description": "Not set up"
@@ -14193,9 +14341,176 @@
         ]
       }
     },
+    "/auth/reauth": {
+      "get": {
+        "description": "How the signed-in user can confirm who they are before a sensitive action.",
+        "operationId": "auth_get_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthOptions"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Options",
+        "tags": [
+          "auth"
+        ]
+      },
+      "post": {
+        "description": "Confirm with the password or an authenticator code.",
+        "operationId": "auth_confirm",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ReauthRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Wrong password, code or passkey"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "The method is not available for this account"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        },
+        "summary": "Confirm",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/reauth/passkey": {
+      "post": {
+        "description": "Confirm with a passkey (after ``/auth/reauth/passkey/options``).",
+        "operationId": "auth_confirm_passkey",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PasskeyAssertion"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReauthStatus"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Wrong password, code or passkey"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "The method is not available for this account"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        },
+        "summary": "Confirm Passkey",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/reauth/passkey/options": {
+      "post": {
+        "description": "WebAuthn request options for confirming with a passkey.",
+        "operationId": "auth_passkey_options",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "additionalProperties": true,
+                  "title": "Response Auth Passkey Options",
+                  "type": "object"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "description": "Wrong password, code or passkey"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "The method is not available for this account"
+          },
+          "429": {
+            "description": "Too many attempts"
+          }
+        },
+        "summary": "Passkey Options",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/register": {
       "post": {
-        "description": "Create a local account (role ``user``) and sign in, if self-registration is on.",
+        "description": "Create a local account (role ``user``) and sign in, if self-registration is on.\nWhile 2FA is enforced for all accounts, the answer is 202 and the account sets up a\nfactor first (as at the login).",
         "operationId": "auth_register",
         "requestBody": {
           "content": {
@@ -14217,6 +14532,16 @@
               }
             },
             "description": "Successful Response"
+          },
+          "202": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MfaChallenge"
+                }
+              }
+            },
+            "description": "Account created, 2FA must be set up"
           },
           "403": {
             "description": "Registration is disabled"
@@ -16916,7 +17241,7 @@
     },
     "/privacy/account": {
       "delete": {
-        "description": "Delete the own account with all data (mailboxes, mails, todos, digests, ...) and\nfiles. Confirmed by entering the account's e-mail address. Not reversible.",
+        "description": "Delete the own account with all data (mailboxes, mails, todos, digests, ...) and\nfiles. Confirmed by entering the account's e-mail address, after a recent confirmation\nof the account (app/auth/reauth.py, 403 reauth-required). Not reversible.",
         "operationId": "privacy_delete_account",
         "requestBody": {
           "content": {
@@ -16936,7 +17261,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Self-deletion is disabled"
+            "description": "Self-deletion is disabled, or a confirmation is needed"
           },
           "409": {
             "description": "Last active administrator"
@@ -17003,7 +17328,7 @@
         ]
       },
       "post": {
-        "description": "Start an export of the own data (ZIP with JSON and digest audio) as a background\njob. While one is in progress, that one is returned.",
+        "description": "Start an export of the own data (ZIP with JSON and digest audio) as a background\njob. While one is in progress, that one is returned. Needs a recent confirmation\n(app/auth/reauth.py).",
         "operationId": "privacy_request_export",
         "responses": {
           "202": {
@@ -17018,6 +17343,9 @@
           },
           "401": {
             "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
           }
         },
         "summary": "Request Export",

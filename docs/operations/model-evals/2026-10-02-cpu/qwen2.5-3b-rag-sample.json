@@ -1,0 +1,135 @@
+{
+  "run": {
+    "started_at": "2026-10-02T23:17:10+00:00",
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.80GHz",
+      "cpu_count": 4,
+      "description": "Intel(R) Xeon(R) Processor @ 2.80GHz, 4 logical CPUs, Linux x86_64"
+    },
+    "endpoint": {
+      "provider": "ollama",
+      "base_url": "http://localhost:11434"
+    },
+    "profile": "cpu",
+    "stages": [
+      "rag"
+    ],
+    "dataset": {
+      "mails": 200,
+      "questions": 24,
+      "languages": [
+        "de",
+        "en"
+      ]
+    },
+    "prefilter": true,
+    "call_timeouts": {
+      "triage": 120.0,
+      "todos": 120.0,
+      "digest": 120.0,
+      "rag_chat": 120.0
+    },
+    "judge_model": null,
+    "prompt_versions": {
+      "triage": "triage@1",
+      "todos_extract": "todos_extract@1",
+      "digest_map": "digest_map@1",
+      "digest_condense": "digest_condense@1",
+      "digest_reduce": "digest_reduce@1",
+      "rag_query": "rag_query@1",
+      "rag_rerank": "rag_rerank@1",
+      "rag_answer": "rag_answer@1",
+      "eval_judge": "eval_judge@1"
+    },
+    "embedding_model": "granite-embedding-multilingual:278m",
+    "index_seconds": 34.5,
+    "embedding_calls": {
+      "calls": 201,
+      "failed": 0,
+      "timeouts": 0,
+      "seconds_mean": 0.17,
+      "seconds_p50": 0.14,
+      "seconds_p95": 0.25,
+      "prompt_tokens": 31778,
+      "completion_tokens": 0,
+      "tokens_per_second": null,
+      "processed_tokens_per_second": null,
+      "tokens_estimated": false
+    },
+    "finished_at": "2026-10-02T23:41:57+00:00",
+    "note": "Code ea3a54c (after #133), RAG only, sample of 24 of 60 questions, all 200 mails indexed."
+  },
+  "models": [
+    {
+      "model": "qwen2.5:3b",
+      "seconds": 1449.0,
+      "error": null,
+      "timeouts": {
+        "calls": 46,
+        "timed_out": 0,
+        "rate": 0.0
+      },
+      "stages": {
+        "rag": {
+          "questions": 24,
+          "answerable": 20,
+          "unanswerable": 4,
+          "embedding_model": "granite-embedding-multilingual:278m",
+          "indexed_mails": 200,
+          "index_seconds": 34.5,
+          "recall_at_1": 0.85,
+          "recall_at_3": 0.9,
+          "recall_at_5": 0.9,
+          "recall_at_sources": 0.9,
+          "mrr": 0.875,
+          "cited_expected_source": 0.65,
+          "answer_correct_rules": 0.9,
+          "no_answer_correct_rules": 0.5,
+          "judge": null,
+          "first_token_seconds_mean": 56.37,
+          "seconds_mean": 60.38,
+          "errors": 0,
+          "wrong": [
+            {
+              "question": "de-a-q11",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "de-b-q08",
+              "rank": null,
+              "status": "no_evidence"
+            },
+            {
+              "question": "en-a-q13",
+              "rank": null,
+              "status": "answered"
+            },
+            {
+              "question": "en-b-q13",
+              "rank": null,
+              "status": "answered"
+            }
+          ]
+        }
+      },
+      "calls": {
+        "rag_chat": {
+          "calls": 46,
+          "failed": 0,
+          "timeouts": 0,
+          "seconds_mean": 31.36,
+          "seconds_p50": 13.99,
+          "seconds_p95": 65.06,
+          "prompt_tokens": 13424,
+          "completion_tokens": 1517,
+          "tokens_per_second": 1.05,
+          "processed_tokens_per_second": 10.36,
+          "tokens_estimated": true
+        }
+      }
+    }
+  ]
+}

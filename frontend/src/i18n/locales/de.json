@@ -262,7 +262,9 @@
           "session_revoked": "Sitzungen beendet",
           "mfa_enabled": "Zwei-Faktor-Methode hinzugefügt",
           "mfa_disabled": "Zwei-Faktor-Methode entfernt",
-          "mfa_recovery_codes_generated": "Wiederherstellungscodes erstellt"
+          "mfa_recovery_codes_generated": "Wiederherstellungscodes erstellt",
+          "reauthenticated": "Identität bestätigt",
+          "reauth_failed": "Bestätigung fehlgeschlagen"
         },
         "user": {
           "created": "Benutzer angelegt",
@@ -1095,6 +1097,37 @@
       },
       "otherMethods": "Andere Methoden",
       "passkeyName": "Passkey"
+    },
+    "reauth": {
+      "title": "Bestätige, dass du es bist",
+      "description_one": "Für diese Aktion ist eine aktuelle Bestätigung nötig. Sie gilt danach {{count}} Minute.",
+      "description_other": "Für diese Aktion ist eine aktuelle Bestätigung nötig. Sie gilt danach {{count}} Minuten.",
+      "loading": "Optionen werden geladen …",
+      "passwordLabel": "Passwort",
+      "totpLabel": "Code aus deiner Authenticator-App",
+      "passkeyHint": "Verwende einen der Passkeys, die du für dieses Konto hinzugefügt hast.",
+      "ssoHint": "Du hast dich mit {{provider}} angemeldet. Melde dich dort erneut an, um fortzufahren; danach kommst du auf diese Seite zurück.",
+      "signinHint": "Melde dich ab und wieder an, um fortzufahren. Danach kommst du auf diese Seite zurück.",
+      "confirm": "Bestätigen",
+      "confirming": "Wird bestätigt …",
+      "usePasskey": "Passkey verwenden",
+      "waiting": "Warte auf dein Gerät …",
+      "continueWith": "Weiter mit {{provider}}",
+      "signIn": "Erneut anmelden",
+      "cancel": "Abbrechen",
+      "wrongPassword": "Das Passwort ist nicht korrekt.",
+      "wrongCode": "Der Code ist nicht korrekt. Versuche es erneut.",
+      "passkeyFailed": "Dieser Passkey wurde nicht akzeptiert.",
+      "passkeyCancelled": "Es wurde kein Passkey verwendet. Versuche es erneut oder wähle eine andere Methode.",
+      "throttled": "Zu viele Versuche. Versuche es später erneut.",
+      "otherMethods": "Andere Möglichkeiten zur Bestätigung",
+      "switch": {
+        "password": "Passwort verwenden",
+        "totp": "Authenticator-App verwenden",
+        "webauthn": "Passkey verwenden",
+        "sso": "Erneut mit {{provider}} anmelden",
+        "signin": "Abmelden und neu anmelden"
+      }
     }
   },
   "account": {

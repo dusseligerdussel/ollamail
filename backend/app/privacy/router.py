@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import audit
 from app.auth.admin_access import AdminAccessGuard
 from app.auth.dependencies import AdminSessionDep, CurrentSessionDep, CurrentUserDep, SettingsDep
+from app.auth.reauth import REAUTH_RESPONSES, RecentAuthDep
 from app.auth.sessions import clear_session_cookie
 from app.core.config import Settings
 from app.core.db import get_db
@@ -95,12 +96,13 @@ async def list_exports(current: CurrentSessionDep, db: DbDep) -> list[DataExport
     return [DataExportRead.model_validate(item) for item in items]
 
 
-@router.post("/exports", status_code=status.HTTP_202_ACCEPTED)
+@router.post("/exports", status_code=status.HTTP_202_ACCEPTED, responses=REAUTH_RESPONSES)
 async def request_export(
-    current: CurrentSessionDep, db: DbDep, settings: SettingsDep, enqueue: EnqueuerDep
+    current: RecentAuthDep, db: DbDep, settings: SettingsDep, enqueue: EnqueuerDep
 ) -> DataExportRead:
     """Start an export of the own data (ZIP with JSON and digest audio) as a background
-    job. While one is in progress, that one is returned."""
+    job. While one is in progress, that one is returned. Needs a recent confirmation
+    (app/auth/reauth.py)."""
     item, created = await exports.request_export(
         db, current.user_id, expiry_hours=settings.privacy.export_expiry_hours
     )
@@ -169,7 +171,7 @@ async def delete_export(
     "/account",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
-        403: {"description": "Self-deletion is disabled"},
+        403: {"description": "Self-deletion is disabled, or a confirmation is needed"},
         409: {"description": "Last active administrator"},
         422: {"description": "Confirmation does not match"},
     },
@@ -178,12 +180,14 @@ async def delete_account(
     request: Request,
     body: AccountDeletion,
     user: CurrentUserDep,
+    _: RecentAuthDep,
     db: DbDep,
     settings: SettingsDep,
     stores: FileStoresDep,
 ) -> Response:
     """Delete the own account with all data (mailboxes, mails, todos, digests, ...) and
-    files. Confirmed by entering the account's e-mail address. Not reversible."""
+    files. Confirmed by entering the account's e-mail address, after a recent confirmation
+    of the account (app/auth/reauth.py, 403 reauth-required). Not reversible."""
     if not settings.privacy.self_delete_enabled:
         raise ProblemError(
             403,

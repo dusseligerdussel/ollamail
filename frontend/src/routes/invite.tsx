@@ -4,8 +4,10 @@ import { type FormEvent, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { acceptInvitation, lookupInvitation } from "@/api/admin-auth";
-import { setSignedIn } from "@/api/auth";
+import { setSignedIn, type User } from "@/api/auth";
 import { describeApiError, isApiError } from "@/api/errors";
+import { isMfaChallenge, type MfaChallenge } from "@/api/mfa";
+import { EnrollStep, SecondFactorStep } from "@/components/auth/second-factor";
 import { FormError, FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { useDocumentTitle } from "@/hooks/use-document-title";
@@ -66,19 +68,39 @@ function SetPasswordForm({ token, email }: { token: string; email: string }) {
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [mismatch, setMismatch] = useState(false);
+  // Set when the account needs a second factor (or must set one up) before the session.
+  const [challenge, setChallenge] = useState<MfaChallenge>();
+  const signedIn = async (user: User) => {
+    setSignedIn(queryClient, user);
+    if ((supportedLanguages as readonly string[]).includes(user.language)) {
+      await i18n.changeLanguage(user.language);
+    }
+    await navigate({ to: "/inbox", replace: true });
+  };
   const accept = useMutation({
     mutationFn: () => acceptInvitation(token, password),
     meta: { errorToast: false },
-    onSuccess: async (user) => {
-      // Drop the token from the address bar and history.
+    onSuccess: async (result) => {
+      // Drop the token from the address bar and history: it is used up either way.
       window.history.replaceState(null, "", window.location.pathname);
-      setSignedIn(queryClient, user);
-      if ((supportedLanguages as readonly string[]).includes(user.language)) {
-        await i18n.changeLanguage(user.language);
+      if (isMfaChallenge(result)) {
+        setPassword("");
+        setConfirm("");
+        setChallenge(result);
+      } else {
+        await signedIn(result);
       }
-      await navigate({ to: "/inbox", replace: true });
     },
   });
+
+  if (challenge) {
+    // The password is set; if the step expires or is left, the login page takes over.
+    const toLogin = () => void navigate({ to: "/login", replace: true });
+    const Step = challenge.status === "mfa_enrollment_required" ? EnrollStep : SecondFactorStep;
+    return (
+      <Step challenge={challenge} onSignedIn={signedIn} onExpired={toLogin} onBack={toLogin} />
+    );
+  }
 
   let passwordError: string | undefined;
   let formError: string | undefined;
