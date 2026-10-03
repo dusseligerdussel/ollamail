@@ -60,7 +60,7 @@ async def test_sort_date_is_backfilled_in_batches(empty_database: str) -> None:
     """``add_message_sort_date`` fills existing rows (more than one batch) and the trigger
     keeps the column up to date afterwards."""
     config = alembic_config(empty_database)
-    await asyncio.to_thread(command.upgrade, config, "1efbd562bd72")
+    await asyncio.to_thread(command.upgrade, config, "69dd8258f443")
     engine = create_async_engine(empty_database, poolclass=NullPool)
     async with engine.begin() as connection:
         await connection.execute(

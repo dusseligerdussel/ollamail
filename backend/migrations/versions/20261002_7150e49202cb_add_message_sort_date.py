@@ -6,7 +6,7 @@ keeps the column up to date. Existing rows are filled in batches, each committed
 so large mailboxes neither hold all row locks at once nor fill the WAL in one transaction.
 
 Revision ID: 7150e49202cb
-Revises: 1efbd562bd72
+Revises: 69dd8258f443
 Create Date: 2026-10-02 23:16:48.959057+00:00
 """
 
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "7150e49202cb"
-down_revision: str | Sequence[str] | None = "1efbd562bd72"
+down_revision: str | Sequence[str] | None = "69dd8258f443"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
