@@ -70,12 +70,15 @@ async def get_status(db: DbDep) -> SetupStatus:
     responses={
         403: {"description": "Wrong setup token"},
         409: {"description": "The instance is already set up"},
+        **_THROTTLED,
     },
 )
 async def create_admin(
     body: SetupRequest, request: Request, response: Response, db: DbDep, settings: SettingsDep
 ) -> UserRead:
-    """Create the first admin and sign them in. Only possible while no user exists."""
+    """Create the first admin and sign them in. Only possible while no user exists.
+    Attempts count towards the per-IP limit of the login (``OLLAMAIL_AUTH_IP_MAX_ATTEMPTS``)."""
+    await service.throttle_ip(db, settings, request)
     if await any_user_exists(db):
         raise already_initialized()
     if not setup_token_valid(settings, body.setup_token):

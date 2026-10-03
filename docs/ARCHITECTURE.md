@@ -153,6 +153,13 @@ Spalte `mail_mailboxes.credentials` vom Typ `EncryptedJSON` aus `app/core/crypto
   `password` bzw. `access_token`; für XOAUTH2 kann ein `token_provider` (Token-Refresh, #37/#38)
   übergeben werden. Unverschlüsselte Verbindungen und ungeprüfte Zertifikate lehnt der Provider
   ab, solange der Admin `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS` nicht setzt.
+- **Zielprüfung** (`network.py`, gilt für IMAP und SMTP): Der Host wird einmal aufgelöst; nur
+  global erreichbare Adressen sind erlaubt. Loopback, RFC 1918, Link-Local (inkl.
+  `169.254.169.254`), ULA, CGNAT, Multicast und reservierte Bereiche nur, wenn der Hostname oder
+  ein passender Bereich in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` steht. Verbunden wird mit der
+  geprüften Adresse (TLS prüft weiter den Hostnamen), damit DNS-Rebinding nicht greift. Ein
+  abgelehntes Ziel liefert denselben Fehler wie ein geschlossenes (`connection_failed`); so taugen
+  Verbindungstests nicht als Portscanner für interne Dienste (`postgres:5432`, `ollama:11434`).
 - **Ordner:** `LIST` (mit `RETURN (SPECIAL-USE)`, falls verfügbar). Rollen aus Special-Use-Attributen,
   sonst aus gängigen Namen (DE/EN, nur oberste Ebene). `remote_id` ist der Ordnername wie vom
   Server (modified UTF-7), `name` dekodiert.
@@ -276,7 +283,7 @@ und `delete_mailbox`; sie baut nichts davon nach.
 | Endpunkt | Zweck |
 |---|---|
 | `POST /mailboxes/autodiscover` | Host/Port-Vorschläge zur Adresse (bekannte Anbieter, sonst `imap.<domain>`/`mail.<domain>`). Offline, keine DNS-/HTTP-Abfragen; Adresse im Body, damit sie nicht in Access-Logs landet. Hinweise als Codes (`app_password`, `enable_imap`, `oauth_required`, …) |
-| `POST /mailboxes/test` | Verbindungstest ohne Speichern (Provider aus der Registry, `list_folders`). Ergebnis `ok`, Fehlercode oder Ordnerliste für die Ordnerauswahl vor dem Anlegen |
+| `POST /mailboxes/test` | Verbindungstest ohne Speichern (Provider aus der Registry, `list_folders`). Ergebnis `ok`, Fehlercode oder Ordnerliste für die Ordnerauswahl vor dem Anlegen. Rate-Limit pro Nutzer (`OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS` je 10 Minuten, gemeinsam mit Anlegen und Verbindungsänderung; darüber 429) |
 | `GET/POST /mailboxes` | Eigene Postfächer mit Sync-Status; Anlegen testet die Verbindung (422 mit `error_code`), lehnt Duplikate ab (409) und stößt den Initialimport an |
 | `GET/PATCH/DELETE /mailboxes/{id}` | Details; Umbenennen, Verbindung/Zugangsdaten (vor dem Speichern getestet), Importzeitraum, ausgeschlossene Rollen, Pausieren/Fortsetzen (`sync_enabled`); Entfernen |
 | `GET /mailboxes/{id}/status` | Nur der Sync-Status |
@@ -1093,7 +1100,8 @@ Login über `POST /api/auth/login/ldap/{name}` mit denselben Rate-Limits wie der
 **Bootstrap:** `GET /api/setup/status` → `{"initialized": bool}`. `POST /api/setup` legt den ersten
 Admin an und meldet ihn an. Voraussetzung ist der Setup-Token (`OLLAMAIL_SETUP_TOKEN` oder per
 HKDF aus `OLLAMAIL_SECRET_KEY` abgeleitet, auf allen API-Instanzen gleich, beim Start geloggt
-und per `python -m app.cli setup-token` abrufbar). Ein transaktionaler Advisory Lock
+und per `python -m app.cli setup-token` abrufbar; ein eigener Token braucht mindestens 32 Zeichen).
+Jeder Versuch zählt gegen das IP-Limit des Logins (`OLLAMAIL_AUTH_IP_MAX_ATTEMPTS`). Ein transaktionaler Advisory Lock
 (`pg_advisory_xact_lock`) serialisiert parallele Requests: genau einer gewinnt, alle anderen und
 jeder spätere Versuch erhalten 409. Danach ist die Selbstregistrierung aus
 (`OLLAMAIL_AUTH_LOCAL_REGISTRATION`); Admins legen Konten über `POST /api/users` an oder laden
@@ -1127,7 +1135,10 @@ den Kontozähler zurück. Unbekannte Konten werden genauso gezählt und mit eine
 damit Antwort und Laufzeit nichts verraten. Die Schlüssel sind HMACs von IP bzw. E-Mail-Adresse.
 Argon2id (RFC 9106, 64 MiB) läuft in einem Thread, höchstens vier Hashes gleichzeitig; veraltete
 Parameter werden beim Login aktualisiert. Hinter einem Reverse Proxy kommt die Client-IP aus
-`X-Forwarded-For` (uvicorn `--forwarded-allow-ips`).
+`X-Forwarded-For` (#137): Caddy ermittelt sie strikt von rechts (`trusted_proxies_strict`, nur
+private Netze sind Proxys) und gibt genau einen Wert weiter; die API übernimmt ihn per
+`ProxyHeadersMiddleware` nur von `OLLAMAIL_FORWARDED_ALLOW_IPS` (uvicorn läuft mit
+`--no-proxy-headers`). Ein vom Client gefälschter Header erzeugt so keinen neuen IP-Zähler.
 
 **Zweiter Faktor** (#96, `app/auth/mfa/`, Details: [`auth/mfa.md`](auth/mfa.md)): Lokale Konten
 können Passkeys (WebAuthn mit `webauthn`, auch ohne Passwort), eine Authenticator-App (TOTP mit
@@ -1156,7 +1167,9 @@ Anfrage außer `GET`/`HEAD`/`OPTIONS`/`TRACE` muss den Wert des Cookies `ollamai
 `X-CSRF-Token` senden. Der Token ist `<nonce>.<HMAC(nonce, Session-Cookie)>`: an die Session
 gebunden, bei Login/Logout neu ausgestellt und von einer Subdomain aus nicht fälschbar. Fehlt das
 Cookie oder passt es nicht zur Session, setzt jede Antwort ein neues. `Sec-Fetch-Site: cross-site`
-wird zusätzlich abgewiesen.
+wird zusätzlich abgewiesen. Abgewiesene Anfragen bekommen `403` mit `error_code: "csrf_failed"`;
+Setup- und Anmeldeseite erklären damit den häufigsten Fall, ein über `http://` verworfenes
+`Secure`-Cookie ([`OPERATIONS.md` 2.6](OPERATIONS.md#26-http-ohne-tls-testbetrieb)).
 
 **Dependencies:** `get_current_session` (401), `require_admin` (403), `get_current_user` (ORM-Objekt)
 in `app/auth/dependencies.py`; `get_current_user_id` in `app/core/current_user.py`. Die DB-Session

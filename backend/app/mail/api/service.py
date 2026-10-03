@@ -9,11 +9,15 @@ host names or credentials.
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
+from datetime import timedelta
 from typing import Any
 
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import rate_limit
+from app.core.config import Settings
+from app.core.errors import ProblemError
 from app.core.events import Event
 from app.core.ids import uuid7
 from app.core.logging import get_logger
@@ -40,9 +44,29 @@ from app.worker import resource_lock
 log = get_logger(__name__)
 
 SYNC_TASK = "mail.sync_mailbox"
+# Window of ``OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS``.
+CONNECTION_TEST_WINDOW = timedelta(minutes=10)
 
 
 # -- connection test ------------------------------------------------------------------
+
+
+async def throttle_connection_tests(
+    session: AsyncSession, settings: Settings, user_id: uuid.UUID
+) -> None:
+    """Count a connection test of ``user_id`` (committed at once); 429 above
+    ``OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS`` per window. Bounds how fast anyone can
+    probe mail servers (and, with an allowlist, internal hosts) through the API."""
+    hit = await rate_limit.hit(session, f"mailbox-test:{user_id}", CONNECTION_TEST_WINDOW)
+    await session.commit()
+    if hit.count > settings.mail.connection_test_max_attempts:
+        log.info("mail_connection_test_throttled", user_id=str(user_id))
+        raise ProblemError(
+            429,
+            detail="Too many connection tests. Try again later.",
+            type="urn:ollamail:problem:too-many-attempts",
+            retry_after=hit.retry_after(),
+        )
 
 
 async def check_connection(factory: ProviderFactory, config: MailboxConfig) -> ConnectionTestResult:

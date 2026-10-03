@@ -7,7 +7,9 @@ module of Graph/Gmail, see ``token_provider``).
 
 Transport security: TLS (port 993) or STARTTLS with certificate verification. Unencrypted
 connections and unverified certificates are refused unless the admin enables
-``OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS``.
+``OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS``. IMAP and SMTP hosts must resolve to public
+addresses unless ``OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS`` allows them (``network``); the
+connection goes to the checked address.
 
 Sending (``send``): SMTP submission (``smtp_*`` settings, default: the IMAP host with
 STARTTLS on port 587, same login), then the message is appended to the sent folder
@@ -48,7 +50,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from app.core.config import MailSettings, get_settings
 from app.core.logging import get_logger
 from app.mail.models import FolderRole, MailboxType
-from app.mail.providers import smtp
+from app.mail.providers import network, smtp
 from app.mail.providers.base import (
     AuthenticationError,
     ChangeEvent,
@@ -264,6 +266,7 @@ class ImapProvider:
         if insecure and not instance.allow_insecure_connections:
             raise ConfigurationError(code="insecure_connection_refused")
         self.config = config
+        self._mail_settings = instance
         self._allow_insecure = instance.allow_insecure_connections
         self._timeout = instance.imap_timeout
         self._batch_size = batch_size or instance.sync_batch_size
@@ -294,13 +297,18 @@ class ImapProvider:
         return extension in conn.capabilities and extension not in self._disabled
 
     async def _open(self) -> ImapConnection:
+        connect_timeout = min(self._timeout, 30.0)
+        address = await network.resolve(
+            self.settings.host, self._port, self._mail_settings, seconds=connect_timeout
+        )
         conn = await ImapConnection.open(
             self.settings.host,
             self._port,
             security=self.settings.security,
             ssl_context=self._ssl_context(),
-            connect_timeout=min(self._timeout, 30.0),
+            connect_timeout=connect_timeout,
             command_timeout=self._timeout,
+            address=address,
         )
         try:
             await self._authenticate(conn)
@@ -715,7 +723,12 @@ class ImapProvider:
         """Submit via SMTP, then store a copy in the sent folder. A failed copy does not
         fail the send (the mail is out): it is reported in ``sent_copy_error``."""
         target = await self._smtp_target()
-        refused = await smtp.submit(target, self.config.address, reply.recipients, reply.raw)
+        address = await network.resolve(
+            target.host, target.port, self._mail_settings, seconds=min(self._timeout, 30.0)
+        )
+        refused = await smtp.submit(
+            replace(target, address=address), self.config.address, reply.recipients, reply.raw
+        )
         if not self.settings.smtp_save_sent:
             return SentMessage(message_id=reply.message_id, refused=refused)
         try:
