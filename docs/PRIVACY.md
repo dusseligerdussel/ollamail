@@ -118,7 +118,7 @@ oder Antwortentwürfe außer als Daten.** Umgesetzt in mehreren Schichten, alle 
 | Ausgabe nur per Schema | Triage antwortet per JSON-Schema mit `enum` der erlaubten Kategorien und Priorität 1–3, Todos und Digest-Notizen per Schema; ungültige Antworten werden verworfen. RAG-Zitate filtert `CitationFilter` auf abgerufene Quellen |
 | Keine Werkzeuge | Kein Modell hat Tools oder Function Calling; Ausgaben werden nur gespeichert bzw. angezeigt, nie ausgeführt. Empfänger von Antworten bestimmt nie das Modell |
 | Zähler statt Inhalt | Treffer zählt `ollamail_prompt_injection_suspected_total{feature}` (Prometheus) und ein Log-Eintrag `prompt_injection_suspected` mit Feature und Anzahl, nie mit Text |
-| Messung | Eigene Eval-Kategorie mit 28 synthetischen Fällen (DE/EN), Kennzahl „Injection befolgt“ je Stufe ([`operations/model-evals.md`](operations/model-evals.md) §4.6) |
+| Messung | Eigene Eval-Kategorie mit 28 synthetischen Fällen (DE/EN), Kennzahl „Injection befolgt“ je Stufe ([`operations/model-evals.md`](operations/model-evals.md) §4.7) |
 
 Grenzen: Die Heuristik erkennt nicht jede Formulierung (im Eval-Datensatz 27 von 28), und
 ein kleines Modell kann sich auch ohne erkannte Passage täuschen lassen. Deshalb darf kein
