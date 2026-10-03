@@ -94,6 +94,31 @@ function SharedMailboxList() {
 
 function SharedMailboxRow({ mailbox }: { mailbox: SharedMailbox }) {
   const { t } = useTranslation();
+  const content = (
+    <>
+      <div className="min-w-0 flex-1">
+        <div className="flex min-w-0 items-baseline gap-2">
+          <span className="truncate text-ui font-medium">{mailbox.display_name}</span>
+          <span className="shrink-0 text-xs text-muted-foreground">
+            {t(`mailboxes.types.${mailbox.type}`)}
+          </span>
+        </div>
+        {mailbox.display_name !== mailbox.address && (
+          <div className="truncate text-ui text-muted-foreground">{mailbox.address}</div>
+        )}
+        <SyncStatus status={mailbox.status} className="mt-0.5" />
+        <div className="mt-0.5 text-xs text-muted-foreground">
+          {mailbox.assignments.length === 0
+            ? t("pages.sharedMailboxes.notAssigned")
+            : t("pages.sharedMailboxes.readers", { count: mailbox.reader_count })}
+        </div>
+      </div>
+    </>
+  );
+  // Being removed in the background: nothing left to open or change.
+  if (mailbox.status.phase === "deleting") {
+    return <li className="flex items-center gap-3 px-4 py-3">{content}</li>;
+  }
   return (
     <li>
       <Link
@@ -101,23 +126,7 @@ function SharedMailboxRow({ mailbox }: { mailbox: SharedMailbox }) {
         params={{ mailboxId: mailbox.id }}
         className="flex items-center gap-3 px-4 py-3 outline-none first:rounded-t-lg last:rounded-b-lg hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
       >
-        <div className="min-w-0 flex-1">
-          <div className="flex min-w-0 items-baseline gap-2">
-            <span className="truncate text-ui font-medium">{mailbox.display_name}</span>
-            <span className="shrink-0 text-xs text-muted-foreground">
-              {t(`mailboxes.types.${mailbox.type}`)}
-            </span>
-          </div>
-          {mailbox.display_name !== mailbox.address && (
-            <div className="truncate text-ui text-muted-foreground">{mailbox.address}</div>
-          )}
-          <SyncStatus status={mailbox.status} className="mt-0.5" />
-          <div className="mt-0.5 text-xs text-muted-foreground">
-            {mailbox.assignments.length === 0
-              ? t("pages.sharedMailboxes.notAssigned")
-              : t("pages.sharedMailboxes.readers", { count: mailbox.reader_count })}
-          </div>
-        </div>
+        {content}
         <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
       </Link>
     </li>

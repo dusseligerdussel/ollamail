@@ -39,6 +39,9 @@ export function SyncStatus({
   const count = new Intl.NumberFormat(i18n.language).format(status.message_count);
   let text: string;
   switch (status.phase) {
+    case "deleting":
+      text = t("mailboxes.status.deleting");
+      break;
     case "paused":
       text = t("mailboxes.status.paused");
       break;
@@ -81,6 +84,7 @@ export function SyncStatus({
           status.phase === "error" && "bg-destructive",
           busy && "bg-brand motion-safe:animate-pulse",
           (status.phase === "idle" || status.phase === "paused") && "bg-muted-foreground/40",
+          status.phase === "deleting" && "bg-muted-foreground/40 motion-safe:animate-pulse",
         )}
       />
       <span

@@ -36,9 +36,21 @@ export const mailKeys = {
   body: (messageId: string) => ["message", "body", messageId, "external"] as const,
 };
 
+function fetchMailboxes({ signal }: { signal: AbortSignal }) {
+  return unwrap(api.GET("/mailboxes", { signal }));
+}
+
+/** The mailboxes to read mail from: without those being removed (status `deleting`). */
 export const mailboxesQueryOptions = queryOptions({
   queryKey: mailKeys.mailboxes,
-  queryFn: ({ signal }) => unwrap(api.GET("/mailboxes", { signal })),
+  queryFn: fetchMailboxes,
+  select: (mailboxes) => mailboxes.filter((mailbox) => mailbox.status.phase !== "deleting"),
+});
+
+/** All mailboxes, including those being removed in the background (mailbox settings). */
+export const allMailboxesQueryOptions = queryOptions({
+  queryKey: mailKeys.mailboxes,
+  queryFn: fetchMailboxes,
 });
 
 export const mailboxProvidersQueryOptions = queryOptions({

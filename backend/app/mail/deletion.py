@@ -25,7 +25,7 @@ from datetime import UTC, datetime
 from functools import cache
 
 from procrastinate.exceptions import AlreadyEnqueued
-from sqlalchemy import delete, select
+from sqlalchemy import delete, select, tuple_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
@@ -97,17 +97,22 @@ async def purge_mailbox(
         if await session.get(Mailbox, mailbox_id) is None:
             await asyncio.to_thread(storage.delete_mailbox, mailbox_id)
         return result
+    # Keyset over the list index (mailbox, sort_date, id): each batch starts below the
+    # previous one instead of skipping the index entries of the rows deleted so far.
+    after: tuple[datetime, uuid.UUID] | None = None
     while True:
-        ids = list(
-            await session.scalars(
-                select(Message.id)
-                .where(Message.mailbox_id == mailbox_id)
-                .order_by(Message.id.desc())
-                .limit(MESSAGE_BATCH)
+        query = select(Message.id, Message.sort_date).where(Message.mailbox_id == mailbox_id)
+        if after is not None:
+            query = query.where(tuple_(Message.sort_date, Message.id) < after)
+        rows = (
+            await session.execute(
+                query.order_by(Message.sort_date.desc(), Message.id.desc()).limit(MESSAGE_BATCH)
             )
-        )
-        if not ids:
+        ).all()
+        if not rows:
             break
+        ids = [row.id for row in rows]
+        after = (rows[-1].sort_date, rows[-1].id)
         paths = list(
             await session.scalars(
                 select(Attachment.storage_path).where(Attachment.message_id.in_(ids))
@@ -141,8 +146,8 @@ async def purge_mailbox(
     log.info(
         "mail_mailbox_deleted",
         mailbox_id=str(mailbox_id),
-        messages=result.messages,
-        threads=result.threads,
+        message_count=result.messages,
+        thread_count=result.threads,
     )
     return result
 
