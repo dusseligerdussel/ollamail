@@ -8,7 +8,9 @@
 * **Condense:** if the notes do not fit into one context window, groups of notes are
   merged into fewer notes (references are kept), repeatedly if needed.
 * **Reduce:** the notes, most important first, become the spoken summary with ``[n]``
-  references to the mails.
+  references to the mails. References to notes that do not exist are dropped; an answer
+  without any valid reference is asked for again once (small models often leave them
+  out, #171).
 
 The context window comes from the gateway (``LLMGateway.assignment``), so the same code
 fits an 8k-token 3B model on a CPU and a 32k-token model on a GPU server. Mail content is
@@ -21,14 +23,19 @@ from dataclasses import dataclass
 
 from pydantic import BaseModel
 
-from app.ai.llm import GenerationOptions, LLMGateway, LLMOutputError, LLMTask
+from app.ai.llm import ChatMessage, GenerationOptions, LLMError, LLMGateway, LLMOutputError, LLMTask
 from app.ai.llm.context import estimate_messages_tokens, estimate_tokens, truncate_to_tokens
 from app.core.config import DigestSettings
 from app.core.logging import get_logger
 from app.digest import texts
 from app.digest.content import MailItem
 from app.digest.models import DigestLength
-from app.digest.prompts import DIGEST_CONDENSE, DIGEST_MAP, DIGEST_REDUCE
+from app.digest.prompts import (
+    DIGEST_CONDENSE,
+    DIGEST_MAP,
+    DIGEST_REDUCE,
+    REDUCE_MISSING_REFERENCES,
+)
 from app.digest.texts import DigestLanguage
 
 log = get_logger(__name__)
@@ -45,7 +52,10 @@ SAFETY = 0.9
 
 PROMPT_VERSION = f"{DIGEST_MAP.id}+{DIGEST_REDUCE.id}"
 
-REFERENCE = re.compile(r"\s*\[(\d+(?:\s*,\s*\d+)*)\]")
+# ``[3]``, ``[2, 7]`` and the variants small models write (``[ 3 ]``, ``[^3]``, ``[#3]``,
+# ``[2; 7]``); ``clean_answer`` normalises them to ``[2, 7]``.
+REFERENCE = re.compile(r"\s*\[\s*[#^]?(\d+(?:\s*[,;]\s*[#^]?\d+)*)\s*\]")
+_NUMBER = re.compile(r"\d+")
 _THINK = re.compile(r"<think>.*?</think>", re.DOTALL | re.IGNORECASE)
 _HEADING_LINE = re.compile(r"^\s*#{1,6}\s")
 _BULLET = re.compile(r"^\s*(?:[-*•]\s+|\d{1,2}[.)]\s+)")
@@ -82,7 +92,7 @@ def references(text: str) -> list[int]:
     """All ``[n]`` reference numbers in ``text``, in order of first appearance."""
     found: dict[int, None] = {}
     for match in REFERENCE.finditer(text):
-        for number in match.group(1).split(","):
+        for number in _NUMBER.findall(match.group(1)):
             found.setdefault(int(number), None)
     return list(found)
 
@@ -91,7 +101,7 @@ def _keep_refs(text: str, valid: set[int]) -> str:
     """Drop reference numbers the model invented."""
 
     def replace(match: re.Match[str]) -> str:
-        refs = [n for n in (int(x) for x in match.group(1).split(",")) if n in valid]
+        refs = [n for n in (int(x) for x in _NUMBER.findall(match.group(1))) if n in valid]
         return f" [{', '.join(str(n) for n in dict.fromkeys(refs))}]" if refs else ""
 
     return REFERENCE.sub(replace, text)
@@ -139,6 +149,7 @@ class Summarizer:
         self.user_label = user_label
         self.model: str | None = None
         self.map_fallbacks = 0
+        self.reference_retries = 0
         self.calls = 0
 
     # -- budget --------------------------------------------------------------------------
@@ -293,19 +304,49 @@ class Summarizer:
             words=str(WORDS[self.length]),
             notes="\n".join(note.line() for note in notes),
         )
+        options = GenerationOptions(temperature=0.3, max_tokens=self._answer_tokens(context))
         self.calls += 1
         result = await self.llm.complete(
-            LLMTask.DIGEST,
-            messages,
-            prompt_version=DIGEST_REDUCE.id,
-            options=GenerationOptions(temperature=0.3, max_tokens=self._answer_tokens(context)),
+            LLMTask.DIGEST, messages, prompt_version=DIGEST_REDUCE.id, options=options
         )
         self.model = result.model
         text = clean_answer(result.content, valid)
         if not _has_words(text):
             # Unusable answer: read the notes instead.
             return " ".join(note.line() for note in notes)
+        if not references(text):
+            text = await self._ask_for_references(messages, result.content, valid, options, text)
         return text
+
+    async def _ask_for_references(
+        self,
+        messages: list[ChatMessage],
+        answer: str,
+        valid: set[int],
+        options: GenerationOptions,
+        text: str,
+    ) -> str:
+        """Ask once more for an answer with references; keep ``text`` if that fails."""
+        self.reference_retries += 1
+        self.calls += 1
+        follow_up = [
+            *messages,
+            ChatMessage(role="assistant", content=answer),
+            ChatMessage(
+                role="user",
+                content=REDUCE_MISSING_REFERENCES.get(
+                    self.language, REDUCE_MISSING_REFERENCES["en"]
+                ),
+            ),
+        ]
+        try:
+            result = await self.llm.complete(
+                LLMTask.DIGEST, follow_up, prompt_version=DIGEST_REDUCE.id, options=options
+            )
+        except LLMError:
+            return text
+        again = clean_answer(result.content, valid)
+        return again if _has_words(again) and references(again) else text
 
     async def summarize(self, mails: Sequence[MailItem]) -> Summary:
         if not mails:
@@ -321,6 +362,8 @@ class Summarizer:
             notes=len(notes),
             llm_calls=self.calls,
             map_fallbacks=self.map_fallbacks,
+            reference_retries=self.reference_retries,
+            references=len(references(text)),
             chars=len(text),
         )
         return Summary(text, self.model)
