@@ -192,6 +192,7 @@ Geschwindigkeit (Mittel je Aufruf; „verarbeitet“ = Prompt- und Antwort-Token
 - **Digest:** Bei `qwen2.5:3b` sind die `[n]`-Referenzen auf wichtige Mails entweder fast
   vollständig (3 Digests) oder fehlen ganz (7 Digests); die Fristen nennt der Text trotzdem fast
   immer. Die Regel misst nur Referenzen und Fristen, nicht ob der Text inhaltlich stimmt.
+  Behoben mit #171 (4.6).
 - **RAG:** Mit `qwen2.5:3b` findet die Hybrid-Suche die richtige Mail meist an erster Stelle, und
   die Antworten enthalten die erwarteten Fakten. Schwach ist das Ablehnen: Bei 2 von 4 Fragen ohne
   Antwort im Postfach antwortete das Modell trotzdem mit Zitat. Auf CPU dauert die erste Antwort
@@ -321,3 +322,65 @@ Recall je Kategorie, voller Datensatz:
 - Andere Modelle je Profil (z. B. `qwen2.5:7b` für die Triage auf CPU): nicht gemessen; der
   Profil-Standard bleibt `qwen2.5:3b`.
 - Digest und RAG sind von den Änderungen nicht betroffen und nicht neu gemessen.
+
+### 4.6 Digest-Referenzen aus #171 (3. Oktober 2026, nur CPU)
+
+**Umgebung:** Agent-Container, 4 vCPUs (Intel Xeon @ 2,10 GHz), 16 GB RAM, keine GPU, Ollama
+0.35.1 in Docker, `qwen2.5:3b` (Q4_K_M, GGUF aus `ai/qwen2.5` von Docker Hub), Profil `cpu`.
+Nur die Stufe `digest` (10 Digests: 5 Tage × 2 Sprachen, 124 Mails, 68 davon wichtig).
+Berichte: [`model-evals/2026-10-03-cpu-171/`](model-evals/2026-10-03-cpu-171/). Messzeit
+insgesamt etwa 60 Minuten.
+
+**Ursache:** Ein Lauf mit Debug-Ausgabe (nur synthetische Daten, Texte nur lokal, nicht im
+Bericht) zeigte: `qwen2.5:3b` schreibt mit `digest_reduce@1` **gar keine** Marker, auch keine
+anderen Formate wie `(1)`, `[Mail 1]` oder `[^1]`. Der Text fasst die Notizen zusammen, lässt
+die Nummern aber weg. In diesem Lauf fehlten sie in allen 10 Digests (#125: in 7 von 10). Eine
+Antwort begann zudem mit „Guten Morgen, [Name].“ trotz Verbot im Prompt.
+
+**Vorgehen:** Die drei Ansätze aus dem Issue wurden auf denselben Map-Notizen verglichen (die
+Map-Antworten des Vorher-Laufs wiederverwendet, nur der Reduce-Schritt variiert; Sekunden =
+Reduce allein). Danach ein vollständiger Lauf der Eval-Suite mit der gewählten Variante.
+
+| Variante (Reduce) | wichtige Mails referenziert | Digests ohne Referenz | Fristen genannt | Reduce-Aufrufe | s je Digest (Reduce) |
+|---|---|---|---|---|---|
+| vorher: `digest_reduce@1` | 0,0 % | 10 von 10 | 75,6 % | 10 | – |
+| A: Prompt mit Beispiel, Marker als Pflicht | 83,8 % | 1 | 80,5 % | 10 | 29,7 |
+| B: strukturierte Ausgabe (Punkte mit Quell-IDs, Code rendert `[n]`) | 88,2 % | 0 | 73,2 % | 10 | 37,0 |
+| C: v1 + einmal nachfragen, wenn Referenzen fehlen | 94,1 % | 0 | 82,9 % | 18 | 51,8 |
+| **A + C (gewählt, `digest_reduce@2`)** | **100 %** | **0** | 80,5 % | 12 | 33,6 |
+
+Vorher/Nachher mit der Eval-Suite (`uv run python -m app.evals --model qwen2.5:3b --stage digest`),
+jeweils Map und Reduce neu gerechnet:
+
+| Metrik (`qwen2.5:3b`) | #125 (4.1) | vorher | **nachher** |
+|---|---|---|---|
+| Wichtige Mails referenziert | 27,9 % | 0,0 % | **91,2 %** |
+| Digests ohne jede Referenz | 7 von 10 | 10 von 10 | **0 von 10** |
+| Fristen wichtiger Mails genannt | 90,2 % | 75,6 % | **82,9 %** |
+| Wörter je Digest | – | 133 | 141 |
+| s je Digest | 129 | 92,5 | 95,7 |
+| Nachfragen (C) | – | – | 0 von 10 |
+
+Die Abweichung von 100 % (Variantenvergleich) zu 91,2 % (voller Lauf) kommt aus den neu
+erzeugten Map-Notizen: In drei Digests fasst der Text einzelne wichtige Mails nicht in einen
+eigenen Satz und nennt ihre Nummer deshalb nicht (5/6, 7/9, 7/10). Jeder Digest hat Referenzen,
+also war keine Nachfrage nötig.
+
+**Entscheidung:**
+
+- **A (Beispiel)** bringt den größten Teil. Das Beispiel zeigt das Format, das die Notizen schon
+  haben (`Satz. [1, 3]`), und kostet nichts.
+- **C (Nachfrage)** fängt die Fälle ab, in denen das Modell die Marker trotzdem weglässt. Es kommt
+  nur dann ein zweiter Aufruf, wenn nach dem Verwerfen erfundener Nummern keine gültige Referenz
+  übrig bleibt (hier 2 von 10 im Variantenvergleich, 0 von 10 im vollen Lauf). Bringt auch die
+  Nachfrage keine Referenzen, bleibt der erste Text.
+- **B (strukturiert)** ist verworfen: Die Referenzen sind zwar erzwungen, aber `qwen2.5:3b` schreibt
+  dann telegrafische Aufzählungen statt Sätzen zum Zuhören und packt bis zu sieben Notizen in
+  einen Punkt. Das hebt die Quote, ohne dass die Verweise genauer werden.
+- **Fallback über Absender/Betreff** (Vorschlag im Issue): nicht umgesetzt, mit A + C nicht nötig.
+- Der Parser erkennt zusätzlich `[ 3 ]`, `[^3]`, `[#3]` und `[2; 7]` und vereinheitlicht sie;
+  dieselbe Regel entfernt die Marker vor der Sprachausgabe, die TTS liest also keine „[3]“ vor
+  (Tests in `tests/digest/test_script.py`).
+
+**Nicht gemessen:** andere Modelle (`llama3.2:1b`) und GPU-Profile; die inhaltliche Qualität der
+Texte (die Regel prüft nur Marker und Fristen).
