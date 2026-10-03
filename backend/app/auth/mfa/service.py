@@ -4,7 +4,7 @@ import uuid
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import delete, func, select, update
+from sqlalchemy import delete, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import rate_limit
@@ -16,7 +16,10 @@ from app.auth.models import LOCAL_PROVIDER, Identity, MfaEnforcement
 from app.auth.policy import get_policy
 from app.core.config import Settings
 from app.core.errors import ProblemError
+from app.core.logging import get_logger
 from app.users.models import User, UserRole
+
+log = get_logger(__name__)
 
 TOTP = "totp"
 WEBAUTHN = "webauthn"
@@ -268,19 +271,29 @@ async def ensure_recovery_codes(
 async def use_recovery_code(
     db: AsyncSession, settings: Settings, user_id: uuid.UUID, code: str
 ) -> bool:
+    """Mark an unused code as used. Codes hashed under an old master key (before a key
+    rotation) are accepted too and re-hashed under the current one."""
     if not recovery.looks_like_code(code):
         return False
-    result = await db.execute(
-        update(RecoveryCode)
+    hashes = recovery.code_hashes(settings.security, code)
+    found = await db.scalar(
+        select(RecoveryCode)
         .where(
             RecoveryCode.user_id == user_id,
-            RecoveryCode.code_hash == recovery.code_hash(settings.security, code),
+            RecoveryCode.code_hash.in_(hashes),
             RecoveryCode.used_at.is_(None),
         )
-        .values(used_at=datetime.now(UTC))
-        .returning(RecoveryCode.id)
+        .limit(1)
+        .with_for_update()
     )
-    return result.first() is not None
+    if found is None:
+        return False
+    found.used_at = datetime.now(UTC)
+    if found.code_hash != hashes[0]:
+        found.code_hash = hashes[0]
+        log.info("recovery_code_rehashed", user_id=user_id)
+    await db.flush()
+    return True
 
 
 # -- Removal -----------------------------------------------------------------------------

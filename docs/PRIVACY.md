@@ -144,6 +144,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `auth.login_succeeded`, `auth.login_failed` | Lokaler Login und LDAP (`provider`; Fehlschlag mit `reason`: `invalid_credentials`, `locked`, bei LDAP zusätzlich `user_inactive`, `directory_unavailable`). Zweiter Faktor (#96): Erfolg mit `mfa` (`totp`, `webauthn`, `recovery`, ggf. `passwordless`, `recovery_codes_remaining`); Fehlschlag mit `mfa` und `reason` `invalid_code`, `locked` (Ziel = Nutzer-ID) bzw. `invalid_passkey` | aktiv; OIDC mit #30 |
 | `auth.logout`, `auth.session_revoked` | Logout, Beenden eigener Sitzungen | aktiv |
 | `auth.mfa_enabled`, `auth.mfa_disabled`, `auth.mfa_recovery_codes_generated` | Passkey bzw. Authenticator-App hinzugefügt/entfernt (`method`, ggf. `passkey_id`, `via: self`), Wiederherstellungscodes erzeugt (`count`); `app.cli reset-password --reset-2fa` (Akteur `system`, `via: cli`, nur Anzahlen) | aktiv |
+| `auth.reauthenticated`, `auth.reauth_failed` | Bestätigung vor sensiblen Aktionen (#144; Ziel = Session, `method`; Fehlschlag mit `reason`: `invalid_credentials`, `invalid_passkey`). Nie Passwort oder Code | aktiv |
 | `user.created` | Admin legt Nutzer an oder lädt ein (`via: invitation`), Selbstregistrierung, `app.cli create-admin`, JIT-Provisioning beim ersten externen Login | aktiv |
 | `user.role_changed` | Nutzerverwaltung (`via: admin`), Rollen-Zuordnung bzw. LDAP-`admin_groups` beim Login (Akteur `system`, `provider`) | aktiv |
 | `user.deactivated`, `user.reactivated` | Nutzerverwaltung (Deaktivieren beendet alle Sitzungen, `details.sessions`); `app.cli reset-password --activate` | aktiv |
@@ -317,9 +318,9 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 |---|---|---|
 | `users` | E-Mail-Adresse, Anzeigename, Rolle, Sprache, Zeitzone, letzter Login | Konto löschen |
 | `auth_identities` | Anbieter, Kennung beim Anbieter (`sub`, GitHub-ID, LDAP-GUID, SAML-NameID), Gruppen, Argon2id-Hash | U |
-| `auth_sessions` | SHA-256 des Session-Tokens, gekürzte Browser-Kennung, Zeiten | U; abgelaufene stündlich (`auth.cleanup`) |
+| `auth_sessions` | SHA-256 des Session-Tokens, gekürzte Browser-Kennung, Zeiten (inkl. letzter Anmeldung bzw. Bestätigung) | U; abgelaufene stündlich (`auth.cleanup`) |
 | `auth_mfa_totp`, `auth_mfa_passkeys`, `auth_mfa_recovery_codes` | TOTP-Secret (verschlüsselt), Passkey (Credential-ID, öffentlicher Schlüssel, Name, Zähler), HMACs der Wiederherstellungscodes | U |
-| `auth_mfa_pending` | SHA-256 des Zwischenzustands nach dem Passwort, ggf. WebAuthn-Challenge | U; nach wenigen Minuten ungültig, stündlich gelöscht (`auth.cleanup`) |
+| `auth_mfa_pending` | SHA-256 des Zwischenzustands nach dem Passwort bzw. vor einer Passkey-Bestätigung, ggf. WebAuthn-Challenge | U; nach wenigen Minuten ungültig, stündlich gelöscht (`auth.cleanup`) |
 | `scim_users`, `scim_group_members` | `userName` und `externalId` beim IdP, Gruppenmitgliedschaften | U |
 | `scim_groups` | Gruppenname und `externalId` (nicht personenbezogen) | per SCIM; Admin |
 | `scim_tokens`, `scim_config` | SHA-256 und Präfix der SCIM-Tokens, Schalter (nicht personenbezogen) | Admin (widerrufen) |

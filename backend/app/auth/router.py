@@ -187,7 +187,9 @@ async def login(
 @router.post(
     "/register",
     status_code=status.HTTP_201_CREATED,
+    response_model=UserRead,
     responses={
+        202: {"model": MfaChallenge, "description": "Account created, 2FA must be set up"},
         403: {"description": "Registration is disabled"},
         409: {"description": "E-mail address taken or instance not set up"},
         **_THROTTLED,
@@ -199,8 +201,10 @@ async def register(
     response: Response,
     db: DbDep,
     settings: SettingsDep,
-) -> UserRead:
-    """Create a local account (role ``user``) and sign in, if self-registration is on."""
+) -> UserRead | JSONResponse:
+    """Create a local account (role ``user``) and sign in, if self-registration is on.
+    While 2FA is enforced for all accounts, the answer is 202 and the account sets up a
+    factor first (as at the login)."""
     if not settings.auth.local_registration or not await local_login_enabled(db):
         raise ProblemError(403, detail="Registration is disabled.")
     if not await any_user_exists(db):
@@ -227,6 +231,11 @@ async def register(
         audit.Target.of(audit.TargetType.USER, user.id),
         {"role": user.role, "via": "registration"},
     )
+    step = await mfa_service.login_step(db, user)
+    if step is not None:
+        # Commits the new account together with the pending enrolment.
+        log.info("user_registered", user_id=user.id, second_step=step)
+        return await mfa_second_step(db, settings, request, user, step)
     await service.start_session(db, settings, request, response, user, provider=LOCAL_PROVIDER)
     log.info("user_registered", user_id=user.id)
     return UserRead.model_validate(user)
