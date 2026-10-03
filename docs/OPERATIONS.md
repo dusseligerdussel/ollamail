@@ -847,6 +847,59 @@ Update:
 5. **Verbindungstests begrenzt.** Pro Nutzer sind 20 Verbindungstests in 10 Minuten möglich
    (Testen, Anlegen, Verbindung ändern; `OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS`).
 
+### 6.7 Upgrade-Hinweis: Embeddings als `halfvec` (#164)
+
+Die Migration `5dab8560b40a` (`store embeddings as halfvec`) stellt die Spalte
+`search_embeddings.embedding` von `vector(n)` (32 Bit je Dimension) auf `halfvec(n)` (16 Bit) um.
+Tabelle und HNSW-Index werden dadurch etwa halb so groß, der Index bei 1024 Dimensionen sogar
+rund ein Drittel (mit `vector` passt nur ein Vektor auf eine 8-KB-Seite). Die vorhandenen Vektoren
+werden umgerechnet, nicht neu berechnet: Das LLM wird dafür nicht gebraucht.
+
+**Was passiert:** HNSW-Index löschen, Spalte per `ALTER TABLE … TYPE halfvec(n) USING
+embedding::halfvec(n)` umschreiben (`n` ist die aktuelle Länge der Spalte, auch nach
+`search resize`), HNSW-Index mit `halfvec_cosine_ops` neu aufbauen. Alles in der Transaktion
+des Dienstes `migrate`; schlägt ein Schritt fehl, bleibt die Datenbank auf dem alten Stand.
+
+**Voraussetzung:** pgvector **0.7 oder neuer**. Das mitgelieferte Image `pgvector/pgvector:pg16`
+und die CloudNativePG-Images „standard“ enthalten 0.8. Bei älteren Installationen bricht die
+Migration mit einer Meldung ab; dann das PostgreSQL-Image aktualisieren und in der Datenbank
+`ALTER EXTENSION vector UPDATE;` ausführen. Version prüfen:
+
+```sh
+docker compose -f deploy/compose.yaml exec postgres \
+  psql -U ollamail -d ollamail -c "SELECT extversion FROM pg_extension WHERE extname = 'vector'"
+```
+
+**Dauer und Sperre:** Während der Migration ist `search_embeddings` exklusiv gesperrt; `api` und
+`worker` starten erst danach (Compose wartet auf `migrate`). Mail-Sync, Suche und „Frag deine
+Inbox“ sind so lange nicht verfügbar. Die Dauer hängt vor allem vom Index-Aufbau und davon ab,
+ob der HNSW-Graph in `maintenance_work_mem` passt ([8.4](#84-postgresql-tuning-pgvector)).
+Gemessen mit 1024 Dimensionen, 4 vCPUs, Compose-Standardwerten (`maintenance_work_mem` 512 MB,
+`shm_size` 1g):
+
+| Embeddings (Abschnitte) | vorher Tabelle / Index | nachher Tabelle / Index | Upgrade | Downgrade |
+|---|---|---|---|---|
+| 100 000 | 537 MB / 781 MB | 275 MB / 260 MB | 68 s | 82 s |
+| 300 000 | 1,6 GB / 2,3 GB | 823 MB / 781 MB | 8 min | 17 min |
+
+Grobe Schätzung für 1 Mio. Abschnitte: mit `POSTGRES_MAINTENANCE_WORK_MEM=4GB` (Index passt in
+den Speicher) etwa 15–20 Minuten, mit 512 MB eine Stunde oder länger. Wie viele Embeddings es
+gibt, zeigt `python -m app.cli search status`. Für große Instanzen vor dem Update
+`POSTGRES_MAINTENANCE_WORK_MEM` und `POSTGRES_SHM_SIZE` wie in 8.4 anheben und das Update in ein
+Wartungsfenster legen. Während der Migration braucht die Datenbank kurzzeitig zusätzlichen
+Plattenplatz für die neue Tabelle und den neuen Index (rund die Hälfte der bisherigen Größe).
+
+**Suchqualität:** 16 Bit reichen für die Kosinus-Ähnlichkeit normierter Embeddings. Auf dem
+Eval-Datensatz ([`operations/model-evals.md`](operations/model-evals.md)) lieferte `halfvec`
+für alle 48 beantwortbaren Fragen exakt dieselben Treffer wie `vector` (Hybrid-Suche, exakte
+Vektorsuche und HNSW).
+
+**Zurück:** Die Migration ist umkehrbar. Vor dem Wechsel auf eine ältere Version mit dem
+**neuen** Image `alembic downgrade 5c672b257a5b` ausführen
+(`docker compose -f deploy/compose.yaml run --rm --no-deps migrate alembic downgrade 5c672b257a5b`);
+das wandelt die Spalte zurück in `vector(n)` und baut den Index neu (Dauer siehe Tabelle). Die
+Werte behalten dabei die 16-Bit-Genauigkeit. Der sichere Weg bleibt das Backup ([6.4](#64-rollback-auf-die-vorherige-version)).
+
 ## 7. Schlüsselverwaltung
 
 `OLLAMAIL_SECRET_KEY` ist der Master-Key für die Verschlüsselung gespeicherter Zugangsdaten
