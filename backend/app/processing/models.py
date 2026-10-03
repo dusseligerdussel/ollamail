@@ -19,7 +19,8 @@ class StepStatus(enum.StrEnum):
     PENDING = "pending"
     RUNNING = "running"
     DONE = "done"
-    # Gave up (permanent error or retries exhausted); only reprocessing runs it again.
+    # Gave up (permanent error or retries exhausted). Runs again by reprocessing, or
+    # automatically at ``retry_at`` if the error was a passing one.
     FAILED = "failed"
 
 
@@ -53,6 +54,11 @@ class MessageProcessing(Base):
     attempts: Mapped[int] = mapped_column(default=0, server_default="0")
     started_at: Mapped[datetime | None]
     finished_at: Mapped[datetime | None]
+    # Failed for a passing reason (LLM down, model missing): ``processing.retry_failed``
+    # runs the step again at this time. ``None`` for permanent failures.
+    retry_at: Mapped[datetime | None] = mapped_column(index=True)
+    # Automatic retries since the step last succeeded or was reset.
+    auto_retries: Mapped[int] = mapped_column(default=0, server_default="0")
 
 
 class MailboxProcessingSettings(Base):

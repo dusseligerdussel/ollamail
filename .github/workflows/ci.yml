@@ -109,6 +109,9 @@ jobs:
       OLLAMAIL_TEST_IMAP_PASSWORD: ollamail-test
       OLLAMAIL_TEST_REQUIRE_IMAP: "1"
       OLLAMAIL_TEST_REQUIRE_SMTP: "1"
+      # Dovecot and Mailpit listen on localhost; mail connections refuse internal addresses
+      # without an allowlist entry (app/mail/providers/network.py).
+      OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS: localhost,127.0.0.0/8,::1
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
@@ -266,6 +269,8 @@ jobs:
       OLLAMAIL_AUTH_COOKIE_SECURE: "false"
       # The test server uses a self-signed certificate.
       OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS: "true"
+      # Dovecot listens on localhost, an internal address that needs an allowlist entry.
+      OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS: localhost,127.0.0.0/8,::1
       # Nothing listens there: LLM calls fail immediately instead of waiting for a timeout.
       OLLAMAIL_LLM_BASE_URL: http://127.0.0.1:9
       OLLAMAIL_TTS_DOWNLOAD_VOICES: "false"
@@ -425,6 +430,7 @@ jobs:
             -e "s|^OLLAMAIL_SETUP_TOKEN=.*|OLLAMAIL_SETUP_TOKEN=$token|" \
             -e "s|^OLLAMAIL_TTS_DOWNLOAD_VOICES=.*|OLLAMAIL_TTS_DOWNLOAD_VOICES=false|" \
             -e "s|^OLLAMAIL_HTTP_BIND=.*|OLLAMAIL_HTTP_BIND=127.0.0.1|" \
+            -e "s|^OLLAMAIL_AUTH_IP_MAX_ATTEMPTS=.*|OLLAMAIL_AUTH_IP_MAX_ATTEMPTS=5|" \
             .env.example > .env
           grep -q '^OLLAMAIL_SECRET_KEY=..*' .env
           docker compose config --quiet
@@ -468,6 +474,30 @@ jobs:
             echo "$service: $state"
             [ "$state" = "running 0" ] || { echo "::error::$service is not running stably"; exit 1; }
           done
+      # #137: the runner acts as an outer proxy that appends the real client IP to a value
+      # the client forged. Varying the forged part must not yield a fresh IP bucket.
+      - name: Forged X-Forwarded-For does not bypass the login IP limit
+        run: |
+          base=http://127.0.0.1:8080
+          jar="$RUNNER_TEMP/cookies.txt"
+          curl -fsS -o /dev/null -c "$jar" "$base/api/healthz"
+          csrf="$(awk '$6 == "ollamail_csrf" { print $7 }' "$jar")"
+          [ -n "$csrf" ] || { echo "::error::no CSRF cookie"; exit 1; }
+          attempt() {
+            curl -sS -o /dev/null -w '%{http_code}' "$base/api/auth/login" \
+              -H "Cookie: ollamail_csrf=$csrf" -H "X-CSRF-Token: $csrf" \
+              -H 'Content-Type: application/json' -H "X-Forwarded-For: $1" \
+              --data "{\"email\":\"smoke$2@example.org\",\"password\":\"wrong-password-1\"}"
+          }
+          for i in 1 2 3 4 5; do
+            code="$(attempt "203.0.113.$i, 198.51.100.7" "$i")"
+            [ "$code" = 401 ] || { echo "::error::attempt $i: expected 401, got $code"; exit 1; }
+          done
+          code="$(attempt "203.0.113.99, 198.51.100.7" 6)"
+          [ "$code" = 429 ] || { echo "::error::forged X-Forwarded-For bypassed the IP limit ($code)"; exit 1; }
+          # Another real client IP still has its own bucket.
+          code="$(attempt "203.0.113.1, 198.51.100.8" 7)"
+          [ "$code" = 401 ] || { echo "::error::other client IP: expected 401, got $code"; exit 1; }
       # Guards the check above: the api must refuse to start without a master key.
       - name: API refuses to start without a master key
         run: |

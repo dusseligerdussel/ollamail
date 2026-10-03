@@ -8,6 +8,7 @@ one settings cache, one change listener and one limit on parallel LLM requests.
 from collections.abc import Iterator
 from contextlib import contextmanager
 
+from app.ai.llm.circuit import CircuitBreaker
 from app.ai.llm.gateway import LLMGateway
 from app.ai.settings.resolver import DbConfigResolver
 from app.core.config import Settings, get_settings
@@ -39,11 +40,17 @@ def worker_resolver() -> DbConfigResolver:
 
 
 def worker_gateway() -> LLMGateway:
-    """LLM gateway of the worker process: admin settings, limited parallelism."""
+    """LLM gateway of the worker process: admin settings, limited parallelism and a
+    circuit breaker, so a dead endpoint does not eat the retries of every queued mail."""
     global _gateway
     if _gateway is None:
         resolver = worker_resolver()
-        _gateway = LLMGateway(resolver, concurrency=resolver.concurrency)
+        processing = get_settings().processing
+        circuit = CircuitBreaker(
+            threshold=processing.llm_breaker_threshold,
+            cooldown=processing.llm_breaker_cooldown_seconds,
+        )
+        _gateway = LLMGateway(resolver, concurrency=resolver.concurrency, circuit=circuit)
     return _gateway
 
 

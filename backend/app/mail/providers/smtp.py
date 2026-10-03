@@ -14,7 +14,7 @@ import asyncio
 import smtplib
 import ssl
 from dataclasses import dataclass, field
-from typing import Literal
+from typing import Any, Literal
 
 from app.core.logging import get_logger
 from app.mail.providers.base import (
@@ -40,6 +40,9 @@ class SmtpTarget:
     auth: Literal["password", "xoauth2"]
     secret: str = field(repr=False)
     timeout: float = 60.0
+    # Address checked by ``app.mail.providers.network``; connected to instead of resolving
+    # ``host`` again (TLS still verifies the certificate for ``host``).
+    address: str | None = None
 
 
 def tls_context(verify: bool) -> ssl.SSLContext:
@@ -55,11 +58,34 @@ def _xoauth2(username: str, token: str) -> str:
     return f"user={username}\x01auth=Bearer {token}\x01\x01"
 
 
+class _PinnedSMTP(smtplib.SMTP):
+    """Connects to ``address`` if given; ``host`` stays the TLS server name."""
+
+    def __init__(self, *args: Any, address: str | None = None, **kwargs: Any) -> None:
+        self._address = address
+        super().__init__(*args, **kwargs)
+
+    def connect(
+        self, host: str = "localhost", port: int = 0, source_address: Any = None
+    ) -> tuple[int, bytes]:
+        return super().connect(self._address or host, port, source_address)
+
+
+class _PinnedSMTPSSL(_PinnedSMTP, smtplib.SMTP_SSL):
+    pass
+
+
 def _open(target: SmtpTarget) -> smtplib.SMTP:
     context = tls_context(target.verify_certificate)
     if target.security == "tls":
-        return smtplib.SMTP_SSL(target.host, target.port, timeout=target.timeout, context=context)
-    client = smtplib.SMTP(target.host, target.port, timeout=target.timeout)
+        return _PinnedSMTPSSL(
+            target.host,
+            target.port,
+            timeout=target.timeout,
+            context=context,
+            address=target.address,
+        )
+    client = _PinnedSMTP(target.host, target.port, timeout=target.timeout, address=target.address)
     try:
         client.ehlo()
         if target.security == "starttls":

@@ -14,6 +14,11 @@ import {
 } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
+import {
+  GettingStarted,
+  ModelStatusSection,
+  ProcessingSection,
+} from "@/components/admin/system-status";
 import { Forbidden } from "@/components/forbidden";
 import { PageHeader } from "@/components/page-header";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -33,6 +38,9 @@ function AdminPage() {
       <PageHeader title={t("nav.admin")} />
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
+          <GettingStarted />
+          <ModelStatusSection />
+          <ProcessingSection />
           <section aria-labelledby="admin-access" className="mb-6">
             <h2 id="admin-access" className="mb-2 text-xs font-medium text-muted-foreground">
               {t("pages.admin.access")}

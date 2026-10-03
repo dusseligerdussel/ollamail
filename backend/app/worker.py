@@ -43,6 +43,7 @@ from uuid import UUID
 
 import procrastinate
 from procrastinate import JobContext, RetryStrategy
+from procrastinate.exceptions import ConnectorException
 
 from app.core.config import DatabaseSettings, QueueName, Settings, get_settings
 from app.core.db import libpq_url
@@ -59,6 +60,7 @@ QUEUES: tuple[QueueName, ...] = get_args(QueueName)
 
 # Modules that define tasks; the worker imports them on start-up. Add one line per module.
 TASK_MODULES: list[str] = [
+    "app.ai.settings.pulls",
     "app.ai.tts.tasks",
     "app.auth.tasks",
     "app.digest.tasks",
@@ -116,6 +118,41 @@ async def remove_old_jobs(context: JobContext, timestamp: int) -> None:
         include_cancelled=True,
         include_aborted=True,
     )
+
+
+@app.periodic(cron="*/5 * * * *", periodic_id="retry_stalled_jobs")
+@app.task(
+    name="worker.retry_stalled_jobs",
+    queue="default",
+    queueing_lock="worker.retry_stalled_jobs",
+    pass_context=True,
+)
+async def retry_stalled_jobs(context: JobContext, timestamp: int) -> int:
+    """Every 5 minutes: put running jobs of dead workers back into the queue.
+
+    A worker killed mid-job (OOM, SIGKILL after the grace period) leaves its job in
+    ``doing`` for ever, and with it the job's lock, e.g. every later sync of the mailbox.
+    Its heartbeat stops, so jobs whose worker sent none for
+    ``OLLAMAIL_WORKER_STALLED_AFTER_SECONDS`` are retried (tasks are idempotent).
+    Returns the number of retried jobs.
+    """
+    manager = context.app.job_manager
+    seconds = get_settings().worker.stalled_after_seconds
+    retried = 0
+    for job in await manager.get_stalled_jobs(seconds_since_heartbeat=seconds):
+        if context.job is not None and job.id == context.job.id:
+            continue
+        try:
+            await manager.retry_job(job)
+        except ConnectorException:
+            # Finished or retried by someone else in the meantime.
+            continue
+        retried += 1
+        # IDs and names only: job arguments stay in the database.
+        log.warning(
+            "worker_stalled_job_retried", job_id=job.id, task=job.task_name, queue=job.queue
+        )
+    return retried
 
 
 class WorkerCrashedError(Exception):

@@ -11,6 +11,11 @@ Each ``db_session`` runs inside a transaction that is rolled back after the test
 import asyncio
 import importlib
 import os
+
+# Test setting: the scripted servers and the CI services (Dovecot, Mailpit) listen on
+# localhost, which mail connections refuse without an allowlist entry
+# (app/mail/providers/network.py). Tests of the check pass their own ``MailSettings``.
+os.environ.setdefault("OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS", "localhost,127.0.0.0/8,::1")
 from collections.abc import AsyncIterator, Callable, Iterator
 from http.cookies import SimpleCookie
 from pathlib import Path

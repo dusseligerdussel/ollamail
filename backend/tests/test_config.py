@@ -5,7 +5,7 @@ import pytest
 from pydantic import ValidationError
 from pydantic_settings import BaseSettings
 
-from app.core.config import DatabaseSettings, Settings
+from app.core.config import DatabaseSettings, MailSettings, SecuritySettings, Settings
 
 
 def test_settings_read_prefixed_environment(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -59,6 +59,53 @@ def test_empty_values_from_env_example_count_as_unset(monkeypatch: pytest.Monkey
     assert settings.security.setup_token is None
     assert settings.graph.client_id is None
     assert settings.graph.client_secret is None
+
+
+@pytest.mark.parametrize(
+    "url",
+    [
+        "postgresql+asyncpg://ollamail:change-me@postgres:5432/ollamail",
+        "postgresql+asyncpg://ollamail:change%2Dme@postgres/ollamail",
+    ],
+)
+def test_database_url_with_placeholder_password_is_refused(url: str) -> None:
+    with pytest.raises(ValidationError) as error:
+        DatabaseSettings.model_validate({"url": url})
+
+    assert "placeholder password" in str(error.value)
+    assert "postgres:5432" not in str(error.value)
+
+
+def test_database_url_validation_errors_hide_the_url() -> None:
+    with pytest.raises(ValidationError) as error:
+        DatabaseSettings.model_validate({"url": "postgresql://u:hunter2@db/x"})
+
+    assert "hunter2" not in str(error.value)
+
+
+def test_configured_setup_token_needs_32_characters() -> None:
+    with pytest.raises(ValidationError) as error:
+        SecuritySettings.model_validate({"setup_token": "short-but-secret"})
+    assert "short-but-secret" not in str(error.value)
+
+    token = "0123456789abcdef0123456789abcdef"
+    settings = SecuritySettings.model_validate({"setup_token": token})
+    assert settings.setup_token is not None
+    assert settings.setup_token.get_secret_value() == token
+
+
+def test_allowed_internal_hosts_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv(
+        "OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS", " IMAP.lan. , 192.168.10.0/24,fd00::1 ,"
+    )
+
+    assert MailSettings().allowed_internal_hosts == ["imap.lan", "192.168.10.0/24", "fd00::1"]
+
+
+@pytest.mark.parametrize("entry", ["10.0.0.0/33", "imap lan", "imap.lan/24"])
+def test_invalid_allowed_internal_hosts_are_rejected(entry: str) -> None:
+    with pytest.raises(ValidationError):
+        MailSettings(allowed_internal_hosts=[entry])
 
 
 ENV_EXAMPLE = Path(__file__).resolve().parents[2] / "deploy" / ".env.example"
