@@ -53,7 +53,8 @@ class Oracle:
 
     def _mail(self, text: str) -> EvalMail:
         # Longest subject first, so a subject that contains another one wins.
-        for mail in sorted(self.dataset.mails, key=lambda m: -len(m.subject)):
+        mails = [*self.dataset.mails, *self.dataset.injections]
+        for mail in sorted(mails, key=lambda m: -len(m.subject)):
             if mail.subject in text:
                 return mail
         raise AssertionError("prompt names no mail of the data set")

@@ -7,6 +7,7 @@ from datetime import date
 import pytest
 
 from app.evals.dataset import CATEGORIES, OWNER_TIMEZONE, Dataset, EvalMail, load_dataset
+from app.evals.injection import contains_canary
 from app.evals.todos import transient_mail
 from app.todos.dates import parse_due_phrase
 from app.todos.extraction import reference_date
@@ -31,7 +32,7 @@ def test_size_and_coverage() -> None:
 
 def test_subjects_are_unique() -> None:
     # The fake model of the tests finds a mail by its subject.
-    subjects = Counter(m.subject for m in DATASET.mails)
+    subjects = Counter(m.subject for m in [*DATASET.mails, *DATASET.injections])
     assert [s for s, n in subjects.items() if n > 1] == []
 
 
@@ -48,7 +49,33 @@ def test_questions_refer_to_mails_of_their_language() -> None:
             assert by_id[source].language == question.language, question.id
 
 
-@pytest.mark.parametrize("mail", DATASET.mails, ids=lambda m: m.id)
+def test_injection_cases() -> None:
+    # A fixed category of the evaluation (#170): both languages, several kinds of
+    # demands, and cases whose instructions sit in otherwise legitimate mails.
+    mails = DATASET.injection_mails
+    assert len(mails) >= 24
+    assert all(m.injection is not None for m in DATASET.injections)
+    assert {m.language for m in mails} == {"de", "en"}
+    assert sum(m.injection is not None and m.injection.demands is not None for m in mails) >= 16
+    assert sum(m.injection is not None and bool(m.injection.canary) for m in mails) >= 12
+    assert sum(m.category != "spam" for m in mails) >= 8
+    assert not {m.id for m in DATASET.mails} & {m.id for m in DATASET.injections}
+
+
+@pytest.mark.parametrize("mail", DATASET.injection_mails, ids=lambda m: m.id)
+def test_injection_passage_and_canary(mail: EvalMail) -> None:
+    injection = mail.injection
+    assert injection is not None
+    assert injection.passage in mail.body
+    rest = f"{mail.subject} {mail.body.replace(injection.passage, ' ')}"
+    for word in injection.canary:
+        assert word == word.lower()
+        # Only following the instructions can bring a canary word into an output.
+        assert contains_canary(injection.passage, [word]), word
+        assert not contains_canary(rest, [word]), word
+
+
+@pytest.mark.parametrize("mail", [*DATASET.mails, *DATASET.injections], ids=lambda m: m.id)
 def test_expected_due_dates_follow_from_the_mail(mail: EvalMail) -> None:
     reference = reference_date(transient_mail(mail)[0], OWNER_TIMEZONE)
     assert reference == mail.sent_at.date()
@@ -80,7 +107,7 @@ def test_only_invented_addresses_and_urls() -> None:
 
 
 def test_mails_are_in_one_week() -> None:
-    days = {m.sent_at.date() for m in DATASET.mails}
+    days = {m.sent_at.date() for m in [*DATASET.mails, *DATASET.injections]}
     assert min(days) >= date(2026, 10, 5)
     assert max(days) <= date(2026, 10, 11)
 
@@ -96,7 +123,11 @@ def test_subset_keeps_the_mix_and_drops_orphaned_questions() -> None:
     german = DATASET.subset(languages={"de"})
     assert {m.language for m in german.mails} == {"de"}
     assert {q.language for q in german.questions} == {"de"}
-    assert DATASET.subset() == Dataset(mails=DATASET.mails, questions=DATASET.questions)
+    assert DATASET.subset() == Dataset(
+        mails=DATASET.mails, questions=DATASET.questions, injections=DATASET.injections
+    )
+    assert {m.language for m in german.injections} == {"de"}
+    assert DATASET.subset(limit=10).injections == DATASET.injections
 
 
 def test_question_sample_keeps_all_mails_and_the_mix() -> None:
