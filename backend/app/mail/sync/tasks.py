@@ -13,12 +13,11 @@ mail before it continues the import.
 """
 
 import uuid
-from functools import cache
 
 from procrastinate.exceptions import AlreadyEnqueued
 
 from app.core.config import get_settings
-from app.core.db import Database
+from app.core.db import Database, process_database
 from app.mail.flags import write_flags
 from app.mail.storage import AttachmentStorage
 from app.mail.sync.engine import sync_mailbox
@@ -28,10 +27,9 @@ from app.worker import DEFAULT_RETRY, app, resource_lock
 CONTINUE_PRIORITY = -5
 
 
-@cache
 def _database() -> Database:
-    # One engine per worker process, created on first use inside the worker's event loop.
-    return Database(get_settings().database)
+    # The engine shared by all jobs of the worker process.
+    return process_database()
 
 
 @app.task(name="mail.sync_mailbox", queue="sync", retry=DEFAULT_RETRY)

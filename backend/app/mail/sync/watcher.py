@@ -31,7 +31,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker
 
 from app.core.config import Settings
-from app.core.db import Database, libpq_url
+from app.core.db import libpq_url, process_database
 from app.core.logging import get_logger
 from app.mail.models import Mailbox
 from app.mail.providers.base import (
@@ -263,13 +263,10 @@ async def run_watcher(settings: Settings, stop: asyncio.Event) -> None:
     """Entry point for the worker: watch mailboxes and queue ``mail.sync_mailbox`` jobs."""
     from app.mail.sync.tasks import request_sync
 
-    database = Database(settings.database)
-    try:
-        await MailboxWatcher(
-            sessionmaker=database.sessionmaker,
-            dsn=libpq_url(settings.database),
-            request_sync=request_sync,
-            connect_timeout=settings.database.connect_timeout,
-        ).run(stop)
-    finally:
-        await database.dispose()
+    # The worker's shared engine; ``app.worker.run`` disposes it on shutdown.
+    await MailboxWatcher(
+        sessionmaker=process_database().sessionmaker,
+        dsn=libpq_url(settings.database),
+        request_sync=request_sync,
+        connect_timeout=settings.database.connect_timeout,
+    ).run(stop)

@@ -33,7 +33,9 @@ Entwurf.
 - **Datenschutz:** verschlüsselte Zugangsdaten mit Key-Rotation, PII-Filter im Logging,
   manipulationssicheres Audit-Log, Aufbewahrungsfristen, Datenexport und Kontolöschung.
 - **Betrieb:** Docker Compose (Multi-Arch-Images amd64/arm64 über GHCR oder lokaler Build),
-  Helm-Chart, Backup/Restore- und Upgrade-Anleitung in `docs/OPERATIONS.md`.
+  Helm-Chart, Backup/Restore- und Upgrade-Anleitung in `docs/OPERATIONS.md`. Worker-Healthcheck
+  per Heartbeat, optionale Prometheus-Metriken (`OLLAMAIL_METRICS_ENABLED`, nur intern bzw. mit
+  Token), ein Datenbank-Pool je Prozess und PostgreSQL-Tuning für pgvector (#146).
 - **Oberfläche:** schlichte UI in Deutsch und Englisch, Light/Dark, Desktop und Mobil,
   Befehlsmenü und Tastaturkürzel.
 

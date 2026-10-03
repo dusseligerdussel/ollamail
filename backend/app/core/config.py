@@ -798,6 +798,11 @@ class WorkerSettings(BaseSettings):
     # A running job whose worker sent no heartbeat for this long (killed, OOM) is put back
     # into the queue by a periodic job (every 5 minutes). Workers send one every 10 s.
     stalled_after_seconds: float = Field(default=120.0, ge=30)
+    # Liveness: the worker touches this file every ``heartbeat_interval_seconds`` while its
+    # event loop and job workers run; ``python -m app.core.heartbeat`` (Compose healthcheck,
+    # Kubernetes liveness probe) fails once it is older than four intervals.
+    heartbeat_file: Path = Path("/tmp/ollamail-worker-heartbeat")
+    heartbeat_interval_seconds: float = Field(default=30.0, ge=1)
 
     @field_validator("queues", mode="before")
     @classmethod
@@ -805,6 +810,27 @@ class WorkerSettings(BaseSettings):
         if isinstance(value, str):
             return [part.strip() for part in value.split(",") if part.strip()]
         return value
+
+
+class MetricsSettings(BaseSettings):
+    """``OLLAMAIL_METRICS_*`` (Prometheus endpoints, app/core/metrics.py)"""
+
+    model_config = _config("METRICS_", secret=True)
+
+    # Serves ``/metrics`` on the api (port 8000; the frontend proxy does not forward it) and
+    # on every worker (``worker_port``). Off by default.
+    enabled: bool = False
+    # If set, scrapers must send ``Authorization: Bearer <token>``.
+    token: SecretStr | None = None
+    # Port of the worker's metrics endpoint; 0 disables it.
+    worker_port: int = Field(default=9464, ge=0, le=65535)
+    # The api reads queue, processing and sync metrics from the database at most this often.
+    database_refresh_seconds: float = Field(default=60.0, ge=0)
+
+    @field_validator("token", mode="before")
+    @classmethod
+    def _empty_is_none(cls, value: object) -> object:
+        return None if value == "" else value
 
 
 class AuditSettings(BaseSettings):
@@ -870,6 +896,7 @@ class Settings(BaseModel):
     todos: TodosSettings = Field(default_factory=TodosSettings)
     digest: DigestSettings = Field(default_factory=DigestSettings)
     worker: WorkerSettings = Field(default_factory=WorkerSettings)
+    metrics: MetricsSettings = Field(default_factory=MetricsSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
     triage: TriageSettings = Field(default_factory=TriageSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)

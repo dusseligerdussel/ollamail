@@ -46,8 +46,10 @@ from procrastinate import JobContext, RetryStrategy
 from procrastinate.exceptions import ConnectorException
 
 from app.core.config import DatabaseSettings, QueueName, Settings, get_settings
-from app.core.db import libpq_url
+from app.core.db import dispose_process_database, libpq_url
+from app.core.heartbeat import run_heartbeat
 from app.core.logging import configure_logging, get_logger
+from app.core.metrics import start_worker_metrics_server
 
 if __name__ == "__main__":
     # ``python -m app.worker`` executes this file as ``__main__``. Task modules import
@@ -201,6 +203,17 @@ def background_services(settings: Settings, stop: asyncio.Event) -> list[asyncio
 async def run(settings: Settings, stop: asyncio.Event) -> None:
     """Run all worker groups until ``stop`` is set, then shut down gracefully."""
     groups = worker_groups(settings)
+    metrics = start_worker_metrics_server(settings.metrics)
+    try:
+        await _run_groups(settings, groups, stop)
+    finally:
+        if metrics is not None:
+            metrics.shutdown()
+        # The engine all jobs of this process shared (``app.core.db.process_database``).
+        await dispose_process_database()
+
+
+async def _run_groups(settings: Settings, groups: list[WorkerGroup], stop: asyncio.Event) -> None:
     with app.replace_connector(build_connector(settings.database, pool_size(groups))):
         async with app.open_async():
             workers = [
@@ -217,6 +230,17 @@ async def run(settings: Settings, stop: asyncio.Event) -> None:
                 for group in groups
             ]
             services = background_services(settings, stop)
+            services.append(
+                asyncio.create_task(
+                    run_heartbeat(
+                        settings.worker.heartbeat_file,
+                        settings.worker.heartbeat_interval_seconds,
+                        stop,
+                        alive=lambda: not any(worker.done() for worker in workers),
+                    ),
+                    name="heartbeat",
+                )
+            )
             log.info(
                 "worker_started",
                 groups={group.name: list(group.queues) for group in groups},
