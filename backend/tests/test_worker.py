@@ -209,6 +209,36 @@ async def test_worker_runs_deferred_task(queue_database: DatabaseSettings) -> No
 
 
 @pytest.mark.db
+async def test_worker_writes_heartbeat_and_closes_the_shared_engine(
+    queue_database: DatabaseSettings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    from app.core import db
+    from app.core.heartbeat import check
+
+    monkeypatch.setattr(db, "_process_database", None)
+    heartbeat = tmp_path / "heartbeat"
+    worker_settings = WorkerSettings(
+        queues=["sync"], heartbeat_file=heartbeat, heartbeat_interval_seconds=1
+    )
+    settings = Settings(database=queue_database, worker=worker_settings)
+    stop = asyncio.Event()
+    worker = asyncio.create_task(run(settings, stop))
+    try:
+        for _ in range(100):
+            if heartbeat.exists():
+                break
+            await asyncio.sleep(0.05)
+        assert check(worker_settings)
+        db.process_database()  # created by the first job
+    finally:
+        stop.set()
+        await asyncio.wait_for(worker, timeout=10)
+
+    assert not heartbeat.exists()
+    assert db._process_database is None
+
+
+@pytest.mark.db
 async def test_queueing_lock_prevents_duplicate_jobs(queue_database: DatabaseSettings) -> None:
     from procrastinate.exceptions import AlreadyEnqueued
 

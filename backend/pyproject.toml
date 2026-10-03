@@ -20,6 +20,7 @@ dependencies = [
     "pgvector>=0.3",
     "piper-tts>=1.3,<2",
     "procrastinate>=3.10,<4",
+    "prometheus-client>=0.21",
     "psycopg[binary]>=3.2",
     "py3langid>=0.4.0",
     "pydantic>=2.7",

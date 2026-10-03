@@ -388,7 +388,7 @@ ai/llm/
   profiles.py       Hardware-Profile cpu / gpu-consumer / gpu-server
   structured.py     Pydantic → JSON-Schema, Validierung, Retry, Prompt-Fallback
   context.py        Token-Schätzung, Kürzen langer Mails
-  metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call`)
+  metrics.py        LLMCallMetrics + MetricsSink (Standard: Log-Event `llm_call` und Prometheus-Zähler)
   gateway.py        LLMGateway – einziger Einstiegspunkt für Features
 ai/prompts/         versionierte, sprachabhängige Prompt-Templates (`name@version`)
 ai/settings/        KI-Einstellungen in der DB (#18): Modelle, Store, DbConfigResolver, Admin-API
@@ -1321,8 +1321,13 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
 
 - Konfiguration per Env (`OLLAMAIL_*`), dokumentiert in `deploy/.env.example`. Start mit Docker Compose: `deploy/README.md`.
 - Kubernetes: Helm-Chart `deploy/helm/ollamail`, Doku in [`operations/kubernetes.md`](operations/kubernetes.md).
-- Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar).
-- Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional OpenTelemetry-Metriken.
+- Health-Endpunkte `/healthz` (live) und `/readyz` (DB, Queue, LLM erreichbar); der Worker
+  meldet Liveness über eine Heartbeat-Datei (`app/core/heartbeat.py`).
+- Strukturierte JSON-Logs ohne personenbezogene Inhalte; optional Prometheus-Metriken
+  (`OLLAMAIL_METRICS_ENABLED`, nur intern bzw. mit Token; nur IDs, Codes und Zähler,
+  `app/core/metrics.py`, `app/admin/metrics.py`).
+- Datenbank: ein gemeinsamer Verbindungspool je Prozess (`app.core.db.process_database`);
+  Verbindungsbudget und `max_connections` in [`OPERATIONS.md` §8.2](OPERATIONS.md#82-datenbankverbindungen).
 - Backups: `pg_dump` + Daten-Volume; Doku in [`OPERATIONS.md`](OPERATIONS.md#5-backup-und-restore).
 - Images: `ghcr.io/<owner>/ollamail-{api,frontend}` für `linux/amd64` und `linux/arm64`.
 
