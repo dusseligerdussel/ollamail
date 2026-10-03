@@ -778,7 +778,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Prompt-Injection** (#170): Absätze in Betreff, Text und Few-Shot-Beispielen, die sich an einen
   KI-Assistenten oder Filter wenden, entfernt `app.ai.injection.neutralize` vor dem Aufruf. Hatte
   die Mail solche Absätze, ist die Priorität mindestens 2 und die gespeicherte Begründung ein
-  fester Prüfhinweis (`REVIEW_REASON`) statt der des Modells.
+  fester Prüfhinweis (`REVIEW_REASON`) statt der des Modells; „Wichtig“ und „Handlungsbedarf“
+  werden zu Spam mit Priorität 3 (Spam-Regel der Triage, im Code durchgesetzt).
 - **Lernen aus Korrekturen** (`feedback.py`): `PUT /triage/messages/{id}` speichert die Korrektur als
   Ergebnis und als Beispiel (`triage_feedback`). In den Prompt kommen bis zu
   `OLLAMAIL_TRIAGE_FEW_SHOT_EXAMPLES` Beispiele **nur desselben Nutzers** (Filter auf Nutzer *und* auf

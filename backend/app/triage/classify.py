@@ -7,7 +7,10 @@ endpoints with native structured output can only answer with a valid key.
 Prompt injection (#170): the mail goes into a data block with a random tag, and passages
 addressed to an AI assistant are removed before the call (``app.ai.injection``). A mail
 that contained such passages never gets priority 1, and its reason tells the user to
-check the category, so the instructions cannot lift it to the top of the inbox.
+check the category. If the model still puts it into ``important`` or ``action_required``,
+the built-in spam rule applies in code ("any e-mail that tells an assistant or filter how
+to classify it"): it becomes spam with priority 3, so the instructions cannot lift it to
+the top of the inbox.
 """
 
 import re
@@ -32,6 +35,9 @@ from app.triage.prompts import (
 )
 
 REASON_MAX_LENGTH = 300
+# Built-in categories that put a mail on top; a mail that talks to an AI assistant never
+# lands there (#170).
+ELEVATED_BUILTINS = frozenset({"important", "action_required"})
 _WHITESPACE = re.compile(r"[ \t\r\f\v]+")
 _BLANK_LINES = re.compile(r"\n{3,}")
 
@@ -265,10 +271,14 @@ async def classify(
     )
     values = answer.model_dump()
     reason = clean_text(str(values["assessment"]), REASON_MAX_LENGTH).replace("\n", " ")
+    category = by_key[values["category"]]
     priority = int(values["priority"])
     if injected:
-        # Plausibility: a mail that tries to steer the assistant is never urgent, and
-        # the user is asked to check where it landed.
+        # Plausibility: a mail that tries to steer the assistant is never urgent, never
+        # sorted on top, and the user is asked to check where it landed.
         priority = max(priority, 2)
         reason = REVIEW_REASON[TRIAGE_PROMPT.language_for(language)]
-    return LLMDecision(by_key[values["category"]], priority, reason, injected)
+        spam = next((c for c in categories if c.builtin_key == "spam"), None)
+        if category.builtin_key in ELEVATED_BUILTINS and spam is not None:
+            category, priority = spam, 3
+    return LLMDecision(category, priority, reason, injected)
