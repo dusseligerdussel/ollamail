@@ -192,6 +192,7 @@ Geschwindigkeit (Mittel je Aufruf; „verarbeitet“ = Prompt- und Antwort-Token
 - **Digest:** Bei `qwen2.5:3b` sind die `[n]`-Referenzen auf wichtige Mails entweder fast
   vollständig (3 Digests) oder fehlen ganz (7 Digests); die Fristen nennt der Text trotzdem fast
   immer. Die Regel misst nur Referenzen und Fristen, nicht ob der Text inhaltlich stimmt.
+  Behoben mit #171 (4.6).
 - **RAG:** Mit `qwen2.5:3b` findet die Hybrid-Suche die richtige Mail meist an erster Stelle, und
   die Antworten enthalten die erwarteten Fakten. Schwach ist das Ablehnen: Bei 2 von 4 Fragen ohne
   Antwort im Postfach antwortete das Modell trotzdem mit Zitat. Auf CPU dauert die erste Antwort
@@ -321,3 +322,107 @@ Recall je Kategorie, voller Datensatz:
 - Andere Modelle je Profil (z. B. `qwen2.5:7b` für die Triage auf CPU): nicht gemessen; der
   Profil-Standard bleibt `qwen2.5:3b`.
 - Digest und RAG sind von den Änderungen nicht betroffen und nicht neu gemessen.
+
+### 4.6 Digest-Referenzen aus #171 (3. Oktober 2026, nur CPU)
+
+**Umgebung:** Agent-Container, 4 vCPUs (Intel Xeon @ 2,10 GHz), 16 GB RAM, keine GPU, Ollama
+0.35.1 in Docker, `qwen2.5:3b` (Q4_K_M, GGUF aus `ai/qwen2.5` von Docker Hub), Profil `cpu`.
+Nur die Stufe `digest` (10 Digests: 5 Tage × 2 Sprachen, 124 Mails, 68 davon wichtig).
+Berichte: [`model-evals/2026-10-03-cpu-171/`](model-evals/2026-10-03-cpu-171/). Messzeit
+insgesamt etwa 60 Minuten.
+
+**Ursache:** Ein Lauf mit Debug-Ausgabe (nur synthetische Daten, Texte nur lokal, nicht im
+Bericht) zeigte: `qwen2.5:3b` schreibt mit `digest_reduce@1` **gar keine** Marker, auch keine
+anderen Formate wie `(1)`, `[Mail 1]` oder `[^1]`. Der Text fasst die Notizen zusammen, lässt
+die Nummern aber weg. In diesem Lauf fehlten sie in allen 10 Digests (#125: in 7 von 10). Eine
+Antwort begann zudem mit „Guten Morgen, [Name].“ trotz Verbot im Prompt.
+
+**Vorgehen:** Die drei Ansätze aus dem Issue wurden auf denselben Map-Notizen verglichen (die
+Map-Antworten des Vorher-Laufs wiederverwendet, nur der Reduce-Schritt variiert; Sekunden =
+Reduce allein). Danach ein vollständiger Lauf der Eval-Suite mit der gewählten Variante.
+
+| Variante (Reduce) | wichtige Mails referenziert | Digests ohne Referenz | Fristen genannt | Reduce-Aufrufe | s je Digest (Reduce) |
+|---|---|---|---|---|---|
+| vorher: `digest_reduce@1` | 0,0 % | 10 von 10 | 75,6 % | 10 | – |
+| A: Prompt mit Beispiel, Marker als Pflicht | 83,8 % | 1 | 80,5 % | 10 | 29,7 |
+| B: strukturierte Ausgabe (Punkte mit Quell-IDs, Code rendert `[n]`) | 88,2 % | 0 | 73,2 % | 10 | 37,0 |
+| C: v1 + einmal nachfragen, wenn Referenzen fehlen | 94,1 % | 0 | 82,9 % | 18 | 51,8 |
+| **A + C (gewählt, `digest_reduce@2`)** | **100 %** | **0** | 80,5 % | 12 | 33,6 |
+
+Vorher/Nachher mit der Eval-Suite (`uv run python -m app.evals --model qwen2.5:3b --stage digest`),
+jeweils Map und Reduce neu gerechnet:
+
+| Metrik (`qwen2.5:3b`) | #125 (4.1) | vorher | **nachher** |
+|---|---|---|---|
+| Wichtige Mails referenziert | 27,9 % | 0,0 % | **91,2 %** |
+| Digests ohne jede Referenz | 7 von 10 | 10 von 10 | **0 von 10** |
+| Fristen wichtiger Mails genannt | 90,2 % | 75,6 % | **82,9 %** |
+| Wörter je Digest | – | 133 | 141 |
+| s je Digest | 129 | 92,5 | 95,7 |
+| Nachfragen (C) | – | – | 0 von 10 |
+
+Die Abweichung von 100 % (Variantenvergleich) zu 91,2 % (voller Lauf) kommt aus den neu
+erzeugten Map-Notizen: In drei Digests fasst der Text einzelne wichtige Mails nicht in einen
+eigenen Satz und nennt ihre Nummer deshalb nicht (5/6, 7/9, 7/10). Jeder Digest hat Referenzen,
+also war keine Nachfrage nötig.
+
+**Entscheidung:**
+
+- **A (Beispiel)** bringt den größten Teil. Das Beispiel zeigt das Format, das die Notizen schon
+  haben (`Satz. [1, 3]`), und kostet nichts.
+- **C (Nachfrage)** fängt die Fälle ab, in denen das Modell die Marker trotzdem weglässt. Es kommt
+  nur dann ein zweiter Aufruf, wenn nach dem Verwerfen erfundener Nummern keine gültige Referenz
+  übrig bleibt (hier 2 von 10 im Variantenvergleich, 0 von 10 im vollen Lauf). Bringt auch die
+  Nachfrage keine Referenzen, bleibt der erste Text.
+- **B (strukturiert)** ist verworfen: Die Referenzen sind zwar erzwungen, aber `qwen2.5:3b` schreibt
+  dann telegrafische Aufzählungen statt Sätzen zum Zuhören und packt bis zu sieben Notizen in
+  einen Punkt. Das hebt die Quote, ohne dass die Verweise genauer werden.
+- **Fallback über Absender/Betreff** (Vorschlag im Issue): nicht umgesetzt, mit A + C nicht nötig.
+- Der Parser erkennt zusätzlich `[ 3 ]`, `[^3]`, `[#3]` und `[2; 7]` und vereinheitlicht sie;
+  dieselbe Regel entfernt die Marker vor der Sprachausgabe, die TTS liest also keine „[3]“ vor
+  (Tests in `tests/digest/test_script.py`).
+
+**Nicht gemessen:** andere Modelle (`llama3.2:1b`) und GPU-Profile; die inhaltliche Qualität der
+Texte (die Regel prüft nur Marker und Fristen).
+
+### 4.7 Embeddings als `halfvec` (#164, 3. Oktober 2026, nur CPU)
+
+Prüft, ob die Umstellung der Vektorspalte von `vector` (32 Bit) auf `halfvec` (16 Bit) die
+Suchqualität senkt. **Umgebung:** wie 4.5 (4 vCPUs, keine GPU), Ollama 0.35.0, `qwen2.5:3b`
+(Q4_K_M), Embeddings `granite-embedding-multilingual:278m` (768 Dimensionen; `bge-m3` war nicht
+verfügbar), Profil `cpu`, Frist 120 s, pgvector 0.8.7. Voller Datensatz (200 Mails, 60 Fragen),
+nur die Stufe `rag`, je Code-Stand zwei Läufe. Berichte:
+[`model-evals/2026-10-03-halfvec-164/`](model-evals/2026-10-03-halfvec-164/).
+
+**1. Retrieval ohne Chat-Modell (deterministisch).** Mit der Frage im Wortlaut (ohne
+Query-Analyse) je beantwortbarer Frage die zehn besten Mails, einmal mit `vector`, einmal mit
+`halfvec`: Hybrid-Suche (`search`), exakte Vektorsuche und Vektorsuche über den HNSW-Index.
+
+| Suche | `vector` R@1 / R@3 / MRR | `halfvec` R@1 / R@3 / MRR | identische Top 10 |
+|---|---|---|---|
+| Hybrid | 93,8 % / 100 % / 0,965 | 93,8 % / 100 % / 0,965 | 48 von 48 |
+| Vektor exakt | 93,8 % / 100 % / 0,965 | 93,8 % / 100 % / 0,965 | 48 von 48 |
+| Vektor HNSW | 93,8 % / 100 % / 0,965 | 93,8 % / 100 % / 0,965 | 48 von 48 |
+
+**2. Eval-Suite (RAG, Ende zu Ende).**
+
+| Metrik | `vector` Lauf 1 / 2 | `vector` Mittel | `halfvec` Lauf 1 / 2 | `halfvec` Mittel |
+|---|---|---|---|---|
+| Recall@1 | 81,3 % / 68,8 % | 75,0 % | 79,2 % / 79,2 % | 79,2 % |
+| Recall@3 (= @5) | 85,4 % / 72,9 % | 79,2 % | 81,3 % / 83,3 % | 82,3 % |
+| MRR | 0,830 / 0,705 | 0,767 | 0,799 / 0,809 | 0,804 |
+| Antwort korrekt (Regeln) | 81,3 % / 72,9 % | 77,1 % | 79,2 % / 81,3 % | 80,2 % |
+| ohne Antwort richtig abgelehnt | 91,7 % / 91,7 % | 91,7 % | 83,3 % / 75,0 % | 79,2 % |
+| Fehler / Timeouts | 0 / 0 | – | 0 / 0 | – |
+
+**Befund:** Kein messbarer Qualitätsverlust. Die Rankings sind auf dem Datensatz identisch (1.).
+Die Schwankungen der Eval-Suite (2.) entstehen im Chat-Modell: Die Aufrufe laufen ohne feste
+Temperatur, die Query-Analyse extrahiert bei einzelnen Fragen mal Filter (dann 0 Quellen), mal
+nicht. Zwei Läufe auf demselben Code-Stand (`vector`) liegen 12,5 Punkte auseinander; der
+Unterschied zwischen den Code-Ständen liegt innerhalb dieser Spanne. Das gilt auch für die
+abgelehnten Fragen ohne Antwort (12 Fragen, eine Frage = 8,3 Punkte): Ob das Modell ablehnt,
+hängt nicht von den Quellen ab, die in beiden Varianten dieselben sind.
+
+Speicher auf dem Datensatz (200 Abschnitte, 768 Dimensionen): Tabelle 896 → 432 KB, HNSW-Index
+808 → 408 KB. Messungen mit 100 000 und 300 000 Embeddings (Größe und Laufzeit der Migration):
+[OPERATIONS.md 6.7](../OPERATIONS.md#67-upgrade-hinweis-embeddings-als-halfvec-164).

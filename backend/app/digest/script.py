@@ -10,9 +10,9 @@ from datetime import date
 
 from app.digest import texts
 from app.digest.content import DigestContent
+from app.digest.summarize import REFERENCE
 from app.digest.texts import DigestLanguage
 
-_REFERENCE = re.compile(r"\s*\[\d+(?:\s*,\s*\d+)*\]")
 _HEADING = re.compile(r"^\s*#{1,6}\s+.*$", re.MULTILINE)
 
 
@@ -33,4 +33,4 @@ def build(content: DigestContent, summary: str, *, today: date, language: Digest
 def spoken(script: str) -> str:
     """Text for the TTS: without the title heading and the reference marks."""
     text = _HEADING.sub("", script)
-    return _REFERENCE.sub("", text).strip()
+    return REFERENCE.sub("", text).strip()
