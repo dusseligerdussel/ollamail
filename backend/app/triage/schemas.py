@@ -127,13 +127,14 @@ class CategoryCount(BaseModel):
 
 class TriagedMessagePage(BaseModel):
     items: list[TriagedMessage]
-    # Pass as ``offset`` for the next page; ``null`` on the last page.
-    next_offset: int | None
-    # Messages matching the filter (all pages).
-    total: int
+    # Pass as ``cursor`` for the next page; ``null`` on the last page.
+    next_cursor: str | None
+    # Messages matching the filter (all pages); only on the first page (without
+    # ``cursor``), ``null`` on the following ones.
+    total: int | None
     # Messages per visible category in the user's order, then the uncategorised ones;
-    # without the category filter.
-    groups: list[CategoryCount]
+    # without the category filter. Only on the first page, like ``total``.
+    groups: list[CategoryCount] | None
 
 
 class SenderRuleCreate(BaseModel):

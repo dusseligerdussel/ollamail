@@ -323,9 +323,20 @@ und `delete_mailbox`; sie baut nichts davon nach.
 Grundlage der Inbox (#16). Zugriff wie bei der Postfach-API über `access.visible_to`: Mails fremder
 Postfächer antworten 404.
 
+**Listen bei großen Postfächern** (#140, `app/mail/listing.py`): Sortierschlüssel ist die Spalte
+`mail_messages.sort_date` (`received_at`, sonst `sent_at`, sonst `created_at`; `NOT NULL`, gepflegt
+vom Trigger `mail_messages_sort_date`) mit dem Index `(mailbox_id, sort_date DESC, id DESC)`. Eine
+Seite liest den Index in Listenreihenfolge und hört nach `limit` Zeilen auf, egal wie tief sie in
+der Liste liegt; bei mehreren Postfächern wird jedes einzeln gelesen und zusammengeführt (ein
+`mailbox_id IN (…)` müsste alle Mails sortieren). Ordnerfilter laufen über Ordner-IDs statt über einen
+Join auf `mail_folders`: Die kleine Tabelle hat oft keine Statistik, und eine Fehlschätzung lässt den
+Planer sonst alle Mails sortieren. Gezählt wird nur für die erste Seite. Nachweis mit 100k
+synthetischen Mails: `backend/tests/perf/` (`OLLAMAIL_TEST_PERF=1`, in der CI aktiv) prüft per
+`EXPLAIN (ANALYZE)`, dass jede Seite den Index nutzt und nicht sortiert.
+
 | Endpunkt | Zweck |
 |---|---|
-| `GET /messages` | Eine Zeile je Mail, neueste zuerst, Keyset-Paging (`cursor`, `limit` ≤ 200), `total` für die virtualisierte Liste. Filter: `mailbox_id`, `folder_id` (ohne: Ordner mit Rolle `inbox`), `unread`. Ohne Bodies; nur ein Snippet aus `body_main` |
+| `GET /messages` | Eine Zeile je Mail, neueste zuerst, Keyset-Paging (`cursor`, `limit` ≤ 200), `total` für die virtualisierte Liste (nur auf der ersten Seite, danach `null`). Filter: `mailbox_id`, `folder_id` (ohne: Ordner mit Rolle `inbox`), `unread`. Ohne Bodies; nur ein Snippet aus `body_main` |
 | `GET /messages/{id}/thread` | Konversation der Mail, älteste zuerst (höchstens die neuesten 100), mit Empfängern, Text, sanitisiertem HTML (`body.html`, `body.blocked_images`) und Anhängen |
 | `GET /messages/{id}/body?external_images=true` | HTML mit externen Bildern – erst, wenn der Nutzer sie für diese Mail anfordert |
 | `PATCH /messages/{id}` | `{"seen": bool}`: gelesen/ungelesen. Sofort gespeichert, Event `message.updated`, Job `mail.write_flags` schreibt die Flags auf den Server. Braucht `act`; in Shared Mailboxes 403 `read_only` (der Status gilt für das ganze Postfach) |
@@ -687,8 +698,12 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   Absenderregeln, Write-back-Einstellung je Postfach. Für die UI (#21): `GET /triage/messages?ids=…`
   liefert die Triage vieler Mails auf einmal (sichtbare Listenzeilen), `GET /triage/inbox/messages`
   die Inbox als eine Liste sortiert nach Kategorie (Reihenfolge des Nutzers, ohne Kategorie zuletzt),
-  Priorität und Datum, mit Filter auf eine Kategorie (`category=<id>|none`), Seiten per `offset` und
-  der Anzahl je Kategorie (`groups`).
+  Priorität und Datum, mit Filter auf eine Kategorie (`category=<id>|none`), Keyset-Seiten per
+  `cursor` und – nur auf der ersten Seite – der Anzahl je Kategorie (`groups`) und `total`. Die Liste
+  besteht aus Segmenten (Kategorie × Priorität), die nacheinander über den Listenindex gelesen werden
+  (siehe Mail-Lese-API); die erste Seite zählt die Segmente in einer Query, der Cursor merkt sich die
+  nicht leeren, damit leere Segmente (z. B. ausgeblendete Kategorien) keinen vollen Indexlauf kosten.
+  `GET /triage/inbox` braucht zwei Queries, unabhängig von der Zahl der Kategorien.
 - **Events:** `message.triaged` (`message_id`, `mailbox_id`) an alle, die das Postfach lesen (Besitzer bzw. Nutzer eines Shared Mailbox), sobald der
   Schritt `triage` eine Kategorie gespeichert hat oder der Nutzer sie korrigiert. Die UI lädt daraufhin
   nur Labels und die Inbox nach Kategorie neu.

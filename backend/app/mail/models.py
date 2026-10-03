@@ -22,6 +22,7 @@ from sqlalchemy import (
     CheckConstraint,
     Column,
     Enum,
+    FetchedValue,
     ForeignKey,
     Index,
     String,
@@ -222,7 +223,16 @@ class Message(Base):
         UniqueConstraint("mailbox_id", "remote_ref"),
         Index("ix_mail_messages_mailbox_id_message_id_header", "mailbox_id", "message_id_header"),
         Index(None, "thread_id"),
+        # Order of the lists (newest first, ``app.mail.listing``).
+        Index(
+            "ix_mail_messages_mailbox_id_sort_date_id",
+            "mailbox_id",
+            text("sort_date DESC"),
+            text("id DESC"),
+        ),
     )
+    # Read ``sort_date`` back on insert and update (it is set by a trigger).
+    __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012
 
     mailbox_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("mail_mailboxes.id", ondelete="CASCADE")
@@ -247,6 +257,12 @@ class Message(Base):
     headers: Mapped[list[list[str]]] = mapped_column(JSONB, default=list, server_default="[]")
     sent_at: Mapped[datetime | None]
     received_at: Mapped[datetime | None]
+    # Sort key of the lists: ``received_at``, else ``sent_at``, else ``created_at``. Kept
+    # up to date by the trigger ``mail_messages_sort_date`` (migration
+    # ``add_message_sort_date``), never written by the application.
+    sort_date: Mapped[datetime] = mapped_column(
+        server_default=FetchedValue(), server_onupdate=FetchedValue()
+    )
 
     # Full plain text (from text/plain or converted from HTML).
     body_text: Mapped[str] = mapped_column(Text, default="")

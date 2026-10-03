@@ -3,6 +3,8 @@
 Functions take an open session and never commit.
 """
 
+import base64
+import binascii
 import uuid
 from collections.abc import Sequence
 from dataclasses import dataclass
@@ -17,8 +19,9 @@ from app.ai.llm import CloudLLMDisabledError, LLMGateway, LLMOutputError, LLMTas
 from app.core.config import TriageSettings
 from app.core.events import Event
 from app.core.ids import uuid7
+from app.mail import listing
 from app.mail.access import publish_to_readers, visible_to
-from app.mail.models import Folder, FolderRole, Mailbox, Message, message_folders
+from app.mail.models import FolderRole, Mailbox, Message
 from app.mail.providers.base import Flag
 from app.processing.steps import StepError
 from app.triage.categories import EffectiveCategory, effective_categories, slugify
@@ -252,6 +255,43 @@ class InboxEntry:
     reason: str | None
 
 
+def _bucket(visible: Sequence[uuid.UUID]) -> ColumnElement[uuid.UUID | None]:
+    """The visible category of a message, NULL for the uncategorised group."""
+    if not visible:
+        return literal(None, type_=TriageResult.category_id.type)
+    return case((TriageResult.category_id.in_(visible), TriageResult.category_id))
+
+
+async def _segment_counts(
+    session: AsyncSession,
+    visible: Sequence[uuid.UUID],
+    mailbox_ids: Sequence[uuid.UUID],
+    conditions: Sequence[ColumnElement[bool]],
+) -> dict[tuple[uuid.UUID | None, int | None], int]:
+    """Messages per visible category (``None``: uncategorised) and priority; one query."""
+    if not mailbox_ids:
+        return {}
+    bucket = _bucket(visible).label("bucket")
+    rows = await session.execute(
+        select(bucket, TriageResult.priority, func.count())
+        .select_from(Message)
+        .outerjoin(TriageResult, TriageResult.message_id == Message.id)
+        .where(Message.mailbox_id.in_(mailbox_ids), *conditions)
+        .group_by(bucket, TriageResult.priority)
+    )
+    return {(row[0], row[1]): int(row[2]) for row in rows}
+
+
+def _per_category(
+    visible: Sequence[uuid.UUID], counts: dict[tuple[uuid.UUID | None, int | None], int]
+) -> dict[uuid.UUID | None, int]:
+    """Messages per visible category in the order of ``visible``, then ``None``."""
+    totals = dict.fromkeys([*visible, None], 0)
+    for (category_id, _), count in counts.items():
+        totals[category_id] += count
+    return totals
+
+
 async def inbox(
     session: AsyncSession,
     user_id: uuid.UUID,
@@ -262,46 +302,47 @@ async def inbox(
 ) -> tuple[dict[uuid.UUID | None, list[InboxEntry]], dict[uuid.UUID | None, int]]:
     """Messages in the inbox folders of the mailboxes the user may read, grouped by category in the
     order of ``visible`` (``None`` = not triaged yet, or in a hidden or deleted category):
-    highest priority first, then newest; plus the total per group."""
-    in_inbox = (
-        select(message_folders.c.message_id)
-        .join(Folder, Folder.id == message_folders.c.folder_id)
-        .where(message_folders.c.message_id == Message.id, Folder.role == FolderRole.INBOX)
-        .exists()
+    highest priority first, then newest; plus the total per group. Two queries, whatever the
+    number of categories."""
+    visible = list(visible)
+    mailbox_ids = await listing.readable_mailbox_ids(session, user_id, mailbox_id)
+    inbox_folders = await listing.folder_ids(session, mailbox_ids, FolderRole.INBOX)
+    conditions = [listing.in_folders(inbox_folders)]
+    totals = _per_category(
+        visible, await _segment_counts(session, visible, mailbox_ids, conditions)
     )
-    base = (
-        select(Message, Mailbox.id, TriageResult)
-        .join(Mailbox, Mailbox.id == Message.mailbox_id)
-        .outerjoin(TriageResult, TriageResult.message_id == Message.id)
-        .where(visible_to(user_id), in_inbox)
-    )
-    if mailbox_id is not None:
-        base = base.where(Mailbox.id == mailbox_id)
-    received = func.coalesce(Message.received_at, Message.sent_at, Message.created_at)
-    groups: dict[uuid.UUID | None, list[InboxEntry]] = {}
-    totals: dict[uuid.UUID | None, int] = {}
-    for category_id in [*visible, None]:
-        if category_id is None:
-            statement = base.where(
-                or_(
-                    TriageResult.id.is_(None),
-                    TriageResult.category_id.is_(None),
-                    TriageResult.category_id.not_in(list(visible)),
-                )
+    groups: dict[uuid.UUID | None, list[InboxEntry]] = {category_id: [] for category_id in totals}
+    if not mailbox_ids:
+        return groups, totals
+    bucket = _bucket(visible)
+    ranked = (
+        select(
+            Message.id.label("message_id"),
+            bucket.label("bucket"),
+            func.row_number()
+            .over(
+                partition_by=bucket,
+                order_by=(TriageResult.priority.asc().nulls_last(), *listing.NEWEST_FIRST),
             )
-        else:
-            statement = base.where(TriageResult.category_id == category_id)
-        count = await session.scalar(select(func.count()).select_from(statement.subquery()))
-        totals[category_id] = int(count or 0)
-        rows = await session.execute(
-            statement.order_by(
-                TriageResult.priority.asc().nulls_last(), received.desc(), Message.id
-            ).limit(per_group)
+            .label("rank"),
         )
-        groups[category_id] = [
+        .outerjoin(TriageResult, TriageResult.message_id == Message.id)
+        .where(Message.mailbox_id.in_(mailbox_ids), *conditions)
+        .subquery()
+    )
+    rows = await session.execute(
+        select(Message, ranked.c.bucket, TriageResult)
+        .join(ranked, ranked.c.message_id == Message.id)
+        .outerjoin(TriageResult, TriageResult.message_id == Message.id)
+        .where(ranked.c.rank <= per_group)
+        .order_by(ranked.c.rank)
+        .options(*listing.without_bodies())
+    )
+    for message, category_id, result in rows:
+        groups[category_id].append(
             InboxEntry(
                 message_id=message.id,
-                mailbox_id=mailbox,
+                mailbox_id=message.mailbox_id,
                 subject=message.subject,
                 sender_name=(message.sender or {}).get("name"),
                 sender_address=(message.sender or {}).get("address"),
@@ -311,8 +352,7 @@ async def inbox(
                 source=result.source if result is not None else None,
                 reason=result.reason if result is not None else None,
             )
-            for message, mailbox, result in rows
-        ]
+        )
     return groups, totals
 
 
@@ -331,14 +371,88 @@ async def results_of(
     return list(rows)
 
 
+# Priorities in list order; ``None`` (not triaged yet) last.
+_PRIORITIES: tuple[int | None, ...] = (1, 2, 3, None)
+
+
+def _segments(visible: Sequence[uuid.UUID]) -> list[tuple[int, int | None]]:
+    """The inbox in list order, cut into segments (category position in ``visible``, the
+    uncategorised at ``len(visible)``; priority). Only messages without a result have no
+    priority, and they are uncategorised."""
+    return [
+        (position, priority)
+        for position in range(len(visible) + 1)
+        for priority in _PRIORITIES
+        if priority is not None or position == len(visible)
+    ]
+
+
+@dataclass(frozen=True, slots=True)
+class InboxCursor:
+    """Position after the last row of a page: its segment (see ``_segments``), its place in
+    the segment (``sort_date``, ``id``) and the segments that are not empty (bit ``i`` for
+    segment ``i``), as counted for the first page."""
+
+    position: int
+    priority: int | None
+    sort_date: datetime
+    message_id: uuid.UUID
+    filled: int
+
+    def encode(self) -> str:
+        raw = "|".join(
+            (
+                str(self.position),
+                str(self.priority or 0),
+                self.sort_date.isoformat(),
+                str(self.message_id),
+                format(self.filled, "x"),
+            )
+        )
+        return base64.urlsafe_b64encode(raw.encode()).rstrip(b"=").decode()
+
+    @classmethod
+    def decode(cls, value: str) -> "InboxCursor":
+        """Raises ``ValueError`` for a malformed cursor."""
+        try:
+            raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4)).decode()
+            position, priority, sort_date, message_id, filled = raw.split("|")
+            return cls(
+                int(position),
+                int(priority) or None,
+                datetime.fromisoformat(sort_date),
+                uuid.UUID(message_id),
+                int(filled, 16),
+            )
+        except (binascii.Error, UnicodeDecodeError, ValueError):
+            raise ValueError("invalid cursor") from None
+
+
 @dataclass(frozen=True, slots=True)
 class InboxPage:
-    # Messages with their visible category (``None``: untriaged, hidden or deleted).
+    # Messages with their visible category (``None``: untriaged, hidden or deleted) and
+    # priority.
     rows: list[tuple[Message, uuid.UUID | None, int | None]]
-    total: int
-    # Messages per visible category in the user's order, then ``None``; the category
-    # filter is not applied to these counts.
-    counts: dict[uuid.UUID | None, int]
+    # Pass as ``cursor`` for the next page; ``None`` on the last page.
+    next_cursor: InboxCursor | None
+    # Messages matching the filter and messages per visible category in the user's order,
+    # then ``None`` (without the category filter); only for the first page.
+    total: int | None
+    counts: dict[uuid.UUID | None, int] | None
+
+
+def _in_segment(
+    visible: Sequence[uuid.UUID], position: int, priority: int | None
+) -> ColumnElement[bool]:
+    result = select(TriageResult.id).where(TriageResult.message_id == Message.id)
+    if priority is None:
+        return ~result.exists()
+    result = result.where(TriageResult.priority == priority)
+    if position < len(visible):
+        return result.where(TriageResult.category_id == visible[position]).exists()
+    return result.where(
+        or_(TriageResult.category_id.is_(None), TriageResult.category_id.not_in(visible))
+    ).exists()
 
 
 async def inbox_page(
@@ -349,73 +463,79 @@ async def inbox_page(
     mailbox_id: uuid.UUID | None,
     unread: bool | None,
     category: uuid.UUID | Literal["none"] | None,
-    offset: int,
+    cursor: InboxCursor | None,
     limit: int,
 ) -> InboxPage:
     """Inbox messages of the user's mailboxes ordered by category (user's order, the
     uncategorised last), then priority, then newest first. ``category`` filters to one
-    visible category, or ``"none"`` to the uncategorised ones."""
+    visible category, or ``"none"`` to the uncategorised ones.
+
+    Pages with a keyset: the segments (category x priority) are read one after the other,
+    each newest first along ``ix_mail_messages_mailbox_id_sort_date_id``, until the page is
+    full. The first page counts the messages per segment (one query); empty segments are
+    skipped, as reading one would walk the whole index."""
     visible = list(visible)
-    in_inbox = (
-        select(message_folders.c.message_id)
-        .join(Folder, Folder.id == message_folders.c.folder_id)
-        .where(message_folders.c.message_id == Message.id, Folder.role == FolderRole.INBOX)
-        .exists()
-    )
-    conditions: list[ColumnElement[bool]] = [visible_to(user_id), in_inbox]
-    if mailbox_id is not None:
-        conditions.append(Message.mailbox_id == mailbox_id)
+    mailbox_ids = await listing.readable_mailbox_ids(session, user_id, mailbox_id)
+    inbox_folders = await listing.folder_ids(session, mailbox_ids, FolderRole.INBOX)
+    conditions: list[ColumnElement[bool]] = [listing.in_folders(inbox_folders)]
     if unread is True:
         conditions.append(~Message.flags.contains([Flag.SEEN.value]))
     elif unread is False:
         conditions.append(Message.flags.contains([Flag.SEEN.value]))
-    # The visible category of a message, NULL for the uncategorised group.
-    bucket = case((TriageResult.category_id.in_(visible), TriageResult.category_id))
-    base = (
-        select(Message, bucket.label("bucket"), TriageResult.priority)
-        .join(Mailbox, Mailbox.id == Message.mailbox_id)
-        .outerjoin(TriageResult, TriageResult.message_id == Message.id)
-        .where(*conditions)
-    )
 
-    counted = base.subquery()
-    count_rows = await session.execute(
-        select(counted.c.bucket, func.count()).group_by(counted.c.bucket)
-    )
-    by_bucket = {row[0]: int(row[1]) for row in count_rows}
-    counts = {category_id: by_bucket.get(category_id, 0) for category_id in [*visible, None]}
-
-    statement = base
-    if category is None:
-        total = sum(counts.values())
-    elif category == "none":
-        statement = statement.where(bucket.is_(None))
-        total = counts[None]
+    segments = _segments(visible)
+    total = counts = None
+    if cursor is None:
+        by_segment = await _segment_counts(session, visible, mailbox_ids, conditions)
+        filled = sum(
+            1 << index
+            for index, (position, priority) in enumerate(segments)
+            if by_segment.get((visible[position] if position < len(visible) else None, priority))
+        )
+        counts = _per_category(visible, by_segment)
+        if category is None:
+            total = sum(counts.values())
+        elif category == "none":
+            total = counts[None]
+        else:
+            total = counts.get(category, 0)
     else:
-        statement = statement.where(TriageResult.category_id == category)
-        total = counts.get(category, 0)
-    position = (
-        case(
-            {category_id: index for index, category_id in enumerate(visible)},
-            value=TriageResult.category_id,
-            else_=len(visible),
+        filled = cursor.filled
+
+    if category is None:
+        positions = range(len(visible) + 1)
+    elif category == "none":
+        positions = range(len(visible), len(visible) + 1)
+    else:
+        positions = range(visible.index(category), visible.index(category) + 1)
+    start = 0
+    if cursor is not None:
+        current = (cursor.position, cursor.priority)
+        start = segments.index(current) if current in segments else len(segments)
+
+    rows: list[tuple[Message, uuid.UUID | None, int | None]] = []
+    for index in range(start, len(segments)):
+        position, priority = segments[index]
+        if position not in positions or not filled >> index & 1:
+            continue
+        before = None
+        if cursor is not None and index == start:
+            before = (cursor.sort_date, cursor.message_id)
+        query = listing.newest_first(
+            mailbox_ids,
+            [*conditions, _in_segment(visible, position, priority)],
+            before=before,
+            limit=limit + 1 - len(rows),
         )
-        if visible
-        else literal(0)
-    )
-    received = func.coalesce(Message.received_at, Message.sent_at, Message.created_at)
-    rows = await session.execute(
-        statement.order_by(
-            position,
-            TriageResult.priority.asc().nulls_last(),
-            received.desc(),
-            Message.id.desc(),
-        )
-        .offset(offset)
-        .limit(limit)
-    )
-    return InboxPage(
-        rows=[(message, category_id, priority) for message, category_id, priority in rows],
-        total=total,
-        counts=counts,
-    )
+        category_id = visible[position] if position < len(visible) else None
+        rows.extend((message, category_id, priority) for message in await session.scalars(query))
+        if len(rows) > limit:
+            break
+
+    next_cursor = None
+    if len(rows) > limit:
+        rows = rows[:limit]
+        last, category_id, priority = rows[-1]
+        position = visible.index(category_id) if category_id is not None else len(visible)
+        next_cursor = InboxCursor(position, priority, last.sort_date, last.id, filled)
+    return InboxPage(rows=rows, next_cursor=next_cursor, total=total, counts=counts)
