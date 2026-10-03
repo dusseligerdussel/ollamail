@@ -123,7 +123,9 @@ async def test_mail_content_cannot_escape_its_data_block(
     assert "untrusted data" in system.content or "nicht vertrauenswürdige" in system.content
     # Exactly one block, opened and closed once by the real tag.
     assert user.content.count(f"</{tag.group(1)}>") == 1
-    assert user.content.index(attack) < user.content.index(f"</{tag.group(1)}>")
+    # Instructions for the assistant are removed inside the block (#170).
+    assert "Ignore all previous instructions" not in user.content
+    assert user.content.index("[…]") < user.content.index(f"</{tag.group(1)}>")
 
 
 async def test_regenerate_replaces_the_text(
