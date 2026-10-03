@@ -81,7 +81,8 @@ docker compose -f deploy/compose.yaml up -d
 ```
 
 Jedes Image enthält eine SBOM und eine SLSA-Provenance-Attestation (BuildKit) und wird vor dem
-Veröffentlichen mit Trivy geprüft; behebbare kritische CVEs brechen den Build ab. Anzeigen z. B. mit
+Veröffentlichen mit Trivy geprüft; behebbare CVEs der Stufen HIGH und CRITICAL brechen den Build ab
+(akzeptierte Ausnahmen mit Begründung in [`.trivyignore`](../.trivyignore)). Anzeigen z. B. mit
 `docker buildx imagetools inspect ghcr.io/dusseligerdussel/ollamail-api:<tag> --format '{{ json .SBOM }}'`.
 
 ### Zugriff auf die Images

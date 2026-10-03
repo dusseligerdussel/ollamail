@@ -30,6 +30,19 @@ und – bei UI-Arbeit – `docs/DESIGN.md`.
   (`git config core.hooksPath .githooks`). Menschen führen den Befehl einmalig selbst aus.
 - Den Hook **niemals** umgehen (`--no-verify`, `core.hooksPath` ändern, Hook löschen/editieren).
 
+### Dependabot-PRs und Security-Scans
+
+- Dependabot (`.github/dependabot.yml`) öffnet montags gruppierte Update-PRs für Backend (uv),
+  Frontend (pnpm), GitHub Actions und die Basis-Images der Dockerfiles; Sicherheitsupdates sofort.
+- Auch Dependabot-PRs mergt **nur der Repository-Owner**. Agenten dürfen sie prüfen, bei roter CI
+  einen Fix auf einem eigenen Branch vorschlagen und Major-Updates kommentieren – nicht mergen.
+- `.github/workflows/security.yml` (pip-audit, `pnpm audit --prod`, CodeQL) läuft wöchentlich und
+  bei Änderungen an den Lockfiles. Es ist **nicht** Teil von `ci-ok`; ein roter Lauf blockiert
+  keine PRs, wird aber zeitnah bearbeitet.
+- Funde: behebbar → eigenes Issue und Fix (meist Version anheben). Nicht behebbar → Trivy:
+  Eintrag in `.trivyignore` mit Begründung und Ablaufdatum; pip-audit: `--ignore-vuln` mit
+  Kommentar in `security.yml`. Nie stillschweigend ignorieren.
+
 ### Branch-Namen
 
 ```

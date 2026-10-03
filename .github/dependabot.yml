@@ -1,0 +1,73 @@
+# Dependency updates: weekly, grouped per ecosystem so that a normal week brings at most one
+# PR per ecosystem (plus one per major update). Security updates (enable "Dependabot security
+# updates" in the repository settings) are grouped the same way but arrive immediately.
+# Agents never merge these PRs; see CLAUDE.md, section 1.
+version: 2
+
+updates:
+  - package-ecosystem: uv
+    directory: /backend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      backend:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      backend-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # pnpm-lock.yaml is handled by the npm ecosystem.
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      frontend:
+        patterns: ["*"]
+        update-types: [minor, patch]
+      frontend-security:
+        applies-to: security-updates
+        patterns: ["*"]
+
+  # SHA-pinned actions: Dependabot updates the SHA and the version comment.
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: ci(deps)
+    groups:
+      actions:
+        patterns: ["*"]
+
+  # Base images of backend/Dockerfile and frontend/Dockerfile (python, node, caddy).
+  - package-ecosystem: docker
+    directories: [/backend, /frontend]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      docker:
+        patterns: ["*"]

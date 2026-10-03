@@ -3,12 +3,11 @@
 # One image for every backend role: `api` (default command), `worker` and `migrate`
 # only differ in the command they run (see deploy/compose.yaml).
 
-ARG PYTHON_IMAGE=python:3.12-slim-trixie
-
 # ---------------------------------------------------------------------------
 # base: shared Python settings
 # ---------------------------------------------------------------------------
-FROM ${PYTHON_IMAGE} AS base
+# Literal tag, not an ARG: Dependabot only updates literal FROM lines (.github/dependabot.yml).
+FROM python:3.12-slim-trixie AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
