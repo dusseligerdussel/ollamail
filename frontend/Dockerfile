@@ -4,7 +4,7 @@
 # deps: install dependencies from pnpm-lock.yaml (pnpm version from package.json)
 # ---------------------------------------------------------------------------
 # Literal tags, not ARGs: Dependabot only updates literal FROM lines (.github/dependabot.yml).
-FROM node:22-alpine AS deps
+FROM node:26-alpine AS deps
 
 ENV PNPM_HOME=/pnpm \
     COREPACK_HOME=/opt/corepack \
