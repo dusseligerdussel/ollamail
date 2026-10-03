@@ -25,7 +25,7 @@ from app.users.models import User
 
 
 def _client_ip(request: Request) -> str:
-    # With uvicorn --proxy-headers/--forwarded-allow-ips this is the X-Forwarded-For client.
+    # Behind a trusted proxy this is the X-Forwarded-For client (ProxyHeadersMiddleware).
     return request.client.host if request.client else "unknown"
 
 

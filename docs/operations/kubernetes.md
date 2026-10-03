@@ -280,7 +280,12 @@ Regeln:
 - Mit `OLLAMAIL_AUTH_COOKIE_SECURE=true` (Standard) funktioniert die Anmeldung nur über HTTPS
   (oder `http://localhost`, z. B. per `kubectl port-forward`).
 - Der Frontend-Container trägt `X-Forwarded-*`-Header nur von privaten Netzen weiter; ein
-  Ingress-Controller im Cluster erfüllt das.
+  Ingress-Controller im Cluster erfüllt das. Er muss `X-Forwarded-For` auf die echte Client-IP
+  setzen, statt an einen vom Client mitgeschickten Wert anzuhängen (ingress-nginx: kein
+  `use-forwarded-headers`, außer ein weiterer Proxy davor setzt den Header selbst korrekt).
+- Die API wertet `X-Forwarded-*` nur von `OLLAMAIL_FORWARDED_ALLOW_IPS` aus (Standard: Loopback
+  und private Netze). Liegt das Pod-Netz außerhalb davon (z. B. `100.64.0.0/10`), das Pod-CIDR
+  in `config` eintragen.
 
 ## 7. Worker und Queues
 

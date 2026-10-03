@@ -8,6 +8,7 @@ New modules add their settings here additively (new group or new fields) and doc
 them in ``deploy/.env.example``.
 """
 
+import ipaddress
 from functools import lru_cache
 from pathlib import Path
 from typing import Annotated, Literal
@@ -18,6 +19,15 @@ from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 ENV_PREFIX = "OLLAMAIL_"
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
+# Loopback and private address ranges (RFC 1918, RFC 4193).
+PRIVATE_NETWORKS = (
+    "127.0.0.0/8",
+    "::1",
+    "10.0.0.0/8",
+    "172.16.0.0/12",
+    "192.168.0.0/16",
+    "fc00::/7",
+)
 # Job queues, see app/worker.py.
 QueueName = Literal["sync", "llm", "tts", "ocr", "default"]
 
@@ -74,6 +84,14 @@ class SecuritySettings(BaseSettings):
     # Token required by ``POST /api/setup`` to create the first admin. If unset, one is
     # derived from ``secret_key`` and logged at start-up while no user exists.
     setup_token: SecretStr | None = None
+    # Peers whose X-Forwarded-For/-Proto headers are trusted (IPs or CIDR networks,
+    # comma-separated): the bundled frontend proxy in the Compose or Kubernetes network.
+    # The client IP is the right-most X-Forwarded-For entry that is not one of these, so a
+    # value forged by the client cannot replace it (rate limits, see app/auth/service.py).
+    # Empty: the default (loopback and private networks).
+    forwarded_allow_ips: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: list(PRIVATE_NETWORKS)
+    )
 
     @field_validator("setup_token", mode="before")
     @classmethod
@@ -88,6 +106,26 @@ class SecuritySettings(BaseSettings):
     def _split_keys(cls, value: object) -> object:
         if isinstance(value, str):
             return [part.strip() for part in value.split(",") if part.strip()]
+        return value
+
+    @field_validator("forwarded_allow_ips", mode="before")
+    @classmethod
+    def _split_hosts(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()] or list(
+                PRIVATE_NETWORKS
+            )
+        return value
+
+    @field_validator("forwarded_allow_ips")
+    @classmethod
+    def _valid_networks(cls, value: list[str]) -> list[str]:
+        # "*" would make uvicorn take the left-most (client-controlled) X-Forwarded-For value.
+        for entry in value:
+            try:
+                ipaddress.ip_network(entry, strict=False)
+            except ValueError:
+                raise ValueError(f"not an IP address or network: {entry!r}") from None
         return value
 
 
@@ -371,7 +409,7 @@ class AuthSettings(BaseSettings):
     login_max_attempts: int = Field(default=5, ge=1)
     login_window_minutes: int = Field(default=15, ge=1)
     # Login/registration attempts per client IP and window. Behind a reverse proxy the client
-    # IP comes from X-Forwarded-For (uvicorn --forwarded-allow-ips).
+    # IP comes from X-Forwarded-For (OLLAMAIL_FORWARDED_ALLOW_IPS).
     ip_max_attempts: int = Field(default=50, ge=1)
     # Allow LDAP directories without TLS (tls_mode "none"). Passwords then travel in clear
     # text; only for test setups or networks that are encrypted otherwise.
