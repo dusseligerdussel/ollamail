@@ -4,7 +4,8 @@ Both hang off the mail tables with ``ON DELETE CASCADE`` (message, mailbox, atta
 so deleting mail deletes its index (docs/PRIVACY.md, Löschkonzept). The chunk text is
 mail content: it is never logged.
 
-Embeddings live in their own table, tagged with the model that produced them. While the
+Embeddings live in their own table, tagged with the model that produced them, as
+``halfvec`` (16 bits per dimension, half the size of ``vector`` for table and index). While the
 index is rebuilt for a new model, the rows of the old model keep serving queries
 (``SearchIndexState.active_model``) until every chunk has a vector of the new one.
 """
@@ -12,7 +13,7 @@ index is rebuilt for a new model, the rows of the old model keep serving queries
 import uuid
 from typing import Any
 
-from pgvector.sqlalchemy import Vector
+from pgvector.sqlalchemy import HALFVEC
 from sqlalchemy import (
     CheckConstraint,
     Computed,
@@ -103,7 +104,7 @@ class SearchEmbedding(Base):
             "ix_search_embeddings_embedding_hnsw",
             "embedding",
             postgresql_using="hnsw",
-            postgresql_ops={"embedding": "vector_cosine_ops"},
+            postgresql_ops={"embedding": "halfvec_cosine_ops"},
         ),
     )
 
@@ -111,7 +112,7 @@ class SearchEmbedding(Base):
     model: Mapped[str] = mapped_column(String(255))
     # The dimension comes from ``OLLAMAIL_SEARCH_EMBEDDING_DIMENSIONS``; the database
     # column is authoritative at run time (see ``service.embedding_dimensions``).
-    embedding: Mapped[Any] = mapped_column(Vector(get_settings().search.embedding_dimensions))
+    embedding: Mapped[Any] = mapped_column(HALFVEC(get_settings().search.embedding_dimensions))
 
 
 class SearchIndexState(Base):

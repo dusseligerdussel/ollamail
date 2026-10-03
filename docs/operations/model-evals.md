@@ -384,3 +384,45 @@ also war keine Nachfrage nötig.
 
 **Nicht gemessen:** andere Modelle (`llama3.2:1b`) und GPU-Profile; die inhaltliche Qualität der
 Texte (die Regel prüft nur Marker und Fristen).
+
+### 4.7 Embeddings als `halfvec` (#164, 3. Oktober 2026, nur CPU)
+
+Prüft, ob die Umstellung der Vektorspalte von `vector` (32 Bit) auf `halfvec` (16 Bit) die
+Suchqualität senkt. **Umgebung:** wie 4.5 (4 vCPUs, keine GPU), Ollama 0.35.0, `qwen2.5:3b`
+(Q4_K_M), Embeddings `granite-embedding-multilingual:278m` (768 Dimensionen; `bge-m3` war nicht
+verfügbar), Profil `cpu`, Frist 120 s, pgvector 0.8.7. Voller Datensatz (200 Mails, 60 Fragen),
+nur die Stufe `rag`, je Code-Stand zwei Läufe. Berichte:
+[`model-evals/2026-10-03-halfvec-164/`](model-evals/2026-10-03-halfvec-164/).
+
+**1. Retrieval ohne Chat-Modell (deterministisch).** Mit der Frage im Wortlaut (ohne
+Query-Analyse) je beantwortbarer Frage die zehn besten Mails, einmal mit `vector`, einmal mit
+`halfvec`: Hybrid-Suche (`search`), exakte Vektorsuche und Vektorsuche über den HNSW-Index.
+
+| Suche | `vector` R@1 / R@3 / MRR | `halfvec` R@1 / R@3 / MRR | identische Top 10 |
+|---|---|---|---|
+| Hybrid | 93,8 % / 100 % / 0,965 | 93,8 % / 100 % / 0,965 | 48 von 48 |
+| Vektor exakt | 93,8 % / 100 % / 0,965 | 93,8 % / 100 % / 0,965 | 48 von 48 |
+| Vektor HNSW | 93,8 % / 100 % / 0,965 | 93,8 % / 100 % / 0,965 | 48 von 48 |
+
+**2. Eval-Suite (RAG, Ende zu Ende).**
+
+| Metrik | `vector` Lauf 1 / 2 | `vector` Mittel | `halfvec` Lauf 1 / 2 | `halfvec` Mittel |
+|---|---|---|---|---|
+| Recall@1 | 81,3 % / 68,8 % | 75,0 % | 79,2 % / 79,2 % | 79,2 % |
+| Recall@3 (= @5) | 85,4 % / 72,9 % | 79,2 % | 81,3 % / 83,3 % | 82,3 % |
+| MRR | 0,830 / 0,705 | 0,767 | 0,799 / 0,809 | 0,804 |
+| Antwort korrekt (Regeln) | 81,3 % / 72,9 % | 77,1 % | 79,2 % / 81,3 % | 80,2 % |
+| ohne Antwort richtig abgelehnt | 91,7 % / 91,7 % | 91,7 % | 83,3 % / 75,0 % | 79,2 % |
+| Fehler / Timeouts | 0 / 0 | – | 0 / 0 | – |
+
+**Befund:** Kein messbarer Qualitätsverlust. Die Rankings sind auf dem Datensatz identisch (1.).
+Die Schwankungen der Eval-Suite (2.) entstehen im Chat-Modell: Die Aufrufe laufen ohne feste
+Temperatur, die Query-Analyse extrahiert bei einzelnen Fragen mal Filter (dann 0 Quellen), mal
+nicht. Zwei Läufe auf demselben Code-Stand (`vector`) liegen 12,5 Punkte auseinander; der
+Unterschied zwischen den Code-Ständen liegt innerhalb dieser Spanne. Das gilt auch für die
+abgelehnten Fragen ohne Antwort (12 Fragen, eine Frage = 8,3 Punkte): Ob das Modell ablehnt,
+hängt nicht von den Quellen ab, die in beiden Varianten dieselben sind.
+
+Speicher auf dem Datensatz (200 Abschnitte, 768 Dimensionen): Tabelle 896 → 432 KB, HNSW-Index
+808 → 408 KB. Messungen mit 100 000 und 300 000 Embeddings (Größe und Laufzeit der Migration):
+[OPERATIONS.md 6.7](../OPERATIONS.md#67-upgrade-hinweis-embeddings-als-halfvec-164).
