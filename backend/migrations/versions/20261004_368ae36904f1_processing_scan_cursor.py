@@ -6,7 +6,7 @@ reading again from the newest message. Nullable, no content; ``NULL`` starts fro
 newest message as before.
 
 Revision ID: 368ae36904f1
-Revises: ed3357fe44bc
+Revises: 450fb969fc30
 Create Date: 2026-10-04 19:54:55.097477+00:00
 """
 
@@ -16,7 +16,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "368ae36904f1"
-down_revision: str | Sequence[str] | None = "ed3357fe44bc"
+down_revision: str | Sequence[str] | None = "450fb969fc30"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
