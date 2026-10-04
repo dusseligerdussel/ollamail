@@ -54,6 +54,8 @@ export interface DraftsBackend {
   generated?: string;
   /** `error` event instead of a text. */
   generateError?: string;
+  /** The first n generations are refused with 429 `llm_busy` (`Retry-After: 1`). */
+  generateBusy?: number;
   /** `POST /drafts/{id}/send` fails with this status and `error_code`. */
   sendError?: [number, string];
 }
@@ -63,8 +65,10 @@ export function draftsApi({
   drafts = [],
   generated,
   generateError,
+  generateBusy = 0,
   sendError,
 }: DraftsBackend = {}) {
+  let busy = generateBusy;
   const store = new Map(drafts.map((draft) => [draft.id, draft]));
   const requests: { route: string; body?: Record<string, unknown> }[] = [];
   let created = 0;
@@ -100,6 +104,12 @@ export function draftsApi({
     if (route === "POST /api/drafts/generate") {
       const draft = store.get(String(body?.draft_id));
       if (!draft) return problem(404);
+      if (busy > 0) {
+        busy -= 1;
+        const refused = problem(429, { error_code: "llm_busy" });
+        refused.headers.set("Retry-After", "1");
+        return refused;
+      }
       if (generateError) {
         return eventStream([
           { type: "start", draft_id: draft.id },

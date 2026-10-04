@@ -1,8 +1,8 @@
-import { CircleAlert, RotateCw } from "lucide-react";
+import { CircleAlert } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
 import { describeApiError } from "@/api/errors";
-import { Button } from "@/components/ui/button";
+import { RetryButton } from "@/components/retry-button";
 import { cn } from "@/lib/utils";
 
 interface InlineErrorProps {
@@ -24,18 +24,7 @@ export function InlineError({ error, onRetry, retrying = false, className }: Inl
       <div className="flex min-w-0 flex-col items-start">
         <p className="text-destructive">{title}</p>
         {description && <p className="text-muted-foreground">{description}</p>}
-        {onRetry && (
-          <Button
-            size="xs"
-            variant="outline"
-            className="mt-2"
-            disabled={retrying}
-            onClick={() => void onRetry()}
-          >
-            <RotateCw aria-hidden />
-            {t("common.retry")}
-          </Button>
-        )}
+        {onRetry && <RetryButton error={error} onRetry={onRetry} retrying={retrying} />}
       </div>
     </div>
   );

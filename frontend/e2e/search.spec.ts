@@ -149,6 +149,9 @@ test("too many parallel requests are explained instead of a generic error", asyn
   await expect(alert).toContainText(
     "You already have several answers or drafts in progress. Wait for one to finish, then try again.",
   );
+  // The same question can be asked again once the server's Retry-After (5 s) has passed.
+  await expect(alert.getByRole("button", { name: /^Try again in \d s$/ })).toBeDisabled();
+  await expect(alert.getByRole("button", { name: "Try again" })).toBeEnabled({ timeout: 7000 });
 });
 
 test("history: reopen and delete conversations", async ({ page }) => {

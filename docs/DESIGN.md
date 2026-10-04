@@ -15,7 +15,10 @@ Ziel: ein ruhiges, schnelles, professionelles Werkzeug. Vorbilder: Linear, Super
 - Lucide-Icons, 16 px, Strichstärke einheitlich.
 - Schnelle, kurze Übergänge (≤ 150 ms), `prefers-reduced-motion` respektieren.
 - Leere Zustände sachlich mit einer klaren nächsten Aktion. Fehler beim Laden ebenso:
-  `InlineError` mit „Erneut versuchen“ (`onRetry`).
+  `InlineError` mit „Erneut versuchen“ (`onRetry`). Schickt der Server `Retry-After`, ist der
+  Button bis dahin deaktiviert und zählt herunter (`RetryButton`).
+- „Zu viele KI-Anfragen“ (`llm_busy`) ist kein Fehler, sondern eine Wartezeit: neutral (Info-Icon,
+  kein Rot) und mit „Erneut versuchen“ für dieselbe Frage bzw. denselben Entwurf.
 - Skeletons statt Spinner bei Listen; sie haben die Zeilenhöhe der echten Liste (Mail-Listen mobil
   zweizeilig), damit nichts springt.
 - Barrierefreiheit: WCAG 2.2 AA, Fokus sichtbar, alles per Tastatur bedienbar. Prüfumfang, Funde und
@@ -63,7 +66,8 @@ Abschnittsköpfen stehen keine Buttons.
 | Abschnittstitel, Meta, Labels über Feldern | 12 px | `text-xs` |
 
 In dichten Ansichten sind Buttons `size="sm"` (13 px); damit bleibt der Seitentitel die größte
-Schrift im Kopf. Größere Buttons (`default`, 14 px) nur in Dialogen und auf öffentlichen Seiten
+Schrift im Kopf. Eingabefelder und Auswahllisten haben mobil 16 px (sonst zoomt iOS beim Fokus),
+ab `md` 14 px; `NativeSelect size="sm"` ab `md` 13 px. Größere Buttons (`default`, 14 px) nur in Dialogen und auf öffentlichen Seiten
 (Anmeldung, Einrichtung).
 
 ## Komponenten
@@ -75,6 +79,11 @@ Schrift im Kopf. Größere Buttons (`default`, 14 px) nur in Dialogen und auf ö
 - Segmented Controls (Auswahl aus wenigen Optionen, z. B. Theme, Wochentage): `ToggleGroup` mit
   `variant="segmented"`. Die gewählte Option ist angehoben und in der Akzentfarbe umrandet
   (≥ 3:1, WCAG 1.4.11) – nie nur durch einen leicht anderen Grauton erkennbar.
+- Ein/Aus-Einstellungen sind ein `Switch` in einer Zeile mit Label und Beschreibung, kein
+  Segmented Control. Ist ein Schalter deaktiviert, sagt die Beschreibung, warum.
+- Aktionen hinter einer erneuten Bestätigung (`useReauth`) übergeben ihren Namen
+  (`useReauth({ action })`); speichert die Aktion ein Formular, zusätzlich `unsavedChanges`, damit
+  der Dialog vor „Abmelden und neu anmelden“ warnt.
 - Globale Hinweisleisten (`components/system-notices.tsx`) stehen auf dem Desktop untereinander;
   auf Mobil sind sie zu einer einzeiligen, aufklappbaren Leiste („2 Hinweise“) zusammengefasst.
   Rein informative Hinweise (Cloud-KI) lassen sich pro Sitzung ausblenden, Warnungen nicht.

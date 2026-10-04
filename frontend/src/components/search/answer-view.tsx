@@ -2,9 +2,10 @@ import { CircleAlert, Info, Square } from "lucide-react";
 import { Fragment, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
-import { describeApiError } from "@/api/errors";
+import { describeApiError, isLlmBusy } from "@/api/errors";
 import type { AnswerSource, AnswerStatus } from "@/api/search";
 import { KeyHint } from "@/components/key-hint";
+import { RetryButton } from "@/components/retry-button";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
@@ -35,6 +36,8 @@ interface AnswerViewProps {
   turn: AnswerTurn;
   onOpenSource: (source: TurnSource) => void;
   onCancel?: () => void;
+  /** Asks the same question again after an error. */
+  onRetry?: () => void;
   /** 3 below a heading of its own, e.g. in the detail pane. */
   headingLevel?: 2 | 3;
 }
@@ -62,21 +65,37 @@ function useErrorText(error: unknown): { title: string; description?: string } {
   return describeApiError(error, t);
 }
 
-function AnswerError({ error }: { error: unknown }) {
+function AnswerError({ error, onRetry }: { error: unknown; onRetry?: () => void }) {
   const { title, description } = useErrorText(error);
+  // Too many parallel AI requests is a wait, not a failure: shown neutrally.
+  const busy = isLlmBusy(error);
+  const Icon = busy ? Info : CircleAlert;
   return (
     <div role="alert" className="flex items-start gap-2 text-ui">
-      <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
-      <div className="min-w-0">
-        <p className="text-destructive">{title}</p>
+      <Icon
+        aria-hidden
+        className={cn(
+          "mt-0.5 size-4 shrink-0",
+          busy ? "text-muted-foreground" : "text-destructive",
+        )}
+      />
+      <div className="flex min-w-0 flex-col items-start">
+        <p className={busy ? undefined : "text-destructive"}>{title}</p>
         {description && <p className="text-muted-foreground">{description}</p>}
+        {onRetry && <RetryButton error={error} onRetry={onRetry} />}
       </div>
     </div>
   );
 }
 
 /** A question, the answer text with citation markers and the numbered sources. */
-export function AnswerView({ turn, onOpenSource, onCancel, headingLevel = 2 }: AnswerViewProps) {
+export function AnswerView({
+  turn,
+  onOpenSource,
+  onCancel,
+  onRetry,
+  headingLevel = 2,
+}: AnswerViewProps) {
   const { t } = useTranslation();
   const hasKeyboard = useMediaQuery(mediaQueries.keyboard);
   const byNumber = useMemo(
@@ -168,7 +187,7 @@ export function AnswerView({ turn, onOpenSource, onCancel, headingLevel = 2 }: A
       {turn.phase === "cancelled" && (
         <p className="text-ui text-muted-foreground">{t("search.answer.cancelled")}</p>
       )}
-      {turn.phase === "error" && <AnswerError error={turn.error} />}
+      {turn.phase === "error" && <AnswerError error={turn.error} onRetry={onRetry} />}
 
       {cited.length > 0 && !noEvidence && (
         <section aria-label={t("search.answer.sources")} className="flex flex-col gap-1">

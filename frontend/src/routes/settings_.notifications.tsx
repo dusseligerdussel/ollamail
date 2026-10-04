@@ -141,7 +141,7 @@ function NotificationsForm({ settings }: { settings: NotificationSettings }) {
 
   return (
     <>
-      <p className="mb-4 text-ui text-muted-foreground">{t("notifications.intro")}</p>
+      <p className="mb-6 text-ui text-muted-foreground">{t("notifications.intro")}</p>
       <Section id="notifications-browser" title={t("notifications.browser")}>
         <SwitchRow
           id="notifications-enabled"

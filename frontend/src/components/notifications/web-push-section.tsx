@@ -127,10 +127,15 @@ export function WebPushSection({ enabled }: { enabled: boolean }) {
     }
   };
 
-  const description =
-    supported === false
-      ? `${t("notifications.push.enabledDescription")} ${t("notifications.push.unsupported")}`
-      : t("notifications.push.enabledDescription");
+  // Say why the switch is greyed out.
+  let reason: string | undefined;
+  if (supported === false) reason = t("notifications.push.unsupported");
+  else if (!enabled) {
+    reason = t("notifications.push.needsBrowser", { setting: t("notifications.enabled") });
+  }
+  const description = reason
+    ? `${t("notifications.push.enabledDescription")} ${reason}`
+    : t("notifications.push.enabledDescription");
 
   return (
     <Section id="notifications-push" title={t("notifications.push.title")} className="mt-8">
