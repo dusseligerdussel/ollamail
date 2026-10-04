@@ -245,6 +245,10 @@ API und Query-Keys in `src/api/mail.ts`, Komponenten in `src/components/mail/`.
   neuem Tab. Externe Bilder lädt erst „Bilder laden“ (`GET /messages/{id}/body?external_images=true`).
   Mail-HTML ist für hellen Hintergrund geschrieben und bleibt deshalb hell (im dunklen Theme als
   „Papier“).
+- **Thread:** Die geöffnete und die neueste Mail kommen aufgeklappt mit Body, ältere eingeklappt
+  nur mit Snippet (`body: null`). Beim Aufklappen lädt `messageBodyQueryOptions`
+  (`GET /messages/{id}/body`, im Query-Cache gehalten) den Body nach; bis dahin steht ein Skeleton
+  da, bei Fehlern `InlineError` mit „Erneut versuchen“ (#210).
 - **Slots** für Triage-Label (#21) und „Aufgaben aus dieser Mail“ (#23): `src/components/mail/slots.tsx`.
 - **Scroll-Performance** (#111, CPU-only ist ein Kernziel): Zeilen (`MessageRow`) sind memoisiert und
   bekommen nur stabile Props; Übersetzung, Zeitzone und Datumsformat kommen einmal über einen Kontext

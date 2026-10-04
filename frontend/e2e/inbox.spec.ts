@@ -169,6 +169,30 @@ test("external images load only after a click", async ({ page }) => {
   expect(external).toEqual([]);
 });
 
+test("an older message of a thread loads its body when expanded (#210)", async ({ page }) => {
+  await mockMail(page, { delay: 300 });
+  const bodies: string[] = [];
+  page.on("request", (request) => {
+    const path = new URL(request.url()).pathname;
+    if (path.endsWith("/body")) bodies.push(path.split("/").at(-2) ?? "");
+  });
+  // Index 6 is "Re: Entwurf Angebot", a reply to an earlier message.
+  await page.goto(`/inbox?message=${messageId(6)}`);
+  await expect(page.getByTitle("Content of the message “Re: Entwurf Angebot”")).toBeVisible();
+  const earlier = page.getByRole("button", { name: /Erika Mustermann/ });
+  await expect(earlier).toBeVisible();
+  // Collapsed: snippet only, the body is not requested yet.
+  expect(bodies).toEqual([]);
+
+  await earlier.click();
+  await expect(page.getByRole("status").getByText("Loading message…")).toBeAttached();
+  await expect(page.getByRole("article", { name: "Message from Erika Mustermann" })).toContainText(
+    "anbei der Entwurf für das Angebot",
+  );
+  expect(bodies).toEqual([messageId(90_006)]);
+  await expectNoA11yViolations(page);
+});
+
 test("mobile: list and message are stacked", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await mockMail(page);

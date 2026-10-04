@@ -7,7 +7,9 @@ import {
   type Attachment,
   attachmentUrl,
   bodyWithImagesQueryOptions,
+  type MessageBody,
   type MessageDetail,
+  messageBodyQueryOptions,
   type Thread,
 } from "@/api/mail";
 import { InlineError } from "@/components/inline-error";
@@ -213,19 +215,57 @@ function PlainText({ text, passage }: { text: string; passage?: string }) {
   );
 }
 
+/** The body of a message; collapsed messages come without and load it when expanded. */
 function MessageContent({ message, passage }: { message: MessageDetail; passage?: string }) {
+  const { t } = useTranslation();
+  const loaded = useQuery({
+    ...messageBodyQueryOptions(message.id),
+    enabled: message.body === null,
+  });
+  const body = message.body ?? loaded.data;
+  if (body) {
+    return (
+      <LoadedBody messageId={message.id} subject={message.subject} body={body} passage={passage} />
+    );
+  }
+  if (loaded.isError) {
+    return (
+      <InlineError error={loaded.error} onRetry={loaded.refetch} retrying={loaded.isFetching} />
+    );
+  }
+  return (
+    <div role="status" aria-busy="true" className="flex flex-col gap-2 py-1">
+      <span className="sr-only">{t("mail.loadingBody")}</span>
+      <Skeleton className="h-3 w-full" />
+      <Skeleton className="h-3 w-5/6" />
+      <Skeleton className="h-3 w-2/3" />
+    </div>
+  );
+}
+
+function LoadedBody({
+  messageId,
+  subject,
+  body,
+  passage,
+}: {
+  messageId: string;
+  subject: string;
+  body: MessageBody;
+  passage?: string;
+}) {
   const { t } = useTranslation();
   const [loadImages, setLoadImages] = useState(false);
   const withImages = useQuery({
-    ...bodyWithImagesQueryOptions(message.id),
+    ...bodyWithImagesQueryOptions(messageId),
     enabled: loadImages,
   });
 
-  if (message.body.html === null) {
+  if (body.html === null) {
     return (
       <div className="text-sm leading-relaxed whitespace-pre-wrap [overflow-wrap:anywhere]">
-        {message.text ? (
-          <PlainText text={message.text} passage={passage} />
+        {body.text ? (
+          <PlainText text={body.text} passage={passage} />
         ) : (
           <span className="text-muted-foreground">{t("mail.emptyBody")}</span>
         )}
@@ -233,8 +273,8 @@ function MessageContent({ message, passage }: { message: MessageDetail; passage?
     );
   }
 
-  const blocked = message.body.blocked_images;
-  const html = withImages.data?.html ?? message.body.html;
+  const blocked = body.blocked_images;
+  const html = withImages.data?.html ?? body.html;
   return (
     <div className="flex flex-col gap-2">
       {blocked > 0 && !withImages.data && (
@@ -263,7 +303,7 @@ function MessageContent({ message, passage }: { message: MessageDetail; passage?
       <MailBodyFrame
         html={html}
         externalImages={Boolean(withImages.data)}
-        title={message.subject || t("mail.noSubject")}
+        title={subject || t("mail.noSubject")}
         passage={passage}
       />
     </div>

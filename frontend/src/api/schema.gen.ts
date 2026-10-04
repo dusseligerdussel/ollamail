@@ -2312,8 +2312,9 @@ export interface paths {
         };
         /**
          * Get Message Body
-         * @description Sanitised HTML; with ``external_images=true`` remote images are kept (the user
-         *     chose to load them for this message).
+         * @description Sanitised HTML and plain text, e.g. for a message expanded in the thread; with
+         *     ``external_images=true`` remote images are kept (the user chose to load them for this
+         *     message).
          */
         get: operations["messages_get_message_body"];
         put?: never;
@@ -2334,7 +2335,9 @@ export interface paths {
         /**
          * Get Thread
          * @description The conversation of a message, oldest first (at most the newest 100 messages).
-         *     HTML comes sanitised with external images removed.
+         *     Bodies come only for the opened and the newest message, the ones the UI shows
+         *     expanded; the others have ``body: null`` and are loaded with ``/body`` (#210). HTML
+         *     comes sanitised with external images removed.
          */
         get: operations["messages_get_thread"];
         put?: never;
@@ -5247,19 +5250,22 @@ export interface components {
         };
         /**
          * MessageBody
-         * @description Sanitised HTML of a message. External images are removed unless requested.
+         * @description Body of a message: sanitised HTML (external images removed unless requested) and
+         *     the plain text.
          */
         MessageBody: {
             /** Blocked Images */
             blocked_images: number;
             /** Html */
             html: string | null;
+            /** Text */
+            text: string;
         };
         /** MessageDetail */
         MessageDetail: {
             /** Attachments */
             attachments: components["schemas"]["AttachmentRead"][];
-            body: components["schemas"]["MessageBody"];
+            body: components["schemas"]["MessageBody"] | null;
             /** Cc */
             cc: components["schemas"]["AddressRead"][];
             /**
@@ -5290,8 +5296,6 @@ export interface components {
             snippet: string;
             /** Subject */
             subject: string;
-            /** Text */
-            text: string;
             /** Thread Id */
             thread_id: string | null;
             /** To */

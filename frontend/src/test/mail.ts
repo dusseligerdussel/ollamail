@@ -59,21 +59,26 @@ export function testMessage(
   };
 }
 
-export function testDetail(index: number, overrides: Partial<MessageDetail> = {}): MessageDetail {
+/** Overrides of a test message; `text` is the plain text of its body. */
+export type DetailOverrides = Partial<MessageDetail> & { text?: string };
+
+export function testDetail(
+  index: number,
+  { text, ...overrides }: DetailOverrides = {},
+): MessageDetail {
   return {
     ...testMessage(index),
     to: [{ name: "Erika Mustermann", address: "erika@example.org" }],
     cc: [],
     reply_to: [],
     sent_at: "2026-10-02T08:00:00Z",
-    text: `Body ${index}`,
-    body: { html: null, blocked_images: 0 },
+    body: { html: null, blocked_images: 0, text: text ?? `Body ${index}` },
     attachments: [],
     ...overrides,
   };
 }
 
-export function testThread(index: number, overrides: Partial<MessageDetail> = {}): Thread {
+export function testThread(index: number, overrides: DetailOverrides = {}): Thread {
   const message = testDetail(index, overrides);
   return {
     thread_id: null,

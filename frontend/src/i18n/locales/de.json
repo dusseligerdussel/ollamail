@@ -1313,6 +1313,7 @@
     "messageFrom": "Nachricht von {{sender}}",
     "to": "An",
     "emptyBody": "Diese Nachricht enthält keinen Text.",
+    "loadingBody": "Nachricht wird geladen…",
     "bodyFrameTitle": "Inhalt der Nachricht „{{subject}}“",
     "imagesBlocked_one": "1 externes Bild wurde zum Schutz deiner Privatsphäre blockiert.",
     "imagesBlocked_other": "{{count}} externe Bilder wurden zum Schutz deiner Privatsphäre blockiert.",

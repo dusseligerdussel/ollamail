@@ -54,12 +54,15 @@ class AttachmentRead(BaseModel):
 
 
 class MessageBody(BaseModel):
-    """Sanitised HTML of a message. External images are removed unless requested."""
+    """Body of a message: sanitised HTML (external images removed unless requested) and
+    the plain text."""
 
     # ``null`` for plain-text mails; show ``text`` instead.
     html: str | None
     # External images removed from ``html``; the UI offers to load them if > 0.
     blocked_images: int
+    # Full plain text (fallback without HTML).
+    text: str
 
 
 class MessageDetail(MessageSummary):
@@ -67,9 +70,9 @@ class MessageDetail(MessageSummary):
     cc: list[AddressRead]
     reply_to: list[AddressRead]
     sent_at: datetime | None
-    # Full plain text (fallback without HTML).
-    text: str
-    body: MessageBody
+    # Only for the opened and the newest message of a thread; ``null`` for the others,
+    # load it with ``GET /messages/{id}/body`` when the message is expanded (#210).
+    body: MessageBody | None
     attachments: list[AttachmentRead]
 
 
