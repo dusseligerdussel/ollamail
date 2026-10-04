@@ -146,7 +146,7 @@ describe("settings: data export", () => {
 });
 
 describe("settings: delete account", () => {
-  it("needs the account's e-mail address and signs out afterwards", async () => {
+  it("needs the account's email address and signs out afterwards", async () => {
     const user = userEvent.setup();
     const assign = vi.spyOn(pageNavigation, "assign").mockImplementation(() => {});
     const requests = mockPrivacyApi();
@@ -157,7 +157,7 @@ describe("settings: delete account", () => {
     const confirm = within(dialog).getByRole("button", { name: "Delete account" });
     expect(confirm).toBeDisabled();
 
-    const input = within(dialog).getByLabelText(/enter your e-mail address admin@example.org/);
+    const input = within(dialog).getByLabelText(/enter your email address admin@example.org/);
     await user.type(input, "someone@example.org");
     expect(confirm).toBeDisabled();
     await user.clear(input);

@@ -10,7 +10,7 @@ newly stored messages; ``search_index_state.fill_requested``/``fill_checked`` le
 after the upgrade. No content is stored.
 
 Revision ID: b5c86da9e237
-Revises: 4adf661e4588
+Revises: 243731d5138f
 Create Date: 2026-10-04 12:57:31.199463+00:00
 """
 
@@ -21,7 +21,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "b5c86da9e237"
-down_revision: str | Sequence[str] | None = "4adf661e4588"
+down_revision: str | Sequence[str] | None = "243731d5138f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

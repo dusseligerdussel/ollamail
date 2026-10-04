@@ -225,6 +225,22 @@ async def test_invalid_settings(erika: AsyncClient, body: dict[str, object]) -> 
     assert (await erika.patch("/digests/settings", json=body)).status_code == 422
 
 
+async def test_only_offered_voices_can_be_picked(erika: AsyncClient, data_dir: Path) -> None:
+    # Formally valid, but neither installed, a default nor allowlisted: picking it must
+    # not make the server download it (#191).
+    response = await erika.patch("/digests/settings", json={"voice": "de_DE-pavoque-low"})
+    assert response.status_code == 422
+    assert response.json()["error_code"] == "unknown_voice"
+
+    voices = data_dir / "tts" / "voices" / "piper"
+    voices.mkdir(parents=True)
+    (voices / "de_DE-pavoque-low.onnx").write_bytes(b"model")
+    (voices / "de_DE-pavoque-low.onnx.json").write_text("{}")
+    response = await erika.patch("/digests/settings", json={"voice": "de_DE-pavoque-low"})
+    assert response.status_code == 200
+    assert response.json()["voice"] == "de_DE-pavoque-low"
+
+
 async def test_foreign_mailbox_is_rejected(
     erika: AsyncClient, bob: AsyncClient, db_session: AsyncSession
 ) -> None:

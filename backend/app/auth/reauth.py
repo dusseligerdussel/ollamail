@@ -18,6 +18,11 @@ Ways to confirm (``GET /auth/reauth`` lists those of the account):
 * ``signin``: always possible; sign out and in again (e.g. LDAP accounts).
 
 Recovery codes are not offered: they are a last resort for a lost factor.
+
+Critical admin actions (#190) depend on ``RecentAdminDep``: deleting a user, changing a
+role or deactivating, SCIM tokens, sign-in providers and settings, AI providers. A stolen
+admin cookie alone must not be enough to add an identity provider that links to other
+accounts, or to point an AI endpoint at a foreign server.
 """
 
 import secrets
@@ -32,7 +37,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.auth import rate_limit
-from app.auth.dependencies import CurrentSessionDep, SettingsDep
+from app.auth.dependencies import AdminSessionDep, CurrentSessionDep, SettingsDep
 from app.auth.keys import derive_key, keyed_digest
 from app.auth.mfa import pending as pending_store
 from app.auth.mfa import service as mfa_service
@@ -71,6 +76,10 @@ ReauthMethod = Literal["password", "totp", "webauthn", "sso", "signin"]
 REAUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
     403: {"description": "Confirm the account first (reauth-required, see /auth/reauth)"}
 }
+# For critical admin actions (``RecentAdminDep``).
+ADMIN_REAUTH_RESPONSES: dict[int | str, dict[str, Any]] = {
+    403: {"description": "Not an admin, or confirm the account first (reauth-required)"}
+}
 
 
 def reauth_required(settings: Settings) -> ProblemError:
@@ -101,6 +110,17 @@ async def require_recent_auth(current: CurrentSessionDep, settings: SettingsDep)
 
 
 RecentAuthDep = Annotated[CurrentSession, Depends(require_recent_auth)]
+
+
+async def require_recent_admin(admin: AdminSessionDep, settings: SettingsDep) -> CurrentSession:
+    """An admin session with a recent confirmation (#190); 403 for others, then
+    403 ``reauth-required`` when the confirmation is too old."""
+    if not is_recent(settings, admin):
+        raise reauth_required(settings)
+    return admin
+
+
+RecentAdminDep = Annotated[CurrentSession, Depends(require_recent_admin)]
 
 
 # -- Schemas -----------------------------------------------------------------------------

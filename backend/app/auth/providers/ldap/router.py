@@ -31,6 +31,7 @@ from app.auth.provisioning import (
     ProvisioningPolicy,
     provision_user,
 )
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep
 from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.logging import get_logger
@@ -181,10 +182,14 @@ async def list_directories(_: AdminSessionDep, db: DbDep) -> list[LdapDirectoryR
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
-    responses={409: {"description": "Name taken"}, 422: {"description": "Invalid settings"}},
+    responses={
+        **ADMIN_REAUTH_RESPONSES,
+        409: {"description": "Name taken"},
+        422: {"description": "Invalid settings"},
+    },
 )
 async def create_directory(
-    body: LdapDirectoryCreate, admin: AdminSessionDep, db: DbDep, settings: SettingsDep
+    body: LdapDirectoryCreate, admin: RecentAdminDep, db: DbDep, settings: SettingsDep
 ) -> LdapDirectoryRead:
     """Add a directory. Test it with ``…/test`` before enabling it for users."""
     ldap_service.check_transport_security(settings.auth, body.settings)
@@ -228,12 +233,17 @@ _LOCKOUT: dict[int | str, dict[str, Any]] = {
 
 @router.put(
     "/{name}",
-    responses={**_NOT_FOUND, **_LOCKOUT, 422: {"description": "Invalid settings"}},
+    responses={
+        **ADMIN_REAUTH_RESPONSES,
+        **_NOT_FOUND,
+        **_LOCKOUT,
+        422: {"description": "Invalid settings"},
+    },
 )
 async def update_directory(
     name: str,
     body: LdapDirectoryUpdate,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
     settings: SettingsDep,

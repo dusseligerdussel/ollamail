@@ -34,7 +34,7 @@ from sqlalchemy import (
     true,
 )
 from sqlalchemy.dialects.postgresql import ARRAY, JSONB
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column, query_expression, relationship
 
 from app.core.crypto import EncryptedJSON
 from app.core.db import Base
@@ -222,6 +222,12 @@ message_folders = Table(
 )
 
 
+# Predicate of ``ix_mail_messages_unread``. Queries must use exactly this expression (with the
+# array as a literal, not a parameter), or the planner cannot use the partial index; see
+# ``app.mail.listing.UNREAD``. ``seen`` is ``app.mail.providers.base.Flag.SEEN``.
+UNREAD_PREDICATE = "NOT (flags @> ARRAY['seen']::text[])"
+
+
 class Message(Base):
     __tablename__ = "mail_messages"
     __table_args__ = (
@@ -234,6 +240,15 @@ class Message(Base):
             "mailbox_id",
             text("sort_date DESC"),
             text("id DESC"),
+        ),
+        # The same order for unread messages only (``unread=true`` lists, #186): a page reads
+        # the unread messages instead of skipping over the read ones.
+        Index(
+            "ix_mail_messages_unread",
+            "mailbox_id",
+            text("sort_date DESC"),
+            text("id DESC"),
+            postgresql_where=text(UNREAD_PREDICATE),
         ),
     )
     # Read ``sort_date`` back on insert and update (it is set by a trigger).
@@ -275,6 +290,9 @@ class Message(Base):
     body_html: Mapped[str | None] = mapped_column(Text)
     # ``body_text`` without quoted replies and signature.
     body_main: Mapped[str] = mapped_column(Text, default="")
+    # Start of ``body_main`` for list rows; loaded only by ``app.mail.listing.without_bodies``
+    # (``None`` otherwise), so a list never reads whole bodies.
+    snippet: Mapped[str | None] = query_expression()
     signature: Mapped[str | None] = mapped_column(Text)
     language: Mapped[str | None] = mapped_column(String(8))
     size: Mapped[int] = mapped_column(BigInteger, default=0)

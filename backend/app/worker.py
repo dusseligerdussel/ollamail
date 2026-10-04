@@ -13,7 +13,10 @@ Queues
     job slots, of which the LLM gateway lets the admin-set ``concurrency`` call the model at
     once) so CPU-only hosts are not overloaded; all other queues share
     ``OLLAMAIL_WORKER_CONCURRENCY``. ``ocr`` also has its own slots
-    (``OLLAMAIL_SEARCH_OCR_CONCURRENCY``), so long OCR jobs never hold up mail sync.
+    (``OLLAMAIL_SEARCH_OCR_CONCURRENCY``), so long OCR jobs never hold up mail sync. So has
+    ``push`` (Web Push, ``OLLAMAIL_NOTIFICATIONS_WEB_PUSH_CONCURRENCY``): a slow or unreachable
+    push service never takes the slots of ``sync``. A worker consuming ``default`` also
+    consumes ``push``; ``OLLAMAIL_WORKER_QUEUES=push`` runs it alone.
 
 Task conventions
     * Register tasks with ``@app.task(name="<module>.<action>", queue=..., retry=DEFAULT_RETRY)``
@@ -173,10 +176,18 @@ class WorkerGroup:
     concurrency: int
 
 
+def consumed_queues(settings: Settings) -> tuple[QueueName, ...]:
+    configured = set(settings.worker.queues)
+    # Push jobs ran on ``default`` before they got their own queue (#185).
+    if "default" in configured:
+        configured.add("push")
+    return tuple(q for q in QUEUES if q in configured)
+
+
 def worker_groups(settings: Settings) -> list[WorkerGroup]:
-    queues = tuple(q for q in QUEUES if q in settings.worker.queues)
+    queues = consumed_queues(settings)
     groups = []
-    shared = tuple(q for q in queues if q not in ("llm", "ocr"))
+    shared = tuple(q for q in queues if q not in ("llm", "ocr", "push"))
     if shared:
         groups.append(WorkerGroup("main", shared, settings.worker.concurrency))
     if "llm" in queues:
@@ -185,6 +196,8 @@ def worker_groups(settings: Settings) -> list[WorkerGroup]:
         groups.append(WorkerGroup("llm", ("llm",), slots))
     if "ocr" in queues:
         groups.append(WorkerGroup("ocr", ("ocr",), settings.search.ocr_concurrency))
+    if "push" in queues:
+        groups.append(WorkerGroup("push", ("push",), settings.notifications.web_push_concurrency))
     return groups
 
 
@@ -214,6 +227,9 @@ async def run(settings: Settings, stop: asyncio.Event) -> None:
             metrics.shutdown()
         # The engine all jobs of this process shared (``app.core.db.process_database``).
         await dispose_process_database()
+        from app.notifications.webpush import close_push_client
+
+        await close_push_client()
 
 
 async def _run_groups(settings: Settings, groups: list[WorkerGroup], stop: asyncio.Event) -> None:

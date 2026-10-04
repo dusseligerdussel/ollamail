@@ -56,6 +56,7 @@ from tests.mail.api.conftest import (  # noqa: F401
     sync_requests,
     user_deletion_requests,
 )
+from tests.notifications.webpush import make_auth_session
 
 
 @dataclass
@@ -197,6 +198,8 @@ async def seed_user_data(
     audio = target.with_suffix(".mp3")
     audio.write_bytes(f"ID3 audio {marker}".encode())
     digest.audio = {"mp3": {"path": digests.relative(audio), "size_bytes": audio.stat().st_size}}
+    # Push devices belong to a sign-in session (#185).
+    push_session_id = await make_auth_session(session, user_id)
 
     session.add_all(
         [
@@ -248,6 +251,7 @@ async def seed_user_data(
             MailNotification(message_id=message.id),
             PushSubscription(
                 user_id=user_id,
+                session_id=push_session_id,
                 endpoint_hash=hashlib.sha256(marker.encode()).hexdigest(),
                 subscription={
                     "endpoint": f"https://fcm.googleapis.com/fcm/send/{marker}",

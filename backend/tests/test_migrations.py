@@ -111,6 +111,83 @@ async def test_sort_date_is_backfilled_in_batches(empty_database: str) -> None:
     await engine.dispose()
 
 
+async def test_triage_list_columns_are_backfilled_in_batches(empty_database: str) -> None:
+    """``denormalise_triage_list_columns`` copies ``mailbox_id`` and ``sort_date`` of the
+    message into existing results (more than one batch); the triggers fill new results and
+    follow a changed ``sort_date`` afterwards."""
+    config = alembic_config(empty_database)
+    await asyncio.to_thread(command.upgrade, config, "93abef19553f")
+    engine = create_async_engine(empty_database, poolclass=NullPool)
+    async with engine.begin() as connection:
+        await connection.execute(
+            text(
+                "INSERT INTO users (id, email, display_name, role, language, timezone)"
+                " VALUES (gen_random_uuid(), 'triage@example.org', 'Test', 'user', 'en', 'UTC')"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO mail_mailboxes (id, type, display_name, address, owner_user_id)"
+                " SELECT gen_random_uuid(), 'imap', 'Test', 'test@example.org', id FROM users"
+            )
+        )
+        # 10,002 messages, all but one triaged (two batches).
+        await connection.execute(
+            text(
+                "INSERT INTO mail_messages (id, mailbox_id, remote_ref, subject, body_text,"
+                " body_main, size, received_at)"
+                " SELECT gen_random_uuid(), (SELECT id FROM mail_mailboxes), 'ref-' || g, '',"
+                " '', '', 0, timestamptz '2026-01-01' + g * interval '1 s'"
+                " FROM generate_series(1, 10002) AS g"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO triage_results (id, message_id, category_id, priority, source)"
+                " SELECT gen_random_uuid(), id, NULL, 2, 'llm' FROM mail_messages"
+                " WHERE remote_ref <> 'ref-1'"
+            )
+        )
+    await engine.dispose()
+
+    await asyncio.to_thread(command.upgrade, config, "243731d5138f")
+
+    engine = create_async_engine(empty_database, poolclass=NullPool)
+    async with engine.begin() as connection:
+        wrong = await connection.scalar(
+            text(
+                "SELECT count(*) FROM triage_results AS r JOIN mail_messages AS m"
+                " ON m.id = r.message_id"
+                " WHERE (r.mailbox_id, r.sort_date) IS DISTINCT FROM (m.mailbox_id, m.sort_date)"
+            )
+        )
+        assert wrong == 0
+        inserted = await connection.scalar(
+            text(
+                "INSERT INTO triage_results (id, message_id, category_id, priority, source)"
+                " SELECT gen_random_uuid(), id, NULL, 2, 'llm' FROM mail_messages"
+                " WHERE remote_ref = 'ref-1' RETURNING sort_date"
+            )
+        )
+        assert inserted is not None and inserted.second == 1
+        await connection.execute(
+            text(
+                "UPDATE mail_messages SET received_at = timestamptz '2030-01-01'"
+                " WHERE remote_ref = 'ref-2'"
+            )
+        )
+        changed = await connection.scalar(
+            text(
+                "SELECT r.sort_date FROM triage_results AS r JOIN mail_messages AS m"
+                " ON m.id = r.message_id WHERE m.remote_ref = 'ref-2'"
+            )
+        )
+        assert changed is not None and changed.year == 2030
+    await engine.dispose()
+
+    await asyncio.to_thread(command.downgrade, config, "93abef19553f")
+
+
 async def _embedding_column(url: str) -> tuple[str, str, list[float]]:
     """Column type, HNSW operator class and the stored vector (single row)."""
     engine = create_async_engine(url, poolclass=NullPool)

@@ -96,7 +96,13 @@ function CategoriesPage() {
               <ListSkeleton rows={7} />
             </div>
           )}
-          {categories.isError && <InlineError error={categories.error} />}
+          {categories.isError && (
+            <InlineError
+              error={categories.error}
+              onRetry={categories.refetch}
+              retrying={categories.isFetching}
+            />
+          )}
           {list.length > 0 && (
             <ul aria-label={t("triage.settings.title")} className="divide-y rounded-lg border">
               {list.map((category, index) => {

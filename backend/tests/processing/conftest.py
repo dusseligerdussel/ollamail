@@ -25,7 +25,7 @@ from tests.factories import make_user
 
 # Retries without waiting, so tests stay fast.
 FAST_RETRY = RetryStrategy(max_attempts=2)
-QUEUES = ["default", "llm", "sync"]
+QUEUES = ["default", "llm", "sync", "push"]
 # Random bits of a UUIDv7 (everything below the timestamp and version).
 _RANDOM = ((1 << 76) - 1) & ~(0b11 << 62)
 

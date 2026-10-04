@@ -13,6 +13,10 @@ const toggleVariants = cva(
         default: "bg-transparent",
         outline:
           "border border-input bg-transparent shadow-xs hover:bg-accent hover:text-accent-foreground",
+        // An option of a segmented control (ToggleGroup with the same variant): a muted track
+        // with the selected option raised and outlined in the accent colour (WCAG 1.4.11).
+        segmented:
+          "rounded-[calc(var(--radius)-3px)] border border-transparent text-ui font-normal text-muted-foreground hover:bg-transparent hover:text-foreground data-[state=on]:border-ring data-[state=on]:bg-background data-[state=on]:font-medium data-[state=on]:text-foreground data-[state=on]:shadow-xs dark:data-[state=on]:bg-input/30",
       },
       size: {
         default: "h-9 min-w-9 px-2",
@@ -20,6 +24,7 @@ const toggleVariants = cva(
         lg: "h-10 min-w-10 px-2.5",
       },
     },
+    compoundVariants: [{ variant: "segmented", className: "h-7 min-w-0 flex-1 px-3" }],
     defaultVariants: {
       variant: "default",
       size: "default",

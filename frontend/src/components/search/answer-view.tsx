@@ -35,6 +35,8 @@ interface AnswerViewProps {
   turn: AnswerTurn;
   onOpenSource: (source: TurnSource) => void;
   onCancel?: () => void;
+  /** 3 below a heading of its own, e.g. in the detail pane. */
+  headingLevel?: 2 | 3;
 }
 
 const streamErrors = [
@@ -74,7 +76,7 @@ function AnswerError({ error }: { error: unknown }) {
 }
 
 /** A question, the answer text with citation markers and the numbered sources. */
-export function AnswerView({ turn, onOpenSource, onCancel }: AnswerViewProps) {
+export function AnswerView({ turn, onOpenSource, onCancel, headingLevel = 2 }: AnswerViewProps) {
   const { t } = useTranslation();
   const hasKeyboard = useMediaQuery(mediaQueries.keyboard);
   const byNumber = useMemo(
@@ -91,13 +93,15 @@ export function AnswerView({ turn, onOpenSource, onCancel }: AnswerViewProps) {
   );
   const streaming = turn.phase === "searching" || turn.phase === "writing";
   const noEvidence = turn.phase === "done" && turn.status === "no_evidence";
+  const Heading = headingLevel === 2 ? "h2" : "h3";
+  const SourcesHeading = headingLevel === 2 ? "h3" : "h4";
 
   return (
     <article aria-label={turn.question} className="flex flex-col gap-3 px-4 py-4 md:px-5">
       <div className="flex items-start gap-3">
-        <h2 className="min-w-0 flex-1 text-sm font-medium [overflow-wrap:anywhere]">
+        <Heading className="min-w-0 flex-1 text-sm font-medium [overflow-wrap:anywhere]">
           {turn.question}
-        </h2>
+        </Heading>
         {streaming && onCancel && (
           <Button variant="outline" size="xs" onClick={onCancel} className="shrink-0">
             <Square aria-hidden className="size-3" />
@@ -168,9 +172,9 @@ export function AnswerView({ turn, onOpenSource, onCancel }: AnswerViewProps) {
 
       {cited.length > 0 && !noEvidence && (
         <section aria-label={t("search.answer.sources")} className="flex flex-col gap-1">
-          <h3 className="text-xs font-medium text-muted-foreground">
+          <SourcesHeading className="text-xs font-medium text-muted-foreground">
             {t("search.answer.sources")}
-          </h3>
+          </SourcesHeading>
           <ol className="flex flex-col">
             {cited.map((source) => (
               <SourceItem key={source.number} source={source} onOpen={onOpenSource} />

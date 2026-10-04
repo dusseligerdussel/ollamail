@@ -948,6 +948,7 @@
           "user.password_set",
           "user.deleted",
           "user.updated",
+          "user.identity_linked",
           "group.created",
           "group.updated",
           "group.deleted",
@@ -10728,7 +10729,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -10877,7 +10878,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such provider"
@@ -11080,7 +11081,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -11230,7 +11231,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -11339,7 +11340,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -11489,7 +11490,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -11733,7 +11734,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -11883,7 +11884,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -12004,7 +12005,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "No administrator could sign in afterwards (admin-lockout)"
@@ -12131,7 +12132,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such user"
@@ -12259,7 +12260,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Too many tokens"
@@ -13622,7 +13623,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -13772,7 +13773,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such directory"
@@ -15457,7 +15458,7 @@
             "description": "Not signed in"
           },
           "422": {
-            "description": "Invalid value or mailbox"
+            "description": "Invalid value, mailbox or voice"
           }
         },
         "summary": "Update Digest Settings",
@@ -15468,7 +15469,7 @@
     },
     "/digests/voices": {
       "get": {
-        "description": "Voices for the digest: installed ones plus the default voice of each language.",
+        "description": "Voices for the digest: installed ones plus the default voice of each language and\nthe voices the admin allows (``OLLAMAIL_TTS_VOICE_ALLOWLIST``).",
         "operationId": "digests_list_digest_voices",
         "responses": {
           "200": {
@@ -16117,6 +16118,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many parallel AI requests of the user (`error_code` `llm_busy`)"
           }
         },
         "summary": "Generate Draft",
@@ -16453,7 +16457,7 @@
     },
     "/events": {
       "get": {
-        "description": "Stream the current user's events. Each SSE ``event`` is the event type, ``data``\nthe JSON-encoded event.",
+        "description": "Stream the current user's events. Each SSE ``event`` is the event type, ``data``\nthe JSON-encoded event. The stream ends when the session is no longer valid.",
         "operationId": "events_stream_events",
         "responses": {
           "200": {
@@ -16513,6 +16517,9 @@
               }
             },
             "description": "Server-Sent Events stream of `Event` objects for the current user"
+          },
+          "429": {
+            "description": "Too many open streams of the user"
           },
           "503": {
             "description": "The event listener is unavailable"
@@ -17821,7 +17828,7 @@
     },
     "/notifications/push/devices": {
       "post": {
-        "description": "Register this browser for Web Push, or refresh its registration (same endpoint).",
+        "description": "Register this browser for Web Push, or refresh its registration (same endpoint).\n\nThe device is bound to the current session: signing out, revoking the session or its\nexpiry stop the pushes.",
         "operationId": "notifications_register_push_device",
         "requestBody": {
           "content": {
@@ -18528,6 +18535,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many parallel AI requests of the user (`error_code` `llm_busy`)"
           }
         },
         "summary": "Ask",
@@ -20890,7 +20900,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such user"

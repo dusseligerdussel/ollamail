@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import load_only
 
 from app.ai.llm import LLMGateway, get_llm
+from app.ai.llm.user_limits import optional_user_llm_slot
 from app.auth.dependencies import CurrentSessionDep
 from app.core.config import Settings
 from app.core.db import get_db
@@ -34,7 +35,15 @@ EXCERPT_LENGTH = 320
 _TERM = re.compile(r"\w{2,}")
 
 
-def get_embedder(request: Request, llm: Annotated[LLMGateway, Depends(get_llm)]) -> Embedder | None:
+def get_embedder(
+    request: Request,
+    llm: Annotated[LLMGateway, Depends(get_llm)],
+    slot: Annotated[bool, Depends(optional_user_llm_slot)],
+) -> Embedder | None:
+    """Embedder for the query; ``None`` (full text only) while the user has no free LLM
+    slot (#191), so a search is never refused for it."""
+    if not slot:
+        return None
     settings: Settings = request.app.state.settings
     return GatewayEmbedder(llm, settings.search)
 

@@ -50,7 +50,13 @@ function NewMailboxPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
           {providers.isPending && <Skeleton className="h-24 w-full" />}
-          {providers.isError && <InlineError error={providers.error} />}
+          {providers.isError && (
+            <InlineError
+              error={providers.error}
+              onRetry={providers.refetch}
+              retrying={providers.isFetching}
+            />
+          )}
           {providers.data && providers.data.length === 0 && (
             <p className="text-ui text-muted-foreground">{t("mailboxes.noProviders")}</p>
           )}

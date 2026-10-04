@@ -1,6 +1,7 @@
 """Triage API: integration tests with real sessions and PostgreSQL."""
 
 import uuid
+from datetime import timedelta
 
 import pytest
 from httpx import AsyncClient
@@ -10,11 +11,16 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.core.events import Event
 from app.mail import access as mail_access
 from app.mail.providers.base import Flag
-from app.triage.models import TriageFeedback, TriageMailboxSettings, TriageSource
+from app.triage.models import (
+    TriageCategory,
+    TriageFeedback,
+    TriageMailboxSettings,
+    TriageSource,
+)
 from app.triage.service import Decision, save_result
 from app.users.models import UserRole
 from tests.auth.conftest import _cheap_hashing, login, make_local_user  # noqa: F401
-from tests.triage.conftest import Account, account_for, make_account
+from tests.triage.conftest import NOW, Account, account_for, make_account
 
 pytestmark = pytest.mark.db
 
@@ -242,7 +248,8 @@ async def test_inbox_grouped_by_category(db_client: AsyncClient, db_session: Asy
     statements: list[str] = []
 
     def record(_conn: object, _cursor: object, statement: str, *_: object) -> None:
-        if "FROM mail_messages" in statement:
+        # The counts start from the folder membership (#186).
+        if "FROM mail_messages" in statement or "FROM mail_message_folders" in statement:
             statements.append(statement)
 
     engine = db_session.bind.engine.sync_engine  # type: ignore[union-attr]
@@ -464,6 +471,91 @@ async def test_inbox_messages_ordered_by_category(
         await db_client.get("/triage/inbox/messages", params={"mailbox_id": str(other.mailbox.id)})
     ).json()
     assert foreign_mailbox["total"] == 0
+
+
+async def test_uncategorised_segments_merge_categories_and_mailboxes(
+    db_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """The uncategorised messages with a priority come from one index range per mailbox and
+    per category the user does not see: deleted, hidden, or another user's (#186)."""
+    first = await _signed_in(db_client, db_session)
+    second = await account_for(db_session, first.user)
+    other = await make_account(db_session)
+    categories = await _categories(db_client)
+    info = uuid.UUID(str(categories["info"]["id"]))
+    spam = uuid.UUID(str(categories["spam"]["id"]))
+    deleted = TriageCategory(owner_user_id=first.user.id, name="Deleted")
+    foreign = TriageCategory(owner_user_id=other.user.id, name="Theirs")
+    db_session.add_all([deleted, foreign])
+    await db_session.flush()
+
+    plan = [
+        (first, "Spam 1", spam),
+        (second, "Deleted 2", deleted.id),
+        (first, "Theirs 3", foreign.id),
+        (second, "Spam 4", spam),
+        (first, "Info 5", info),
+        (second, "Deleted 6", deleted.id),
+    ]
+    for minute, (account, subject, category_id) in enumerate(plan):
+        message = await account.message(subject)
+        message.received_at = NOW + timedelta(minutes=minute)
+        await save_result(db_session, message.id, Decision(category_id, 2, TriageSource.LLM))
+    other_message = await other.message("Other mailbox")
+    await save_result(db_session, other_message.id, Decision(spam, 2, TriageSource.LLM))
+    await db_client.patch(f"/triage/categories/{spam}", json={"hidden": True})
+    await db_session.delete(deleted)
+    await db_session.flush()
+
+    subjects: list[str] = []
+    params: dict[str, str | int] = {"category": "none", "limit": 1}
+    while True:
+        page = (await db_client.get("/triage/inbox/messages", params=params)).json()
+        subjects += [m["subject"] for m in page["items"]]
+        assert all(m["category_id"] is None for m in page["items"])
+        if page["next_cursor"] is None:
+            break
+        params["cursor"] = page["next_cursor"]
+    assert subjects == ["Deleted 6", "Spam 4", "Theirs 3", "Deleted 2", "Spam 1"]
+
+    only_first = (
+        await db_client.get(
+            "/triage/inbox/messages",
+            params={"category": "none", "mailbox_id": str(first.mailbox.id)},
+        )
+    ).json()
+    assert [m["subject"] for m in only_first["items"]] == ["Theirs 3", "Spam 1"]
+
+    # A cursor of the user's own list on a mailbox they cannot read: empty, not an error.
+    cursor = (await db_client.get("/triage/inbox/messages", params={"limit": 1})).json()
+    foreign = await db_client.get(
+        "/triage/inbox/messages",
+        params={"cursor": cursor["next_cursor"], "mailbox_id": str(other.mailbox.id)},
+    )
+    assert (foreign.status_code, foreign.json()["items"]) == (200, [])
+
+
+async def test_results_copy_mailbox_and_sort_date_of_their_message(
+    db_session: AsyncSession,
+) -> None:
+    account = await make_account(db_session)
+    message = await account.message()
+    category = await db_session.scalar(
+        select(TriageCategory.id).where(TriageCategory.builtin_key == "info")
+    )
+    result = await save_result(db_session, message.id, Decision(category, 2, TriageSource.LLM))
+    assert (result.mailbox_id, result.sort_date) == (account.mailbox.id, message.sort_date)
+
+    message.received_at = NOW - timedelta(days=3)
+    await db_session.flush()
+    await db_session.refresh(result)
+    assert result.sort_date == NOW - timedelta(days=3)
+
+    # Written by the trigger only, whatever the application sets.
+    result.sort_date = NOW
+    await db_session.flush()
+    await db_session.refresh(result)
+    assert result.sort_date == NOW - timedelta(days=3)
 
 
 async def test_correction_notifies_the_ui(

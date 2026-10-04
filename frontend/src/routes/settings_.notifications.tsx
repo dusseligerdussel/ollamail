@@ -26,6 +26,7 @@ import {
   requestNotificationAccess,
   showNotification,
 } from "@/lib/browser-notifications";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings_/notifications")({
   component: NotificationsPage,
@@ -61,7 +62,13 @@ function NotificationsPage() {
               <ListSkeleton rows={4} />
             </div>
           )}
-          {settings.isError && <InlineError error={settings.error} />}
+          {settings.isError && (
+            <InlineError
+              error={settings.error}
+              onRetry={settings.refetch}
+              retrying={settings.isFetching}
+            />
+          )}
           {settings.data &&
             (settings.data.available ? (
               <NotificationsForm settings={settings.data} />
@@ -162,7 +169,11 @@ function NotificationsForm({ settings }: { settings: NotificationSettings }) {
           {categories.isPending ? (
             <ListSkeleton rows={3} />
           ) : categories.isError ? (
-            <InlineError error={categories.error} />
+            <InlineError
+              error={categories.error}
+              onRetry={categories.refetch}
+              retrying={categories.isFetching}
+            />
           ) : (
             <ul className="flex flex-col gap-2.5">
               {categories.visible.map((category) => {
@@ -175,7 +186,14 @@ function NotificationsForm({ settings }: { settings: NotificationSettings }) {
                       disabled={off || busy}
                       onCheckedChange={(value) => toggleCategory(category.id, value === true)}
                     />
-                    <label htmlFor={id} className="min-w-0 truncate text-ui">
+                    <label
+                      htmlFor={id}
+                      // Dim only while notifications are off, not during a save (no flicker).
+                      className={cn(
+                        "min-w-0 truncate text-ui peer-disabled:cursor-not-allowed",
+                        off && "opacity-50",
+                      )}
+                    >
                       {categoryName(category)}
                     </label>
                   </li>

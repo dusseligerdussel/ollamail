@@ -2,7 +2,7 @@
 
 Kubernetes deployment of ollamail: `frontend`, `api`, worker groups (one Deployment per set
 of queues), a pre-install/pre-upgrade migration job, optional Ingress (cert-manager),
-optional Ollama (CPU/GPU) and optional NetworkPolicies.
+optional Ollama (CPU/GPU) and NetworkPolicies (on by default; need an enforcing CNI).
 
 ```sh
 kubectl -n ollamail create secret generic ollamail-secrets \

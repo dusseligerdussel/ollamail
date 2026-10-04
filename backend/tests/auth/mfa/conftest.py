@@ -1,6 +1,7 @@
 """Fixtures for second-factor tests: WebAuthn relying party ``test`` (the test client's
 host), helpers to enrol factors and to sign in step by step."""
 
+import time
 from collections.abc import Iterator
 from datetime import UTC, datetime, timedelta
 from typing import Any
@@ -35,8 +36,19 @@ def _keyring(settings: Settings) -> Iterator[None]:
     set_keyring(None)
 
 
+_STEP_MARGIN_SECONDS = 2.0
+
+
 def code_at(secret: str, offset_steps: int = 0) -> str:
-    """The TOTP code ``offset_steps`` time steps from now."""
+    """The TOTP code ``offset_steps`` time steps from now.
+
+    Close to a step boundary the request would reach the server one step later and an
+    offset code (e.g. the previous step) would fall outside the ±1 window, so wait for
+    the next step first.
+    """
+    remaining = 30 - time.time() % 30
+    if remaining < _STEP_MARGIN_SECONDS:
+        time.sleep(remaining + 0.05)
     when = datetime.now(UTC) + timedelta(seconds=30 * offset_steps)
     return pyotp.TOTP(secret).at(when)
 

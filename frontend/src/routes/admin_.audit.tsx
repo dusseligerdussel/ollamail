@@ -173,7 +173,15 @@ function AuditEvents({ filters }: { filters: AuditFilters }) {
 
   if (query.isPending) return <ListSkeleton />;
   // A failed "load more" keeps the loaded pages (and data); only a failed first page has none.
-  if (!query.data) return <InlineError error={query.error} className="px-4 py-4 md:px-5" />;
+  if (!query.data)
+    return (
+      <InlineError
+        error={query.error}
+        onRetry={query.refetch}
+        retrying={query.isFetching}
+        className="px-4 py-4 md:px-5"
+      />
+    );
 
   const events = query.data.pages.flatMap((page) => page.items);
   if (events.length === 0) {
@@ -205,7 +213,12 @@ function AuditEvents({ filters }: { filters: AuditFilters }) {
         </div>
       )}
       {query.isFetchNextPageError && (
-        <InlineError error={query.error} className="px-4 pb-4 md:px-5" />
+        <InlineError
+          error={query.error}
+          onRetry={query.fetchNextPage}
+          retrying={query.isFetchingNextPage}
+          className="px-4 pb-4 md:px-5"
+        />
       )}
     </>
   );
