@@ -1511,11 +1511,16 @@ und nicht mehr konfigurierte Provider, #208).
 (`link_by_email` oder SCIM-Linking), entsteht neben `user.identity_linked` im Audit-Log eine Zeile
 in `auth_identity_link_notices` (nur Nutzer-ID, Provider-Key, Zeitpunkt; `ON DELETE CASCADE`).
 `GET /api/auth/link-notices` liefert die offenen Hinweise, `DELETE /api/auth/link-notices/{id}`
-bestätigt einen. Beides gilt nur für Sitzungen eines *anderen* Anmeldeverfahrens als des
-verknüpften Providers (fremde oder unsichtbare Hinweise: 404) – wer sich über die neue Verknüpfung
-anmeldet, kann den Hinweis also weder sehen noch wegklicken. Die UI zeigt ihn als Hinweisleiste
-(`SystemNotices`) mit Link zu Einstellungen → Sitzungen, wo sich die neue Sitzung beenden lässt.
-Der Hinweis verlinkt außerdem auf Einstellungen → Anmeldeverfahren (#216).
+bestätigt einen („Das war ich“, Audit `user.identity_link_confirmed`). Beides gilt nur für
+Sitzungen eines Anmeldeverfahrens, das die Person schon *vorher* hatte (#220): Seine Identität ist
+nicht jünger als der Hinweis, und es hat selbst keinen offenen Hinweis (fremde oder unsichtbare
+Hinweise: 404). Wer sich über eine neue Verknüpfung anmeldet, kann ihren Hinweis also weder sehen
+noch wegklicken – auch nicht über einen zweiten, ebenso verknüpften Provider (ein Admin mit P1 und
+P2 könnte sonst in der P2-Sitzung den Hinweis zu P1 schließen und umgekehrt). Die UI zeigt ihn als
+Hinweisleiste (`SystemNotices`) mit zwei Schaltflächen: „Das war ich“ bestätigt, „Das war ich
+nicht“ führt zu Einstellungen → Anmeldeverfahren (#216); Trennen löscht den Hinweis mit. In
+Einstellungen → Sitzungen tragen die Sitzungen eines Providers mit offenem Hinweis das Badge „Neu
+verknüpft“ und lassen sich dort beenden.
 
 **Anmeldeverfahren selbst trennen (#216, `app/auth/identities.py`):** `GET /api/auth/identities`
 liefert die eigenen Identitäten ohne SCIM (lokal nur mit Passwort oder Passkey; eine lokale

@@ -16,7 +16,11 @@ import {
 } from "@/api/auth";
 import { isApiError } from "@/api/errors";
 import { isReauthCancelled } from "@/api/reauth";
-import { useDateFormat } from "@/components/account/sessions-list";
+import {
+  useDateFormat,
+  useNewlyLinkedProviders,
+  useSignInMethodName,
+} from "@/components/account/sessions-list";
 import { useReauth } from "@/components/auth/reauth";
 import { InlineError } from "@/components/inline-error";
 import { Badge } from "@/components/ui/badge";
@@ -33,12 +37,6 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 
 type Refusal = NonNullable<SignInIdentity["unlink_refusal"]>;
-
-function useProviderName() {
-  const { t } = useTranslation();
-  return ({ provider, provider_name }: { provider: string; provider_name?: string | null }) =>
-    provider === "local" ? t("account.sessions.localMethod") : (provider_name ?? provider);
-}
 
 function useRefreshAccess() {
   const queryClient = useQueryClient();
@@ -66,14 +64,16 @@ function refusalText(refusal: Refusal, t: TFunction) {
 
 function IdentityRow({
   identity,
+  newlyLinked,
   onUnlink,
 }: {
   identity: SignInIdentity;
+  newlyLinked: boolean;
   onUnlink: (identity: SignInIdentity) => void;
 }) {
   const { t } = useTranslation();
   const formatDate = useDateFormat();
-  const name = useProviderName()(identity);
+  const name = useSignInMethodName()(identity);
   return (
     <li className="flex items-center gap-3 px-4 py-3">
       <KeyRound className="size-4 shrink-0 text-muted-foreground" aria-hidden="true" />
@@ -83,6 +83,11 @@ function IdentityRow({
           {identity.current && (
             <Badge variant="secondary" className="shrink-0 font-normal">
               {t("account.signIn.current")}
+            </Badge>
+          )}
+          {newlyLinked && (
+            <Badge variant="outline" className="shrink-0 font-normal">
+              {t("account.sessions.newlyLinked")}
             </Badge>
           )}
         </div>
@@ -122,7 +127,7 @@ function BlockRow({ block }: { block: LinkBlock }) {
   const formatDate = useDateFormat();
   const withReauth = useReauth();
   const refresh = useRefreshAccess();
-  const name = useProviderName()(block);
+  const name = useSignInMethodName()(block);
   const lift = useMutation({
     meta: { errorToast: false },
     mutationFn: () => withReauth(() => liftLinkBlock(block.id)),
@@ -169,7 +174,7 @@ function UnlinkDialog({
   const { t } = useTranslation();
   const withReauth = useReauth();
   const refresh = useRefreshAccess();
-  const providerName = useProviderName();
+  const providerName = useSignInMethodName();
   // Keeps the text while the dialog closes.
   const [shown, setShown] = useState(identity);
   if (identity && identity !== shown) setShown(identity);
@@ -242,6 +247,7 @@ export function SignInMethods() {
   const { t } = useTranslation();
   const identities = useQuery(identitiesQueryOptions);
   const blocks = useQuery(linkBlocksQueryOptions);
+  const newlyLinked = useNewlyLinkedProviders();
   const [unlinking, setUnlinking] = useState<SignInIdentity | null>(null);
 
   if (identities.isPending || blocks.isPending) {
@@ -278,7 +284,12 @@ export function SignInMethods() {
     <>
       <ul className="divide-y">
         {identities.data.map((identity) => (
-          <IdentityRow key={identity.id} identity={identity} onUnlink={setUnlinking} />
+          <IdentityRow
+            key={identity.id}
+            identity={identity}
+            newlyLinked={newlyLinked.has(identity.provider)}
+            onUnlink={setUnlinking}
+          />
         ))}
         {blocks.data.map((block) => (
           <BlockRow key={block.id} block={block} />
