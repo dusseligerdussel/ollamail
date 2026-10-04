@@ -154,12 +154,15 @@ async def get_role_mapping(_: AdminSessionDep, db: DbDep) -> RoleMappingRead:
     return await _mapping_read(db)
 
 
-@router.put("/role-mapping", responses={422: {"description": "Duplicate rules"}})
+@router.put(
+    "/role-mapping",
+    responses={**ADMIN_REAUTH_RESPONSES, 422: {"description": "Duplicate rules"}},
+)
 async def update_role_mapping(
-    body: RoleMappingUpdate, admin: AdminSessionDep, db: DbDep
+    body: RoleMappingUpdate, admin: RecentAdminDep, db: DbDep
 ) -> RoleMappingRead:
     """Replace the mapping. Takes effect at each user's next login; the last active admin
-    is never demoted by it."""
+    is never demoted by it. Needs a recent confirmation: a rule can make a group admin."""
     keys = [(rule.provider, rule.group.casefold()) for rule in body.rules]
     if len(set(keys)) != len(keys):
         raise ProblemError(
