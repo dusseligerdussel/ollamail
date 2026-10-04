@@ -23,7 +23,8 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
-from app.auth.dependencies import AdminSessionDep
+from app.auth.dependencies import AdminSessionDep, SettingsDep
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep, check_recent
 from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.events import Event, publish
@@ -256,6 +257,7 @@ async def list_shared_mailboxes(_: AdminSessionDep, db: DbDep) -> list[SharedMai
     responses={
         **CONNECTION_FAILED,
         **INVALID_ASSIGNMENT,
+        **ADMIN_REAUTH_RESPONSES,
         409: {"description": "Shared mailbox already added"},
     },
 )
@@ -265,9 +267,13 @@ async def create_shared_mailbox(
     db: DbDep,
     providers: RegistryDep,
     requester: SyncRequesterDep,
+    settings: SettingsDep,
 ) -> SharedMailboxRead:
     """Connect a shared mailbox (connection tested first) and assign it. The initial
-    import starts right away unless ``sync_enabled`` is false."""
+    import starts right away unless ``sync_enabled`` is false. First assignments need a
+    recent confirmation, as ``PUT …/assignments``."""
+    if body.users or body.groups or body.act_users:
+        check_recent(settings, admin)
     _require_type(providers, body.type)
     if await service.find_duplicate(db, None, body):
         raise ProblemError(409, detail="This shared mailbox has already been added.")
@@ -330,14 +336,18 @@ async def update_shared_mailbox(
     return await _read(db, mailbox)
 
 
-@router.put("/{mailbox_id}/assignments", responses={**NOT_FOUND, **INVALID_ASSIGNMENT})
+@router.put(
+    "/{mailbox_id}/assignments",
+    responses={**NOT_FOUND, **INVALID_ASSIGNMENT, **ADMIN_REAUTH_RESPONSES},
+)
 async def set_shared_mailbox_assignments(
-    mailbox_id: uuid.UUID, body: MailboxAssignmentsUpdate, admin: AdminSessionDep, db: DbDep
+    mailbox_id: uuid.UUID, body: MailboxAssignmentsUpdate, admin: RecentAdminDep, db: DbDep
 ) -> SharedMailboxRead:
     """Replace who may read the mailbox and who may also act on its mails (``act_users``,
     group ``permission``). Removing a user or group revokes access at once: from the next
     request on, its mails, triage, todos, search hits, answers and digests are no longer
-    visible to them."""
+    visible to them. Needs a recent confirmation (#206): an admin could assign the mailbox
+    to themselves and read it."""
     mailbox = await _shared(db, mailbox_id)
     added, removed = await _set_assignments(
         db, mailbox, body.users, body.groups, audit.Actor.user(admin.user_id), body.act_users

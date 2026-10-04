@@ -36,7 +36,7 @@ from app.ai.settings.schemas import (
     display_url,
 )
 from app.auth.dependencies import AdminSessionDep, CurrentSessionDep, SettingsDep
-from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep, check_recent
 from app.core.config import LLMSettings
 from app.core.db import get_db
 from app.core.errors import ProblemError
@@ -177,7 +177,20 @@ async def get_ai_settings(_: AdminSessionDep, db: DbDep, settings: SettingsDep) 
     return await _settings_read(db, settings.llm)
 
 
-@router.patch("/settings", responses={422: {"description": "Invalid settings"}})
+def _sends_mail_elsewhere(body: AISettingsUpdate, settings: LLMSettings) -> bool:
+    """Whether the change can send mail contents to another endpoint: cloud providers
+    turned on (also by a reset to an environment that allows them) or tasks reassigned."""
+    if "cloud_enabled" in body.model_fields_set:
+        enabled = settings.cloud_enabled if body.cloud_enabled is None else body.cloud_enabled
+        if enabled:
+            return True
+    return bool(body.tasks)
+
+
+@router.patch(
+    "/settings",
+    responses={**ADMIN_REAUTH_RESPONSES, 422: {"description": "Invalid settings"}},
+)
 async def update_ai_settings(
     body: AISettingsUpdate,
     request: Request,
@@ -185,7 +198,11 @@ async def update_ai_settings(
     db: DbDep,
     settings: SettingsDep,
 ) -> AISettingsRead:
-    """Change settings; ``null`` resets a field to the environment's value."""
+    """Change settings; ``null`` resets a field to the environment's value. Turning cloud
+    providers on and assigning tasks need a recent confirmation (#206); turning them off,
+    profile and concurrency do not."""
+    if _sends_mail_elsewhere(body, settings.llm):
+        check_recent(settings, admin)
     fields = body.model_fields_set
     config = await _config(db, settings.llm)
     if body.concurrency is not None and body.concurrency > _max_concurrency(settings.llm):

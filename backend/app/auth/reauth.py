@@ -19,10 +19,13 @@ Ways to confirm (``GET /auth/reauth`` lists those of the account):
 
 Recovery codes are not offered: they are a last resort for a lost factor.
 
-Critical admin actions (#190) depend on ``RecentAdminDep``: deleting a user, changing a
-role or deactivating, SCIM tokens, sign-in providers and settings, AI providers. A stolen
+Critical admin actions (#190, #206) depend on ``RecentAdminDep``: deleting a user, changing
+a role or deactivating, SCIM tokens and settings, sign-in providers and settings, the role
+mapping, AI providers, shared mailbox assignments. Some only need it for part of their
+changes and call ``check_recent`` themselves: AI settings when they turn on cloud providers
+or assign tasks, creating a shared mailbox together with its first assignments. A stolen
 admin cookie alone must not be enough to add an identity provider that links to other
-accounts, or to point an AI endpoint at a foreign server.
+accounts, to point an AI endpoint at a foreign server or to read a shared mailbox.
 """
 
 import secrets
@@ -102,10 +105,16 @@ def is_recent(settings: Settings, current: CurrentSession) -> bool:
     return until is not None and until > datetime.now(UTC)
 
 
-async def require_recent_auth(current: CurrentSessionDep, settings: SettingsDep) -> CurrentSession:
-    """The session, if the user confirmed who they are recently; 403 otherwise."""
+def check_recent(settings: Settings, current: CurrentSession) -> None:
+    """403 ``reauth-required`` unless the user confirmed who they are recently; for
+    endpoints that need it only for some of their changes."""
     if not is_recent(settings, current):
         raise reauth_required(settings)
+
+
+async def require_recent_auth(current: CurrentSessionDep, settings: SettingsDep) -> CurrentSession:
+    """The session, if the user confirmed who they are recently; 403 otherwise."""
+    check_recent(settings, current)
     return current
 
 
@@ -115,8 +124,7 @@ RecentAuthDep = Annotated[CurrentSession, Depends(require_recent_auth)]
 async def require_recent_admin(admin: AdminSessionDep, settings: SettingsDep) -> CurrentSession:
     """An admin session with a recent confirmation (#190); 403 for others, then
     403 ``reauth-required`` when the confirmation is too old."""
-    if not is_recent(settings, admin):
-        raise reauth_required(settings)
+    check_recent(settings, admin)
     return admin
 
 

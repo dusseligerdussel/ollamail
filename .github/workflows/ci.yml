@@ -395,6 +395,9 @@ jobs:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+      # Dependabot bumps the third-party images only in compose.yaml; the copies must follow.
+      - name: Image pins match compose.yaml
+        run: ../scripts/check-image-pins.sh
       - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
       # Same cache scopes as the release build (amd64), so main warms the cache for PRs.
       - name: Build API image

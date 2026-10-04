@@ -13,6 +13,7 @@ import {
 } from "@/api/admin-auth";
 import { describeApiError, isApiError } from "@/api/errors";
 import { problemErrorCode } from "@/api/mail";
+import { isReauthCancelled } from "@/api/reauth";
 import { SCIM_PROVIDER } from "@/api/scim";
 import {
   deleteSharedMailbox,
@@ -27,6 +28,7 @@ import {
 import { AdminSection, AdminSubPage } from "@/components/admin/admin-page";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { Notice } from "@/components/admin/notice";
+import { useReauth } from "@/components/auth/reauth";
 import { Forbidden } from "@/components/forbidden";
 import { InlineError } from "@/components/inline-error";
 import { ListSkeleton } from "@/components/list-skeleton";
@@ -221,24 +223,32 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
 
   const dirty = assignmentsKey(selected, groups) !== assignmentsKey(savedUsers, savedGroups);
 
+  const withReauth = useReauth();
   const save = useMutation({
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: () =>
-      setAssignments(mailbox.id, {
-        users: [...selected.keys()],
-        act_users: [...selected].flatMap(([id, permission]) => (permission === "act" ? [id] : [])),
-        groups,
-      }),
+      withReauth(() =>
+        setAssignments(mailbox.id, {
+          users: [...selected.keys()],
+          act_users: [...selected].flatMap(([id, permission]) =>
+            permission === "act" ? [id] : [],
+          ),
+          groups,
+        }),
+      ),
     meta: { errorToast: false },
     onSuccess: () => {
       toast.success(t("pages.sharedMailboxes.saved"));
       void queryClient.invalidateQueries({ queryKey: ["mailbox"] });
     },
-    onError: (failure) =>
+    onError: (failure) => {
+      if (isReauthCancelled(failure)) return;
       setError(
         problemErrorCode(failure) === "unknown_user"
           ? t("pages.sharedMailboxes.unknownUser")
           : describeApiError(failure, t).title,
-      ),
+      );
+    },
   });
 
   const assign = (userId: string, permission: Permission | undefined) => {

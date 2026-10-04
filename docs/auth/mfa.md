@@ -84,7 +84,7 @@ oder das Konto zu löschen. Diese Endpunkte verlangen deshalb eine **aktuelle Be
 | Vollständiger Datenexport | `POST /api/privacy/exports` |
 | Konto löschen | `DELETE /api/privacy/account` (zusätzlich Eingabe der E-Mail-Adresse) |
 
-Dasselbe gilt für **kritische Admin-Aktionen** (#190), denn ein gestohlenes Admin-Cookie
+Dasselbe gilt für **kritische Admin-Aktionen** (#190, #206), denn ein gestohlenes Admin-Cookie
 reicht sonst, um einen Identity-Provider mit `link_by_email` anzulegen, der sich als beliebiger
 Nutzer anmeldet, oder einen KI-Endpunkt auf einen fremden Server umzubiegen. Sie hängen an
 `RecentAdminDep` (erst Admin-Prüfung, dann Bestätigung):
@@ -98,9 +98,17 @@ Nutzer anmeldet, oder einen KI-Endpunkt auf einen fremden Server umzubiegen. Sie
 | LDAP-Verzeichnis anlegen/ändern | `POST /api/auth/ldap/directories`, `PUT …/{name}` |
 | Anmelde-Einstellungen (lokale Anmeldung, 2FA-Pflicht) | `PATCH /api/admin/auth/settings` |
 | KI-Provider anlegen/ändern | `POST /api/admin/ai/providers`, `PATCH /api/admin/ai/providers/{name}` |
+| Rollen-Zuordnung (Gruppe → Rolle) speichern (#206) | `PUT /api/admin/auth/role-mapping` |
+| SCIM-Einstellungen (Schalter, verknüpfende Provider) (#206) | `PATCH /api/admin/scim` |
+| KI-Einstellungen: Cloud-Provider einschalten oder Aufgaben zuordnen (#206) | `PATCH /api/admin/ai/settings` |
+| Shared-Mailbox-Zuweisungen ändern (#206) | `PUT /api/admin/shared-mailboxes/{id}/assignments`; beim Anlegen (`POST /api/admin/shared-mailboxes`) nur, wenn Zuweisungen mitgeschickt werden |
 
 Lesen, Verbindungstests, Löschen von Providern und „Überall abmelden“ brauchen keine
-Bestätigung: Sie geben niemandem Zugang zu fremden Konten oder Mails.
+Bestätigung: Sie geben niemandem Zugang zu fremden Konten oder Mails. Bei den KI-Einstellungen
+gilt das auch für das Ausschalten der Cloud-Provider, das Profil und die Parallelität: Damit
+gehen keine Mail-Inhalte an einen anderen Endpunkt. Wer sich selbst ein Shared Mailbox zuweist,
+kann es lesen – deshalb hängen die Zuweisungen ebenfalls an der Bestätigung (zusätzlich zum
+Audit-Log).
 
 Jede Session speichert `authenticated_at` (Anmeldung oder letzte Bestätigung). Liegt das länger
 als `OLLAMAIL_AUTH_REAUTH_MINUTES` (Standard 10) zurück, antworten die Endpunkte mit **403**
