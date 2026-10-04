@@ -53,13 +53,23 @@ def answers(monkeypatch: pytest.MonkeyPatch, mapping: dict[str, list[str]]) -> N
         "fd12:3456::1",
         "::ffff:127.0.0.1",
         "::ffff:10.0.0.1",
+        # NAT64 (well-known prefix) and IPv4-compatible addresses embed an IPv4 destination.
+        "64:ff9b::7f00:1",
+        "64:ff9b::a9fe:a9fe",
+        "64:ff9b::a00:1",
+        "::7f00:1",
+        "::a00:1",
+        "::c0a8:10a",
     ],
 )
 def test_internal_addresses_are_not_public(address: str) -> None:
     assert not network.is_public(ipaddress.ip_address(address))
 
 
-@pytest.mark.parametrize("address", ["93.184.215.14", "2a00:1450:4001:80b::200e", "1.1.1.1"])
+@pytest.mark.parametrize(
+    "address",
+    ["93.184.215.14", "2a00:1450:4001:80b::200e", "1.1.1.1", "64:ff9b::101:101", "::101:101"],
+)
 def test_global_addresses_are_public(address: str) -> None:
     assert network.is_public(ipaddress.ip_address(address))
 

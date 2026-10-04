@@ -106,3 +106,7 @@ class ProcessingScanState(Base):
     # Every message stored before this time was planned (message IDs are UUIDv7, so
     # only IDs from shortly before it on are checked for missing rows).
     planned_before: Mapped[datetime | None]
+    # Check of all messages in progress: the next run continues with the messages older
+    # than this one (keyset cursor, newest first), so that a version bump reads every
+    # message once and not again for every batch. ``None``: start from the newest.
+    cursor: Mapped[uuid.UUID | None]

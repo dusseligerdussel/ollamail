@@ -190,7 +190,8 @@ entfernt sie der nächste Sync; „Rückgängig“ wirkt dort nur bis zu diesem 
   ab, solange der Admin `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS` nicht setzt.
 - **Zielprüfung** (`app/core/network.py`, gilt für IMAP, SMTP und den CalDAV-Export): Der Host
   wird einmal aufgelöst; nur global erreichbare Adressen sind erlaubt. Loopback, RFC 1918,
-  Link-Local (inkl. `169.254.169.254`), ULA, CGNAT, Multicast und reservierte Bereiche nur, wenn
+  Link-Local (inkl. `169.254.169.254`), ULA, CGNAT, Multicast und reservierte Bereiche – auch
+  eingebettet in IPv6 (IPv4-mapped, NAT64 `64:ff9b::/96`, IPv4-compatible `::/96`) – nur, wenn
   der Hostname oder ein passender Bereich in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` (CalDAV:
   `OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS`) steht. Verbunden wird mit der
   geprüften Adresse (TLS prüft weiter den Hostnamen), damit DNS-Rebinding nicht greift. Ein
@@ -355,10 +356,12 @@ und den Lösch-Job (`app/mail/deletion.py`); sie baut nichts davon nach.
   Postfach fehlgeschlagen) | `syncing` (Sync-Job wartet oder läuft, aus `procrastinate_jobs`) |
   `pending` (nie synchronisiert) | `importing` (Initialimport eines Ordners offen) | `idle`, dazu
   letzte Synchronisierung, Fehlercode, Ordner gesamt/importiert/fehlgeschlagen und Anzahl Mails.
-  Die Anzahl wird für Postfächer in `syncing`/`importing`/`pending` je API-Prozess bis zu 15 s
-  wiederverwendet (#188, `service.message_counts`): Während eines Imports lädt jeder Tab den Status
-  nach jedem Batch neu, und `count(*)` über 100k Mails ist dafür zu teuer. Ruhende Postfächer
-  werden bei jedem Request gezählt.
+  Die Anzahl wird je API-Prozess wiederverwendet (`service.message_counts`): Während eines Imports
+  lädt jeder Tab den Status nach jedem Batch neu, und `count(*)` über 100k Mails ist dafür zu teuer.
+  Postfächer, die sich gerade ändern (`syncing`/`importing`/`pending`/`error`/`deleting`), werden
+  höchstens alle 15 s neu gezählt (#188). Ruhende (`idle`/`paused`) bis zum Ende des nächsten Syncs
+  (anderes `last_synced_at`) oder einem Phasenwechsel, spätestens nach 5 Minuten (Löschungen durch
+  die Aufbewahrungsfristen ändern den Sync-Status nicht, #226).
   „Import offen“ heißt: kein Cursor oder der Cursor enthält den Schlüssel `import`
   (Konvention für Provider, die in Batches importieren, siehe `SyncCursor`).
 - **Ordnerauswahl** setzt `Folder.sync_enabled` und hält `SyncSettings.excluded_folders`
@@ -796,6 +799,14 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   `NOT EXISTS` auf fehlende Zeilen. Eine noch ungeplante Mail hält `planned_before` fest, bis sie
   geplant ist. Neue oder geänderte Schritte und das Wiedereinschalten eines Postfachs
   (`set_mailbox_enabled`) setzen die Versionen zurück; dann prüft der Job wieder alle Mails.
+  Diese Prüfung läuft mit einem Keyset-Cursor (`processing_scan_state.cursor`, #226): Jeder Lauf
+  liest unterhalb der zuletzt eingereihten Mail weiter, statt wieder bei der neuesten zu beginnen,
+  so liest ein Versionssprung jede Mail einmal und nicht einmal je Batch. An der ältesten Mail
+  beginnt der Job oben neu; erst ein Lauf ohne Treffer gilt als abgeschlossen. Gibt der Plan-Job
+  einer Mail endgültig auf (alle Retries verbraucht), setzt `fail_plan` ihre fehlenden bzw.
+  veralteten Schritte auf `failed` mit Fehlercode. Sie wird dann nicht mehr alle 10 Minuten neu
+  eingereiht, hält `planned_before` nicht mehr fest, erscheint in der Admin-Übersicht als
+  fehlgeschlagen und läuft per Reprocessing erneut.
   Mehrere Mails reiht `requeue_messages` in Batches ein (ein `INSERT` je 200 Jobs; ist eine
   davon schon eingereiht, wird dieser Batch einzeln eingereiht).
 - **Priorität:** Alle Jobs einer Mail erben die Priorität. Worker nehmen immer den Job mit der
@@ -1041,7 +1052,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
     der Liste und per `calendar-multiget` nur die geänderten Aufgaben. Die Beschreibung enthält
     den Link zur Mail (`<OLLAMAIL_AUTH_PUBLIC_URL bzw. Origin beim Verbinden>/inbox?message=<id>`,
     auch als `URL`). Anfragen gehen nur an den eingetragenen Server; `https` ist Pflicht
-    (`OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP` nur für Tests), keine DTDs in Antworten.
+    (`OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP` nur für Tests), keine DTDs in Antworten. Antworten
+    werden gestreamt gelesen und bei mehr als 10 MB abgebrochen (`not_caldav`).
     **Zielprüfung** (#189): dieselbe wie bei IMAP/SMTP (`app/core/network.py`), über einen
     eigenen `httpx`-Transport (`app/core/http_guard.py`) für jede Verbindung, auch nach einer
     Weiterleitung. Interne Adressen nur mit Eintrag in
@@ -1153,7 +1165,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   ohne Referenzen gesprochen. Abgeschaltete Cloud-LLMs und fehlende Stimmen sind dauerhafte Fehler
   (kein Retry).
 - **API** (angemeldet, nur eigene Digests, fremde = 404): `GET /api/digests`,
-  `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft), `GET/DELETE
+  `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft – parallele Anfragen
+  eines Nutzers serialisiert `pg_advisory_xact_lock`, #221), `GET/DELETE
   /api/digests/{id}`, `GET /api/digests/{id}/audio.{mp3|opus}` (Range-Requests, Web-Player).
   `GET /api/digests/voices` listet die wählbaren Stimmen (installierte, Standardstimme je
   Sprache und `OLLAMAIL_TTS_VOICE_ALLOWLIST`, mit `default`/`installed`); eine andere Stimme lehnt
