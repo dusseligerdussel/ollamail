@@ -70,10 +70,10 @@ function SessionRow({ session }: { session: AuthSession }) {
           )}
         </div>
         <div className="truncate text-ui text-muted-foreground">
-          {t("account.sessions.details", {
-            method,
-            date: formatDate(session.last_seen_at),
-          })}
+          {t("account.sessions.method", { method })}
+        </div>
+        <div className="truncate text-ui text-muted-foreground">
+          {t("account.sessions.lastActive", { date: formatDate(session.last_seen_at) })}
         </div>
       </div>
       {!session.current && (
@@ -110,6 +110,7 @@ export function SessionsList() {
             <Skeleton className="size-4" />
             <div className="flex flex-1 flex-col gap-1.5">
               <Skeleton className="h-3.5 w-40" />
+              <Skeleton className="h-3.5 w-32" />
               <Skeleton className="h-3.5 w-56" />
             </div>
           </div>

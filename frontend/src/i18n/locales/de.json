@@ -1174,7 +1174,8 @@
       "revokeLabel": "{{device}} abmelden",
       "revokeOthers": "Alle anderen Sitzungen abmelden",
       "localMethod": "Lokales Konto",
-      "details": "{{method}} · Zuletzt aktiv: {{date}}"
+      "method": "Anmeldung: {{method}}",
+      "lastActive": "Zuletzt aktiv: {{date}}"
     },
     "security": {
       "title": "Sicherheit",

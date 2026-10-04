@@ -430,11 +430,11 @@ describe("account settings", () => {
     if (!current || !other) throw new Error("expected two sessions");
     expect(current).toHaveTextContent("Firefox on Linux");
     expect(current).toHaveTextContent("This device");
-    expect(current).toHaveTextContent("Local account · Last active: Jan 2, 2026, 9:30 AM");
+    expect(current).toHaveTextContent("Sign-in: Local accountLast active: Jan 2, 2026, 9:30 AM");
     expect(within(current).queryByRole("button")).not.toBeInTheDocument();
     expect(other).toHaveTextContent("Safari on iOS");
     // The sign-in method shows sessions of a linked provider (#208).
-    expect(other).toHaveTextContent("Corporate SSO · Last active:");
+    expect(other).toHaveTextContent("Sign-in: Corporate SSO");
 
     await user.click(within(other).getByRole("button", { name: "Sign out Safari on iOS" }));
     await waitFor(() => expect(within(section).getAllByRole("listitem")).toHaveLength(1));

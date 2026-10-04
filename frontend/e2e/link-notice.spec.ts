@@ -61,10 +61,10 @@ test("shows a linked sign-in and leads to the sessions", async ({ page }) => {
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
   const list = page.getByRole("region", { name: "Active sessions" });
   await expect(list.getByRole("listitem").filter({ hasText: "Chrome on Windows" })).toContainText(
-    "Corporate SSO · Last active:",
+    "Sign-in: Corporate SSO",
   );
   await expect(list.getByRole("listitem").filter({ hasText: "This device" })).toContainText(
-    "Local account",
+    "Sign-in: Local account",
   );
 });
 

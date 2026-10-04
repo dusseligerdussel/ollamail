@@ -1174,7 +1174,8 @@
       "revokeLabel": "Sign out {{device}}",
       "revokeOthers": "Sign out all other sessions",
       "localMethod": "Local account",
-      "details": "{{method}} · Last active: {{date}}"
+      "method": "Sign-in: {{method}}",
+      "lastActive": "Last active: {{date}}"
     },
     "security": {
       "title": "Security",
