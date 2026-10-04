@@ -18,9 +18,11 @@ import {
   testRoleMapping,
 } from "@/api/admin-auth";
 import { describeApiError, isApiError } from "@/api/errors";
+import { isReauthCancelled } from "@/api/reauth";
 import { SCIM_PROVIDER } from "@/api/scim";
 import { AdminSection, AdminSubPage } from "@/components/admin/admin-page";
 import { Notice } from "@/components/admin/notice";
+import { useReauth } from "@/components/auth/reauth";
 import { Forbidden } from "@/components/forbidden";
 import { InlineError } from "@/components/inline-error";
 import { ListSkeleton } from "@/components/list-skeleton";
@@ -109,19 +111,23 @@ function MappingForm({ saved, providers }: { saved: RoleMapping; providers: Prov
     })),
   );
 
+  const withReauth = useReauth();
   const save = useMutation({
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: () =>
-      saveRoleMapping({
-        enabled,
-        default_role: defaultRole,
-        rules: rules
-          .filter((rule) => rule.group.trim())
-          .map((rule) => ({
-            group: rule.group.trim(),
-            provider: rule.provider || null,
-            role: rule.role,
-          })),
-      }),
+      withReauth(() =>
+        saveRoleMapping({
+          enabled,
+          default_role: defaultRole,
+          rules: rules
+            .filter((rule) => rule.group.trim())
+            .map((rule) => ({
+              group: rule.group.trim(),
+              provider: rule.provider || null,
+              role: rule.role,
+            })),
+        }),
+      ),
     meta: { errorToast: false },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
@@ -141,7 +147,7 @@ function MappingForm({ saved, providers }: { saved: RoleMapping; providers: Prov
   }
 
   let error: string | undefined;
-  if (save.isError) {
+  if (save.isError && !isReauthCancelled(save.error)) {
     error =
       isApiError(save.error) && save.error.status === 422
         ? t("pages.roleMapping.duplicate")

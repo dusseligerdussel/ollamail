@@ -73,8 +73,11 @@ function useInvalidateAI() {
 export function useUpdateAISettings() {
   const invalidate = useInvalidateAI();
   const queryClient = useQueryClient();
+  const withReauth = useReauth();
   return useMutation({
-    mutationFn: (body: AISettingsUpdate) => unwrap(api.PATCH("/admin/ai/settings", { body })),
+    // Turning cloud providers on and assigning tasks need a recent confirmation.
+    mutationFn: (body: AISettingsUpdate) =>
+      withReauth(() => unwrap(api.PATCH("/admin/ai/settings", { body }))),
     onSuccess: (settings) => {
       queryClient.setQueryData(aiSettingsQueryOptions.queryKey, settings);
       return invalidate();

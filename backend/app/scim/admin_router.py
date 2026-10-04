@@ -90,11 +90,12 @@ async def get_scim_settings(_: AdminSessionDep, request: Request, db: DbDep) -> 
     return await _settings_read(db, request)
 
 
-@router.patch("")
+@router.patch("", responses=ADMIN_REAUTH_RESPONSES)
 async def update_scim_settings(
-    body: ScimSettingsUpdate, admin: AdminSessionDep, request: Request, db: DbDep
+    body: ScimSettingsUpdate, admin: RecentAdminDep, request: Request, db: DbDep
 ) -> ScimSettingsRead:
-    """Switch SCIM on or off; set the providers that may link logins to SCIM users."""
+    """Switch SCIM on or off; set the providers that may link logins to SCIM users. Needs a
+    recent confirmation: a linking provider signs in to SCIM accounts by e-mail address."""
     config = await tokens.get_config_for_update(db)
     if body.enabled is not None and body.enabled != config.enabled:
         config.enabled = body.enabled
