@@ -144,6 +144,9 @@ async def _message(
         .join(Mailbox, Mailbox.id == Message.mailbox_id)
         .where(Message.id == message_id, access.visible_to(user_id))
         .options(*(options or (selectinload(Message.attachments),)))
+        # Apply ``options`` also to a message already in the session (e.g. the snippet of
+        # ``listing.without_bodies``, which a loaded object would otherwise lack).
+        .execution_options(populate_existing=True)
     )
     if message is None:
         raise ProblemError(404, detail="Message not found.")
@@ -321,6 +324,9 @@ async def update_message(
         is None
     ):
         raise ProblemError(403, detail="This mailbox is read-only for you.", error_code="read_only")
+    # Before any write: flushing the change would expire the snippet of
+    # ``listing.without_bodies`` and reading it again would load the body.
+    summary = _summary_fields(message)
     before = set(message.flags or [])
     flags = set(before)
     for flag, value in ((Flag.SEEN, body.seen), (Flag.FLAGGED, body.flagged)):
@@ -353,7 +359,6 @@ async def update_message(
                 db, message.mailbox_id, Event(type="message.updated", ids=ids, status=change)
             )
         await db.commit()
-        await db.refresh(message, ["flags"])
         try:
             await write_flags(message.id)
         except Exception as exc:
@@ -363,7 +368,8 @@ async def update_message(
                 message_id=str(message.id),
                 error_type=type(exc).__name__,
             )
-    return MessageSummary(**_summary_fields(message))
+    summary.update(unread=Flag.SEEN.value not in flags, flagged=Flag.FLAGGED.value in flags)
+    return MessageSummary(**summary)
 
 
 @router.get(
