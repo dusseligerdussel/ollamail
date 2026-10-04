@@ -134,9 +134,10 @@ test("a model that takes too long is not reported as unreachable", async ({ page
   await searchbox(page).press("Enter");
 
   const alert = page.getByRole("article", { name: QUESTION }).getByRole("alert");
-  await expect(alert).toHaveText(
+  await expect(alert.getByRole("paragraph")).toHaveText(
     "The language model took too long. Please try again or ask a shorter question.",
   );
+  await expect(alert.getByRole("button", { name: "Try again" })).toBeEnabled();
 });
 
 test("too many parallel requests are explained instead of a generic error", async ({ page }) => {
