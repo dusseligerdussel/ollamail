@@ -603,6 +603,18 @@ class TriageSettings(BaseSettings):
     label_prefix: str = Field(default="ollamail/", pattern=r"^[A-Za-z0-9_./-]{0,32}$")
 
 
+class NotificationsSettings(BaseSettings):
+    """``OLLAMAIL_NOTIFICATIONS_*`` (notifications about important mails, app/notifications/)"""
+
+    model_config = _config("NOTIFICATIONS_")
+
+    # Lets users opt in to browser notifications; ``false`` switches them off for everybody.
+    enabled: bool = True
+    # Only mails received at most this long ago are announced: an initial import, a backlog
+    # or reprocessing does not flood the user with notifications about older mail.
+    max_age_minutes: int = Field(default=60, ge=1, le=1440)
+
+
 class SearchSettings(BaseSettings):
     """``OLLAMAIL_SEARCH_*`` (hybrid search index, app/search/)"""
 
@@ -907,6 +919,7 @@ class Settings(BaseModel):
     metrics: MetricsSettings = Field(default_factory=MetricsSettings)
     auth: AuthSettings = Field(default_factory=AuthSettings)
     triage: TriageSettings = Field(default_factory=TriageSettings)
+    notifications: NotificationsSettings = Field(default_factory=NotificationsSettings)
     audit: AuditSettings = Field(default_factory=AuditSettings)
     privacy: PrivacySettings = Field(default_factory=PrivacySettings)
     scim: ScimSettings = Field(default_factory=ScimSettings)

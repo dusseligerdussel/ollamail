@@ -4,6 +4,7 @@ import { useDefaultLayout } from "react-resizable-panels";
 
 import { CloudNotice } from "@/components/cloud-notice";
 import { CommandPalette } from "@/components/command-palette/command-palette";
+import { MailNotifier } from "@/components/notifications/mail-notifier";
 import { SystemNotices } from "@/components/system-notices";
 import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { Toaster } from "@/components/ui/sonner";
@@ -82,6 +83,7 @@ export function AppShell() {
       <CommandPalette />
       <ShortcutsOverlay />
       <EventsListener />
+      <MailNotifier />
       <Toaster position={wide ? "bottom-right" : "top-center"} />
     </ShortcutsOverlayProvider>
   );

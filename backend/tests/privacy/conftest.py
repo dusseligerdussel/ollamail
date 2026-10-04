@@ -20,6 +20,7 @@ from app.digest.storage import DigestStorage
 from app.drafts.models import DraftSettings, ReplyDraft
 from app.mail.models import Attachment, Mailbox, MailboxAssignment, MailboxType, Message
 from app.mail.storage import AttachmentStorage
+from app.notifications.models import MailNotification, NotificationSettings
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
 from app.rag.models import RagCitation, RagConversation, RagMessage, RagRole
 from app.scim.models import ScimGroup, ScimUser, scim_group_members
@@ -238,6 +239,8 @@ async def seed_user_data(
                 body=f"Draft {marker}",
             ),
             DraftSettings(user_id=user_id, signature=f"Signature {marker}"),
+            NotificationSettings(user_id=user_id, enabled=True, category_ids=[category.id]),
+            MailNotification(message_id=message.id),
             Invitation(
                 user_id=user_id, token_hash=os.urandom(32), expires_at=NOW + timedelta(days=1)
             ),

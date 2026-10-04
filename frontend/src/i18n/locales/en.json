@@ -1908,5 +1908,41 @@
       "failed": "Google Tasks was not connected"
     },
     "listChanged": "List changed"
+  },
+  "notifications": {
+    "title": "Notifications",
+    "back": "Back to settings",
+    "manage": "Set up notifications",
+    "linkDescription": "Get notified in the browser when an important mail arrives.",
+    "intro": "ollamail lets you know when a new mail in one of the chosen categories arrives – while ollamail is open in a tab but you are working elsewhere.",
+    "loading": "Loading settings",
+    "disabledTitle": "Notifications not enabled",
+    "disabledDescription": "Notifications are switched off on this server. Your administrator can enable them.",
+    "browser": "Browser",
+    "enabled": "Notify me about new mail",
+    "enabledDescription": "Off by default. When you switch it on, the browser asks for permission.",
+    "saveFailed": "The setting could not be saved.",
+    "access": {
+      "label": "This browser",
+      "granted": "Notifications are allowed.",
+      "default": "Not allowed yet. Permission applies per browser and device.",
+      "denied": "The browser blocks notifications for ollamail. Allow them in the browser's site settings.",
+      "unsupported": "This browser does not support notifications.",
+      "allow": "Allow"
+    },
+    "test": {
+      "send": "Send test",
+      "sender": "Jane Example",
+      "subject": "Example subject"
+    },
+    "categories": "Categories",
+    "categoriesDescription": "You are only notified about new, unread mail in the inbox in these categories.",
+    "content": "Content",
+    "showSubject": "Show subject",
+    "showSubjectDescription": "By default a notification only shows the sender and the category. Notifications may be visible on the lock screen.",
+    "sound": "Sound",
+    "soundDescription": "Silent by default. When on, the browser plays its notification sound.",
+    "privacy": "Notifications are created in this browser; no external service is used. The content stays in the device's notification area until you dismiss it.",
+    "unknownSender": "New mail"
   }
 }

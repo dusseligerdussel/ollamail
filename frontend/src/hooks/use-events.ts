@@ -38,7 +38,28 @@ export const invalidationRules: Record<string, InvalidationRule> = {
     ["message", "triage"],
     ["message", "search"],
   ],
+  // A new mail to announce (#149): shown as a browser notification, no data to reload.
+  "notification.message": () => [],
 };
+
+export type ServerEventListener = (event: ServerEvent) => void;
+
+const eventListeners = new Set<ServerEventListener>();
+
+/**
+ * Receive every server event of the open stream (e.g. to show a notification). Events are
+ * only delivered while `useEvents` is mounted. Returns the function to unsubscribe.
+ */
+export function subscribeServerEvents(listener: ServerEventListener): () => void {
+  eventListeners.add(listener);
+  return () => {
+    eventListeners.delete(listener);
+  };
+}
+
+function emitServerEvent(event: ServerEvent) {
+  for (const listener of eventListeners) listener(event);
+}
 
 export function defaultInvalidation(event: ServerEvent): QueryKey[] {
   const resource = event.type.split(".")[0];
@@ -169,7 +190,9 @@ export function useEvents({
 
     const onMessage = (message: MessageEvent<unknown>) => {
       const event = parseServerEvent(message);
-      if (event) batcher.add(invalidationsFor(event, rules));
+      if (!event) return;
+      batcher.add(invalidationsFor(event, rules));
+      emitServerEvent(event);
     };
     const onOpen = () => {
       if (disconnected) {
