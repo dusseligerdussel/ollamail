@@ -274,12 +274,13 @@ async def get_retention(
     return _retention_read(settings, await get_record(db))
 
 
-@admin_router.patch("/retention")
+@admin_router.patch("/retention", responses=ADMIN_REAUTH_RESPONSES)
 async def update_retention(
-    body: RetentionSettingsUpdate, admin: AdminSessionDep, db: DbDep, settings: SettingsDep
+    body: RetentionSettingsUpdate, admin: RecentAdminDep, db: DbDep, settings: SettingsDep
 ) -> RetentionSettingsRead:
     """Change retention periods; ``null`` resets one to the environment default. Applies
-    from the next run of the retention jobs."""
+    from the next run of the retention jobs. Needs a recent confirmation (#218): a short
+    period deletes the audit log or the mails of all users."""
     record = await get_record(db)
     if record is None:
         record = RetentionSettingsRecord()

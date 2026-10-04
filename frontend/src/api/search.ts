@@ -20,7 +20,8 @@ export type AnswerSource = Extract<AnswerEvent, { type: "sources" }>["sources"][
 export type AnswerStatus = Extract<AnswerEvent, { type: "done" }>["status"];
 
 /**
- * Query keys. Hits start with `message`, so mail events (`message.*`) refresh them; the
+ * Query keys. Hits start with `message`, so mail events without a rule of their own refresh them
+ * (not `message.processed`/`message.updated`, #223: a rerun embeds the query again); the
  * conversations of "ask your inbox" live under `rag`.
  */
 export const searchKeys = {

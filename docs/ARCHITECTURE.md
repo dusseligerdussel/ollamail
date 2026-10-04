@@ -1517,7 +1517,7 @@ Anfrage weniger als das Idle-Timeout zurückliegt (`last_seen_at`, höchstens mi
 geschrieben). `authenticated_at` hält fest, wann sich der Nutzer in dieser Session zuletzt
 ausgewiesen hat (Login oder Bestätigung); sensible Endpunkte (Faktor entfernen, neue
 Wiederherstellungscodes, Datenexport, Konto löschen; kritische Admin-Aktionen wie Nutzer
-löschen, Rollen, SCIM-Tokens und -Einstellungen, Rollen-Zuordnung, Anmelde- und KI-Provider, KI-Cloud-Freigabe und Aufgaben-Zuordnung, Shared-Mailbox-Zuweisungen über `RecentAdminDep` bzw. `check_recent`, #190, #206) verlangen über `RecentAuthDep`
+anlegen, einladen und löschen, Rollen, SCIM-Tokens und -Einstellungen, Rollen-Zuordnung, Anmelde- und KI-Provider, KI-Cloud-Freigabe und Aufgaben-Zuordnung, Shared-Mailbox-Zuweisungen und -Entfernen, Aufbewahrungsfristen über `RecentAdminDep` bzw. `check_recent`, #190, #206, #218) verlangen über `RecentAuthDep`
 (`app/auth/reauth.py`) eine Bestätigung innerhalb von `OLLAMAIL_AUTH_REAUTH_MINUTES` per
 Passwort, TOTP, Passkey oder erneuter (SSO-)Anmeldung, sonst 403 `reauth-required`
 (Details: [`auth/mfa.md`](auth/mfa.md#bestätigung-vor-sensiblen-aktionen-144)). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort
