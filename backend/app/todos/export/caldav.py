@@ -9,7 +9,8 @@ Plain ``httpx`` with Basic auth (app passwords), no CalDAV library.
   bare host. Only collections that accept VTODO are offered.
 * **IDs** are server-relative paths: a list is a collection path, a task the path of its
   ``<todo id>.ics`` resource. Requests only ever go to the configured server (origin);
-  hrefs pointing elsewhere are ignored, redirects are only followed within that origin.
+  hrefs pointing elsewhere are ignored, redirects are only followed within that origin
+  (discovery only; a list found behind a redirect gets the target's path as its ID).
 * **Destination check** (#189): every connection goes through ``GuardedTransport``, which
   refuses internal addresses (loopback, RFC 1918, link-local, ULA, ...) unless
   ``OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS`` allows them, and connects to the checked
@@ -258,10 +259,11 @@ class CalDAVSink(TodoSink):
             raise SinkError(NOT_CALDAV)
         return response
 
-    async def _propfind(
-        self, url: str, depth: int, props: Iterable[tuple[str, str]], *, follow: bool = False
-    ) -> list[_Response] | None:
-        """Multi-status responses, or ``None`` if the resource does not exist."""
+    async def _propfind_at(
+        self, url: str, depth: int, props: Iterable[tuple[str, str]], *, follow: bool
+    ) -> tuple[str, list[_Response] | None]:
+        """The URL that answered (the redirect target, if any) and its multi-status
+        responses, or ``None`` if the resource does not exist."""
         response = await self._request(
             "PROPFIND",
             url,
@@ -269,19 +271,35 @@ class CalDAVSink(TodoSink):
             content=_propfind_body(props),
             follow=follow,
         )
+        # ``_request`` only follows redirects within the origin, so this stays on the server.
+        final_url = str(response.request.url)
         if response.status_code in {404, 405, 410}:
-            return None
+            return final_url, None
         if response.status_code != 207:
             raise SinkError(NOT_CALDAV)
-        return parse_multistatus(response.content)
+        return final_url, parse_multistatus(response.content)
+
+    async def _propfind(
+        self, url: str, depth: int, props: Iterable[tuple[str, str]]
+    ) -> list[_Response] | None:
+        """Multi-status responses, or ``None`` if the resource does not exist."""
+        _, responses = await self._propfind_at(url, depth, props, follow=False)
+        return responses
 
     async def _props(
-        self, url: str, props: Iterable[tuple[str, str]], *, follow: bool = False
+        self, url: str, props: Iterable[tuple[str, str]]
     ) -> dict[str, ET.Element] | None:
-        responses = await self._propfind(url, 0, props, follow=follow)
+        responses = await self._propfind(url, 0, props)
         if not responses:
             return None
         return responses[0].props
+
+    async def _located_props(
+        self, url: str, props: Iterable[tuple[str, str]]
+    ) -> tuple[str, dict[str, ET.Element] | None]:
+        """Like ``_props``, but follows redirects and returns the URL that answered."""
+        final_url, responses = await self._propfind_at(url, 0, props, follow=True)
+        return final_url, responses[0].props if responses else None
 
     # -- discovery -------------------------------------------------------------------------
 
@@ -300,7 +318,9 @@ class CalDAVSink(TodoSink):
         return self._path(home, self._absolute(principal_path)) if home else None
 
     async def list_task_lists(self) -> list[TaskList]:
-        props = await self._props(
+        # After a redirect, IDs and relative hrefs refer to the target, not the configured URL
+        # (PUT, DELETE and REPORT do not follow redirects).
+        url, props = await self._located_props(
             self._url,
             [
                 (DAV, "resourcetype"),
@@ -309,26 +329,23 @@ class CalDAVSink(TodoSink):
                 (CALDAV, "calendar-home-set"),
                 (CALDAV, "supported-calendar-component-set"),
             ],
-            follow=True,
         )
         if props is not None and _is_calendar(props):
-            path = self._path(self._url) or "/"
+            path = self._path(url) or "/"
             if not _supports_vtodo(props):
                 return []
             return [TaskList(self._collection(path), _display_name(props, path))]
-        home = await self._home_from(self._url, props) if props is not None else None
+        home = await self._home_from(url, props) if props is not None else None
         if home is None and urlsplit(self._url).path in {"", "/"}:
-            well_known = await self._props(
-                f"{self._origin}/.well-known/caldav",
-                [(DAV, "current-user-principal")],
-                follow=True,
+            well_known_url, well_known = await self._located_props(
+                f"{self._origin}/.well-known/caldav", [(DAV, "current-user-principal")]
             )
             if well_known is not None:
-                home = await self._home_from(f"{self._origin}/.well-known/caldav", well_known)
+                home = await self._home_from(well_known_url, well_known)
         if home is None:
             if props is None:
                 raise SinkNotFoundError()
-            home = self._path(self._url) or "/"
+            home = self._path(url) or "/"
         home_url = self._absolute(self._collection(home))
         children = await self._propfind(
             home_url,

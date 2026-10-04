@@ -41,8 +41,8 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 | `api` | `ollamail-api` (`backend/Dockerfile`) | FastAPI (uvicorn) |
 | `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `ocr`, `default`, `push`; Healthcheck über eine Heartbeat-Datei (`python -m app.core.heartbeat`) |
 | `migrate` | `ollamail-api` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
-| `postgres` | `pgvector/pgvector:0.8.7-pg16-bookworm` | Datenbank, Volume `postgres-data`; Tuning für pgvector über `POSTGRES_*` ([`OPERATIONS.md` §8.4](../docs/OPERATIONS.md#84-postgresql-tuning-pgvector)) |
-| `ollama-cpu` / `ollama-gpu` | `ollama/ollama:0.35.0` | Optionaler LLM-Server, im Netz `backend` als `ollama` erreichbar |
+| `postgres` | `pgvector/pgvector` (gepinnt, `POSTGRES_IMAGE`) | Datenbank, Volume `postgres-data`; Tuning für pgvector über `POSTGRES_*` ([`OPERATIONS.md` §8.4](../docs/OPERATIONS.md#84-postgresql-tuning-pgvector)) |
+| `ollama-cpu` / `ollama-gpu` | `ollama/ollama` (gepinnt, `OLLAMA_IMAGE`) | Optionaler LLM-Server, im Netz `backend` als `ollama` erreichbar |
 
 Volumes: `postgres-data` (Datenbank), `ollamail-data` (Anhänge, Audio; `/data` in `api`/`worker`),
 `ollama-models` (Modelle).
@@ -54,8 +54,8 @@ Ollama läuft im Upstream-Image als root, aber ebenfalls mit schreibgeschütztem
 dieser root nur eigene Dateien schreiben und keine fremden Rechte übernehmen.
 
 Die Drittanbieter-Images sind auf feste Versionen gepinnt (PostgreSQL inkl. Debian-Release, damit
-sich die Collations einer bestehenden Datenbank nicht unbemerkt ändern). Updates schlägt Dependabot
-vor; Wechsel siehe [`OPERATIONS.md` §6.5](../docs/OPERATIONS.md#65-drittanbieter-images).
+sich die Collations einer bestehenden Datenbank nicht unbemerkt ändern); die Tags stehen als
+Standardwerte in `compose.yaml`. Updates schlägt Dependabot vor; Wechsel siehe [`OPERATIONS.md` §6.5](../docs/OPERATIONS.md#65-drittanbieter-images).
 
 ## Netze
 
