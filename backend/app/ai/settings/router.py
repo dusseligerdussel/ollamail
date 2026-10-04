@@ -423,16 +423,24 @@ async def _test(endpoint: EndpointConfig) -> AIConnectionTest:
     )
 
 
-@router.post("/providers/test")
+@router.post("/providers/test", responses=ADMIN_REAUTH_RESPONSES)
 async def check_ai_provider_settings(
-    body: AIProviderTest, _: AdminSessionDep, db: DbDep, settings: SettingsDep
+    body: AIProviderTest, admin: AdminSessionDep, db: DbDep, settings: SettingsDep
 ) -> AIConnectionTest:
-    """Test unsaved settings (e.g. in the form before saving)."""
+    """Test unsaved settings (e.g. in the form before saving). The stored key of ``name``
+    goes only to the stored ``kind`` and ``base_url``; sending it elsewhere needs a recent
+    confirmation, like saving the change does (#219)."""
     api_key = body.api_key.get_secret_value() if body.api_key else None
     if api_key is None and body.name is not None:
         config = await _config(db, settings.llm)
         stored = config.overrides.endpoints.get(body.name)
         api_key = stored.api_key if stored is not None else None
+        if (
+            stored is not None
+            and api_key
+            and (stored.provider != body.kind or stored.base_url != body.base_url)
+        ):
+            check_recent(settings, admin)
     return await _test(
         EndpointConfig(
             name=body.name or "test",

@@ -98,12 +98,13 @@ Nutzer anmeldet, oder einen KI-Endpunkt auf einen fremden Server umzubiegen. Sie
 | LDAP-Verzeichnis anlegen/ändern | `POST /api/auth/ldap/directories`, `PUT …/{name}` |
 | Anmelde-Einstellungen (lokale Anmeldung, 2FA-Pflicht) | `PATCH /api/admin/auth/settings` |
 | KI-Provider anlegen/ändern | `POST /api/admin/ai/providers`, `PATCH /api/admin/ai/providers/{name}` |
+| Verbindungstest mit gespeichertem API-Key an eine andere URL oder einen anderen Typ (#219) | `POST /api/admin/ai/providers/test` (ohne `api_key`, mit `name`) |
 | Rollen-Zuordnung (Gruppe → Rolle) speichern (#206) | `PUT /api/admin/auth/role-mapping` |
 | SCIM-Einstellungen (Schalter, verknüpfende Provider) (#206) | `PATCH /api/admin/scim` |
 | KI-Einstellungen: Cloud-Provider einschalten oder Aufgaben zuordnen (#206) | `PATCH /api/admin/ai/settings` |
 | Shared-Mailbox-Zuweisungen ändern (#206) | `PUT /api/admin/shared-mailboxes/{id}/assignments`; beim Anlegen (`POST /api/admin/shared-mailboxes`) nur, wenn Zuweisungen mitgeschickt werden |
 
-Lesen, Verbindungstests, Löschen von Providern und „Überall abmelden“ brauchen keine
+Lesen, Verbindungstests (außer dem gespeicherten Key an einem neuen Ziel), Löschen von Providern und „Überall abmelden“ brauchen keine
 Bestätigung: Sie geben niemandem Zugang zu fremden Konten oder Mails. Bei den KI-Einstellungen
 gilt das auch für das Ausschalten der Cloud-Provider, das Profil und die Parallelität: Damit
 gehen keine Mail-Inhalte an einen anderen Endpunkt. Wer sich selbst ein Shared Mailbox zuweist,

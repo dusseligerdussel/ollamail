@@ -114,8 +114,11 @@ class MailProvider(Protocol):  # app/mail/providers/base.py
   (Graph). Senden wird nie automatisch wiederholt (kein doppelter Versand); abgelehnte Mails
   sind `SendError` mit Code. Der Server legt die gesendete Kopie ab, der nächste Sync bringt sie.
 - **Registry:** Provider registrieren sich mit `registry.register(MailboxType.X, Factory)`; Features
-  nutzen nur `registry.create(config)`. Für Tests anderer Module gibt es `FakeMailProvider`
-  (In-Memory-Server mit Änderungslog, IMAP- oder Gmail-Verhalten).
+  nutzen nur `registry.create(config)`. `destination=` nennt die `provider_settings`-Schlüssel,
+  die bestimmen, wohin die Zugangsdaten gehen (IMAP: Host/Port/Security/Zertifikatsprüfung von
+  IMAP und SMTP, Graph: `tenant_id`, Gmail: keine); ohne Angabe zählen alle (#219). Für Tests
+  anderer Module gibt es `FakeMailProvider` (In-Memory-Server mit Änderungslog, IMAP- oder
+  Gmail-Verhalten).
 
 **Normalisierung** (`normalize_message`): MIME-Parsing mit robustem Zeichensatz-Fallback (deklariert →
 UTF-8 → Windows-1252, nie Abbruch), HTML → Text (`<blockquote>` wird zu `> `), Abtrennen von Zitaten
@@ -334,7 +337,7 @@ und den Lösch-Job (`app/mail/deletion.py`); sie baut nichts davon nach.
 | `POST /mailboxes/autodiscover` | Host/Port-Vorschläge zur Adresse (bekannte Anbieter, sonst `imap.<domain>`/`mail.<domain>`). Offline, keine DNS-/HTTP-Abfragen; Adresse im Body, damit sie nicht in Access-Logs landet. Hinweise als Codes (`app_password`, `enable_imap`, `oauth_required`, …) |
 | `POST /mailboxes/test` | Verbindungstest ohne Speichern (Provider aus der Registry, `list_folders`). Ergebnis `ok`, Fehlercode oder Ordnerliste für die Ordnerauswahl vor dem Anlegen. Rate-Limit pro Nutzer (`OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS` je 10 Minuten, gemeinsam mit Anlegen und Verbindungsänderung; darüber 429) |
 | `GET/POST /mailboxes` | Eigene Postfächer mit Sync-Status; Anlegen testet die Verbindung (422 mit `error_code`), lehnt Duplikate ab (409) und stößt den Initialimport an |
-| `GET/PATCH/DELETE /mailboxes/{id}` | Details; Umbenennen, Verbindung/Zugangsdaten (vor dem Speichern getestet), Importzeitraum, ausgeschlossene Rollen, Pausieren/Fortsetzen (`sync_enabled`); Entfernen (202, im Hintergrund, siehe unten) |
+| `GET/PATCH/DELETE /mailboxes/{id}` | Details; Umbenennen, Verbindung/Zugangsdaten (vor dem Speichern getestet; ändert sich das Ziel – Host, Port, Transportsicherheit von IMAP/SMTP, Token-Endpunkt –, sind neue `credentials` Pflicht, sonst 422 `credentials_required`, #219), Importzeitraum, ausgeschlossene Rollen, Pausieren/Fortsetzen (`sync_enabled`); Entfernen (202, im Hintergrund, siehe unten) |
 | `GET /mailboxes/{id}/status` | Nur der Sync-Status |
 | `POST /mailboxes/{id}/sync` | Sync sofort anstoßen (202, `queued`); 409, wenn pausiert |
 | `GET/PATCH /mailboxes/{id}/folders` | Ordner mit Auswahl und Status je Ordner; Auswahl setzen |
@@ -600,7 +603,8 @@ sechsmal im Abstand von 10 s erneut.
   LLM-Anfragen im Gateway (`limiter.py`); die Job-Slots der `llm`-Queue sind die Obergrenze.
 - **Admin-API** (`/api/admin/ai`, nur Admins): `GET/PATCH /settings`, `GET/POST /providers`,
   `PATCH/DELETE /providers/{name}`, `POST /providers/{name}/test` und `POST /providers/test`
-  (ungespeicherte Werte; ohne Key wird der gespeicherte genutzt). Der Verbindungstest ruft nur die
+  (ungespeicherte Werte; ohne Key wird der gespeicherte genutzt – an eine andere `base_url` oder
+  einen anderen Typ als gespeichert nur nach erneuter Bestätigung, `check_recent`, #219). Der Verbindungstest ruft nur die
   Modellliste ab, es gehen keine Mail-Inhalte hinaus. API-Keys sind write-only (`api_key_set`).
   Ein Provider, dem Tasks zugeordnet sind, lässt sich nicht löschen (409).
 - **Nutzer:** `GET /api/ai/status` listet Cloud-Provider, die gerade Mail-Inhalte erhalten, je Task.
@@ -1552,7 +1556,8 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
   nicht als Verlauf an das Modell gegeben; Digests mit einem nicht mehr lesbaren Postfach sind
   nicht mehr abrufbar. Getestet für jedes Feature in `backend/tests/shared/test_access.py`.
 - **Admin-API** (`/admin/shared-mailboxes`, nur Admins, `app/mail/api/shared.py`): anlegen
-  (Verbindungstest, Zugangsdaten verschlüsselt), umbenennen, Zugangsdaten/Sync-Einstellungen,
+  (Verbindungstest, Zugangsdaten verschlüsselt), umbenennen, Zugangsdaten/Sync-Einstellungen
+  (Zielwechsel nur mit neuen Zugangsdaten wie oben; Verbindungstests mit dem Rate-Limit pro Admin),
   pausieren, Ordner, Sync anstoßen, entfernen (im Hintergrund wie oben), Zuweisungen ersetzen
   (`PUT …/assignments`, `{"users": [...], "act_users": [...], "groups": [{"group", "provider",
   "permission"}]}`; `act_users` erhalten `act`). Antworten enthalten
