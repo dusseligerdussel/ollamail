@@ -93,7 +93,11 @@ function TaskRow({
           onChange={(event) => onChange({ ...value, provider: event.target.value })}
         >
           <NativeSelectOption value="">
-            {t("pages.ai.assignments.defaultProvider", { name: setting.default_provider })}
+            {t("pages.ai.assignments.defaultProvider", {
+              name:
+                providers.find((option) => option.name === setting.default_provider)
+                  ?.display_name ?? setting.default_provider,
+            })}
           </NativeSelectOption>
           {providers.map((option) => (
             <NativeSelectOption key={option.name} value={option.name}>
