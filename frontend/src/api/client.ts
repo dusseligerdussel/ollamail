@@ -1,6 +1,6 @@
 import createClient, { type Middleware } from "openapi-fetch";
 
-import { ApiError, isProblemDetails } from "./errors";
+import { ApiError, isProblemDetails, parseRetryAfter } from "./errors";
 import type { paths } from "./schema.gen";
 
 /** All API requests go through the same origin; the proxy strips this prefix. */
@@ -93,7 +93,9 @@ export async function unwrap<T>(request: Promise<FetchResult<T>>): Promise<T> {
   }
   const { data, error, response } = result;
   if (!response.ok) {
-    throw new ApiError(response.status, isProblemDetails(error) ? error : undefined);
+    throw new ApiError(response.status, isProblemDetails(error) ? error : undefined, {
+      retryAfter: parseRetryAfter(response.headers.get("Retry-After")),
+    });
   }
   return data as T;
 }

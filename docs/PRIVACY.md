@@ -32,15 +32,19 @@ Feature, sondern eine Randbedingung für jede Änderung.
    die neue Sitzung erscheint in der Sitzungsliste des betroffenen Kontos (Einstellungen) mit dem
    Anmeldeverfahren, über das sie entstand, und lässt sich dort beenden. Zusätzlich bekommt die
    betroffene Person bei der nächsten Anmeldung über ein bisheriges Verfahren einen Hinweis
-   („Neue Anmeldung verknüpft“, #208), den nur sie selbst schließen kann – nicht über eine
-   Sitzung des neu verknüpften Providers. Sie kann die Verknüpfung dann selbst trennen
+   („Neue Anmeldung verknüpft“, #208), den nur sie selbst schließen kann – weder über eine
+   Sitzung des neu verknüpften Providers noch über einen zweiten, ebenso neu verknüpften
+   (#220: nur Verfahren, die vor dem Hinweis bestanden und selbst keinen offenen Hinweis haben).
+   Sie bestätigt ihn mit „Das war ich“ (`user.identity_link_confirmed`) oder kann die Verknüpfung dann selbst trennen
    (Einstellungen → Anmeldeverfahren, #216): Das beendet die Sitzungen des Providers und sperrt
    ihn für eine erneute automatische Verknüpfung per E-Mail-Adresse. Diese Sperre kann nur die
    betroffene Person selbst aufheben, **kein Admin** – sonst liefe der Schutz gegen einen
    böswilligen oder übernommenen Admin-Account ins Leere. Der Admin sieht die Sperre nur im
    Audit-Log (`user.identity_unlinked`). Verbleibendes Restrisiko: Ein Admin kann das Konto
    löschen und neu anlegen oder mit Datenbankzugriff alles umgehen; beides steht im Audit-Log
-   bzw. liegt außerhalb dessen, was die Anwendung verhindern kann. Betreiber vergeben die Admin-Rolle deshalb sparsam, prüfen das
+   bzw. liegt außerhalb dessen, was die Anwendung verhindern kann. Meldet sich die Person nie
+   über ein bisheriges Verfahren an, sieht sie den Hinweis nicht; eine Benachrichtigung per
+   E-Mail an die Kontoadresse setzt einen Systemversand voraus, den ollamail noch nicht hat. Betreiber vergeben die Admin-Rolle deshalb sparsam, prüfen das
    Audit-Log regelmäßig und halten `link_by_email` aus, wo es nicht gebraucht wird.
 5. **Transparenz** – Jede KI-Bewertung (Triage, Todo) ist für den Nutzer erklärbar und korrigierbar.
 
@@ -223,6 +227,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `user.identity_linked` | Externe Anmeldung (OIDC, GitHub, SAML, LDAP) mit einem bestehenden Konto über die verifizierte E-Mail-Adresse verknüpft (#190; Akteur `system`, Ziel = Nutzer-ID, `provider`, `via`: `email` bei `link_by_email`, `scim` bei SCIM-Linking) | aktiv |
 | `user.identity_unlinked` | Die Person trennt eine externe Anmeldung selbst (#216, Einstellungen → Anmeldeverfahren; Akteur = Nutzer, Ziel = Nutzer-ID, `provider`, `sessions` = Anzahl beendeter Sitzungen). Sperrt den Provider zugleich gegen erneutes Verknüpfen per E-Mail-Adresse | aktiv |
 | `user.identity_link_unblocked` | Die Person hebt diese Sperre selbst auf (#216; Akteur = Nutzer, Ziel = Nutzer-ID, `provider`). Admins können das nicht | aktiv |
+| `user.identity_link_confirmed` | Die Person bestätigt eine per E-Mail-Adresse verknüpfte Anmeldung („Das war ich“, schließt den Hinweis; #208, #220; Akteur = Nutzer, Ziel = Nutzer-ID, `provider`) | aktiv |
 | `user.role_changed` | Nutzerverwaltung (`via: admin`), Rollen-Zuordnung bzw. LDAP-`admin_groups` beim Login (Akteur `system`, `provider`) | aktiv |
 | `user.deactivated`, `user.reactivated` | Nutzerverwaltung (Deaktivieren beendet alle Sitzungen, `details.sessions`); `app.cli reset-password --activate` | aktiv |
 | `user.invited` | Einladung bzw. neuer Einladungslink (`renewed`) | aktiv |

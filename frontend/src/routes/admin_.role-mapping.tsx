@@ -25,12 +25,12 @@ import { Notice } from "@/components/admin/notice";
 import { useReauth } from "@/components/auth/reauth";
 import { Forbidden } from "@/components/forbidden";
 import { InlineError } from "@/components/inline-error";
-import { ListSkeleton } from "@/components/list-skeleton";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Switch } from "@/components/ui/switch";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { retryFailed } from "@/lib/retry-failed";
 
@@ -65,7 +65,7 @@ function RoleMappingContent() {
     ],
   });
   if (mapping.isPending || oidc.isPending || github.isPending || ldap.isPending) {
-    return <ListSkeleton />;
+    return <MappingSkeleton />;
   }
   const error = mapping.error ?? oidc.error ?? github.error ?? ldap.error;
   if (error || !mapping.data)
@@ -83,6 +83,49 @@ function RoleMappingContent() {
       <MappingForm key={JSON.stringify(mapping.data)} saved={mapping.data} providers={providers} />
       <MappingTest providers={providers} />
     </>
+  );
+}
+
+/** Loading placeholder in the shape of the form: general settings, then rule rows. */
+function MappingSkeleton() {
+  const { t } = useTranslation();
+  return (
+    <div role="status" aria-live="polite" aria-busy="true">
+      <span className="sr-only">{t("common.loading")}</span>
+      <Skeleton className="mb-3 h-3 w-16" />
+      <div className="divide-y rounded-lg border">
+        <div className="flex items-center justify-between gap-6 px-4 py-3.5">
+          <div className="flex min-w-0 flex-1 flex-col gap-2">
+            <Skeleton className="h-3.5 w-40" />
+            <Skeleton className="h-3 w-full max-w-80" />
+            <Skeleton className="h-3 w-2/3 max-w-60" />
+          </div>
+          <Skeleton className="h-[1.15rem] w-8 shrink-0 rounded-full" />
+        </div>
+        <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+          <div className="flex min-w-0 flex-col gap-2">
+            <Skeleton className="h-3.5 w-24" />
+            <Skeleton className="h-3 w-44" />
+          </div>
+          <Skeleton className="h-8 w-full shrink-0 sm:w-40" />
+        </div>
+      </div>
+      <Skeleton className="mt-8 mb-3 h-3 w-12" />
+      <Skeleton className="mb-3 h-3 w-full max-w-md" />
+      <div className="divide-y rounded-lg border">
+        {[0, 1, 2].map((row) => (
+          <div
+            key={row}
+            className="grid grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] gap-2 px-4 py-3 sm:grid-cols-[minmax(0,1fr)_10rem_10rem_auto] sm:items-center"
+          >
+            <Skeleton className="col-span-2 h-8 sm:col-span-1" />
+            <Skeleton className="size-8 sm:order-last" />
+            <Skeleton className="h-8" />
+            <Skeleton className="col-span-2 h-8 sm:col-span-1" />
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
@@ -111,7 +154,10 @@ function MappingForm({ saved, providers }: { saved: RoleMapping; providers: Prov
     })),
   );
 
-  const withReauth = useReauth();
+  const withReauth = useReauth({
+    action: t("auth.reauth.actions.saveRoleMapping"),
+    unsavedChanges: true,
+  });
   const save = useMutation({
     // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: () =>
@@ -158,31 +204,22 @@ function MappingForm({ saved, providers }: { saved: RoleMapping; providers: Prov
   return (
     <form onSubmit={onSubmit}>
       <AdminSection id={`${id}-general`} title={t("pages.roleMapping.general")}>
-        <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+        <div className="flex items-center justify-between gap-6 px-4 py-3.5">
           <div className="min-w-0">
-            <div id={`${id}-enabled`} className="text-ui font-medium">
+            <label htmlFor={`${id}-enabled`} className="text-ui font-medium">
               {t("pages.roleMapping.enabled")}
-            </div>
-            <div className="text-ui text-muted-foreground">
+            </label>
+            <div id={`${id}-enabled-description`} className="text-ui text-muted-foreground">
               {t("pages.roleMapping.enabledDescription")}
             </div>
           </div>
-          <ToggleGroup
-            type="single"
-            variant="outline"
-            size="sm"
-            aria-labelledby={`${id}-enabled`}
-            className="w-full shrink-0 sm:w-40"
-            value={enabled ? "on" : "off"}
-            onValueChange={(value) => value && setEnabled(value === "on")}
-          >
-            <ToggleGroupItem value="off" className="flex-1">
-              {t("pages.roleMapping.off")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="on" className="flex-1">
-              {t("pages.roleMapping.on")}
-            </ToggleGroupItem>
-          </ToggleGroup>
+          <Switch
+            id={`${id}-enabled`}
+            className="shrink-0"
+            checked={enabled}
+            aria-describedby={`${id}-enabled-description`}
+            onCheckedChange={setEnabled}
+          />
         </div>
         <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
           <div className="min-w-0">

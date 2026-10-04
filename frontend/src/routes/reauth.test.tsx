@@ -87,7 +87,9 @@ describe("confirmation before sensitive actions", () => {
 
     await user.click(await screen.findByRole("button", { name: "Remove" }));
     const sheet = await screen.findByRole("dialog", { name: "Confirm it is you" });
-    expect(sheet).toHaveTextContent("It stays valid for 10 minutes.");
+    expect(sheet).toHaveTextContent(
+      "“Remove authenticator app” needs a recent confirmation. It stays valid for 10 minutes.",
+    );
     await user.type(within(sheet).getByLabelText("Password"), "wrong");
     await user.click(within(sheet).getByRole("button", { name: "Confirm" }));
     expect(await within(sheet).findByRole("alert")).toHaveTextContent(

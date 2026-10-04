@@ -39,7 +39,7 @@ und – bei UI-Arbeit – `docs/DESIGN.md`.
   einen Fix auf einem eigenen Branch vorschlagen und Major-Updates kommentieren – nicht mergen.
 - Dependabot aktualisiert die Drittanbieter-Images nur in `deploy/compose.yaml` (Standardwert in
   `${POSTGRES_IMAGE:-…}` / `${OLLAMA_IMAGE:-…}`). Ihre Kopien (Helm-`values.yaml`, `.env.example`,
-  `deploy/helm/ci/postgres.yaml`, `model-evals.yml`) zieht `scripts/check-image-pins.sh --fix`
+  `deploy/helm/ci/postgres.yaml`, `model-evals.yml`, `deploy/truenas/`) zieht `scripts/check-image-pins.sh --fix`
   nach; bis dahin ist der Compose-Smoke-Test rot. Die CI-Service-Images (`pgvector/pgvector:pg16`
   in `ci.yml`/`model-evals.yml`) folgen dem gleitenden Tag und brauchen keine Pflege.
 - `.github/workflows/security.yml` (pip-audit, `pnpm audit --prod`, CodeQL) läuft wöchentlich und

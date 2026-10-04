@@ -951,6 +951,7 @@
           "user.identity_linked",
           "user.identity_unlinked",
           "user.identity_link_unblocked",
+          "user.identity_link_confirmed",
           "group.created",
           "group.updated",
           "group.deleted",
@@ -14100,7 +14101,7 @@
     },
     "/auth/link-notices": {
       "get": {
-        "description": "Sign-ins linked to the own account by e-mail address that are not acknowledged yet\n(#208), newest first. Sessions of the linked provider itself do not see them.",
+        "description": "Sign-ins linked to the own account by e-mail address that are not acknowledged yet\n(#208), newest first. Only sessions of a sign-in method that was linked before and has no\nopen notice itself see them (#220).",
         "operationId": "auth_list_link_notices",
         "responses": {
           "200": {
@@ -14129,7 +14130,7 @@
     },
     "/auth/link-notices/{notice_id}": {
       "delete": {
-        "description": "Acknowledge a link notice. Not possible from a session of the linked provider.",
+        "description": "Confirm a link (\"that was me\"). Only sessions that may see the notice can (#220): not\nfrom a sign-in method with an open notice of its own or linked after the notice.",
         "operationId": "auth_dismiss_link_notice",
         "parameters": [
           {

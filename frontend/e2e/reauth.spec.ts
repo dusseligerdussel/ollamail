@@ -248,6 +248,14 @@ test("saving the role mapping confirms and then saves (#206)", async ({ page }) 
   await page.getByRole("button", { name: "Save", exact: true }).click();
   const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
   await expect(sheet).toBeVisible();
+  // The sheet names the action; signing in again would discard the unsaved form (#222).
+  await expect(sheet).toContainText("“Save role mapping” needs a recent confirmation.");
+  await sheet.getByRole("button", { name: "Sign out and sign in again" }).click();
+  await expect(sheet.getByRole("alert")).toHaveText(
+    "Anything not saved on this page will be lost. Confirm another way to keep it.",
+  );
+  await sheet.getByRole("button", { name: "Use your password" }).click();
+  await expect(sheet.getByRole("alert")).toHaveCount(0);
   await sheet.getByLabel("Password").fill("correct horse battery");
   await sheet.getByRole("button", { name: "Confirm" }).click();
 

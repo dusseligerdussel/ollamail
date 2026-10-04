@@ -118,3 +118,17 @@ test("web push: opt in on this device, list devices, remove them", async ({ page
   await expect(page.getByText("No device set up yet.")).toBeVisible();
   expect(removed).toEqual([otherDevice.id, THIS_DEVICE_ID]);
 });
+
+test("web push: says why the switch is off while browser notifications are off", async ({
+  page,
+  context,
+}) => {
+  await context.grantPermissions(["notifications"]);
+  await mockNotifications(page, { enabled: false, webPush: { devices: [] } });
+  await mockPushManager(page);
+  await page.goto("/settings/notifications");
+
+  const toggle = page.getByRole("switch", { name: "Notify me without an open tab" });
+  await expect(toggle).toBeDisabled();
+  await expect(toggle).toHaveAccessibleDescription(/Turn on “Notify me about new mail” first\./);
+});

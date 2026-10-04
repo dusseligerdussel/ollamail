@@ -1,0 +1,51 @@
+annotations:
+  min_scale_version: 24.10.2.2
+app_version: edge
+capabilities: []
+categories:
+- productivity
+changelog_url: https://github.com/dusseligerdussel/ollamail/blob/main/CHANGELOG.md
+date_added: '2026-10-04'
+description: Self-hosted email client with local AI (triage, summaries, search, audio digests)
+  powered by Ollama. Works without any cloud service.
+home: https://github.com/dusseligerdussel/ollamail
+host_mounts: []
+icon: https://media.sys.truenas.net/apps/ollamail/icons/icon.svg
+keywords:
+- email
+- mail
+- ai
+- llm
+- ollama
+lib_version: 2.3.15
+lib_version_hash: 418b1697e018a564438ced4d735f4ced3ea16cc9fa74971a6040e769c80a66e5
+maintainers:
+- email: dev@truenas.com
+  name: truenas
+  url: https://www.truenas.com/
+name: ollamail
+run_as_context:
+- description: Containers [migrate, api, worker, frontend] run as the fixed non-root user and
+    group of the images.
+  gid: 10001
+  group_name: Host group is [ollamail]
+  uid: 10001
+  user_name: Host user is [ollamail]
+- description: Container [postgres] runs as non-root user and group.
+  gid: 999
+  group_name: Host group is [docker]
+  uid: 999
+  user_name: Host user is [netdata]
+- description: Container [ollama] runs as root user and group, without capabilities.
+  gid: 0
+  group_name: Host group is [root]
+  uid: 0
+  user_name: Host user is [root]
+screenshots: []
+sources:
+- https://github.com/dusseligerdussel/ollamail
+- https://github.com/dusseligerdussel/ollamail/pkgs/container/ollamail-api
+- https://github.com/dusseligerdussel/ollamail/pkgs/container/ollamail-frontend
+title: ollamail
+train: community
+version: 1.0.0

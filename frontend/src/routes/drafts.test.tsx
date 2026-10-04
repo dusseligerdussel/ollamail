@@ -171,6 +171,27 @@ describe("reply drafts in the thread", () => {
     expect(body).toHaveValue("Mein Text");
   });
 
+  it("too many AI requests: the suggestion is tried again with the same instruction", async () => {
+    const drafts = mockReplyApi({ generateBusy: 1, generated: "Danke, passt." });
+    await openThread();
+    await userEvent.click(await screen.findByRole("button", { name: /^Reply(R)?$/ }));
+    await userEvent.click(within(editor()).getByRole("button", { name: "Suggest draft" }));
+    await typeInto(screen.getByRole("textbox", { name: /Short instruction/ }), "kurz{Enter}");
+
+    const alert = await within(editor()).findByRole("alert");
+    expect(alert).toHaveTextContent("You already have several answers or drafts in progress.");
+    expect(alert.querySelector(".text-destructive")).toBeNull();
+    await waitFor(
+      () => expect(within(alert).getByRole("button", { name: "Try again" })).toBeEnabled(),
+      { timeout: 2500 },
+    );
+    await userEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByRole("textbox", { name: "Reply text" })).toHaveValue("Danke, passt.");
+    const generations = drafts.requests.filter((r) => r.route === "POST /api/drafts/generate");
+    expect(generations.map((r) => r.body?.instruction)).toEqual(["kurz", "kurz"]);
+  });
+
   it("shows why sending failed and keeps the draft open", async () => {
     mockReplyApi({ sendError: [502, "recipients_refused"] });
     await openThread();

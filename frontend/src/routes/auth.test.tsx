@@ -1,8 +1,9 @@
 import { screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
+import { toast } from "sonner";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { pageNavigation, safeRedirect, type User } from "@/api/auth";
+import { type LinkNotice, pageNavigation, safeRedirect, type User } from "@/api/auth";
 import { CSRF_HEADER } from "@/api/client";
 import i18n from "@/i18n";
 import {
@@ -495,38 +496,60 @@ describe("link notice", () => {
     created_at: "2026-01-02T09:30:00Z",
   };
 
-  function noticeBackend() {
-    let notices = [notice];
+  function noticeBackend({
+    failDismiss = false,
+    notices: initial = [notice] as LinkNotice[],
+  } = {}) {
+    let notices = initial;
     return mockFetch((request) => {
       const { pathname } = new URL(request.url);
       if (`${request.method} ${pathname}` === "GET /api/auth/link-notices") return json(notices);
-      if (request.method === "DELETE" && pathname === `/api/auth/link-notices/${notice.id}`) {
+      if (request.method === "DELETE" && pathname.startsWith("/api/auth/link-notices/")) {
+        if (failDismiss)
+          return json({ title: "Internal Server Error", status: 500 }, { status: 500 });
         notices = [];
         return new Response(null, { status: 204 });
+      }
+      if (`${request.method} ${pathname}` === "GET /api/auth/sessions") {
+        return json([
+          testSession,
+          {
+            ...testSession,
+            id: "00000000-0000-4000-8000-0000000000a2",
+            current: false,
+            provider: "oidc:corp",
+            provider_name: "Corporate SSO",
+          },
+        ]);
       }
       return backend()(request);
     });
   }
 
-  it("tells the user about a linked sign-in and links to the sessions", async () => {
+  it("tells the user about a linked sign-in and offers both answers", async () => {
     noticeBackend();
     const user = userEvent.setup();
     const { router } = await renderApp("/inbox");
 
     const bar = await screen.findByRole("complementary", { name: "New sign-in linked" });
     expect(bar).toHaveTextContent(
-      "On Jan 2, 2026, 9:30 AM, a sign-in through Corporate SSO was linked to your account. Not you?",
+      "On Jan 2, 2026, 9:30 AM, a sign-in through Corporate SSO was linked to your account.",
     );
+    expect(within(bar).getByRole("button", { name: "That was me" })).toBeVisible();
 
-    // ... and to unlinking it for good (#216).
-    expect(within(bar).getByRole("link", { name: "Unlink sign-in" })).toHaveAttribute(
-      "href",
-      "/settings#settings-sign-in-methods",
-    );
-
-    await user.click(within(bar).getByRole("link", { name: "Review sessions" }));
+    // "That wasn't me" leads to unlinking it for good (#216, #220).
+    await user.click(within(bar).getByRole("link", { name: "That wasn't me" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/settings"));
-    expect(router.state.location.hash).toBe("settings-sessions");
+    expect(router.state.location.hash).toBe("settings-sign-in-methods");
+  });
+
+  it("names a provider that is no longer configured by its kind", async () => {
+    noticeBackend({ notices: [{ ...notice, provider_name: null }] });
+    await renderApp("/inbox");
+
+    const bar = await screen.findByRole("complementary", { name: "New sign-in linked" });
+    expect(bar).toHaveTextContent("a sign-in through OpenID Connect was linked");
+    expect(bar).not.toHaveTextContent("oidc:corp");
   });
 
   it("is dismissed for good once confirmed", async () => {
@@ -535,7 +558,7 @@ describe("link notice", () => {
     await renderApp("/inbox");
 
     const bar = await screen.findByRole("complementary", { name: "New sign-in linked" });
-    await user.click(within(bar).getByRole("button", { name: "That was me – dismiss notice" }));
+    await user.click(within(bar).getByRole("button", { name: "That was me" }));
 
     await waitFor(() =>
       expect(
@@ -543,6 +566,33 @@ describe("link notice", () => {
       ).not.toBeInTheDocument(),
     );
     expect(sent(fetchMock)).toContain(`DELETE /api/auth/link-notices/${notice.id}`);
+  });
+
+  it("stays and says so when confirming fails", async () => {
+    const error = vi.spyOn(toast, "error");
+    noticeBackend({ failDismiss: true });
+    const user = userEvent.setup();
+    await renderApp("/inbox");
+
+    const bar = await screen.findByRole("complementary", { name: "New sign-in linked" });
+    await user.click(within(bar).getByRole("button", { name: "That was me" }));
+
+    await waitFor(() =>
+      expect(error).toHaveBeenCalledWith("Could not confirm the notice", expect.anything()),
+    );
+    expect(
+      await screen.findByRole("complementary", { name: "New sign-in linked" }),
+    ).toBeInTheDocument();
+  });
+
+  it("marks the sessions of the newly linked provider", async () => {
+    noticeBackend();
+    await renderApp("/settings");
+
+    const section = screen.getByRole("region", { name: "Active sessions" });
+    const [current, other] = await within(section).findAllByRole("listitem");
+    expect(other).toHaveTextContent("Newly linked");
+    expect(current).not.toHaveTextContent("Newly linked");
   });
 });
 

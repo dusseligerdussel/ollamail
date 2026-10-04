@@ -134,9 +134,10 @@ test("a model that takes too long is not reported as unreachable", async ({ page
   await searchbox(page).press("Enter");
 
   const alert = page.getByRole("article", { name: QUESTION }).getByRole("alert");
-  await expect(alert).toHaveText(
+  await expect(alert.getByRole("paragraph")).toHaveText(
     "The language model took too long. Please try again or ask a shorter question.",
   );
+  await expect(alert.getByRole("button", { name: "Try again" })).toBeEnabled();
 });
 
 test("too many parallel requests are explained instead of a generic error", async ({ page }) => {
@@ -149,6 +150,9 @@ test("too many parallel requests are explained instead of a generic error", asyn
   await expect(alert).toContainText(
     "You already have several answers or drafts in progress. Wait for one to finish, then try again.",
   );
+  // The same question can be asked again once the server's Retry-After (5 s) has passed.
+  await expect(alert.getByRole("button", { name: /^Try again in \d s$/ })).toBeDisabled();
+  await expect(alert.getByRole("button", { name: "Try again" })).toBeEnabled({ timeout: 7000 });
 });
 
 test("history: reopen and delete conversations", async ({ page }) => {

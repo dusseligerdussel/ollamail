@@ -1,5 +1,5 @@
 import { useMutation } from "@tanstack/react-query";
-import { CircleAlert, PenLine, Send, Trash2 } from "lucide-react";
+import { CircleAlert, Info, PenLine, Send, Trash2 } from "lucide-react";
 import {
   type KeyboardEvent,
   type Ref,
@@ -21,9 +21,10 @@ import {
   sendDraft,
   updateDraft,
 } from "@/api/drafts";
-import { describeApiError } from "@/api/errors";
+import { describeApiError, isLlmBusy } from "@/api/errors";
 import { useCommands } from "@/components/command-palette/command-provider";
 import { KeyHint } from "@/components/key-hint";
+import { RetryButton } from "@/components/retry-button";
 import { useShortcut } from "@/components/shortcuts/shortcut-provider";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -108,6 +109,8 @@ export function ReplyEditor({
   const writingRef = useRef(false);
   writingRef.current = writing;
   const before = useRef("");
+  // The instruction of the last suggestion, to try it again after an error.
+  const lastInstruction = useRef("");
   const controller = useRef<AbortController | undefined>(undefined);
   const chain = useRef<Promise<unknown>>(Promise.resolve());
 
@@ -169,6 +172,7 @@ export function ReplyEditor({
       const abort = new AbortController();
       controller.current = abort;
       before.current = bodyRef.current;
+      lastInstruction.current = text;
       setInstructionOpen(false);
       setGenerateError(undefined);
       setConfirming(false);
@@ -404,24 +408,18 @@ export function ReplyEditor({
         </div>
         <ToggleGroup
           type="single"
-          size="sm"
-          variant="outline"
+          variant="segmented"
+          spacing={0.5}
           value={draft.reply_all ? "all" : "sender"}
           onValueChange={(value) => value && onReplyAllChange(value === "all")}
           disabled={busy}
           aria-label={t("drafts.recipientsLabel")}
           className="shrink-0"
         >
-          <ToggleGroupItem
-            value="sender"
-            className="px-2.5 text-ui data-[state=off]:text-muted-foreground"
-          >
+          <ToggleGroupItem value="sender" className="px-2.5">
             {t("drafts.reply")}
           </ToggleGroupItem>
-          <ToggleGroupItem
-            value="all"
-            className="px-2.5 text-ui data-[state=off]:text-muted-foreground"
-          >
+          <ToggleGroupItem value="all" className="px-2.5">
             {t("drafts.replyAll")}
           </ToggleGroupItem>
         </ToggleGroup>
@@ -494,6 +492,9 @@ export function ReplyEditor({
           title={generateError !== undefined ? t("drafts.generateFailed") : t("drafts.sendFailed")}
           error={generateError ?? sendError}
           kind={generateError !== undefined ? "generate" : "send"}
+          onRetry={
+            generateError !== undefined ? () => void generate(lastInstruction.current) : undefined
+          }
         />
       )}
 
@@ -590,10 +591,12 @@ function EditorError({
   title,
   error,
   kind,
+  onRetry,
 }: {
   title: string;
   error: unknown;
   kind: "generate" | "send";
+  onRetry?: () => void;
 }) {
   const { t } = useTranslation();
   let text: string;
@@ -607,16 +610,26 @@ function EditorError({
     text = key ? t(`drafts.sendErrors.${key}`) : described.title;
     requestId = described.description;
   }
+  // Too many parallel AI requests is a wait, not a failure: shown neutrally.
+  const busy = isLlmBusy(error);
+  const Icon = busy ? Info : CircleAlert;
   return (
     <div
       role="alert"
       className="flex items-start gap-2 border-t border-border/60 px-4 py-2.5 text-ui"
     >
-      <CircleAlert aria-hidden className="mt-0.5 size-4 shrink-0 text-destructive" />
-      <div className="min-w-0">
-        <p className="font-medium text-destructive">{title}</p>
+      <Icon
+        aria-hidden
+        className={cn(
+          "mt-0.5 size-4 shrink-0",
+          busy ? "text-muted-foreground" : "text-destructive",
+        )}
+      />
+      <div className="flex min-w-0 flex-col items-start">
+        <p className={cn("font-medium", !busy && "text-destructive")}>{title}</p>
         <p className="text-muted-foreground">{text}</p>
         {requestId && <p className="text-xs text-muted-foreground">{requestId}</p>}
+        {onRetry && <RetryButton error={error} onRetry={onRetry} />}
       </div>
     </div>
   );

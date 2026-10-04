@@ -37,7 +37,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
-import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
+import { Switch } from "@/components/ui/switch";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { retryFailed } from "@/lib/retry-failed";
 
@@ -103,7 +103,7 @@ function ScimContent() {
 function useSaveSettings() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
-  const withReauth = useReauth();
+  const withReauth = useReauth({ action: t("auth.reauth.actions.scimSettings") });
   return useMutation({
     // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: (body: ScimSettingsUpdate) => withReauth(() => updateScimSettings(body)),
@@ -121,30 +121,23 @@ function GeneralSection({ settings }: { settings: ScimSettings }) {
   const { stats } = settings;
   return (
     <AdminSection id={`${id}-general`} title={t("pages.scim.general")}>
-      <div className="flex flex-col gap-3 px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+      <div className="flex items-center justify-between gap-6 px-4 py-3.5">
         <div className="min-w-0">
-          <div id={`${id}-enabled`} className="text-ui font-medium">
+          <label htmlFor={`${id}-enabled`} className="text-ui font-medium">
             {t("pages.scim.enabled")}
+          </label>
+          <div id={`${id}-enabled-description`} className="text-ui text-muted-foreground">
+            {t("pages.scim.enabledDescription")}
           </div>
-          <div className="text-ui text-muted-foreground">{t("pages.scim.enabledDescription")}</div>
         </div>
-        <ToggleGroup
-          type="single"
-          variant="outline"
-          size="sm"
-          aria-labelledby={`${id}-enabled`}
-          className="w-full shrink-0 sm:w-40"
-          value={settings.enabled ? "on" : "off"}
+        <Switch
+          id={`${id}-enabled`}
+          className="shrink-0"
+          checked={(save.isPending ? save.variables.enabled : undefined) ?? settings.enabled}
           disabled={save.isPending}
-          onValueChange={(value) => value && save.mutate({ enabled: value === "on" })}
-        >
-          <ToggleGroupItem value="off" className="flex-1">
-            {t("pages.scim.off")}
-          </ToggleGroupItem>
-          <ToggleGroupItem value="on" className="flex-1">
-            {t("pages.scim.on")}
-          </ToggleGroupItem>
-        </ToggleGroup>
+          aria-describedby={`${id}-enabled-description`}
+          onCheckedChange={(enabled) => save.mutate({ enabled })}
+        />
       </div>
       <div className="px-4 py-3.5">
         <CopyField
@@ -267,7 +260,10 @@ function CreateTokenForm({ onCreated }: { onCreated: (issued: ScimTokenIssued) =
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [expiry, setExpiry] = useState("");
-  const withReauth = useReauth();
+  const withReauth = useReauth({
+    action: t("auth.reauth.actions.createScimToken"),
+    unsavedChanges: true,
+  });
   const create = useMutation({
     // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: () =>

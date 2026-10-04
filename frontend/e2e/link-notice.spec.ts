@@ -3,8 +3,9 @@ import { expect, type Page, test } from "@playwright/test";
 import { mockApi } from "./mock-api";
 import { mockMail } from "./mock-mail";
 
-// A sign-in linked to the account by e-mail address (#208): the notice in the shell, the
-// sessions list naming the sign-in method, and dismissing the notice.
+// A sign-in linked to the account by e-mail address (#208, #220): the notice in the shell with
+// "That was me" / "That wasn't me", the sessions list naming and marking the sign-in method, and
+// confirming the link.
 const notice = {
   id: "00000000-0000-4000-8000-0000000000c1",
   provider: "oidc:corp",
@@ -50,30 +51,32 @@ async function mockLinkedAccount(page: Page) {
   return state;
 }
 
-test("shows a linked sign-in and leads to the sessions", async ({ page }) => {
+test('"That wasn\'t me" leads to the sign-in methods and the marked sessions', async ({ page }) => {
   await mockLinkedAccount(page);
   await page.goto("/inbox");
 
   const bar = page.getByRole("complementary", { name: "New sign-in linked" });
   await expect(bar).toContainText("a sign-in through Corporate SSO was linked to your account");
+  await expect(bar.getByRole("button", { name: "That was me" })).toBeVisible();
 
-  await bar.getByRole("link", { name: "Review sessions" }).click();
+  await bar.getByRole("link", { name: "That wasn't me" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
+  await expect(page).toHaveURL(/#settings-sign-in-methods$/);
   const list = page.getByRole("region", { name: "Active sessions" });
-  await expect(list.getByRole("listitem").filter({ hasText: "Chrome on Windows" })).toContainText(
-    "Sign-in: Corporate SSO",
-  );
+  const linked = list.getByRole("listitem").filter({ hasText: "Chrome on Windows" });
+  await expect(linked).toContainText("Sign-in: Corporate SSO");
+  await expect(linked).toContainText("Newly linked");
   await expect(list.getByRole("listitem").filter({ hasText: "This device" })).toContainText(
     "Sign-in: Local account",
   );
 });
 
-test("dismissing confirms the link", async ({ page }) => {
+test('"That was me" confirms the link', async ({ page }) => {
   const state = await mockLinkedAccount(page);
   await page.goto("/inbox");
 
   const bar = page.getByRole("complementary", { name: "New sign-in linked" });
-  await bar.getByRole("button", { name: "That was me – dismiss notice" }).click();
+  await bar.getByRole("button", { name: "That was me" }).click();
 
   await expect(bar).toBeHidden();
   expect(state.dismissed).toEqual([notice.id]);
@@ -93,6 +96,7 @@ test.describe("on a phone", () => {
     const notices = page.getByRole("complementary", { name: "Notices" });
     await notices.getByRole("button", { name: "2 notices" }).click();
     await expect(notices).toContainText("a sign-in through Corporate SSO was linked");
-    await expect(notices.getByRole("link", { name: "Review sessions" })).toBeVisible();
+    await expect(notices.getByRole("button", { name: "That was me" })).toBeVisible();
+    await expect(notices.getByRole("link", { name: "That wasn't me" })).toBeVisible();
   });
 });
