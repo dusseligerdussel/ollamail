@@ -1232,19 +1232,29 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Embeddings** über `LLMGateway.embed` (Aufgabe `embeddings`) in Batches
   (`OLLAMAIL_SEARCH_EMBED_BATCH_SIZE`, optional Pause), auf der Queue `llm` mit deren
   Parallelität. Schlägt das Einbetten fehl, werden die Chunks ohne Vektor gespeichert; der Job
-  `search.fill_embeddings` ergänzt sie. Damit er nicht alle 5 Minuten alle Chunks liest (#187),
-  erhöht jedes Speichern von Chunks ohne Vektor des aktuellen Modells (Einbetten fehlgeschlagen,
-  OCR) `search_index_state.fill_requested`; der Job sucht nur, wenn dieser Zähler von
+  `search.fill_embeddings` ergänzt sie. Damit er nicht alle 5 Minuten alle Chunks liest
+  (#187, #224), trägt jedes Speichern von Chunks ohne Vektor des aktuellen Modells (Einbetten
+  fehlgeschlagen, OCR) deren IDs in `search_embedding_backlog` ein und erhöht
+  `search_index_state.fill_requested`. Der Job arbeitet nur, wenn dieser Zähler von
   `fill_checked` abweicht (Wert, bei dem zuletzt nichts fehlte) oder ein Modellwechsel läuft, und
-  dann über den Index `ix_search_chunks_created_at_id` (neueste zuerst, `NOT EXISTS`, `LIMIT`).
-- **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte vom aktiven Modell ab,
-  rechnet `search.fill_embeddings` alle Chunks batchweise neu; Anfragen nutzen bis zum Abschluss
-  das alte Modell (`LLMGateway.embed(model=...)`), dann wird umgeschaltet und aufgeräumt.
+  nimmt die Chunks dann aus dem Backlog (höchste UUIDv7 = neueste zuerst, `LIMIT`) – kein
+  Abgleich aller Chunks mit ihren Vektoren. Vektoren früherer Modelle löscht er mit
+  `model < aktuell OR model > aktuell` (nutzt den Index auf `model`, anders als `!=`).
+- **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte Modell von
+  `search_index_state.backlog_model` ab (Wechsel, erster Lauf nach dem Upgrade), baut
+  `search.fill_embeddings` den Backlog einmal aus allen Chunks ohne Vektor dieses Modells neu auf
+  und rechnet sie batchweise; Anfragen nutzen bis zum Abschluss das alte Modell
+  (`LLMGateway.embed(model=...)`). Vor dem Umschalten prüft ein zweiter Abgleich, ob Jobs
+  inzwischen Chunks nur mit dem alten Modell gespeichert haben; dann wird umgeschaltet und
+  aufgeräumt.
   Dimensionswechsel: `python -m app.cli search resize` (`docs/OPERATIONS.md` 3.7).
 - **Suche:** `search(session, user_id, query, filters, embedder=..., settings=...)` in
   `app.search.service` liefert Chunks (für #25) oder mit `per_message=True` die beste Stelle je
   Mail (klassische Suche). Volltext: `websearch_to_tsquery` in allen drei Konfigurationen,
-  ODER-verknüpft, Rang `ts_rank_cd`. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
+  ODER-verknüpft, Rang `ts_rank_cd`. Gibt es mehr als `OLLAMAIL_SEARCH_TEXT_RANK_WINDOW` Treffer
+  (eine auf `WINDOW + 1` begrenzte Zählung prüft das), werden nur die neuesten so vielen
+  (`sort_date`) gerankt, weil das Ranking den `tsvector` jedes Treffers liest und häufige Wörter
+  Hunderttausende Chunks treffen (#224); ältere Treffer findet weiterhin die Vektorsuche. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
   `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
   (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
   Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang, mit oder ohne OCR).

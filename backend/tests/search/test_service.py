@@ -7,14 +7,14 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from sqlalchemy import delete, event, func, select
+from sqlalchemy import delete, event, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import SearchSettings
 from app.mail.models import Message
 from app.mail.storage import AttachmentStorage
 from app.search import service
-from app.search.models import SearchChunk, SearchEmbedding
+from app.search.models import SearchChunk, SearchEmbedding, SearchIndexState, embedding_backlog
 from app.search.service import SearchFilters, fuse, index_message, search
 from tests.search.conftest import FakeEmbedder, MailData
 from tests.search.documents import make_pdf
@@ -271,7 +271,7 @@ async def test_chunks_are_stored_when_embedding_fails_and_filled_in_later(
     assert await _embedding_models(mail.session) == {"fake-a": 1}
 
 
-async def test_fill_skips_the_scan_until_chunks_lack_a_vector(
+async def test_fill_takes_chunks_from_the_backlog_without_scanning(
     mail: MailData, embedder: FakeEmbedder, search_settings: SearchSettings
 ) -> None:
     mailbox = await mail.mailbox(await mail.user())
@@ -281,7 +281,7 @@ async def test_fill_skips_the_scan_until_chunks_lack_a_vector(
     checked = await service.fill_embeddings(mail.session, embedder, search_settings)
     assert (checked.embedded, checked.remaining) == (0, False)
 
-    # A chunk without vector that nobody announced is not looked for: no full scan.
+    # A chunk without vector that nobody announced is not looked for: no scan.
     unannounced = await mail.message(mailbox, "Pizza at noon?")
     mail.session.add(
         SearchChunk(
@@ -300,19 +300,55 @@ async def test_fill_skips_the_scan_until_chunks_lack_a_vector(
     assert (skipped.embedded, skipped.remaining) == (0, False)
     assert embedder.calls == []
 
-    # Indexing without the LLM announces its chunks; the next run scans and finds both.
+    # Indexing without the LLM puts its chunks into the backlog; the next run embeds
+    # them, and only them (still no scan over all chunks).
     embedder.fail = True
     later = await mail.message(mailbox, "Invoice attached.")
     await _index(mail, embedder, search_settings, later)
     embedder.fail = False
     filled = await service.fill_embeddings(mail.session, embedder, search_settings)
-    assert (filled.embedded, filled.remaining) == (2, False)
-    assert await _embedding_models(mail.session) == {"fake-a": 3}
+    assert (filled.embedded, filled.remaining) == (1, False)
+    assert await _embedding_models(mail.session) == {"fake-a": 2}
+    assert await mail.session.scalar(select(func.count()).select_from(embedding_backlog)) == 0
 
     embedder.calls.clear()
     again = await service.fill_embeddings(mail.session, embedder, search_settings)
     assert (again.embedded, again.remaining) == (0, False)
     assert embedder.calls == []
+
+    # A rebuild of the backlog (upgrade, model switch) finds every chunk without vector.
+    await mail.session.execute(update(SearchIndexState).values(backlog_model=None))
+    rebuilt = await service.fill_embeddings(mail.session, embedder, search_settings)
+    assert (rebuilt.embedded, rebuilt.remaining) == (1, False)
+    assert await _embedding_models(mail.session) == {"fake-a": 3}
+
+
+async def test_switch_waits_for_chunks_stored_with_the_previous_model(
+    mail: MailData, embedder: FakeEmbedder, search_settings: SearchSettings
+) -> None:
+    mailbox = await mail.mailbox(await mail.user())
+    trip = await mail.message(mailbox, "Your trip: boarding starts at gate 12.")
+    await _index(mail, embedder, search_settings, trip)
+
+    embedder.model = "fake-b"
+    started = await service.fill_embeddings(mail.session, embedder, search_settings)
+    assert (started.embedded, started.switched) == (1, True)
+
+    # A job that still saw "fake-b" as new stores a chunk with an old vector only, after
+    # the backlog for "fake-c" was built.
+    embedder.model = "fake-c"
+    await mail.session.execute(update(SearchIndexState).values(backlog_model="fake-c"))
+    late = await mail.message(mailbox, "Pizza at noon?")
+    embedder.model = "fake-b"
+    await _index(mail, embedder, search_settings, late)
+    embedder.model = "fake-c"
+
+    first = await service.fill_embeddings(mail.session, embedder, search_settings)
+    # The check before the switch finds both chunks; nothing switches without them.
+    assert (first.embedded, first.remaining, first.switched) == (0, True, False)
+    second = await service.fill_embeddings(mail.session, embedder, search_settings)
+    assert (second.embedded, second.remaining, second.switched) == (2, False, True)
+    assert await _embedding_models(mail.session) == {"fake-c": 2}
 
 
 async def test_wrong_dimension_is_deferred(
@@ -466,6 +502,34 @@ async def test_language_aware_full_text(
     assert await find("meeting") == [english]
     assert await find('"kommen morgen"') == [german]
     assert await find("the") == []  # stop words only
+
+
+async def test_full_text_ranks_only_the_most_recent_matches(
+    mail: MailData, embedder: FakeEmbedder, search_settings: SearchSettings
+) -> None:
+    owner = await mail.user()
+    mailbox = await mail.mailbox(owner)
+    # The older mail matches better (the word three times).
+    old = await mail.message(
+        mailbox, "Invoice, invoice, invoice.", sent_at=datetime(2026, 1, 5, tzinfo=UTC)
+    )
+    new = await mail.message(
+        mailbox, "The invoice is attached.", sent_at=datetime(2026, 3, 5, tzinfo=UTC)
+    )
+    await _index(mail, embedder, search_settings, old, new)
+
+    async def find(settings: SearchSettings) -> list[uuid.UUID]:
+        hits = await search(mail.session, owner, "invoice", embedder=None, settings=settings)
+        return [hit.message_id for hit in hits]
+
+    assert await find(search_settings) == [old, new]
+    window = search_settings.model_copy(update={"text_rank_window": 1, "candidates": 1})
+    assert await find(window) == [new]
+
+
+def test_rank_window_holds_at_least_the_candidates() -> None:
+    with pytest.raises(ValueError, match="text_rank_window"):
+        SearchSettings(candidates=100, text_rank_window=50)
 
 
 async def test_per_message_keeps_the_best_chunk(
