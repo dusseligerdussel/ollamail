@@ -43,6 +43,7 @@ from app.core.logging import get_logger
 from app.digest.storage import DigestStorage
 from app.mail.deletion import request_deletion
 from app.mail.models import Mailbox, MailboxAssignment
+from app.notifications.models import PushSubscription
 from app.privacy.storage import ExportStorage
 from app.scim.models import ScimUser, scim_group_members
 from app.users.models import User, UserRole
@@ -109,6 +110,8 @@ async def _remove_access(session: AsyncSession, user_id: uuid.UUID) -> None:
         RecoveryCode,
         ScimUser,
         MailboxAssignment,
+        # Devices that would still be woken by Web Push (#181).
+        PushSubscription,
     ):
         await session.execute(delete(model).where(model.user_id == user_id))
     await session.execute(delete(scim_group_members).where(scim_group_members.c.user_id == user_id))

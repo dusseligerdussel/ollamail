@@ -6,7 +6,9 @@ import { backend, mockFetch, testUser } from "@/test/fetch";
 import {
   notificationsApi,
   stubNotifications,
+  stubPushManager,
   testNotificationSettings,
+  unstubPushManager,
 } from "@/test/notifications";
 import { renderApp } from "@/test/render-app";
 import { categoryId } from "@/test/triage";
@@ -81,6 +83,27 @@ afterEach(() => {
 });
 
 describe("MailNotifier", () => {
+  it("hands the texts in the user's language to the service worker", async () => {
+    setup();
+    stubNotifications({ permission: "granted" });
+    const push = stubPushManager();
+    try {
+      await renderApp("/settings");
+
+      await waitFor(() => expect(push.messages).toHaveLength(1));
+      expect(push.messages[0]).toEqual({
+        type: "ollamail:notification-strings",
+        strings: expect.objectContaining({
+          unknownSender: "New mail",
+          fallbackBody: "New mail. Open ollamail to see it.",
+          categories: expect.objectContaining({ important: "Important", spam: "Spam/Advertising" }),
+        }),
+      });
+    } finally {
+      unstubPushManager();
+    }
+  });
+
   it("shows sender and category, silently, and opens the mail on click", async () => {
     setup();
     const browser = stubNotifications({ permission: "granted" });

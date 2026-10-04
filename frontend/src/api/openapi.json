@@ -7006,6 +7006,116 @@
         "title": "PullStatus",
         "type": "string"
       },
+      "PushDeviceRead": {
+        "description": "A device that receives notifications through Web Push.",
+        "properties": {
+          "browser": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Browser"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_sent_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Sent At"
+          },
+          "mobile": {
+            "title": "Mobile",
+            "type": "boolean"
+          },
+          "os": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Os"
+          },
+          "push_service": {
+            "title": "Push Service",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "browser",
+          "os",
+          "mobile",
+          "push_service",
+          "created_at",
+          "last_sent_at"
+        ],
+        "title": "PushDeviceRead",
+        "type": "object"
+      },
+      "PushSubscriptionCreate": {
+        "description": "The browser's ``PushSubscription.toJSON()`` (``expirationTime`` is ignored).",
+        "properties": {
+          "endpoint": {
+            "maxLength": 2048,
+            "minLength": 1,
+            "title": "Endpoint",
+            "type": "string"
+          },
+          "keys": {
+            "$ref": "#/components/schemas/PushSubscriptionKeys"
+          }
+        },
+        "required": [
+          "endpoint",
+          "keys"
+        ],
+        "title": "PushSubscriptionCreate",
+        "type": "object"
+      },
+      "PushSubscriptionKeys": {
+        "properties": {
+          "auth": {
+            "maxLength": 100,
+            "minLength": 1,
+            "title": "Auth",
+            "type": "string"
+          },
+          "p256dh": {
+            "maxLength": 200,
+            "minLength": 1,
+            "title": "P256Dh",
+            "type": "string"
+          }
+        },
+        "required": [
+          "p256dh",
+          "auth"
+        ],
+        "title": "PushSubscriptionKeys",
+        "type": "object"
+      },
       "RagFilters": {
         "additionalProperties": false,
         "description": "Filters set in the UI; each one narrows the mailboxes the user may read.",
@@ -10506,6 +10616,39 @@
           "type"
         ],
         "title": "ValidationError",
+        "type": "object"
+      },
+      "WebPushRead": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "devices": {
+            "items": {
+              "$ref": "#/components/schemas/PushDeviceRead"
+            },
+            "title": "Devices",
+            "type": "array"
+          },
+          "public_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Public Key"
+          }
+        },
+        "required": [
+          "available",
+          "public_key",
+          "devices"
+        ],
+        "title": "WebPushRead",
         "type": "object"
       },
       "WriteBackMode": {
@@ -17646,6 +17789,115 @@
           }
         },
         "summary": "Get Mail Notification",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notifications/push": {
+      "get": {
+        "description": "Whether Web Push is available, the key browsers subscribe with, and the user's devices\n(listed also while Web Push is off, so they can be removed).",
+        "operationId": "notifications_get_web_push",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/WebPushRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Web Push",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notifications/push/devices": {
+      "post": {
+        "description": "Register this browser for Web Push, or refresh its registration (same endpoint).",
+        "operationId": "notifications_register_push_device",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PushSubscriptionCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PushDeviceRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "409": {
+            "description": "Web Push is off on this server (`web_push_unavailable`)"
+          },
+          "422": {
+            "description": "Push service not allowed or malformed keys (`invalid_subscription`)"
+          }
+        },
+        "summary": "Register Push Device",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notifications/push/devices/{device_id}": {
+      "delete": {
+        "description": "Stop Web Push to one of the user's devices.",
+        "operationId": "notifications_remove_push_device",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "device_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Device Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such device"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Remove Push Device",
         "tags": [
           "notifications"
         ]

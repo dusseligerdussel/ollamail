@@ -17,7 +17,7 @@ from app.core.db import libpq_url
 from app.core.events import CHANNEL
 from app.processing import service
 from app.processing.models import MessageProcessing, StepStatus
-from app.processing.steps import StepError, registry
+from app.processing.steps import ProcessingStep, StepContext, StepError, registry
 from app.processing.tasks import Priority, enqueue_processing, requeue_outdated, run_step
 from app.worker import app
 from tests.processing.conftest import Pipeline, Recorder
@@ -360,3 +360,29 @@ async def test_cli_switches_processing_per_mailbox(pipeline: Pipeline, recorder:
     code, output = await _cli("processing", "disable", str(uuid.uuid4()))
     assert code == 1
     assert "not found" in output
+
+
+async def test_after_commit_runs_once_the_step_is_committed(
+    pipeline: Pipeline, recorder: Recorder
+) -> None:
+    seen: list[str] = []
+
+    async def handler(ctx: StepContext) -> None:
+        async def committed() -> None:
+            # Another session sees the step as done: the callback runs after the commit.
+            seen.append(str((await _rows(pipeline, ctx.message_id))["follow_up"].status))
+
+        async def broken() -> None:
+            raise RuntimeError("lost")
+
+        ctx.after_commit.extend([broken, committed])
+
+    registry.register(ProcessingStep(name="follow_up", version=1, queue="default", handler=handler))
+    message_id = await pipeline.add_message()
+
+    await _enqueue(message_id)
+    await pipeline.drain()
+
+    # A failing callback neither fails the step nor stops the other callbacks.
+    assert seen == [str(StepStatus.DONE)]
+    assert (await _rows(pipeline, message_id))["follow_up"].status == StepStatus.DONE

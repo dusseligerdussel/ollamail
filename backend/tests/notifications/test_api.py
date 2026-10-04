@@ -1,4 +1,4 @@
-"""Notification API: integration tests with real sessions and PostgreSQL (#149)."""
+"""Notification API: integration tests with real sessions and PostgreSQL (#149, #181)."""
 
 import uuid
 
@@ -7,10 +7,12 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import NotificationsSettings, Settings
+from app.notifications.push import list_devices, register_device
 from app.triage.models import TriageCategory, TriageSource
 from app.triage.service import Decision, save_result
 from tests.auth.conftest import _cheap_hashing, login, make_local_user  # noqa: F401
 from tests.notifications.conftest import builtin_category
+from tests.notifications.webpush import FCM, Browser, push_settings
 from tests.triage.conftest import Account, account_for, make_account
 
 pytestmark = pytest.mark.db
@@ -120,3 +122,107 @@ async def test_messages_of_others_are_not_found(
     mail = await other.message()
     assert (await db_client.get(f"/notifications/messages/{mail.id}")).status_code == 404
     assert (await db_client.get(f"/notifications/messages/{uuid.uuid4()}")).status_code == 404
+
+
+FIREFOX_ANDROID = "Mozilla/5.0 (Android 14; Mobile; rv:131.0) Gecko/131.0 Firefox/131.0"
+
+
+async def test_push_endpoints_require_authentication(db_client: AsyncClient) -> None:
+    assert (await db_client.get("/notifications/push")).status_code == 401
+    body = Browser(FCM + "x").subscription()
+    assert (await db_client.post("/notifications/push/devices", json=body)).status_code == 401
+    device = f"/notifications/push/devices/{uuid.uuid4()}"
+    assert (await db_client.delete(device)).status_code == 401
+
+
+async def test_web_push_is_off_by_default(db_client: AsyncClient, db_session: AsyncSession) -> None:
+    await _signed_in(db_client, db_session)
+    assert (await db_client.get("/notifications/push")).json() == {
+        "available": False,
+        "public_key": None,
+        "devices": [],
+    }
+    response = await db_client.post(
+        "/notifications/push/devices", json=Browser(FCM + "x").subscription()
+    )
+    assert response.status_code == 409
+    assert response.json()["error_code"] == "web_push_unavailable"
+
+
+async def test_register_list_and_remove_devices(
+    db_client: AsyncClient, db_session: AsyncSession, settings: Settings
+) -> None:
+    settings.notifications = push_settings()
+    await _signed_in(db_client, db_session)
+    browser = Browser(FCM + uuid.uuid4().hex)
+
+    created = await db_client.post(
+        "/notifications/push/devices",
+        json=browser.subscription(),
+        headers={"User-Agent": FIREFOX_ANDROID},
+    )
+    assert created.status_code == 201
+    device = created.json()
+    assert {k: device[k] for k in ("browser", "os", "mobile", "push_service")} == {
+        "browser": "Firefox",
+        "os": "Android",
+        "mobile": True,
+        "push_service": "fcm.googleapis.com",
+    }
+    # Endpoint and keys are never sent back.
+    assert browser.endpoint not in created.text and browser.auth not in created.text
+
+    again = await db_client.post("/notifications/push/devices", json=browser.subscription())
+    assert again.json()["id"] == device["id"]
+    listed = (await db_client.get("/notifications/push")).json()
+    assert listed["available"] is True
+    assert listed["public_key"] == settings.notifications.vapid_public_key
+    assert [d["id"] for d in listed["devices"]] == [device["id"]]
+
+    removed = await db_client.delete(f"/notifications/push/devices/{device['id']}")
+    assert removed.status_code == 204
+    assert (await db_client.get("/notifications/push")).json()["devices"] == []
+    gone = await db_client.delete(f"/notifications/push/devices/{device['id']}")
+    assert gone.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "subscription",
+    [
+        Browser("https://internal.example/push").subscription(),
+        Browser("http://fcm.googleapis.com/fcm/send/x").subscription(),
+        {"endpoint": FCM + "x", "keys": {"p256dh": "not-a-key", "auth": "AAAAAAAAAAAAAAAAAAAAAA"}},
+    ],
+)
+async def test_invalid_subscriptions_are_rejected(
+    db_client: AsyncClient,
+    db_session: AsyncSession,
+    settings: Settings,
+    subscription: dict[str, object],
+) -> None:
+    settings.notifications = push_settings()
+    await _signed_in(db_client, db_session)
+    response = await db_client.post("/notifications/push/devices", json=subscription)
+    assert response.status_code == 422
+    assert response.json()["error_code"] == "invalid_subscription"
+
+
+async def test_devices_of_others_cannot_be_removed(
+    db_client: AsyncClient, db_session: AsyncSession, settings: Settings
+) -> None:
+    settings.notifications = push_settings()
+    other = await make_account(db_session)
+    device = await register_device(
+        db_session,
+        other.user.id,
+        endpoint=FCM + uuid.uuid4().hex,
+        p256dh=Browser(FCM).p256dh,
+        auth=Browser(FCM).auth,
+        user_agent=None,
+        settings=settings.notifications,
+    )
+    await _signed_in(db_client, db_session)
+    assert (await db_client.get("/notifications/push")).json()["devices"] == []
+    response = await db_client.delete(f"/notifications/push/devices/{device.id}")
+    assert response.status_code == 404
+    assert [d.id for d in await list_devices(db_session, other.user.id)] == [device.id]

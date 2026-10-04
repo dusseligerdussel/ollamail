@@ -913,6 +913,23 @@ siehe [`PRIVACY.md`](PRIVACY.md)). Ohne gültigen Key startet `api` nicht.
 **Key-Rotation:** Ablauf mit `OLLAMAIL_SECRET_KEYS_OLD` und `python -m app.cli rotate-keys` in
 [`deploy/README.md`](../deploy/README.md#master-key-und-key-rotation).
 
+**VAPID-Schlüssel für Web Push (#181):** Nur nötig, wenn Benachrichtigungen auch ohne offenen
+Tab ankommen sollen. Web Push läuft immer über den Push-Dienst des Browser-Herstellers (Google,
+Mozilla, Apple, Microsoft) und ist deshalb standardmäßig aus (siehe [`PRIVACY.md`](PRIVACY.md)).
+Einschalten:
+
+```bash
+docker compose -f deploy/compose.yaml run --rm api python -m app.cli notifications vapid-keys
+```
+
+Die beiden ausgegebenen Zeilen in `.env` übernehmen, dazu
+`OLLAMAIL_NOTIFICATIONS_VAPID_SUBJECT=mailto:<Kontaktadresse>` und
+`OLLAMAIL_NOTIFICATIONS_WEB_PUSH_ENABLED=true`; `api` und `worker` neu starten. Der private
+Schlüssel gehört wie `OLLAMAIL_SECRET_KEY` nicht ins Repository (Helm: ins Secret). Ein neues
+Schlüsselpaar macht alle eingerichteten Geräte ungültig; Nutzer schalten Web Push dann je Gerät
+neu ein. Der Worker braucht ausgehend HTTPS zu den Push-Diensten
+(`OLLAMAIL_NOTIFICATIONS_WEB_PUSH_ALLOWED_HOSTS`).
+
 ## 8. Skalierung
 
 Es läuft eine API-Instanz. Der `worker` (Procrastinate, Queue in PostgreSQL) übernimmt Mail-Sync,

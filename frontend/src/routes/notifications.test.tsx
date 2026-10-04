@@ -1,12 +1,18 @@
 import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it } from "vitest";
+
+import { forgetPushDevice } from "@/api/notifications";
 
 import { backend, mockFetch, testUser } from "@/test/fetch";
 import {
   notificationsApi,
   stubNotifications,
+  stubPushManager,
+  TEST_VAPID_KEY,
   testNotificationSettings,
+  testPushDevice,
+  unstubPushManager,
 } from "@/test/notifications";
 import { renderApp } from "@/test/render-app";
 import { categoryId, triageApi } from "@/test/triage";
@@ -127,5 +133,127 @@ describe("notification settings", () => {
       await screen.findByText("This browser does not support notifications."),
     ).toBeInTheDocument();
     expect(screen.getByRole("switch", { name: "Notify me about new mail" })).toBeDisabled();
+  });
+});
+
+describe("web push", () => {
+  afterEach(() => unstubPushManager());
+
+  const available = (devices = [testPushDevice()]) => ({
+    available: true,
+    public_key: TEST_VAPID_KEY,
+    devices,
+  });
+
+  it("is hidden while the administrator has not switched it on", async () => {
+    setup({ settings: testNotificationSettings({ enabled: true }) });
+    stubNotifications({ permission: "granted" });
+    stubPushManager();
+    await renderApp("/settings/notifications");
+
+    await screen.findByRole("switch", { name: "Notify me about new mail" });
+    expect(screen.queryByText("Without an open tab")).not.toBeInTheDocument();
+  });
+
+  it("names the push service and subscribes this device", async () => {
+    const api = setup({
+      settings: testNotificationSettings({ enabled: true }),
+      webPush: available([]),
+    });
+    stubNotifications({ permission: "granted" });
+    const push = stubPushManager();
+    const user = userEvent.setup();
+    await renderApp("/settings/notifications");
+
+    expect(await screen.findByText(/Chrome: Google, Firefox: Mozilla/)).toBeInTheDocument();
+    expect(screen.getByText("No device set up yet.")).toBeInTheDocument();
+    const toggle = await screen.findByRole("switch", { name: "Notify me without an open tab" });
+    await waitFor(() => expect(toggle).toBeEnabled());
+    expect(toggle).not.toBeChecked();
+
+    await user.click(toggle);
+
+    await waitFor(() => expect(toggle).toBeChecked());
+    expect(push.pushManager.subscribe).toHaveBeenCalledWith(
+      expect.objectContaining({ userVisibleOnly: true }),
+    );
+    expect(api.registered).toEqual([
+      {
+        endpoint: push.subscription.endpoint,
+        keys: { p256dh: "BTestP256dh", auth: "TestAuth" },
+      },
+    ]);
+    expect(await screen.findByText("This device")).toBeInTheDocument();
+  });
+
+  it("cannot be switched on while notifications are off", async () => {
+    setup({ webPush: available([]) });
+    stubNotifications({ permission: "granted" });
+    stubPushManager();
+    await renderApp("/settings/notifications");
+
+    const toggle = await screen.findByRole("switch", { name: "Notify me without an open tab" });
+    await waitFor(() => expect(screen.getByText("No device set up yet.")).toBeInTheDocument());
+    expect(toggle).toBeDisabled();
+  });
+
+  it("lists the devices and removes one", async () => {
+    const other = testPushDevice({
+      id: "0199e000-0000-7000-8000-00000000d002",
+      browser: "Chrome",
+      os: "Android",
+      mobile: true,
+      push_service: "fcm.googleapis.com",
+    });
+    const api = setup({
+      settings: testNotificationSettings({ enabled: true }),
+      webPush: available([testPushDevice(), other]),
+    });
+    stubNotifications({ permission: "granted" });
+    stubPushManager();
+    const user = userEvent.setup();
+    await renderApp("/settings/notifications");
+
+    const devices = await screen.findByRole("list", { name: "Devices" });
+    expect(devices).toHaveTextContent("Firefox on Linux");
+    expect(devices).toHaveTextContent("via fcm.googleapis.com");
+
+    await user.click(screen.getByRole("button", { name: "Remove Chrome on Android" }));
+
+    await waitFor(() => expect(api.removed).toEqual([other.id]));
+    await waitFor(() => expect(screen.queryByText("Chrome on Android")).not.toBeInTheDocument());
+  });
+
+  it("refreshes the registration of a subscribed browser and switches it off", async () => {
+    const api = setup({
+      settings: testNotificationSettings({ enabled: true }),
+      webPush: available([]),
+    });
+    stubNotifications({ permission: "granted" });
+    const push = stubPushManager({ subscribed: true });
+    const user = userEvent.setup();
+    await renderApp("/settings/notifications");
+
+    const toggle = await screen.findByRole("switch", { name: "Notify me without an open tab" });
+    await waitFor(() => expect(toggle).toBeChecked());
+    expect(api.registered).toHaveLength(1);
+
+    await user.click(toggle);
+
+    await waitFor(() => expect(toggle).not.toBeChecked());
+    expect(push.subscription.unsubscribe).toHaveBeenCalled();
+    expect(api.removed).toEqual(["0199e000-0000-7000-8000-00000000d0ff"]);
+  });
+
+  it("forgets this device when signing out", async () => {
+    const api = setup({ webPush: available([testPushDevice()]) });
+    const push = stubPushManager({ subscribed: true });
+    window.localStorage.setItem("ollamail.pushDeviceId", testPushDevice().id);
+
+    await forgetPushDevice();
+
+    expect(api.removed).toEqual([testPushDevice().id]);
+    expect(push.subscription.unsubscribe).toHaveBeenCalled();
+    expect(window.localStorage.getItem("ollamail.pushDeviceId")).toBeNull();
   });
 });

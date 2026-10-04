@@ -121,6 +121,11 @@ async def test_export_contains_own_data_and_nothing_of_other_users(
     assert [d["body"] for d in drafts["drafts"]] == ["Draft erika"]
     notifications = json.loads(archive.read("notifications.json"))
     assert (notifications["enabled"], len(notifications["category_ids"])) == (True, 1)
+    assert [(d["browser"], d["push_service"]) for d in notifications["push_devices"]] == [
+        ("Firefox", "fcm.googleapis.com")
+    ]
+    # The endpoint and keys of the device stay out of the export.
+    assert "fcm/send" not in json.dumps(notifications)
     mailboxes = json.loads(archive.read("mailboxes.json"))
     assert [m["address"] for m in mailboxes] == ["erika@example.org"]
     assert "credentials" not in json.dumps(mailboxes)

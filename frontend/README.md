@@ -193,6 +193,9 @@ data: {"type":"message.synced","message_id":"…","mailbox_id":"…"}
   an. So zeigt `MailNotifier` (`src/components/notifications/`, #149) bei `notification.message`
   eine Browser-Notification – nur nach Opt-in (Einstellungen → Benachrichtigungen), mit Erlaubnis
   des Browsers und wenn ollamail nicht im Vordergrund ist.
+  Ohne offenen Tab übernimmt der Service-Worker (`public/sw.js`, Web Push, #181): Er bekommt
+  nur IDs, lädt den Inhalt über dieselbe API und nutzt dasselbe `tag`. Push-Abos laufen über
+  `src/lib/web-push.ts`; Tests ersetzen `PushManager` (`stubPushManager`, `e2e/mock-notifications.ts`).
 - Invalidierungen werden gebündelt (#140, `createInvalidationBatcher`): Ein Event nach einer
   Ruhepause wirkt sofort; folgende Events werden gesammelt und gemeinsam angewendet, sobald 2 s lang
   keins kam, spätestens nach 5 s. Jeder Schlüssel wird je Bündel einmal invalidiert. Bei einem Import
