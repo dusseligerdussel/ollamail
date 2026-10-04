@@ -596,6 +596,8 @@ jobs:
           docker tag ollamail-frontend:local ghcr.io/dusseligerdussel/ollamail-frontend:edge
           dir="$RUNNER_TEMP/truenas"
           pool="$dir/pool"
+          # $dir stays the runner's (the rendered YAML goes there); only the datasets are 568's.
+          mkdir -p "$dir"
           sudo mkdir -p "$pool"/ollamail/{postgres,data,ollama}
           sudo chown -R 568:568 "$pool/ollamail"
           tn() { docker compose -p ix-ollamail -f "$dir/compose.yaml" "$@"; }
