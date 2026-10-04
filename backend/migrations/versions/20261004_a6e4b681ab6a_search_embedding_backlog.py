@@ -8,7 +8,7 @@ starts out empty with ``backlog_model`` unset, so the job rebuilds it with one s
 the upgrade. Only chunk IDs are stored, no content.
 
 Revision ID: a6e4b681ab6a
-Revises: ed3357fe44bc
+Revises: 368ae36904f1
 Create Date: 2026-10-04 19:57:14.152090+00:00
 """
 
@@ -18,7 +18,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "a6e4b681ab6a"
-down_revision: str | Sequence[str] | None = "ed3357fe44bc"
+down_revision: str | Sequence[str] | None = "368ae36904f1"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
