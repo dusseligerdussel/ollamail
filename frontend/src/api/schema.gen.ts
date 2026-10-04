@@ -158,7 +158,8 @@ export interface paths {
         /**
          * Delete Github Provider
          * @description Remove a GitHub provider. Users and their linked identities are kept; sessions
-         *     started with the provider stay valid until they expire or are revoked.
+         *     started with the provider stay valid until they expire or are revoked. Needs a recent
+         *     confirmation (#218): removing a provider can lock its users out.
          */
         delete: operations["admin_delete_github_provider"];
         options?: never;
@@ -228,7 +229,8 @@ export interface paths {
         /**
          * Delete Oidc Provider
          * @description Remove an OIDC provider. Users and their linked identities are kept; sessions
-         *     started with the provider stay valid until they expire or are revoked.
+         *     started with the provider stay valid until they expire or are revoked. Needs a recent
+         *     confirmation (#218): removing a provider can lock its users out.
          */
         delete: operations["admin_delete_oidc_provider"];
         options?: never;
@@ -344,7 +346,8 @@ export interface paths {
         /**
          * Delete Saml Provider
          * @description Remove a SAML provider. Users and their linked identities are kept; sessions
-         *     started with the provider stay valid until they expire or are revoked.
+         *     started with the provider stay valid until they expire or are revoked. Needs a recent
+         *     confirmation (#218): removing a provider can lock its users out.
          */
         delete: operations["admin_delete_saml_provider"];
         options?: never;
@@ -423,7 +426,8 @@ export interface paths {
         /**
          * Update Retention
          * @description Change retention periods; ``null`` resets one to the environment default. Applies
-         *     from the next run of the retention jobs.
+         *     from the next run of the retention jobs. Needs a recent confirmation (#218): a short
+         *     period deletes the audit log or the mails of all users.
          */
         patch: operations["privacy_update_retention"];
         trace?: never;
@@ -555,7 +559,7 @@ export interface paths {
         /**
          * Delete Shared Mailbox
          * @description Remove the shared mailbox with all its data and its assignments, in the background
-         *     (as ``DELETE /mailboxes/{id}``).
+         *     (as ``DELETE /mailboxes/{id}``). Needs a recent confirmation (#218): not reversible.
          */
         delete: operations["admin_delete_shared_mailbox"];
         options?: never;
@@ -981,7 +985,8 @@ export interface paths {
         post?: never;
         /**
          * Delete Directory
-         * @description Remove the directory and all sign-in links through it (the users stay).
+         * @description Remove the directory and all sign-in links through it (the users stay). Needs a
+         *     recent confirmation (#218): its users can no longer sign in.
          */
         delete: operations["auth_delete_directory"];
         options?: never;
@@ -3378,7 +3383,8 @@ export interface paths {
         put?: never;
         /**
          * Create User
-         * @description Create a local account with an initial password.
+         * @description Create a local account with an initial password. Needs a recent confirmation
+         *     (#218): a new admin account would start with a fresh one of its own.
          */
         post: operations["users_create_user"];
         delete?: never;
@@ -3399,6 +3405,7 @@ export interface paths {
         /**
          * Invite User
          * @description Create a local account without password and return a one-time invitation link.
+         *     Needs a recent confirmation (#218): whoever holds the link sets the password.
          */
         post: operations["users_invite_user"];
         delete?: never;
@@ -3439,7 +3446,7 @@ export interface paths {
         /**
          * Reissue Invitation
          * @description New invitation link for an invited user who has not set a password yet (the old
-         *     link stops working).
+         *     link stops working). Needs a recent confirmation (#218), as ``invite_user``.
          */
         post: operations["users_reissue_invitation"];
         delete?: never;
@@ -7870,7 +7877,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8160,7 +8167,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8594,7 +8601,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8895,7 +8902,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9322,7 +9329,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10492,7 +10499,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16806,7 +16813,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16860,7 +16867,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16975,7 +16982,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;

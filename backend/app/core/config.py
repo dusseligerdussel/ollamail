@@ -739,11 +739,17 @@ class SearchSettings(BaseSettings):
     # and the RRF constant k (score = sum of 1 / (k + rank)).
     candidates: int = Field(default=50, ge=1, le=1000)
     rrf_k: int = Field(default=60, ge=1)
+    # Full-text matches ranked per query at most, the most recent mails first: ranking
+    # reads each match's text vector, and a frequent word matches hundreds of thousands
+    # of chunks. Older matches are still found by the vector search.
+    text_rank_window: int = Field(default=2000, ge=1, le=100_000)
 
     @model_validator(mode="after")
     def _overlap_below_size(self) -> "SearchSettings":
         if self.chunk_overlap >= self.chunk_size // 2:
             raise ValueError("chunk_overlap must be less than half of chunk_size")
+        if self.text_rank_window < self.candidates:
+            raise ValueError("text_rank_window must not be less than candidates")
         return self
 
 

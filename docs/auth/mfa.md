@@ -84,10 +84,12 @@ oder das Konto zu löschen. Diese Endpunkte verlangen deshalb eine **aktuelle Be
 | Vollständiger Datenexport | `POST /api/privacy/exports` |
 | Konto löschen | `DELETE /api/privacy/account` (zusätzlich Eingabe der E-Mail-Adresse) |
 
-Dasselbe gilt für **kritische Admin-Aktionen** (#190, #206), denn ein gestohlenes Admin-Cookie
+Dasselbe gilt für **kritische Admin-Aktionen** (#190, #206, #218), denn ein gestohlenes Admin-Cookie
 reicht sonst, um einen Identity-Provider mit `link_by_email` anzulegen, der sich als beliebiger
-Nutzer anmeldet, oder einen KI-Endpunkt auf einen fremden Server umzubiegen. Sie hängen an
-`RecentAdminDep` (erst Admin-Prüfung, dann Bestätigung):
+Nutzer anmeldet, oder einen KI-Endpunkt auf einen fremden Server umzubiegen. Auch ein neues
+Admin-Konto darf damit nicht entstehen: Es meldet sich mit eigener, frischer Bestätigung an und
+hätte alle übrigen Schutzmaßnahmen umgangen (#218). Sie hängen an `RecentAdminDep` (erst
+Admin-Prüfung, dann Bestätigung):
 
 | Aktion | Endpunkt |
 |---|---|
@@ -103,9 +105,14 @@ Nutzer anmeldet, oder einen KI-Endpunkt auf einen fremden Server umzubiegen. Sie
 | SCIM-Einstellungen (Schalter, verknüpfende Provider) (#206) | `PATCH /api/admin/scim` |
 | KI-Einstellungen: Cloud-Provider einschalten oder Aufgaben zuordnen (#206) | `PATCH /api/admin/ai/settings` |
 | Shared-Mailbox-Zuweisungen ändern (#206) | `PUT /api/admin/shared-mailboxes/{id}/assignments`; beim Anlegen (`POST /api/admin/shared-mailboxes`) nur, wenn Zuweisungen mitgeschickt werden |
+| Nutzer anlegen, einladen, Einladungslink erneuern (#218) – unabhängig von der Rolle | `POST /api/users`, `POST /api/users/invitations`, `POST /api/users/{id}/invitation` |
+| Aufbewahrungsfristen ändern (#218): eine kurze Frist löscht das Audit-Log oder die Mails aller Nutzer | `PATCH /api/admin/privacy/retention` |
+| Shared Mailbox entfernen (#218) | `DELETE /api/admin/shared-mailboxes/{id}` |
+| OIDC-, GitHub-, SAML-Provider und LDAP-Verzeichnis entfernen (#218) | `DELETE /api/admin/auth/{oidc,github,saml}/providers/{name}`, `DELETE /api/auth/ldap/directories/{name}` |
 
-Lesen, Verbindungstests (außer dem gespeicherten Key an einem neuen Ziel), Löschen von Providern und „Überall abmelden“ brauchen keine
-Bestätigung: Sie geben niemandem Zugang zu fremden Konten oder Mails. Bei den KI-Einstellungen
+Lesen, Verbindungstests (außer dem gespeicherten Key an einem neuen Ziel), „Überall abmelden“,
+SCIM-Tokens widerrufen und das Entfernen von KI-Providern brauchen keine Bestätigung: Sie geben
+niemandem Zugang zu fremden Konten oder Mails und löschen keine Daten. Bei den KI-Einstellungen
 gilt das auch für das Ausschalten der Cloud-Provider, das Profil und die Parallelität: Damit
 gehen keine Mail-Inhalte an einen anderen Endpunkt. Wer sich selbst ein Shared Mailbox zuweist,
 kann es lesen – deshalb hängen die Zuweisungen ebenfalls an der Bestätigung (zusätzlich zum

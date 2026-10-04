@@ -353,15 +353,17 @@ async def update_oidc_provider(
     "/providers/{name}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
+        **ADMIN_REAUTH_RESPONSES,
         404: {"description": "Unknown provider"},
         409: {"description": "Configured in the environment, or admin lockout"},
     },
 )
 async def delete_oidc_provider(
-    name: str, admin: AdminSessionDep, request: Request, db: DbDep, store: StoreDep
+    name: str, admin: RecentAdminDep, request: Request, db: DbDep, store: StoreDep
 ) -> None:
     """Remove an OIDC provider. Users and their linked identities are kept; sessions
-    started with the provider stay valid until they expire or are revoked."""
+    started with the provider stay valid until they expire or are revoked. Needs a recent
+    confirmation (#218): removing a provider can lock its users out."""
     if name in store.env_configs:
         raise _read_only()
     record = await _record(db, name)
