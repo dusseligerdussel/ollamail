@@ -130,6 +130,7 @@ async def test_report_counts_timeouts(dataset: Dataset) -> None:
             settings=Settings(llm=LLMSettings(structured_output_retries=0)),
             provider_factory=factory(oracle),
             timeout=0.05,
+            injections=False,
         ),
     )
 

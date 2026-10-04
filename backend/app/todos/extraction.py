@@ -4,6 +4,11 @@ Flow: skip irrelevant mails (triage category, shared mailbox), drop the untouche
 an earlier run took from the same mail (idempotency), ask the model with the thread's
 open todos as context, then create new todos, update the ones the mail changes and mark
 the ones it completes as "done suggested". Nothing is committed here (step contract).
+
+Prompt injection (#170): the mail goes to the model as a data block with a random tag.
+A mail with passages addressed to an AI assistant (``app.ai.injection``) yields no todos
+at all and is not sent to the model: a todo is the one output that can leave ollamail
+without a click (export in mode ``auto``), so instructions in a mail must never make one.
 """
 
 import re
@@ -18,6 +23,7 @@ from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
 from sqlalchemy import and_, delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai import injection
 from app.ai.llm.gateway import LLMGateway
 from app.ai.llm.types import ChatMessage, LLMTask
 from app.ai.prompts.todos import TODOS_EXTRACT
@@ -38,6 +44,7 @@ WEEKDAY_NAMES = {
 }
 _YES_NO = {"en": ("yes", "no"), "de": ("ja", "nein")}
 _NONE = {"en": "(none)", "de": "(keine)"}
+_HEADER_LABELS = {"en": ("From", "To", "Subject"), "de": ("Von", "An", "Betreff")}
 
 
 def _truncate(limit: int) -> Callable[[Any], Any]:
@@ -181,15 +188,27 @@ def is_outgoing(message: Message, mailbox: Mailbox) -> bool:
     return bool(sender) and str(sender).casefold() == mailbox.address.casefold()
 
 
+def injected_passages(message: Message) -> int:
+    """Passages of subject and text addressed to an AI assistant."""
+    body = message.body_main or message.body_text or ""
+    return injection.neutralize(message.subject or "").passages + (
+        injection.neutralize(body).passages
+    )
+
+
 def build_prompt(
     message: Message,
     mailbox: Mailbox,
     user: User | None,
     reference: date,
     open_todos: Sequence[Todo],
+    *,
+    tag: str | None = None,
 ) -> list[ChatMessage]:
-    """``user`` is the owner; ``None`` for a shared mailbox (addressed by its name)."""
+    """``user`` is the owner; ``None`` for a shared mailbox (addressed by its name). The
+    mail goes into a data block named ``tag`` (random per call unless given)."""
     language = TODOS_EXTRACT.language_for(message.language)
+    tag = tag or injection.data_tag()
     yes, no = _YES_NO[language]
     listed = "\n".join(
         f"[{number}] {todo.title}"
@@ -197,16 +216,21 @@ def build_prompt(
         for number, todo in enumerate(open_todos, start=1)
     )
     recipients = ", ".join(_address(entry) for entry in [*message.to, *message.cc])
+    subject = injection.neutralize(message.subject or "").text
+    body = injection.neutralize(message.body_main or message.body_text or "").text
+    labels = _HEADER_LABELS[language]
+    mail = (
+        f"{labels[0]}: {_address(message.sender)}\n{labels[1]}: {recipients}\n"
+        f"{labels[2]}: {subject}\n\n{body}"
+    )
     return TODOS_EXTRACT.render(
         message.language,
         user=f"{user.display_name if user else mailbox.display_name} <{mailbox.address}>",
         sent_on=f"{WEEKDAY_NAMES[language][reference.weekday()]}, {reference.isoformat()}",
         outgoing=yes if is_outgoing(message, mailbox) else no,
         open_todos=listed or _NONE[language],
-        sender=_address(message.sender),
-        recipients=recipients,
-        subject=message.subject,
-        body=message.body_main or message.body_text,
+        tag=tag,
+        mail=injection.data_block(tag, mail),
     )
 
 
@@ -381,6 +405,10 @@ async def extract_todos(
     if category is not None and category in {c.lower() for c in settings.skip_categories}:
         return []
     if not (message.body_main or message.body_text or message.subject).strip():
+        return []
+    injected = injected_passages(message)
+    if injected:
+        injection.count("todos", injected)
         return []
 
     open_todos = await _thread_todos(session, user_id, message)
