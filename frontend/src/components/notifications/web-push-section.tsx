@@ -85,7 +85,12 @@ export function WebPushSection({ enabled }: { enabled: boolean }) {
   if (webPush.isError) {
     return (
       <Section id="notifications-push" title={t("notifications.push.title")} className="mt-8">
-        <InlineError error={webPush.error} className="px-4 py-3.5" />
+        <InlineError
+          error={webPush.error}
+          onRetry={webPush.refetch}
+          retrying={webPush.isFetching}
+          className="px-4 py-3.5"
+        />
       </Section>
     );
   }

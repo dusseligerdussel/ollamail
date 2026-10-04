@@ -59,7 +59,11 @@ function SharedMailboxPage() {
         (isApiError(mailbox.error) && mailbox.error.status === 404 ? (
           <Notice tone="error">{t("pages.sharedMailboxes.notFound")}</Notice>
         ) : (
-          <InlineError error={mailbox.error} />
+          <InlineError
+            error={mailbox.error}
+            onRetry={mailbox.refetch}
+            retrying={mailbox.isFetching}
+          />
         ))}
       {mailbox.data && (
         <div className="flex flex-col gap-8">
@@ -282,7 +286,9 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
           />
         </div>
         {users.isPending && <ListSkeleton rows={3} />}
-        {users.isError && <InlineError error={users.error} />}
+        {users.isError && (
+          <InlineError error={users.error} onRetry={users.refetch} retrying={users.isFetching} />
+        )}
         {users.data && (
           <ul
             aria-label={t("pages.sharedMailboxes.users")}

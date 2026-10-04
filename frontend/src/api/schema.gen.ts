@@ -1708,7 +1708,8 @@ export interface paths {
         };
         /**
          * List Digest Voices
-         * @description Voices for the digest: installed ones plus the default voice of each language.
+         * @description Voices for the digest: installed ones plus the default voice of each language and
+         *     the voices the admin allows (``OLLAMAIL_TTS_VOICE_ALLOWLIST``).
          */
         get: operations["digests_list_digest_voices"];
         put?: never;
@@ -1909,7 +1910,7 @@ export interface paths {
         /**
          * Stream Events
          * @description Stream the current user's events. Each SSE ``event`` is the event type, ``data``
-         *     the JSON-encoded event.
+         *     the JSON-encoded event. The stream ends when the session is no longer valid.
          */
         get: operations["events_stream_events"];
         put?: never;
@@ -2393,6 +2394,9 @@ export interface paths {
         /**
          * Register Push Device
          * @description Register this browser for Web Push, or refresh its registration (same endpoint).
+         *
+         *     The device is bound to the current session: signing out, revoking the session or its
+         *     expiry stop the pushes.
          */
         post: operations["notifications_register_push_device"];
         delete?: never;
@@ -3635,7 +3639,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "user.identity_linked" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -7170,7 +7174,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7328,7 +7332,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7554,7 +7558,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7717,7 +7721,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7844,7 +7848,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8007,7 +8011,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8278,7 +8282,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8441,7 +8445,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8591,7 +8595,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8724,7 +8728,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8866,7 +8870,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10024,7 +10028,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10130,7 +10134,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -11942,7 +11946,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid value or mailbox */
+            /** @description Invalid value, mailbox or voice */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12355,6 +12359,13 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Too many parallel AI requests of the user (`error_code` `llm_busy`) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     drafts_get_draft_settings: {
@@ -12717,6 +12728,13 @@ export interface operations {
                         type: string;
                     };
                 };
+            };
+            /** @description Too many open streams of the user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description The event listener is unavailable */
             503: {
@@ -14357,6 +14375,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Too many parallel AI requests of the user (`error_code` `llm_busy`) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
@@ -16441,7 +16466,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;

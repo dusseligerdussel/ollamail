@@ -130,7 +130,13 @@ function MailboxesPage() {
               <ListSkeleton rows={3} />
             </div>
           )}
-          {mailboxes.isError && <InlineError error={mailboxes.error} />}
+          {mailboxes.isError && (
+            <InlineError
+              error={mailboxes.error}
+              onRetry={mailboxes.refetch}
+              retrying={mailboxes.isFetching}
+            />
+          )}
           {own?.length === 0 && (
             <EmptyState
               icon={Inbox}

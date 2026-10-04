@@ -113,7 +113,13 @@ function TaskExportPage() {
       </div>
     );
   } else if (settings.isError) {
-    content = <InlineError error={settings.error} />;
+    content = (
+      <InlineError
+        error={settings.error}
+        onRetry={settings.refetch}
+        retrying={settings.isFetching}
+      />
+    );
   } else {
     const { target } = settings.data;
     const sinks = settings.data.available_sinks ?? [];

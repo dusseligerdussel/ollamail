@@ -27,6 +27,7 @@ const actionGroups = {
   "user.password_set": "users",
   "user.deleted": "users",
   "user.updated": "users",
+  "user.identity_linked": "users",
   "group.created": "users",
   "group.updated": "users",
   "group.deleted": "users",

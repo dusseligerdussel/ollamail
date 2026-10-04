@@ -9,7 +9,8 @@ import { mailboxIds, NOW } from "./mock-mail";
  * The answer stream (`POST /api/rag/ask`) is produced inside the page by a wrapped `fetch`,
  * so it really arrives piece by piece (Playwright can only fulfil whole responses).
  */
-export type AnswerScenario = "answered" | "no_evidence" | "error" | "timeout" | "hang";
+/** `busy`: the request is refused with 429 `llm_busy` (too many parallel AI requests). */
+export type AnswerScenario = "answered" | "no_evidence" | "error" | "timeout" | "hang" | "busy";
 
 export interface MockSearch {
   answer?: AnswerScenario;
@@ -209,6 +210,8 @@ function streamEvents(scenario: AnswerScenario, ocr = false) {
       return [start, filters, { type: "error", code: "llm_timeout" }];
     case "hang":
       return [start, filters, { type: "sources", sources }];
+    case "busy":
+      return [];
   }
 }
 
@@ -254,7 +257,7 @@ export async function mockSearch(
     if (answer === "answered") answered = true;
   });
   await page.addInitScript(
-    ({ events, step, pauseAfter }) => {
+    ({ events, step, pauseAfter, busy }) => {
       const original = window.fetch.bind(window);
       window.fetch = async (input, init) => {
         const request = input instanceof Request ? input : new Request(input, init);
@@ -264,6 +267,21 @@ export async function mockSearch(
         const report = (window as unknown as { __ollamailAsk: (body: string) => Promise<void> })
           .__ollamailAsk;
         await report(await request.clone().text());
+        if (busy) {
+          return new Response(
+            JSON.stringify({
+              type: "about:blank",
+              title: "Too Many Requests",
+              status: 429,
+              detail: "Too many AI requests at the same time. Wait for one to finish.",
+              error_code: "llm_busy",
+            }),
+            {
+              status: 429,
+              headers: { "Content-Type": "application/problem+json", "Retry-After": "5" },
+            },
+          );
+        }
         const encoder = new TextEncoder();
         const signal = request.signal;
         const body = new ReadableStream<Uint8Array>({
@@ -299,6 +317,7 @@ export async function mockSearch(
       events: streamEvents(answer, withOcrSource),
       step,
       pauseAfter: answer === "hang" ? streamEvents("hang").length : pauseAfter,
+      busy: answer === "busy",
     },
   );
 

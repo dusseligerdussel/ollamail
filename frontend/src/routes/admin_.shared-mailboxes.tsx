@@ -66,7 +66,14 @@ function SharedMailboxList() {
       </div>
     );
   }
-  if (mailboxes.isError) return <InlineError error={mailboxes.error} />;
+  if (mailboxes.isError)
+    return (
+      <InlineError
+        error={mailboxes.error}
+        onRetry={mailboxes.refetch}
+        retrying={mailboxes.isFetching}
+      />
+    );
   return (
     <>
       {mailboxes.data.length === 0 ? (

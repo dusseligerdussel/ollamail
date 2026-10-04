@@ -139,6 +139,18 @@ test("a model that takes too long is not reported as unreachable", async ({ page
   );
 });
 
+test("too many parallel requests are explained instead of a generic error", async ({ page }) => {
+  await mockSearch(page, { answer: "busy" });
+  await page.goto("/search");
+  await searchbox(page).fill(QUESTION);
+  await searchbox(page).press("Enter");
+
+  const alert = page.getByRole("article", { name: QUESTION }).getByRole("alert");
+  await expect(alert).toContainText(
+    "You already have several answers or drafts in progress. Wait for one to finish, then try again.",
+  );
+});
+
 test("history: reopen and delete conversations", async ({ page }) => {
   await mockSearch(page);
   await page.goto("/search");

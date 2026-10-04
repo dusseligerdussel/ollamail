@@ -10,16 +10,22 @@ Plain ``httpx`` with Basic auth (app passwords), no CalDAV library.
 * **IDs** are server-relative paths: a list is a collection path, a task the path of its
   ``<todo id>.ics`` resource. Requests only ever go to the configured server (origin);
   hrefs pointing elsewhere are ignored, redirects are only followed within that origin.
+* **Destination check** (#189): every connection goes through ``GuardedTransport``, which
+  refuses internal addresses (loopback, RFC 1918, link-local, ULA, ...) unless
+  ``OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS`` allows them, and connects to the checked
+  address (no DNS rebinding). A refused server fails like an unreachable one.
 * **Writes** are conditional: ``If-None-Match: *`` on create (a second push of the same
   todo overwrites instead of duplicating), ``If-Match`` on update (412 = conflict).
 * **Status sync** (``changes``): one ``PROPFIND`` for the ETags of the collection, then a
   ``calendar-multiget`` for the tasks whose ETag changed.
 
-Errors are mapped to ``SinkError`` codes; response bodies are never logged or stored.
+Errors are mapped to coarse ``SinkError`` codes (``unavailable``, ``auth_failed``,
+``not_found``, ``not_caldav``, ``conflict``), so they do not reveal what answered at an
+address (no status codes); response bodies are never logged or stored.
 """
 
 import xml.etree.ElementTree as ET
-from collections.abc import Iterable, Mapping
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from typing import ClassVar
@@ -27,6 +33,7 @@ from urllib.parse import quote, unquote, urljoin, urlsplit
 
 import httpx
 
+from app.core.http_guard import GuardedTransport
 from app.todos.export.base import (
     RemoteTask,
     RemoteVersion,
@@ -51,6 +58,8 @@ MAX_REDIRECTS = 3
 MULTIGET_BATCH = 50
 XML_HEADERS = {"Content-Type": "application/xml; charset=utf-8"}
 ICAL_TYPE = "text/calendar; charset=utf-8"
+# Any answer that is not what a CalDAV server sends (status, body, redirect).
+NOT_CALDAV = "not_caldav"
 
 
 def _tag(namespace: str, name: str) -> str:
@@ -91,11 +100,11 @@ def parse_multistatus(content: bytes) -> list[_Response]:
     """Responses of a 207 Multi-Status body; only properties with status 200."""
     if b"<!DOCTYPE" in content or b"<!ENTITY" in content:
         # No DTDs: rules out entity expansion attacks from a hostile server.
-        raise SinkError("invalid_response")
+        raise SinkError(NOT_CALDAV)
     try:
         root = ET.fromstring(content)
     except ET.ParseError:
-        raise SinkError("invalid_response") from None
+        raise SinkError(NOT_CALDAV) from None
     responses = []
     for item in root.iter(_tag(DAV, "response")):
         href = item.findtext(_tag(DAV, "href"))
@@ -171,6 +180,7 @@ class CalDAVSink(TodoSink):
         *,
         timeout: float = 20.0,
         allow_http: bool = False,
+        allowed_internal_hosts: Sequence[str] = (),
         transport: httpx.AsyncBaseTransport | None = None,
     ) -> None:
         self._url = validate_server_url(url, allow_http=allow_http)
@@ -180,7 +190,11 @@ class CalDAVSink(TodoSink):
             auth=httpx.BasicAuth(username, password) if username else None,
             timeout=timeout,
             follow_redirects=False,
-            transport=transport,
+            # ``transport`` only in tests; it skips the destination check.
+            transport=transport
+            or GuardedTransport(
+                allowed_internal_hosts, log_event="todo_export_destination_refused"
+            ),
             headers={"User-Agent": "ollamail"},
         )
 
@@ -222,27 +236,26 @@ class CalDAVSink(TodoSink):
                 response = await self._client.request(
                     method, url, headers=dict(headers or {}), content=content
                 )
-            except httpx.TimeoutException:
-                raise SinkUnavailableError("timeout") from None
             except httpx.HTTPError:
+                # Timeouts included: no hint whether something listens at the address.
                 raise SinkUnavailableError() from None
             if follow and response.status_code in {301, 302, 307, 308}:
                 location = response.headers.get("location")
                 target = self._path(location, url) if location else None
                 if target is None:
-                    raise SinkError("redirect_elsewhere")
+                    raise SinkError(NOT_CALDAV)
                 url = self._absolute(target)
                 continue
             break
         else:
-            raise SinkError("too_many_redirects")
+            raise SinkError(NOT_CALDAV)
         status = response.status_code
         if status in {401, 403}:
             raise SinkAuthError()
         if status == 429 or status >= 500:
             raise SinkUnavailableError()
         if len(response.content) > MAX_RESPONSE_BYTES:
-            raise SinkError("response_too_large")
+            raise SinkError(NOT_CALDAV)
         return response
 
     async def _propfind(
@@ -259,7 +272,7 @@ class CalDAVSink(TodoSink):
         if response.status_code in {404, 405, 410}:
             return None
         if response.status_code != 207:
-            raise SinkError(f"http_{response.status_code}")
+            raise SinkError(NOT_CALDAV)
         return parse_multistatus(response.content)
 
     async def _props(
@@ -382,12 +395,12 @@ class CalDAVSink(TodoSink):
         if status in {404, 409, 410}:
             # 409: the collection is missing.
             raise SinkNotFoundError()
-        raise SinkError(f"http_{status}")
+        raise SinkError(NOT_CALDAV)
 
     async def delete(self, list_id: str, remote_id: str) -> None:
         response = await self._request("DELETE", self._absolute(remote_id))
         if response.status_code not in {200, 202, 204, 404, 410}:
-            raise SinkError(f"http_{response.status_code}")
+            raise SinkError(NOT_CALDAV)
 
     async def changes(
         self, list_id: str, known: Mapping[str, str | None]
@@ -425,7 +438,7 @@ class CalDAVSink(TodoSink):
             content=_multiget_body(paths),
         )
         if response.status_code != 207:
-            raise SinkError(f"http_{response.status_code}")
+            raise SinkError(NOT_CALDAV)
         wanted = set(paths)
         found: dict[str, RemoteTask | None] = {}
         skipped: set[str] = set()

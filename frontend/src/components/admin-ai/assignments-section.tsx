@@ -65,7 +65,7 @@ function TaskRow({
   const errorId = `${id}-error`;
 
   return (
-    <div className="grid gap-3 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_11rem_13rem] sm:items-start sm:gap-4">
+    <div className="grid gap-3 px-4 py-3.5 sm:grid-cols-[minmax(0,1fr)_14rem_11rem] sm:items-start sm:gap-4">
       <div className="min-w-0">
         <div id={`${id}-label`} className="text-ui font-medium">
           {t(`pages.ai.tasks.${setting.task}`)}
@@ -93,7 +93,11 @@ function TaskRow({
           onChange={(event) => onChange({ ...value, provider: event.target.value })}
         >
           <NativeSelectOption value="">
-            {t("pages.ai.assignments.defaultProvider", { name: setting.default_provider })}
+            {t("pages.ai.assignments.defaultProvider", {
+              name:
+                providers.find((option) => option.name === setting.default_provider)
+                  ?.display_name ?? setting.default_provider,
+            })}
           </NativeSelectOption>
           {providers.map((option) => (
             <NativeSelectOption key={option.name} value={option.name}>
@@ -172,7 +176,7 @@ export function AssignmentsSection({
     <AdminSection id={`${id}-title`} title={t("pages.ai.assignments.section")}>
       <div
         aria-hidden
-        className="hidden grid-cols-[minmax(0,1fr)_11rem_13rem] gap-4 px-4 py-2 text-xs text-muted-foreground sm:grid"
+        className="hidden grid-cols-[minmax(0,1fr)_14rem_11rem] gap-4 px-4 py-2 text-xs text-muted-foreground sm:grid"
       >
         <span />
         <span>{t("pages.ai.assignments.provider")}</span>

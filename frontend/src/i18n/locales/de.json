@@ -5,14 +5,21 @@
   "common": {
     "close": "Schließen",
     "loading": "Wird geladen…",
-    "navigateHint": "Mit <0/> und <1/> durch die Liste bewegen."
+    "navigateHint": "Mit <0/> und <1/> durch die Liste bewegen.",
+    "retry": "Erneut versuchen"
   },
   "shell": {
     "skipToContent": "Zum Inhalt springen",
     "resizeNavigation": "Navigationsbreite ändern",
+    "notices": {
+      "label": "Hinweise",
+      "summary_one": "{{count}} Hinweis",
+      "summary_other": "{{count}} Hinweise"
+    },
     "cloudNotice": {
       "label": "Cloud-KI aktiv",
-      "text": "{{provider}} erhält Mail-Inhalte für: {{tasks}}"
+      "text": "{{provider}} erhält Mail-Inhalte für: {{tasks}}",
+      "dismiss": "Cloud-Hinweis ausblenden"
     },
     "syncNotice": {
       "label": "Postfach synchronisiert nicht",
@@ -275,7 +282,8 @@
           "reactivated": "Benutzer reaktiviert",
           "invited": "Benutzer eingeladen",
           "password_set": "Passwort gesetzt",
-          "updated": "Nutzer geändert"
+          "updated": "Nutzer geändert",
+          "identity_linked": "Anmeldung per E-Mail-Adresse verknüpft"
         },
         "group": {
           "created": "Gruppe angelegt",
@@ -1001,6 +1009,7 @@
     "tooLarge": "Die Datei ist zu groß.",
     "validation": "Einige Eingaben sind ungültig.",
     "rateLimited": "Zu viele Anfragen. Bitte warte einen Moment.",
+    "llmBusy": "Du hast bereits mehrere Antworten oder Entwürfe in Arbeit. Warte, bis einer fertig ist, und versuche es dann erneut.",
     "server": "Auf dem Server ist ein Fehler aufgetreten. Bitte versuche es später erneut.",
     "unavailable": "Der Dienst ist vorübergehend nicht verfügbar.",
     "unknown": "Etwas ist schiefgelaufen.",
