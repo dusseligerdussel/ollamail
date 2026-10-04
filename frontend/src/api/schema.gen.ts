@@ -39,7 +39,9 @@ export interface paths {
         put?: never;
         /**
          * Check Ai Provider Settings
-         * @description Test unsaved settings (e.g. in the form before saving).
+         * @description Test unsaved settings (e.g. in the form before saving). The stored key of ``name``
+         *     goes only to the stored ``kind`` and ``base_url``; sending it elsewhere needs a recent
+         *     confirmation, like saving the change does (#219).
          */
         post: operations["ai_check_ai_provider_settings"];
         delete?: never;
@@ -560,8 +562,10 @@ export interface paths {
         head?: never;
         /**
          * Update Shared Mailbox
-         * @description Rename, change connection settings or credentials (tested before saving), change
-         *     sync settings, pause or resume syncing.
+         * @description Rename, change connection settings or credentials (tested before saving, rate-limited
+         *     like ``POST /mailboxes/test``), change sync settings, pause or resume syncing. Settings
+         *     that send the credentials to another server need the credentials again (422
+         *     ``credentials_required``).
          */
         patch: operations["admin_update_shared_mailbox"];
         trace?: never;
@@ -2166,7 +2170,8 @@ export interface paths {
          * Update Mailbox
          * @description Rename, change connection settings or credentials (tested before saving), change
          *     the import period or excluded folder roles, pause (``sync_enabled: false``) or resume
-         *     syncing.
+         *     syncing. Settings that send the credentials to another server (host, port, transport
+         *     security, token endpoint) need the credentials again (422 ``credentials_required``).
          */
         patch: operations["mailboxes_update_mailbox"];
         trace?: never;
@@ -3458,7 +3463,8 @@ export interface components {
         /**
          * AIProviderTest
          * @description Unsaved settings to test. Without ``api_key``, the stored key of ``name`` is used
-         *     (so an edit form can be tested without typing the key again).
+         *     (so an edit form can be tested without typing the key again); with another ``kind`` or
+         *     ``base_url`` than stored, only after a recent confirmation (403 ``reauth-required``).
          */
         AIProviderTest: {
             /** Api Key */
@@ -7299,7 +7305,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9255,6 +9261,13 @@ export interface operations {
             };
             /** @description Invalid request, unavailable mailbox type or failed connection test */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
