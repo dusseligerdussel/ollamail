@@ -14,7 +14,7 @@ Inbox and triage lists on large mailboxes (#186):
 Existing rows are filled in batches, each committed on its own, like ``add_message_sort_date``.
 
 Revision ID: 243731d5138f
-Revises: 4adf661e4588
+Revises: 93abef19553f
 Create Date: 2026-10-04 12:41:52.533169+00:00
 """
 
@@ -24,7 +24,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "243731d5138f"
-down_revision: str | Sequence[str] | None = "4adf661e4588"
+down_revision: str | Sequence[str] | None = "93abef19553f"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

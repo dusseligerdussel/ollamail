@@ -116,7 +116,7 @@ async def test_triage_list_columns_are_backfilled_in_batches(empty_database: str
     message into existing results (more than one batch); the triggers fill new results and
     follow a changed ``sort_date`` afterwards."""
     config = alembic_config(empty_database)
-    await asyncio.to_thread(command.upgrade, config, "4adf661e4588")
+    await asyncio.to_thread(command.upgrade, config, "93abef19553f")
     engine = create_async_engine(empty_database, poolclass=NullPool)
     async with engine.begin() as connection:
         await connection.execute(
@@ -185,7 +185,7 @@ async def test_triage_list_columns_are_backfilled_in_batches(empty_database: str
         assert changed is not None and changed.year == 2030
     await engine.dispose()
 
-    await asyncio.to_thread(command.downgrade, config, "4adf661e4588")
+    await asyncio.to_thread(command.downgrade, config, "93abef19553f")
 
 
 async def _embedding_column(url: str) -> tuple[str, str, list[float]]:
