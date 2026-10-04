@@ -28,6 +28,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import CloudLLMDisabledError, LLMGateway, LLMOutputError, LLMTask
 from app.core.config import TriageSettings
+from app.core.db import release_connection
 from app.core.events import Event
 from app.core.ids import uuid7
 from app.mail import listing
@@ -98,6 +99,11 @@ async def _decide(
         body_chars=settings.max_body_chars,
     )
     language = message.language
+    if owner_id is not None:
+        user = await session.get(User, owner_id)
+        if user is not None:
+            # The reason is shown to the owner, so it is written in the UI language.
+            language = user.language
     # Few-shot examples only from the owner's own corrections, or for a shared mailbox from
     # the corrections made in this mailbox (docs/PRIVACY.md).
     examples = await select_examples(
@@ -110,11 +116,8 @@ async def _decide(
         exclude_message_id=message.id,
         shared_mailbox_id=None if owner_id is not None else mailbox.id,
     )
-    if owner_id is not None:
-        user = await session.get(User, owner_id)
-        if user is not None:
-            # The reason is shown to the owner, so it is written in the UI language.
-            language = user.language
+    # Reading is done; the model call (and the wait for a free slot) holds no connection.
+    await release_connection(session)
     try:
         decision = await classify(llm, view, categories, examples, language=language)
     except CloudLLMDisabledError:
@@ -132,12 +135,18 @@ async def _decide(
 
 
 async def save_result(
-    session: AsyncSession, message_id: uuid.UUID, decision: Decision
+    session: AsyncSession, message_id: uuid.UUID, decision: Decision, *, keep_user: bool = False
 ) -> TriageResult:
-    """Insert or replace the result; marks it for write-back if the category changed."""
+    """Insert or replace the result; marks it for write-back if the category changed.
+    ``keep_user`` keeps a correction by the user (made while the model was answering)."""
     result = await session.scalar(
-        select(TriageResult).where(TriageResult.message_id == message_id).with_for_update()
+        select(TriageResult)
+        .where(TriageResult.message_id == message_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
     )
+    if keep_user and result is not None and result.source == TriageSource.USER:
+        return result
     if result is None:
         result = TriageResult(message_id=message_id, write_back_pending=True)
         session.add(result)
@@ -157,7 +166,11 @@ async def save_result(
 async def triage_message(
     session: AsyncSession, message_id: uuid.UUID, *, llm: LLMGateway, settings: TriageSettings
 ) -> TriageResult | None:
-    """Classify one message (idempotent). A correction by the user is never replaced."""
+    """Classify one message (idempotent). A correction by the user is never replaced.
+
+    Ends the read transaction before calling the model (``release_connection``) and writes
+    the result in a new one (pending changes are committed with the reads).
+    """
     row = (
         await session.execute(
             select(Message, Mailbox)
@@ -178,7 +191,7 @@ async def triage_message(
     if not categories:
         raise StepError("triage_no_categories", permanent=True)
     decision = await _decide(session, message, mailbox, categories, llm, settings)
-    return await save_result(session, message_id, decision)
+    return await save_result(session, message_id, decision, keep_user=True)
 
 
 async def publish_triaged(

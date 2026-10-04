@@ -352,6 +352,10 @@ und den Lösch-Job (`app/mail/deletion.py`); sie baut nichts davon nach.
   Postfach fehlgeschlagen) | `syncing` (Sync-Job wartet oder läuft, aus `procrastinate_jobs`) |
   `pending` (nie synchronisiert) | `importing` (Initialimport eines Ordners offen) | `idle`, dazu
   letzte Synchronisierung, Fehlercode, Ordner gesamt/importiert/fehlgeschlagen und Anzahl Mails.
+  Die Anzahl wird für Postfächer in `syncing`/`importing`/`pending` je API-Prozess bis zu 15 s
+  wiederverwendet (#188, `service.message_counts`): Während eines Imports lädt jeder Tab den Status
+  nach jedem Batch neu, und `count(*)` über 100k Mails ist dafür zu teuer. Ruhende Postfächer
+  werden bei jedem Request gezählt.
   „Import offen“ heißt: kein Cursor oder der Cursor enthält den Schlüssel `import`
   (Konvention für Provider, die in Batches importieren, siehe `SyncCursor`).
 - **Ordnerauswahl** setzt `Folder.sync_enabled` und hält `SyncSettings.excluded_folders`
@@ -692,6 +696,15 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   belegen zusätzlich einen Platz des Nutzers (`app/ai/llm/user_limits.py`,
   `OLLAMAIL_LLM_API_USER_CONCURRENCY`) bis zum Ende des Streams; ohne freien Platz 429 mit
   `Retry-After` und `error_code` `llm_busy`. Die Suche fragt dann ohne Embedding (nur Volltext).
+- **Keine Pool-Verbindung während langsamer Aufrufe** (#188): Wer in einer Session liest und dann
+  das LLM, Embeddings oder einen anderen Netzwerkdienst aufruft, beendet vorher die
+  Lesetransaktion mit `app.core.db.release_connection(session)`; geschrieben wird danach in einer
+  neuen, kurzen Transaktion. Sonst hält jeder Job, der am Semaphor des LLM-Gateways wartet, eine
+  Verbindung. Umgesetzt in Triage (`_decide`, Few-Shot-Ranking), Todo-Extraktion (alte Todos
+  werden erst nach der Antwort ersetzt), Index (`index_message`, auch vor dem Textextrahieren der
+  Anhänge) und Suche (Embedding der Anfrage vor den Kandidaten-Abfragen; gilt auch für RAG).
+  `release_connection` committet (auch noch offene Änderungen), also vor Schreibzugriffen aufrufen,
+  die mit dem Ergebnis des Aufrufs atomar sein müssen.
 - **Aktueller Nutzer:** Dependency `app.core.current_user.get_current_user_id` (Session-Cookie,
   siehe §5); ohne gültige Session 401. Tests überschreiben sie.
 
@@ -1562,7 +1575,8 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
   Externe Provider kommen dynamisch aus `GET /api/auth/providers`. Details: `frontend/README.md`.
 - Echtzeit über SSE (`GET /api/events`): JSON-Events `{"type": "<ressource>.<aktion>", …IDs}`, die
   das Frontend (`useEvents()`) in Query-Invalidierungen übersetzt. Details: `frontend/README.md`.
-- i18n (DE/EN), Dark/Light/System, PWA, Tastaturbedienung und Command Palette (⌘K).
+- i18n (DE/EN, jede Sprache ein eigener Chunk, geladen wird nur die aktive), Dark/Light/System, PWA,
+  Tastaturbedienung und Command Palette (⌘K).
 - Gestaltung: siehe `docs/DESIGN.md`.
 
 ## 7. Betrieb

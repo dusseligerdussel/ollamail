@@ -12,7 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
 from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.pool import NullPool
 
-from app.core.db import Base, get_db
+from app.core.db import Base, get_db, release_connection
 from app.core.ids import uuid7, uuid7_floor, uuid7_time
 from tests.conftest import ExtraRoute
 
@@ -175,3 +175,22 @@ async def test_worker_tasks_share_one_engine(monkeypatch: pytest.MonkeyPatch) ->
         await runtime.worker_resolver().aclose()
         monkeypatch.setattr(runtime, "_resolver", None)
         await db.dispose_process_database()
+
+
+@pytest.mark.db
+async def test_release_connection_returns_the_connection_to_the_pool(
+    migrated_database: str,
+) -> None:
+    engine = create_async_engine(migrated_database)
+    try:
+        async with AsyncSession(engine, expire_on_commit=False) as session:
+            assert await session.scalar(select(1)) == 1
+            assert engine.pool.checkedout() == 1  # type: ignore[attr-defined]
+
+            await release_connection(session)
+
+            assert engine.pool.checkedout() == 0  # type: ignore[attr-defined]
+            # The next statement takes a connection again.
+            assert await session.scalar(select(2)) == 2
+    finally:
+        await engine.dispose()

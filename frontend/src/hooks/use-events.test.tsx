@@ -99,15 +99,24 @@ describe("useEvents", () => {
     expect(invalidate).toHaveBeenCalledTimes(2);
   });
 
-  it("refreshes the inbox while a mailbox syncs", () => {
+  it("refreshes only the mailbox status while a sync makes progress", () => {
     renderHook(() => useEvents(), { wrapper });
 
     MockEventSource.last.emit("message", { type: "mailbox.sync", status: "progress" });
 
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["mailbox"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["message", "list"] });
-    expect(invalidate).toHaveBeenCalledWith({ queryKey: ["message", "triage", "inbox"] });
-    expect(invalidate).toHaveBeenCalledTimes(3);
+    expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: ["mailbox"] });
+  });
+
+  it.each(["done", "failed"])("refreshes the inbox once a sync is %s", (status) => {
+    renderHook(() => useEvents(), { wrapper });
+
+    MockEventSource.last.emit("message", { type: "mailbox.sync", status });
+
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ["mailbox"],
+      ["message", "list"],
+      ["message", "triage", "inbox"],
+    ]);
   });
 
   it("refreshes categories, not threads, when a message is triaged", () => {
@@ -115,7 +124,10 @@ describe("useEvents", () => {
 
     MockEventSource.last.emit("message", { type: "message.triaged", message_id: "m1" });
 
-    expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: ["message", "triage"] });
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ["message", "triage", "result"],
+      ["message", "triage", "inbox"],
+    ]);
   });
 
   it("refreshes tasks, labels and search, not threads or lists, when a message is processed", () => {
@@ -125,9 +137,45 @@ describe("useEvents", () => {
 
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
       ["message", "todos"],
-      ["message", "triage"],
+      ["message", "triage", "result"],
+      ["message", "triage", "inbox"],
       ["message", "search"],
     ]);
+  });
+
+  it("keeps only the first page of a long list before refetching it", () => {
+    const pages = (count: number) => ({
+      pages: Array.from({ length: count }, (_, index) => ({ items: [index] })),
+      pageParams: Array.from({ length: count }, (_, index) => (index ? `c${index}` : undefined)),
+    });
+    queryClient.setQueryData(["message", "list", { unread: true }], pages(10));
+    queryClient.setQueryData(["message", "triage", "inbox", {}], pages(3));
+    queryClient.setQueryData(["message", "thread", "m1"], { messages: [] });
+    renderHook(() => useEvents(), { wrapper });
+
+    MockEventSource.last.emit("message", { type: "mailbox.sync", status: "done" });
+
+    expect(queryClient.getQueryData(["message", "list", { unread: true }])).toEqual(pages(1));
+    expect(queryClient.getQueryData(["message", "triage", "inbox", {}])).toEqual(pages(1));
+    expect(queryClient.getQueryData(["message", "thread", "m1"])).toEqual({ messages: [] });
+  });
+
+  it("keeps all pages when another event of the batch reloads the list in full", () => {
+    vi.useFakeTimers();
+    const data = {
+      pages: [{ items: [1] }, { items: [2] }],
+      pageParams: [undefined, "c1"],
+    };
+    queryClient.setQueryData(["message", "list", {}], data);
+    renderHook(() => useEvents(), { wrapper });
+    const emit = (event: object) => MockEventSource.last.emit("message", event);
+
+    emit({ type: "message.triaged" });
+    emit({ type: "mailbox.sync", status: "done" });
+    emit({ type: "message.updated", message_id: "m1" });
+    vi.advanceTimersByTime(INVALIDATION_DEBOUNCE_MS);
+
+    expect(queryClient.getQueryData(["message", "list", {}])).toEqual(data);
   });
 
   it("bundles the invalidations of an event burst", () => {
@@ -137,7 +185,7 @@ describe("useEvents", () => {
 
     // The first event after a quiet period applies at once.
     emit("message.processed");
-    expect(invalidate).toHaveBeenCalledTimes(3);
+    expect(invalidate).toHaveBeenCalledTimes(4);
     invalidate.mockClear();
 
     // Events that follow wait until no event came for a while, and each key runs once.
@@ -148,7 +196,8 @@ describe("useEvents", () => {
     vi.advanceTimersByTime(1);
     expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
       ["message", "todos"],
-      ["message", "triage"],
+      ["message", "triage", "result"],
+      ["message", "triage", "inbox"],
       ["message", "search"],
       ["mailbox"],
       ["message", "list"],
@@ -177,7 +226,10 @@ describe("useEvents", () => {
       emit();
     }
 
-    expect(invalidate).toHaveBeenCalledExactlyOnceWith({ queryKey: ["message", "triage"] });
+    expect(invalidate.mock.calls.map(([filters]) => filters?.queryKey)).toEqual([
+      ["message", "triage", "result"],
+      ["message", "triage", "inbox"],
+    ]);
   });
 
   it("drops pending invalidations on unmount", () => {

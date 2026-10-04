@@ -6,6 +6,7 @@ Privacy: logs carry mailbox IDs and error codes only, never addresses, display n
 host names or credentials.
 """
 
+import time
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
@@ -264,6 +265,43 @@ async def folder_reads(session: AsyncSession, mailbox: Mailbox) -> list[FolderRe
     return result
 
 
+# Message counts of mailboxes that are syncing: reused for a few seconds (#188). During an
+# import every tab reloads the mailbox list after each batch, and counting 100k rows each
+# time costs more than the number is worth. Idle mailboxes are counted on every request.
+MESSAGE_COUNT_TTL_SECONDS = 15.0
+_BUSY_PHASES: frozenset[SyncPhase] = frozenset({"syncing", "importing", "pending"})
+_message_counts: dict[uuid.UUID, tuple[float, int]] = {}
+
+
+async def message_counts(
+    session: AsyncSession, phases: dict[uuid.UUID, SyncPhase]
+) -> dict[uuid.UUID, int]:
+    """Messages per mailbox; for busy mailboxes (``_BUSY_PHASES``) at most
+    ``MESSAGE_COUNT_TTL_SECONDS`` old (per process)."""
+    now = time.monotonic()
+    counts: dict[uuid.UUID, int] = {}
+    for mailbox_id, phase in phases.items():
+        cached = _message_counts.get(mailbox_id)
+        if phase in _BUSY_PHASES and cached and now - cached[0] < MESSAGE_COUNT_TTL_SECONDS:
+            counts[mailbox_id] = cached[1]
+    missing = [mailbox_id for mailbox_id in phases if mailbox_id not in counts]
+    if missing:
+        fresh = dict.fromkeys(missing, 0)
+        rows = await session.execute(
+            select(Message.mailbox_id, func.count())
+            .where(Message.mailbox_id.in_(missing))
+            .group_by(Message.mailbox_id)
+        )
+        fresh.update({mailbox_id: count for mailbox_id, count in rows.tuples()})
+        counts.update(fresh)
+        for mailbox_id, count in fresh.items():
+            if phases[mailbox_id] in _BUSY_PHASES:
+                _message_counts[mailbox_id] = (now, count)
+            else:
+                _message_counts.pop(mailbox_id, None)
+    return counts
+
+
 async def statuses(
     session: AsyncSession, mailboxes: Sequence[Mailbox]
 ) -> dict[uuid.UUID, MailboxSyncStatus]:
@@ -277,16 +315,6 @@ async def statuses(
     states: dict[tuple[uuid.UUID, uuid.UUID | None], SyncState] = {
         (state.mailbox_id, state.folder_id): state
         for state in await session.scalars(select(SyncState).where(SyncState.mailbox_id.in_(ids)))
-    }
-    counts: dict[uuid.UUID, int] = {
-        mailbox_id: count
-        for mailbox_id, count in (
-            await session.execute(
-                select(Message.mailbox_id, func.count())
-                .where(Message.mailbox_id.in_(ids))
-                .group_by(Message.mailbox_id)
-            )
-        ).all()
     }
     queued = await _queued(session, ids)
 
@@ -323,8 +351,11 @@ async def statuses(
             folders_total=len(selected),
             folders_imported=imported,
             folders_failed=failed,
-            message_count=counts.get(mailbox.id, 0),
+            message_count=0,
         )
+    counts = await message_counts(session, {key: value.phase for key, value in result.items()})
+    for mailbox_id, status in result.items():
+        status.message_count = counts.get(mailbox_id, 0)
     return result
 
 

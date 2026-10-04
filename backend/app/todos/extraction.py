@@ -20,7 +20,7 @@ from typing import Annotated, Any, Literal
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 from pydantic import BaseModel, BeforeValidator, ConfigDict, Field
-from sqlalchemy import and_, delete, select
+from sqlalchemy import ColumnElement, and_, delete, not_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai import injection
@@ -28,6 +28,7 @@ from app.ai.llm.gateway import LLMGateway
 from app.ai.llm.types import ChatMessage, LLMTask
 from app.ai.prompts.todos import TODOS_EXTRACT
 from app.core.config import TodosSettings
+from app.core.db import release_connection
 from app.mail.models import Mailbox, Message
 from app.todos.dates import resolve_due_date
 from app.todos.models import Todo, TodoPriority, TodoStatus
@@ -237,7 +238,8 @@ def build_prompt(
 async def _thread_todos(
     session: AsyncSession, user_id: uuid.UUID | None, message: Message
 ) -> list[Todo]:
-    """Open todos of the thread: the owner's, or the team todos of a shared mailbox."""
+    """Open todos of the thread: the owner's, or the team todos of a shared mailbox.
+    Without those of ``message`` that a new run replaces (``discard_previous``)."""
     if message.thread_id is None:
         return []
     owner = (
@@ -251,6 +253,7 @@ async def _thread_todos(
             owner,
             Todo.thread_id == message.thread_id,
             Todo.status == TodoStatus.OPEN,
+            not_(_replaced(message.id)),
         )
         .order_by(Todo.created_at, Todo.id)
         .limit(MAX_THREAD_TODOS)
@@ -258,17 +261,20 @@ async def _thread_todos(
     return list(rows)
 
 
+def _replaced(message_id: uuid.UUID) -> ColumnElement[bool]:
+    """Todos an earlier run took from this mail and the user did not touch."""
+    return and_(
+        Todo.message_id == message_id,
+        Todo.is_manual.is_(False),
+        Todo.is_edited.is_(False),
+        Todo.status == TodoStatus.OPEN,
+        Todo.done_suggested.is_(False),
+    )
+
+
 async def discard_previous(session: AsyncSession, message_id: uuid.UUID) -> None:
     """Delete todos an earlier run took from this mail, unless the user touched them."""
-    await session.execute(
-        delete(Todo).where(
-            Todo.message_id == message_id,
-            Todo.is_manual.is_(False),
-            Todo.is_edited.is_(False),
-            Todo.status == TodoStatus.OPEN,
-            Todo.done_suggested.is_(False),
-        )
-    )
+    await session.execute(delete(Todo).where(_replaced(message_id)))
 
 
 def _update(todo: Todo, item: ExtractedTodo, due: date | None) -> None:
@@ -382,7 +388,11 @@ async def extract_todos(
     llm: LLMGateway,
     settings: TodosSettings,
 ) -> list[Todo]:
-    """Run the extraction for one stored message; returns the newly created todos."""
+    """Run the extraction for one stored message; returns the newly created todos.
+
+    Ends the read transaction before calling the model (``release_connection``) and writes
+    in a new one (pending changes are committed with the reads).
+    """
     message = await session.get(Message, message_id)
     if message is None:
         return []
@@ -399,27 +409,31 @@ async def extract_todos(
 
     if not settings.extraction_enabled:
         return []
-    await discard_previous(session, message.id)
-    await session.flush()
     category = await message_category(session, message.id)
-    if category is not None and category in {c.lower() for c in settings.skip_categories}:
-        return []
-    if not (message.body_main or message.body_text or message.subject).strip():
-        return []
-    injected = injected_passages(message)
+    skip = category is not None and category in {c.lower() for c in settings.skip_categories}
+    empty = not (message.body_main or message.body_text or message.subject).strip()
+    injected = 0 if skip or empty else injected_passages(message)
     if injected:
         injection.count("todos", injected)
+    if skip or empty or injected:
+        await discard_previous(session, message.id)
+        await session.flush()
         return []
 
     open_todos = await _thread_todos(session, user_id, message)
     reference = reference_date(message, user.timezone if user is not None else "UTC")
+    prompt = build_prompt(message, mailbox, user, reference, open_todos)
+    # Reading is done; the model call (and the wait for a free slot) holds no connection.
+    await release_connection(session)
     result = await llm.complete_structured(
         LLMTask.TODOS,
-        build_prompt(message, mailbox, user, reference, open_todos),
+        prompt,
         TodoExtraction,
         prompt_version=TODOS_EXTRACT.id,
         language=message.language,
     )
+    await discard_previous(session, message.id)
+    await session.flush()
     plan = plan_extraction(
         result,
         open_titles=[todo.title for todo in open_todos],

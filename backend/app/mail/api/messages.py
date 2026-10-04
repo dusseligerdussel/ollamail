@@ -22,7 +22,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, selectinload
+from sqlalchemy.sql.base import ExecutableOption
 
 from app import audit
 from app.auth.dependencies import CurrentSessionDep, SettingsDep
@@ -133,12 +134,19 @@ def _date_of(message: Message) -> datetime:
     return message.received_at or message.sent_at or message.created_at
 
 
-async def _message(db: AsyncSession, user_id: uuid.UUID, message_id: uuid.UUID) -> Message:
+async def _message(
+    db: AsyncSession, user_id: uuid.UUID, message_id: uuid.UUID, *options: ExecutableOption
+) -> Message:
+    """The message if ``user_id`` may read it, else 404. ``options`` replace the default
+    (all columns and the attachments), e.g. to skip the bodies (#188)."""
     message = await db.scalar(
         select(Message)
         .join(Mailbox, Mailbox.id == Message.mailbox_id)
         .where(Message.id == message_id, access.visible_to(user_id))
-        .options(selectinload(Message.attachments))
+        .options(*(options or (selectinload(Message.attachments),)))
+        # Apply ``options`` also to a message already in the session (e.g. the snippet of
+        # ``listing.without_bodies``, which a loaded object would otherwise lack).
+        .execution_options(populate_existing=True)
     )
     if message is None:
         raise ProblemError(404, detail="Message not found.")
@@ -289,7 +297,13 @@ async def get_message_body(
 ) -> MessageBody:
     """Sanitised HTML; with ``external_images=true`` remote images are kept (the user
     chose to load them for this message)."""
-    message = await _message(db, current.user_id, message_id)
+    message = await _message(
+        db,
+        current.user_id,
+        message_id,
+        load_only(Message.id, Message.mailbox_id, Message.body_html),
+        selectinload(Message.attachments),
+    )
     return await asyncio.to_thread(_body, message, external_images=external_images)
 
 
@@ -304,12 +318,15 @@ async def update_message(
     """Mark read or unread, flag or unflag. Stored at once, written back to the server by
     a job. Needs ``act`` on the mailbox (403 ``read_only``): in a shared mailbox the
     state is the mailbox's, so only users assigned with ``act`` may change it."""
-    message = await _message(db, current.user_id, message_id)
+    message = await _message(db, current.user_id, message_id, *listing.without_bodies())
     if (
         await access.get_mailbox(db, current.user_id, message.mailbox_id, MailboxPermission.ACT)
         is None
     ):
         raise ProblemError(403, detail="This mailbox is read-only for you.", error_code="read_only")
+    # Before any write: flushing the change would expire the snippet of
+    # ``listing.without_bodies`` and reading it again would load the body.
+    summary = _summary_fields(message)
     before = set(message.flags or [])
     flags = set(before)
     for flag, value in ((Flag.SEEN, body.seen), (Flag.FLAGGED, body.flagged)):
@@ -342,7 +359,6 @@ async def update_message(
                 db, message.mailbox_id, Event(type="message.updated", ids=ids, status=change)
             )
         await db.commit()
-        await db.refresh(message)
         try:
             await write_flags(message.id)
         except Exception as exc:
@@ -352,7 +368,8 @@ async def update_message(
                 message_id=str(message.id),
                 error_type=type(exc).__name__,
             )
-    return MessageSummary(**_summary_fields(message))
+    summary.update(unread=Flag.SEEN.value not in flags, flagged=Flag.FLAGGED.value in flags)
+    return MessageSummary(**summary)
 
 
 @router.get(
@@ -370,7 +387,13 @@ async def download_attachment(
 ) -> FileResponse:
     """The attachment file. Downloaded (``Content-Disposition: attachment``) unless
     ``inline=true`` and it is a raster image (for ``cid:`` images in the mail)."""
-    message = await _message(db, current.user_id, message_id)
+    message = await _message(
+        db,
+        current.user_id,
+        message_id,
+        load_only(Message.id, Message.mailbox_id),
+        selectinload(Message.attachments),
+    )
     attachment: Attachment | None = next(
         (a for a in message.attachments if a.id == attachment_id), None
     )

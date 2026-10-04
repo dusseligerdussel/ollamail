@@ -1,6 +1,8 @@
 """Index and search against PostgreSQL with fake embeddings. All mail data is synthetic."""
 
 import uuid
+from collections.abc import Sequence
+from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from typing import Any
 
@@ -560,3 +562,34 @@ async def test_empty_query(
 
 async def test_storage_fixture_is_isolated(storage: AttachmentStorage) -> None:
     assert storage.root.exists()
+
+
+@dataclass
+class WatchingEmbedder(FakeEmbedder):
+    """Notes for every embedding call whether the session still had a transaction open."""
+
+    session: AsyncSession | None = None
+    open_transaction: list[bool] = field(default_factory=list)
+
+    async def embed(self, texts: Sequence[str], *, model: str | None = None) -> list[list[float]]:
+        assert self.session is not None
+        self.open_transaction.append(self.session.in_transaction())
+        return await super().embed(texts, model=model)
+
+
+async def test_embedding_calls_hold_no_connection(
+    mail: MailData, search_settings: SearchSettings
+) -> None:
+    owner = await mail.user()
+    message_id = await mail.message(await mail.mailbox(owner), "Your boarding pass for Friday.")
+    embedder = WatchingEmbedder(session=mail.session)
+
+    await _index(mail, embedder, search_settings, message_id)
+    hits = await search(
+        mail.session, owner, "boarding pass", embedder=embedder, settings=search_settings
+    )
+
+    assert [hit.message_id for hit in hits] == [message_id]
+    assert [hit.vector_rank for hit in hits] == [1]
+    # Index and query: the read transaction ended before each call (#188).
+    assert embedder.open_transaction == [False, False]

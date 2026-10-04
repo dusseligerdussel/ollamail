@@ -1,4 +1,9 @@
-import { type QueryClient, type QueryKey, useQueryClient } from "@tanstack/react-query";
+import {
+  type InfiniteData,
+  type QueryClient,
+  type QueryKey,
+  useQueryClient,
+} from "@tanstack/react-query";
 import { useEffect } from "react";
 
 import { API_BASE_PATH } from "@/api/client";
@@ -15,8 +20,24 @@ export interface ServerEvent {
   [field: string]: unknown;
 }
 
-/** Query keys to invalidate for an event. */
-export type InvalidationRule = (event: ServerEvent) => QueryKey[];
+/**
+ * A query key to invalidate. `firstPage` (#188) drops all but the first page of the infinite
+ * queries under the key before they are refetched, so a list scrolled through many pages
+ * refetches one page, not all of them; further pages load again while scrolling.
+ */
+export type Invalidation = QueryKey | { queryKey: QueryKey; firstPage: true };
+
+/** Queries to invalidate for an event. */
+export type InvalidationRule = (event: ServerEvent) => Invalidation[];
+
+/** Invalidate `queryKey`, refetching only the first page of its infinite queries. */
+export function firstPage(queryKey: QueryKey): Invalidation {
+  return { queryKey, firstPage: true };
+}
+
+// Inbox lists (by date and by category): long, paged, and changed by every import batch.
+const LIST_BY_DATE = firstPage(["message", "list"]);
+const LIST_BY_CATEGORY = firstPage(["message", "triage", "inbox"]);
 
 /**
  * Event types that need more than the default. By default an event `<resource>.<action>`
@@ -24,18 +45,21 @@ export type InvalidationRule = (event: ServerEvent) => QueryKey[];
  * `["message", …]`. Feature modules add entries here, keyed by event type.
  */
 export const invalidationRules: Record<string, InvalidationRule> = {
-  // Sync progress changes the mailbox status and brings new mails into the inbox.
-  "mailbox.sync": () => [["mailbox"], ["message", "list"], ["message", "triage", "inbox"]],
+  // Sync progress (one event per import batch) changes the mailbox status only; the lists
+  // follow once the sync is done or failed (#188), with their first page.
+  "mailbox.sync": (event) =>
+    event.status === "progress" ? [["mailbox"]] : [["mailbox"], LIST_BY_DATE, LIST_BY_CATEGORY],
   // A removed or reconfigured mailbox changes which mails are listed.
   "mailbox.changed": () => [["mailbox"], ["message"]],
   // A message got its category (#21): labels and the inbox by category, not the threads.
-  "message.triaged": () => [["message", "triage"]],
+  "message.triaged": () => [["message", "triage", "result"], LIST_BY_CATEGORY],
   // A message is processed (#140): its tasks and labels may be new, the search finds it. Not
-  // the threads and lists: processing changes neither, and during an import every message
-  // sends this event.
+  // the threads and the list by date: processing changes neither, and during an import every
+  // message sends this event.
   "message.processed": () => [
     ["message", "todos"],
-    ["message", "triage"],
+    ["message", "triage", "result"],
+    LIST_BY_CATEGORY,
     ["message", "search"],
   ],
   // A new mail to announce (#149): shown as a browser notification, no data to reload.
@@ -61,7 +85,7 @@ function emitServerEvent(event: ServerEvent) {
   for (const listener of eventListeners) listener(event);
 }
 
-export function defaultInvalidation(event: ServerEvent): QueryKey[] {
+export function defaultInvalidation(event: ServerEvent): Invalidation[] {
   const resource = event.type.split(".")[0];
   return resource ? [[resource]] : [];
 }
@@ -84,7 +108,7 @@ export function parseServerEvent(message: MessageEvent<unknown>): ServerEvent | 
 export function invalidationsFor(
   event: ServerEvent,
   rules: Record<string, InvalidationRule> = invalidationRules,
-): QueryKey[] {
+): Invalidation[] {
   const rule = Object.hasOwn(rules, event.type) ? rules[event.type] : undefined;
   return (rule ?? defaultInvalidation)(event);
 }
@@ -101,27 +125,71 @@ function startsWith(key: QueryKey, prefix: QueryKey) {
   );
 }
 
+interface PendingInvalidation {
+  queryKey: QueryKey;
+  firstPage: boolean;
+}
+
+function pendingInvalidation(item: Invalidation): PendingInvalidation {
+  return Array.isArray(item)
+    ? { queryKey: item, firstPage: false }
+    : { queryKey: (item as { queryKey: QueryKey }).queryKey, firstPage: true };
+}
+
+function isInfiniteData(data: unknown): data is InfiniteData<unknown, unknown> {
+  return (
+    typeof data === "object" &&
+    data !== null &&
+    Array.isArray((data as Partial<InfiniteData<unknown>>).pages) &&
+    Array.isArray((data as Partial<InfiniteData<unknown>>).pageParams)
+  );
+}
+
+/** Drops all but the first page of the infinite queries under `queryKey`. */
+export function keepFirstPage(queryClient: QueryClient, queryKey: QueryKey) {
+  for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
+    const data = query.state.data;
+    if (!isInfiniteData(data) || data.pages.length <= 1) continue;
+    queryClient.setQueryData(query.queryKey, {
+      pages: data.pages.slice(0, 1),
+      pageParams: data.pageParams.slice(0, 1),
+    });
+  }
+}
+
 /**
  * Bundles invalidations (#140): an event after a quiet period applies at once; events that
  * follow are collected and applied together once no event came for `debounceMs`, or at the
  * latest `maxWaitMs` after the batch started. Each key is invalidated once per batch, and
  * not at all if a shorter key of the same batch covers it. So an import of thousands of
- * messages refetches the lists every few seconds instead of once per message.
+ * messages refetches the lists every few seconds instead of once per message. A key keeps
+ * `firstPage` only if every invalidation it stands for asked for it.
  */
 export function createInvalidationBatcher(
   queryClient: QueryClient,
   { debounceMs = INVALIDATION_DEBOUNCE_MS, maxWaitMs = INVALIDATION_MAX_WAIT_MS } = {},
 ) {
-  const pending = new Map<string, QueryKey>();
+  const pending = new Map<string, PendingInvalidation>();
   let timer: ReturnType<typeof setTimeout> | undefined;
   // Start of the current batch; `undefined` while quiet.
   let batchStart: number | undefined;
 
-  const invalidate = (keys: QueryKey[]) => {
-    for (const queryKey of keys) {
-      if (keys.some((other) => other.length < queryKey.length && startsWith(queryKey, other)))
-        continue;
-      void queryClient.invalidateQueries({ queryKey });
+  const collect = (target: Map<string, PendingInvalidation>, items: Invalidation[]) => {
+    for (const item of items) {
+      const next = pendingInvalidation(item);
+      const id = JSON.stringify(next.queryKey);
+      const known = target.get(id);
+      target.set(id, known ? { ...known, firstPage: known.firstPage && next.firstPage } : next);
+    }
+  };
+  const invalidate = (entries: PendingInvalidation[]) => {
+    const covers = (outer: PendingInvalidation, inner: PendingInvalidation) =>
+      outer.queryKey.length < inner.queryKey.length && startsWith(inner.queryKey, outer.queryKey);
+    for (const entry of entries) {
+      if (entries.some((other) => covers(other, entry))) continue;
+      const firstPage = entries.every((other) => !covers(entry, other) || other.firstPage);
+      if (entry.firstPage && firstPage) keepFirstPage(queryClient, entry.queryKey);
+      void queryClient.invalidateQueries({ queryKey: entry.queryKey });
     }
   };
   const flush = () => {
@@ -130,23 +198,25 @@ export function createInvalidationBatcher(
       batchStart = undefined;
       return;
     }
-    const keys = [...pending.values()];
+    const entries = [...pending.values()];
     pending.clear();
-    invalidate(keys);
+    invalidate(entries);
     batchStart = Date.now();
     timer = setTimeout(flush, debounceMs);
   };
 
   return {
-    add(keys: QueryKey[]) {
-      if (keys.length === 0) return;
+    add(items: Invalidation[]) {
+      if (items.length === 0) return;
       if (batchStart === undefined) {
         batchStart = Date.now();
-        invalidate([...new Map(keys.map((key) => [JSON.stringify(key), key])).values()]);
+        const now = new Map<string, PendingInvalidation>();
+        collect(now, items);
+        invalidate([...now.values()]);
         timer = setTimeout(flush, debounceMs);
         return;
       }
-      for (const key of keys) pending.set(JSON.stringify(key), key);
+      collect(pending, items);
       clearTimeout(timer);
       const left = batchStart + maxWaitMs - Date.now();
       timer = setTimeout(flush, Math.max(0, Math.min(debounceMs, left)));
