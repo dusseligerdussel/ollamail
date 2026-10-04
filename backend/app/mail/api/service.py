@@ -38,7 +38,7 @@ from app.mail.api.schemas import (
 from app.mail.models import Attachment, Folder, Mailbox, Message, SyncState
 from app.mail.models import message_folders as message_folders_table
 from app.mail.providers.base import MailboxConfig, ProviderError
-from app.mail.providers.registry import ProviderFactory
+from app.mail.providers.registry import ProviderFactory, ProviderRegistry
 from app.mail.schemas import SyncSettings
 from app.mail.sync.engine import mailbox_config
 from app.worker import resource_lock
@@ -105,11 +105,31 @@ def connection_config(
     )
 
 
-def updated_config(mailbox: Mailbox, body: MailboxUpdate) -> MailboxConfig | None:
-    """The connection config after ``body``, or ``None`` if the connection is unchanged."""
+def updated_config(
+    providers: ProviderRegistry, mailbox: Mailbox, body: MailboxUpdate
+) -> MailboxConfig | None:
+    """The connection config after ``body``, or ``None`` if the connection is unchanged.
+
+    The stored credentials only go where they went before (#219): new settings that change
+    the destination (host, port, transport security, token endpoint - as the provider
+    registered it) without new ``credentials`` are refused with 422
+    ``credentials_required``. Otherwise a stolen session could point the mailbox at its own
+    server and receive the password with the connection test."""
     if body.provider_settings is None and body.credentials is None:
         return None
     current = mailbox_config(mailbox)
+    if (
+        body.provider_settings is not None
+        and body.credentials is None
+        and current.credentials
+        and providers.destination_changed(mailbox.type, current.settings, body.provider_settings)
+    ):
+        log.info("mail_credentials_required", mailbox_id=str(mailbox.id))
+        raise ProblemError(
+            422,
+            detail="Enter the credentials again to connect to another server.",
+            error_code="credentials_required",
+        )
     return MailboxConfig(
         mailbox_id=mailbox.id,
         type=mailbox.type,

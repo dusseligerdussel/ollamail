@@ -2,7 +2,7 @@
 
 import uuid
 from datetime import datetime
-from typing import Annotated
+from typing import Annotated, Literal
 
 from pydantic import BaseModel, Field, StringConstraints
 
@@ -75,6 +75,33 @@ class SessionRead(BaseModel):
 class LinkNoticeRead(BaseModel):
     """A sign-in linked to the own account by e-mail address that is not acknowledged yet
     (#208)."""
+
+    id: uuid.UUID
+    provider: str
+    # As in ``SessionRead``.
+    provider_name: str | None = None
+    created_at: datetime
+
+
+class IdentityRead(BaseModel):
+    """One of the own ways to sign in (#216); SCIM is not one."""
+
+    id: uuid.UUID
+    provider: str
+    # As in ``SessionRead``.
+    provider_name: str | None = None
+    created_at: datetime
+    last_used_at: datetime | None
+    # The current session signed in with this provider.
+    current: bool
+    # Why it cannot be unlinked: ``local`` (password and passkeys, managed in the security
+    # settings), ``current_session`` or ``last_sign_in``; null if it can.
+    unlink_refusal: Literal["local", "current_session", "last_sign_in"] | None
+
+
+class LinkBlockRead(BaseModel):
+    """A provider the user unlinked; it may not link to the account by e-mail address until
+    the user lifts the block (#216)."""
 
     id: uuid.UUID
     provider: str

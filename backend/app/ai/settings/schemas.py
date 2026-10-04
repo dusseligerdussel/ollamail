@@ -90,7 +90,8 @@ class AIProviderUpdate(BaseModel):
 
 class AIProviderTest(_ProviderFields):
     """Unsaved settings to test. Without ``api_key``, the stored key of ``name`` is used
-    (so an edit form can be tested without typing the key again)."""
+    (so an edit form can be tested without typing the key again); with another ``kind`` or
+    ``base_url`` than stored, only after a recent confirmation (403 ``reauth-required``)."""
 
     name: ProviderName | None = None
     api_key: ApiKey | None = None

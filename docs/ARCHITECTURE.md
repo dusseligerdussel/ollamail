@@ -114,8 +114,11 @@ class MailProvider(Protocol):  # app/mail/providers/base.py
   (Graph). Senden wird nie automatisch wiederholt (kein doppelter Versand); abgelehnte Mails
   sind `SendError` mit Code. Der Server legt die gesendete Kopie ab, der nächste Sync bringt sie.
 - **Registry:** Provider registrieren sich mit `registry.register(MailboxType.X, Factory)`; Features
-  nutzen nur `registry.create(config)`. Für Tests anderer Module gibt es `FakeMailProvider`
-  (In-Memory-Server mit Änderungslog, IMAP- oder Gmail-Verhalten).
+  nutzen nur `registry.create(config)`. `destination=` nennt die `provider_settings`-Schlüssel,
+  die bestimmen, wohin die Zugangsdaten gehen (IMAP: Host/Port/Security/Zertifikatsprüfung von
+  IMAP und SMTP, Graph: `tenant_id`, Gmail: keine); ohne Angabe zählen alle (#219). Für Tests
+  anderer Module gibt es `FakeMailProvider` (In-Memory-Server mit Änderungslog, IMAP- oder
+  Gmail-Verhalten).
 
 **Normalisierung** (`normalize_message`): MIME-Parsing mit robustem Zeichensatz-Fallback (deklariert →
 UTF-8 → Windows-1252, nie Abbruch), HTML → Text (`<blockquote>` wird zu `> `), Abtrennen von Zitaten
@@ -333,7 +336,7 @@ und den Lösch-Job (`app/mail/deletion.py`); sie baut nichts davon nach.
 | `POST /mailboxes/autodiscover` | Host/Port-Vorschläge zur Adresse (bekannte Anbieter, sonst `imap.<domain>`/`mail.<domain>`). Offline, keine DNS-/HTTP-Abfragen; Adresse im Body, damit sie nicht in Access-Logs landet. Hinweise als Codes (`app_password`, `enable_imap`, `oauth_required`, …) |
 | `POST /mailboxes/test` | Verbindungstest ohne Speichern (Provider aus der Registry, `list_folders`). Ergebnis `ok`, Fehlercode oder Ordnerliste für die Ordnerauswahl vor dem Anlegen. Rate-Limit pro Nutzer (`OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS` je 10 Minuten, gemeinsam mit Anlegen und Verbindungsänderung; darüber 429) |
 | `GET/POST /mailboxes` | Eigene Postfächer mit Sync-Status; Anlegen testet die Verbindung (422 mit `error_code`), lehnt Duplikate ab (409) und stößt den Initialimport an |
-| `GET/PATCH/DELETE /mailboxes/{id}` | Details; Umbenennen, Verbindung/Zugangsdaten (vor dem Speichern getestet), Importzeitraum, ausgeschlossene Rollen, Pausieren/Fortsetzen (`sync_enabled`); Entfernen (202, im Hintergrund, siehe unten) |
+| `GET/PATCH/DELETE /mailboxes/{id}` | Details; Umbenennen, Verbindung/Zugangsdaten (vor dem Speichern getestet; ändert sich das Ziel – Host, Port, Transportsicherheit von IMAP/SMTP, Token-Endpunkt –, sind neue `credentials` Pflicht, sonst 422 `credentials_required`, #219), Importzeitraum, ausgeschlossene Rollen, Pausieren/Fortsetzen (`sync_enabled`); Entfernen (202, im Hintergrund, siehe unten) |
 | `GET /mailboxes/{id}/status` | Nur der Sync-Status |
 | `POST /mailboxes/{id}/sync` | Sync sofort anstoßen (202, `queued`); 409, wenn pausiert |
 | `GET/PATCH /mailboxes/{id}/folders` | Ordner mit Auswahl und Status je Ordner; Auswahl setzen |
@@ -601,7 +604,8 @@ sechsmal im Abstand von 10 s erneut.
   LLM-Anfragen im Gateway (`limiter.py`); die Job-Slots der `llm`-Queue sind die Obergrenze.
 - **Admin-API** (`/api/admin/ai`, nur Admins): `GET/PATCH /settings`, `GET/POST /providers`,
   `PATCH/DELETE /providers/{name}`, `POST /providers/{name}/test` und `POST /providers/test`
-  (ungespeicherte Werte; ohne Key wird der gespeicherte genutzt). Der Verbindungstest ruft nur die
+  (ungespeicherte Werte; ohne Key wird der gespeicherte genutzt – an eine andere `base_url` oder
+  einen anderen Typ als gespeichert nur nach erneuter Bestätigung, `check_recent`, #219). Der Verbindungstest ruft nur die
   Modellliste ab, es gehen keine Mail-Inhalte hinaus. API-Keys sind write-only (`api_key_set`).
   Ein Provider, dem Tasks zugeordnet sind, lässt sich nicht löschen (409).
 - **Nutzer:** `GET /api/ai/status` listet Cloud-Provider, die gerade Mail-Inhalte erhalten, je Task.
@@ -1376,7 +1380,7 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
 **Datenmodell:** `users` (E-Mail normalisiert und eindeutig, Anzeigename, Rolle `admin|user`,
 Sprache, Zeitzone, aktiv), `auth_identities` (`provider`, `subject`, `user_id`; ein Nutzer kann
 mehrere Identitäten haben; lokal: `provider=local`, `subject` = Nutzer-ID, Argon2id-Hash),
-`auth_sessions`, `auth_rate_limits`, `auth_identity_link_notices` (#208). Alles hängt per `ON DELETE CASCADE` am Nutzer.
+`auth_sessions`, `auth_rate_limits`, `auth_identity_link_notices` (#208), `auth_identity_link_blocks` (#216). Alles hängt per `ON DELETE CASCADE` am Nutzer.
 
 **Provider-Interface** (`app/auth/providers/base.py`): Ein Provider beweist nur, wer jemand ist,
 und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups,
@@ -1395,7 +1399,9 @@ LDAP-Verzeichnisse aus der Datenbank.
 ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben Adresse
 wird nur verknüpft, wenn der Provider es erlaubt (`link_by_email`) **und** die Adresse als
 verifiziert meldet; sonst 409 (`account-exists`), denn wer ein E-Mail-Attribut im externen
-Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Dazu kommen
+Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Hat die Person
+diesen Provider selbst getrennt (#216, `auth_identity_link_blocks`), wird ebenfalls nicht
+verknüpft (`email_conflict`) – auch nicht per SCIM-Linking –, bis sie die Sperre aufhebt. Dazu kommen
 Domain-Allowlist und Abschalten der Kontoanlage je Provider. `role` kommt aus dem Gruppen-Mapping
 des Providers; `None` heißt, der Provider verwaltet keine Rollen. Ist die zentrale
 Rollen-Zuordnung (#33) aktiv, bestimmt sie die Rolle für alle Provider gleich
@@ -1519,8 +1525,25 @@ bestätigt einen. Beides gilt nur für Sitzungen eines *anderen* Anmeldeverfahre
 verknüpften Providers (fremde oder unsichtbare Hinweise: 404) – wer sich über die neue Verknüpfung
 anmeldet, kann den Hinweis also weder sehen noch wegklicken. Die UI zeigt ihn als Hinweisleiste
 (`SystemNotices`) mit Link zu Einstellungen → Sitzungen, wo sich die neue Sitzung beenden lässt.
-Eine Verknüpfung selbst zu trennen ist bewusst nicht vorgesehen: Mit `link_by_email` würde der
-Provider beim nächsten Login einfach neu verknüpfen; dafür ist der Admin zuständig.
+Der Hinweis verlinkt außerdem auf Einstellungen → Anmeldeverfahren (#216).
+
+**Anmeldeverfahren selbst trennen (#216, `app/auth/identities.py`):** `GET /api/auth/identities`
+liefert die eigenen Identitäten ohne SCIM (lokal nur mit Passwort oder Passkey; eine lokale
+Identität ohne beides ist eine offene Einladung) mit Provider, Anzeigename, Verknüpfungszeitpunkt,
+letzter Nutzung, `current` und `unlink_refusal`. `DELETE /api/auth/identities/{id}` (mit
+`RecentAuthDep`) trennt eine externe Identität; 409 mit `reason` (`local`, `current_session`,
+`last_sign_in`), wenn es die lokale Anmeldung, das Verfahren der aktuellen Sitzung oder die
+letzte Anmeldemöglichkeit ist (Passwort und Passkeys zählen als lokal). Das Trennen beendet alle
+Sitzungen dieses Providers für das Konto, löscht dessen offene Verknüpfungshinweise, protokolliert
+`user.identity_unlinked` (Akteur = Nutzer) und legt eine Sperrzeile in `auth_identity_link_blocks`
+an (Nutzer-ID, Provider-Key, Zeitpunkt; eindeutig je Nutzer und Provider; `ON DELETE CASCADE`).
+`provision_user` prüft sie, bevor es per E-Mail-Adresse verknüpft. Ohne Sperre würde der
+Provider bei `link_by_email` beim nächsten Login sofort neu verknüpfen.
+`GET /api/auth/link-blocks` listet die Sperren, `DELETE /api/auth/link-blocks/{id}` (mit
+`RecentAuthDep`, `user.identity_link_unblocked`) hebt eine auf. Beides gilt wie bei den Hinweisen
+nur für Sitzungen eines anderen Anmeldeverfahrens. Einen Admin-Endpunkt dafür gibt es bewusst
+nicht: Die Sperre schützt gerade gegen einen böswilligen oder übernommenen Admin-Account
+(docs/PRIVACY.md, „Admin ≠ Leser“).
 
 **CSRF:** Signiertes Double-Submit-Cookie (`CSRFMiddleware`, gilt für die ganze App). Jede
 Anfrage außer `GET`/`HEAD`/`OPTIONS`/`TRACE` muss den Wert des Cookies `ollamail_csrf` im Header
@@ -1559,7 +1582,8 @@ Nutzern/Gruppen zugewiesen wird. Zugriffsrechte gelten für alle Features (Triag
   nicht als Verlauf an das Modell gegeben; Digests mit einem nicht mehr lesbaren Postfach sind
   nicht mehr abrufbar. Getestet für jedes Feature in `backend/tests/shared/test_access.py`.
 - **Admin-API** (`/admin/shared-mailboxes`, nur Admins, `app/mail/api/shared.py`): anlegen
-  (Verbindungstest, Zugangsdaten verschlüsselt), umbenennen, Zugangsdaten/Sync-Einstellungen,
+  (Verbindungstest, Zugangsdaten verschlüsselt), umbenennen, Zugangsdaten/Sync-Einstellungen
+  (Zielwechsel nur mit neuen Zugangsdaten wie oben; Verbindungstests mit dem Rate-Limit pro Admin),
   pausieren, Ordner, Sync anstoßen, entfernen (im Hintergrund wie oben), Zuweisungen ersetzen
   (`PUT …/assignments`, `{"users": [...], "act_users": [...], "groups": [{"group", "provider",
   "permission"}]}`; `act_users` erhalten `act`). Antworten enthalten
