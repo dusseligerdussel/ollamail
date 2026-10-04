@@ -39,7 +39,7 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 |---|---|---|
 | `frontend` | `ollamail-frontend` (`frontend/Dockerfile`, Caddy) | Statische UI, Reverse Proxy `/api/*` → `api:8000` (Präfix wird entfernt), einziger veröffentlichter Port |
 | `api` | `ollamail-api` (`backend/Dockerfile`) | FastAPI (uvicorn) |
-| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `ocr`, `default`; Healthcheck über eine Heartbeat-Datei (`python -m app.core.heartbeat`) |
+| `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `ocr`, `default`, `push`; Healthcheck über eine Heartbeat-Datei (`python -m app.core.heartbeat`) |
 | `migrate` | `ollamail-api` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
 | `postgres` | `pgvector/pgvector:pg16` | Datenbank, Volume `postgres-data`; Tuning für pgvector über `POSTGRES_*` ([`OPERATIONS.md` §8.4](../docs/OPERATIONS.md#84-postgresql-tuning-pgvector)) |
 | `ollama-cpu` / `ollama-gpu` | `ollama/ollama` | Optionaler LLM-Server, im Netz als `ollama` erreichbar |

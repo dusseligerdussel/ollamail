@@ -1,4 +1,5 @@
-"""Web Push building blocks without a database (#181): keys, encryption, VAPID, sending."""
+"""Web Push building blocks without a database (#181, #185): keys, encryption, VAPID,
+sending, circuit breaker and shared client."""
 
 import json
 import time
@@ -26,7 +27,14 @@ from app.notifications.vapid import (
     private_key_from_raw,
     public_key_from_bytes,
 )
-from app.notifications.webpush import PushOutcome, endpoint_allowed, send_push
+from app.notifications.webpush import (
+    PushOutcome,
+    PushServiceBreaker,
+    close_push_client,
+    endpoint_allowed,
+    push_client,
+    send_push,
+)
 from tests.notifications.webpush import FCM, Browser, push_settings
 
 HOSTS = NotificationsSettings().web_push_allowed_hosts
@@ -258,6 +266,71 @@ async def test_send_push_without_connection_is_retried_and_other_hosts_are_not_c
         )
     assert refused.outcome is PushOutcome.FAILED
     assert not internal.called
+
+
+class FakeClock:
+    def __init__(self) -> None:
+        self.now = 0.0
+
+    def __call__(self) -> float:
+        return self.now
+
+
+def test_breaker_opens_after_failures_in_a_row_and_closes_after_a_success() -> None:
+    clock = FakeClock()
+    breaker = PushServiceBreaker(threshold=3, cooldown=60, clock=clock)
+    host = "fcm.googleapis.com"
+    for outcome in (PushOutcome.RETRY, PushOutcome.RETRY, PushOutcome.SENT, PushOutcome.RETRY):
+        breaker.record(host, outcome)
+    # The success in between reset the count.
+    assert breaker.allows(host)
+    breaker.record(host, PushOutcome.RETRY)
+    breaker.record(host, PushOutcome.RETRY)
+    assert not breaker.allows(host)
+    assert breaker.allows("push.services.mozilla.com")
+
+    # After the cool-down one attempt gets through; failing, it opens the breaker again.
+    clock.now = 61
+    assert breaker.allows(host)
+    assert not breaker.allows(host)
+    breaker.record(host, PushOutcome.RETRY)
+    clock.now = 100
+    assert not breaker.allows(host)
+
+    # An answer (also a refusal like 403) shows the service is reachable.
+    clock.now = 125
+    assert breaker.allows(host)
+    breaker.record(host, PushOutcome.FAILED)
+    assert breaker.allows(host)
+    assert breaker.allows(host)
+
+
+@respx.mock
+async def test_send_push_skips_a_push_service_the_breaker_holds_open() -> None:
+    settings = push_settings()
+    vapid = Vapid.from_keys(settings.vapid_public_key, private_of(settings), "mailto:a@b.example")
+    browser = Browser(FCM + "device-1")
+    route = respx.post(browser.endpoint).mock(side_effect=httpx.ConnectTimeout("blocked"))
+    breaker = PushServiceBreaker(threshold=2)
+    subscription = {"endpoint": browser.endpoint, "p256dh": browser.p256dh, "auth": browser.auth}
+    async with httpx.AsyncClient() as http:
+        for _ in range(5):
+            result = await send_push(
+                http, vapid, subscription, b"{}", ttl=0, allowed_hosts=HOSTS, breaker=breaker
+            )
+            assert result.outcome is PushOutcome.RETRY
+    assert route.call_count == 2
+
+
+async def test_the_push_client_is_shared_and_does_not_wait_long_to_connect() -> None:
+    client = push_client()
+    assert push_client() is client
+    assert client.timeout.connect == 3.0 and client.timeout.read == 10.0
+    assert not client.follow_redirects
+    await close_push_client()
+    assert client.is_closed
+    assert push_client() is not client
+    await close_push_client()
 
 
 def private_of(settings: NotificationsSettings) -> str:

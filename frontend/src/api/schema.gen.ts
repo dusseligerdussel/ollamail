@@ -2393,6 +2393,9 @@ export interface paths {
         /**
          * Register Push Device
          * @description Register this browser for Web Push, or refresh its registration (same endpoint).
+         *
+         *     The device is bound to the current session: signing out, revoking the session or its
+         *     expiry stop the pushes.
          */
         post: operations["notifications_register_push_device"];
         delete?: never;

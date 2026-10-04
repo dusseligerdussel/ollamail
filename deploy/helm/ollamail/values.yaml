@@ -214,8 +214,9 @@ worker:
   tolerations: []
   affinity: {}
   topologySpreadConstraints: []
-  # One Deployment per group (<release>-worker-<name>). Queues: sync, llm, tts, ocr, default;
-  # every queue must be consumed by at least one group. Per group: name, replicaCount,
+  # One Deployment per group (<release>-worker-<name>). Queues: sync, llm, tts, ocr, default,
+  # push (Web Push, own slots; a group with default also consumes push); every queue must be
+  # consumed by at least one group. Per group: name, replicaCount,
   # queues, concurrency, llmMaxConcurrency (OLLAMAIL_LLM_MAX_CONCURRENCY), config (extra
   # settings), resources, nodeSelector, tolerations, affinity, topologySpreadConstraints,
   # podAnnotations, podLabels. A list, so your own groups replace the default one.

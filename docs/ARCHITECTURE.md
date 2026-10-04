@@ -634,11 +634,14 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
 - **Procrastinate** mit Postgres als Queue. Das Schema ist eine Alembic-Migration (vendored SQL in
   `backend/migrations/sql/`); Autogenerate ignoriert die `procrastinate_*`-Tabellen.
   Ein Procrastinate-Update mit Schemaänderung braucht eine neue Migration – ein Test schlägt sonst an.
-- **Queues** `sync`, `llm`, `tts`, `default`. `OLLAMAIL_WORKER_QUEUES` wählt die Queues eines
-  Worker-Prozesses; `llm` hat eigene Job-Slots (`OLLAMAIL_LLM_MAX_CONCURRENCY`), von denen das
-  LLM-Gateway höchstens die im Admin-Bereich eingestellte Parallelität (Standard
-  `OLLAMAIL_LLM_CONCURRENCY`) gleichzeitig an das Modell lässt; alle anderen Queues teilen sich
-  `OLLAMAIL_WORKER_CONCURRENCY`.
+- **Queues** `sync`, `llm`, `tts`, `ocr`, `default`, `push`. `OLLAMAIL_WORKER_QUEUES` wählt die
+  Queues eines Worker-Prozesses; `llm` hat eigene Job-Slots (`OLLAMAIL_LLM_MAX_CONCURRENCY`), von
+  denen das LLM-Gateway höchstens die im Admin-Bereich eingestellte Parallelität (Standard
+  `OLLAMAIL_LLM_CONCURRENCY`) gleichzeitig an das Modell lässt; `ocr`
+  (`OLLAMAIL_SEARCH_OCR_CONCURRENCY`) und `push` (`OLLAMAIL_NOTIFICATIONS_WEB_PUSH_CONCURRENCY`)
+  haben ebenfalls eigene Slots, damit lange OCR-Jobs oder ein hängender Push-Dienst den Mail-Sync
+  nicht blockieren; alle anderen Queues teilen sich `OLLAMAIL_WORKER_CONCURRENCY`. Ein Worker mit
+  `default` arbeitet auch `push` ab (dort liefen Push-Jobs vor #185).
 - **Task-Konventionen:** idempotent; Argumente nur IDs; Retry mit exponentiellem Backoff
   (`DEFAULT_RETRY`; Verarbeitungsschritte, deren LLM-Aufruf mit `LLMTimeoutError` endet, nur
   `OLLAMAIL_PROCESSING_LLM_TIMEOUT_ATTEMPTS` Versuche, Standard 2, danach `failed` mit Code
@@ -845,10 +848,23 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   selben Browser an, gehört das Abo danach ihm; Browser, System und „mobil“ aus dem User-Agent als
   Bezeichnung; höchstens 20 Geräte je Nutzer). `GET /notifications/push` liefert Verfügbarkeit,
   Public Key und die eigenen Geräte, `DELETE /notifications/push/devices/{id}` entfernt eines
-  (fremde: 404). Beim Abmelden entfernt das Frontend das Gerät und beendet das Abo.
+  (fremde: 404). Jedes Gerät gehört zur Sitzung, in der es registriert wurde (`session_id`,
+  FK auf `auth_sessions` mit `ON DELETE CASCADE`, #185): Abmelden, Widerruf der Sitzung (auch
+  durch den Admin) und Ablauf/Leerlauf (stündliches `auth.cleanup`) löschen es; bis dahin lässt
+  der Job Geräte abgelaufener Sitzungen aus. Ein abonnierter Browser registriert sich beim
+  nächsten Öffnen der App neu, gebunden an die dann aktive Sitzung. Beim Abmelden entfernt
+  zusätzlich das Frontend das Gerät und beendet das Abo.
   Ablauf: Hat `notify_triaged` Empfänger, hängt der Triage-Schritt `enqueue_web_push` an
-  `StepContext.after_commit` (läuft erst nach dem Commit des Schritts) – je Empfänger ein Job
-  `notifications.web_push` (Queue `default`, nur IDs). Der Job verschlüsselt die Payload
+  `StepContext.after_commit` (läuft erst nach dem Commit des Schritts) – **ein** Job
+  `notifications.web_push` je Mail für alle Empfänger (Queue `push` mit eigenen Slots,
+  `OLLAMAIL_NOTIFICATIONS_WEB_PUSH_CONCURRENCY`, Standard 2; nur IDs; `queueing_lock` je Mail).
+  Der Job liest die Geräte in einer kurzen DB-Sitzung, sendet ohne offene Sitzung parallel
+  (höchstens 10 Geräte gleichzeitig) über einen gemeinsamen HTTP-Client je Worker-Prozess
+  (Timeout: Verbindungsaufbau 3 s, Antwort 10 s) und schreibt das Ergebnis in einer zweiten kurzen
+  Sitzung (`last_sent_at`, 404/410 löschen). Ein Circuit-Breaker je Push-Dienst
+  (`PushServiceBreaker`) überspringt einen Dienst nach 5 Fehlversuchen in Folge 60 s lang (die
+  Geräte kommen in den Folgejob) – ein gesperrter Egress kostet so nur wenige Timeouts statt
+  einem je Gerät. Der Job verschlüsselt die Payload
   (`{"type":"notification.message","message_id","mailbox_id"}`) nach RFC 8291 (`aes128gcm`),
   signiert ein VAPID-JWT (RFC 8292, ES256) und sendet per HTTPS an den Endpoint. Erlaubt sind nur
   Hosts aus `OLLAMAIL_NOTIFICATIONS_WEB_PUSH_ALLOWED_HOSTS` (Standard: FCM, Mozilla, Apple, WNS),

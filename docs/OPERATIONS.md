@@ -934,8 +934,8 @@ neu ein. Der Worker braucht ausgehend HTTPS zu den Push-Diensten
 
 Es läuft eine API-Instanz. Der `worker` (Procrastinate, Queue in PostgreSQL) übernimmt Mail-Sync,
 KI-Verarbeitung, OCR und TTS und startet immer mit. Die Jobs sind nach Typ auf Queues verteilt
-(`sync`, `llm`, `tts`, `ocr`, `default`); `OLLAMAIL_WORKER_QUEUES` legt fest, welche ein Worker
-abarbeitet, sodass z. B. ein eigener Worker nur LLM-Jobs auf einem GPU-Host übernimmt. Mehr
+(`sync`, `llm`, `tts`, `ocr`, `default`, `push`); `OLLAMAIL_WORKER_QUEUES` legt fest, welche ein
+Worker abarbeitet (`default` schließt `push` ein), sodass z. B. ein eigener Worker nur LLM-Jobs auf einem GPU-Host übernimmt. Mehr
 Instanzen: `docker compose -f deploy/compose.yaml up -d --scale worker=2`, Details in
 [`deploy/README.md`](../deploy/README.md#worker-skalieren).
 
@@ -1021,23 +1021,24 @@ P = `OLLAMAIL_DATABASE_POOL_SIZE` (Standard 5) und O = `OLLAMAIL_DATABASE_MAX_OV
 | Prozess | Verbindungen | Standard |
 |---|---|---|
 | `api` | P + O + 4 (Job-Queue, erst beim ersten eingereihten Job) + 1 (Live-Events) + 1 (KI-Einstellungen) | 21 |
-| `worker` | P + O + Σ (Slots je Gruppe + 2) + 1 (Job-Queue) + 1 (KI-Einstellungen) + 1 (Postfach-Watcher, nur mit Queue `sync`) | 33 |
+| `worker` | P + O + Σ (Slots je Gruppe + 2) + 1 (Job-Queue) + 1 (KI-Einstellungen) + 1 (Postfach-Watcher, nur mit Queue `sync`) | 37 |
 | `migrate`, CLI-Befehle | 1–2, nur kurz | – |
 
 Slots je Gruppe (`app/worker.py`): `OLLAMAIL_WORKER_CONCURRENCY` für `sync`, `tts` und `default`
 zusammen (Standard 4), max(`OLLAMAIL_LLM_CONCURRENCY`, `OLLAMAIL_LLM_MAX_CONCURRENCY`) für `llm`
-(Standard 4) und `OLLAMAIL_SEARCH_OCR_CONCURRENCY` für `ocr` (Standard 1). Ein Worker mit allen
-Queues hat also (4 + 2) + (4 + 2) + (1 + 2) + 1 = 16 Verbindungen für die Job-Queue.
+(Standard 4), `OLLAMAIL_SEARCH_OCR_CONCURRENCY` für `ocr` (Standard 1) und
+`OLLAMAIL_NOTIFICATIONS_WEB_PUSH_CONCURRENCY` für `push` (Standard 2). Ein Worker mit allen
+Queues hat also (4 + 2) + (4 + 2) + (1 + 2) + (2 + 2) + 1 = 20 Verbindungen für die Job-Queue.
 
 `max_connections` von PostgreSQL muss die Summe über alle Prozesse plus Reserve abdecken:
 
 ```
-max_connections ≥ api × 21 + worker × 33 + 10 (migrate, CLI, psql, Backups)
+max_connections ≥ api × 21 + worker × 37 + 10 (migrate, CLI, psql, Backups)
                   + superuser_reserved_connections (Standard 3)
 ```
 
-Beispiel: `--scale worker=2` braucht 21 + 2 × 33 + 13 = 100 – genau die Grenze des
-PostgreSQL-Standards. Die mitgelieferte Datenbank startet deshalb mit `max_connections=200`
+Beispiel: `--scale worker=2` braucht 21 + 2 × 37 + 13 = 108 – mehr als der
+PostgreSQL-Standard (100). Die mitgelieferte Datenbank startet deshalb mit `max_connections=200`
 (`POSTGRES_MAX_CONNECTIONS`, Abschnitt 8.4). Wer weiter skaliert, erhöht den Wert (jede
 Verbindung kostet einige MB RAM) oder senkt P und O: Ein Worker braucht selten mehr gleichzeitige
 SQLAlchemy-Verbindungen als Slots, P + O ≥ Summe der Slots reicht. Bei sehr vielen Replikaten

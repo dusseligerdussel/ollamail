@@ -30,7 +30,7 @@ PRIVATE_NETWORKS = (
     "fc00::/7",
 )
 # Job queues, see app/worker.py.
-QueueName = Literal["sync", "llm", "tts", "ocr", "default"]
+QueueName = Literal["sync", "llm", "tts", "ocr", "default", "push"]
 # Placeholder password of earlier versions of deploy/.env.example; refused at start-up.
 PLACEHOLDER_DATABASE_PASSWORD = "change-me"
 # Minimum length of a configured OLLAMAIL_SETUP_TOKEN (`openssl rand -hex 16` gives 32).
@@ -642,6 +642,10 @@ class NotificationsSettings(BaseSettings):
     web_push_allowed_hosts: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(DEFAULT_WEB_PUSH_HOSTS)
     )
+    # Job slots of the ``push`` queue per worker process (one job sends one mail to all
+    # devices of its readers). Separate from ``OLLAMAIL_WORKER_CONCURRENCY``, so a slow or
+    # unreachable push service never holds up mail sync.
+    web_push_concurrency: int = Field(default=2, ge=1, le=32)
 
     @field_validator("web_push_allowed_hosts", mode="before")
     @classmethod
@@ -872,11 +876,12 @@ class WorkerSettings(BaseSettings):
     model_config = _config("WORKER_")
 
     # Queues this worker process consumes, comma-separated in the environment
-    # (e.g. ``OLLAMAIL_WORKER_QUEUES=llm`` for a dedicated LLM worker).
+    # (e.g. ``OLLAMAIL_WORKER_QUEUES=llm`` for a dedicated LLM worker). ``default`` includes
+    # ``push`` (Web Push, own slots), which can also run alone in a separate worker.
     queues: Annotated[list[QueueName], NoDecode] = Field(
         default=["sync", "llm", "tts", "ocr", "default"], min_length=1
     )
-    # Parallel jobs for all consumed queues except ``llm`` (see ``LLMSettings.concurrency``).
+    # Parallel jobs for all consumed queues except ``llm``, ``ocr`` and ``push`` (own slots).
     concurrency: int = Field(default=4, ge=1)
     # Seconds running jobs get to finish after SIGTERM before they are cancelled.
     shutdown_timeout: float = Field(default=30.0, ge=0)
