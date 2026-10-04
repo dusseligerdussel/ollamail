@@ -3,7 +3,9 @@
 Referenz für den Compose-Stack. Schritt-für-Schritt-Installation, Reverse-Proxy-Beispiele,
 Backup/Restore, Updates und Fehlersuche: [`docs/OPERATIONS.md`](../docs/OPERATIONS.md).
 Für Kubernetes gibt es ein Helm-Chart unter [`helm/ollamail`](helm/ollamail), siehe
-[`docs/operations/kubernetes.md`](../docs/operations/kubernetes.md).
+[`docs/operations/kubernetes.md`](../docs/operations/kubernetes.md). Für TrueNAS SCALE (ab 24.10)
+gibt es eine Custom App und eine vorbereitete Katalog-App unter [`truenas/`](truenas), siehe
+[`docs/operations/truenas.md`](../docs/operations/truenas.md).
 
 ## Schnellstart
 
@@ -251,7 +253,9 @@ aus `.env.example` mit frisch generierten Secrets und startet den Stack wie oben
 prüft `/api/readyz`, `/api/healthz`, die Auslieferung der UI, die Migrationen und den Worker
 (Heartbeat, Healthcheck, keine Neustarts), dass `/metrics` nur im Compose-Netz und nur mit Token
 erreichbar ist, die Netztrennung (`frontend` erreicht nur `api`, `postgres` ist von `api` aus
-erreichbar, aber ohne Zugang nach außen), sowie, dass `api` ohne `OLLAMAIL_SECRET_KEY` nicht startet. Er läuft auf
+erreichbar, aber ohne Zugang nach außen), sowie, dass `api` ohne `OLLAMAIL_SECRET_KEY` nicht startet.
+Danach startet er die TrueNAS-Custom-App und die gerenderte TrueNAS-Katalog-App
+([`docs/operations/truenas.md` §10](../docs/operations/truenas.md#10-test-in-der-ci)). Er läuft auf
 `main`, bei Änderungen an `deploy/`, den Dockerfiles oder der Caddy-Konfiguration und auf PRs mit dem
 Label `ci:compose`. Bei Fehlern werden die Container-Logs (ohne Umgebungsvariablen, Secrets geschwärzt)
 als Artifact hochgeladen.
