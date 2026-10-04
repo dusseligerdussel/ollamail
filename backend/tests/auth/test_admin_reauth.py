@@ -238,7 +238,7 @@ async def test_renewing_an_invitation_needs_a_recent_confirmation(
     db_session.add(
         Invitation(
             user_id=invited.id,
-            token_hash="old",
+            token_hash=b"old",
             expires_at=datetime.now(UTC) + timedelta(hours=1),
         )
     )
@@ -251,7 +251,7 @@ async def test_renewing_an_invitation_needs_a_recent_confirmation(
     assert response.json()["type"] == REAUTH_REQUIRED
     assert "invite_url" not in response.json()
     db_session.expire_all()
-    assert await db_session.scalar(select(Invitation.token_hash)) == "old"
+    assert await db_session.scalar(select(Invitation.token_hash)) == b"old"
 
 
 async def test_shortening_retention_needs_a_recent_confirmation(
