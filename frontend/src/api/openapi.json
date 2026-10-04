@@ -11153,7 +11153,7 @@
     },
     "/admin/auth/github/providers/{name}": {
       "delete": {
-        "description": "Remove a GitHub provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "description": "Remove a GitHub provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked. Needs a recent\nconfirmation (#218): removing a provider can lock its users out.",
         "operationId": "admin_delete_github_provider",
         "parameters": [
           {
@@ -11174,7 +11174,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -11412,7 +11412,7 @@
     },
     "/admin/auth/oidc/providers/{name}": {
       "delete": {
-        "description": "Remove an OIDC provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "description": "Remove an OIDC provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked. Needs a recent\nconfirmation (#218): removing a provider can lock its users out.",
         "operationId": "admin_delete_oidc_provider",
         "parameters": [
           {
@@ -11433,7 +11433,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -11806,7 +11806,7 @@
     },
     "/admin/auth/saml/providers/{name}": {
       "delete": {
-        "description": "Remove a SAML provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "description": "Remove a SAML provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked. Needs a recent\nconfirmation (#218): removing a provider can lock its users out.",
         "operationId": "admin_delete_saml_provider",
         "parameters": [
           {
@@ -11827,7 +11827,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -12110,7 +12110,7 @@
         ]
       },
       "patch": {
-        "description": "Change retention periods; ``null`` resets one to the environment default. Applies\nfrom the next run of the retention jobs.",
+        "description": "Change retention periods; ``null`` resets one to the environment default. Applies\nfrom the next run of the retention jobs. Needs a recent confirmation (#218): a short\nperiod deletes the audit log or the mails of all users.",
         "operationId": "privacy_update_retention",
         "requestBody": {
           "content": {
@@ -12137,7 +12137,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "422": {
             "content": {
@@ -12459,7 +12459,7 @@
     },
     "/admin/shared-mailboxes/{mailbox_id}": {
       "delete": {
-        "description": "Remove the shared mailbox with all its data and its assignments, in the background\n(as ``DELETE /mailboxes/{id}``).",
+        "description": "Remove the shared mailbox with all its data and its assignments, in the background\n(as ``DELETE /mailboxes/{id}``). Needs a recent confirmation (#218): not reversible.",
         "operationId": "admin_delete_shared_mailbox",
         "parameters": [
           {
@@ -12488,7 +12488,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such shared mailbox"
@@ -13695,7 +13695,7 @@
     },
     "/auth/ldap/directories/{name}": {
       "delete": {
-        "description": "Remove the directory and all sign-in links through it (the users stay).",
+        "description": "Remove the directory and all sign-in links through it (the users stay). Needs a\nrecent confirmation (#218): its users can no longer sign in.",
         "operationId": "auth_delete_directory",
         "parameters": [
           {
@@ -13716,7 +13716,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such directory"
@@ -20886,7 +20886,7 @@
         ]
       },
       "post": {
-        "description": "Create a local account with an initial password.",
+        "description": "Create a local account with an initial password. Needs a recent confirmation\n(#218): a new admin account would start with a fresh one of its own.",
         "operationId": "users_create_user",
         "requestBody": {
           "content": {
@@ -20913,7 +20913,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "E-mail address taken"
@@ -20937,7 +20937,7 @@
     },
     "/users/invitations": {
       "post": {
-        "description": "Create a local account without password and return a one-time invitation link.",
+        "description": "Create a local account without password and return a one-time invitation link.\nNeeds a recent confirmation (#218): whoever holds the link sets the password.",
         "operationId": "users_invite_user",
         "requestBody": {
           "content": {
@@ -20964,7 +20964,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "E-mail address taken or local login disabled"
@@ -21054,7 +21054,7 @@
     },
     "/users/{user_id}/invitation": {
       "post": {
-        "description": "New invitation link for an invited user who has not set a password yet (the old\nlink stops working).",
+        "description": "New invitation link for an invited user who has not set a password yet (the old\nlink stops working). Needs a recent confirmation (#218), as ``invite_user``.",
         "operationId": "users_reissue_invitation",
         "parameters": [
           {
@@ -21083,7 +21083,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such user"

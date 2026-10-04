@@ -119,12 +119,14 @@ function ProviderDetails({
     },
   });
   const remove = useMutation({
-    mutationFn: () => {
-      if (item.kind === "oidc") return deleteOidcProvider(apiName(item));
-      if (item.kind === "github") return deleteGitHubProvider(apiName(item));
-      if (item.kind === "saml") return deleteSamlProvider(apiName(item));
-      return deleteLdapDirectory(apiName(item));
-    },
+    // Needs a recent confirmation of the account as well.
+    mutationFn: () =>
+      withReauth(() => {
+        if (item.kind === "oidc") return deleteOidcProvider(apiName(item));
+        if (item.kind === "github") return deleteGitHubProvider(apiName(item));
+        if (item.kind === "saml") return deleteSamlProvider(apiName(item));
+        return deleteLdapDirectory(apiName(item));
+      }),
     meta: { errorToast: false },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
@@ -132,7 +134,8 @@ function ProviderDetails({
       onClose();
     },
   });
-  const failed = isReauthCancelled(toggle.error) ? remove.error : (toggle.error ?? remove.error);
+  // Closing the confirmation sheet is no error.
+  const failed = [toggle.error, remove.error].find((error) => error && !isReauthCancelled(error));
 
   return (
     <>

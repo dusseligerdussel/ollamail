@@ -363,12 +363,16 @@ async def set_shared_mailbox_assignments(
     return await _read(db, mailbox)
 
 
-@router.delete("/{mailbox_id}", status_code=status.HTTP_202_ACCEPTED, responses=NOT_FOUND)
+@router.delete(
+    "/{mailbox_id}",
+    status_code=status.HTTP_202_ACCEPTED,
+    responses={**NOT_FOUND, **ADMIN_REAUTH_RESPONSES},
+)
 async def delete_shared_mailbox(
-    mailbox_id: uuid.UUID, admin: AdminSessionDep, db: DbDep, remover: DeletionRequesterDep
+    mailbox_id: uuid.UUID, admin: RecentAdminDep, db: DbDep, remover: DeletionRequesterDep
 ) -> MailboxDeleted:
     """Remove the shared mailbox with all its data and its assignments, in the background
-    (as ``DELETE /mailboxes/{id}``)."""
+    (as ``DELETE /mailboxes/{id}``). Needs a recent confirmation (#218): not reversible."""
     mailbox = await _shared(db, mailbox_id)
     messages, attachments = await service.data_counts(db, mailbox.id)
     await deletion.request_deletion(db, mailbox, audit.Actor.user(admin.user_id))

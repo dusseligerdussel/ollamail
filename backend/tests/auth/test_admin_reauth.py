@@ -1,8 +1,9 @@
-"""Critical admin actions need a recent confirmation (#190, #206, app/auth/reauth.py).
+"""Critical admin actions need a recent confirmation (#190, #206, #218, app/auth/reauth.py).
 
 A stolen admin cookie alone must not be enough to add an identity provider that links to
-other accounts, to point an AI endpoint at a foreign server, to take over accounts or to
-read a shared mailbox.
+other accounts, to point an AI endpoint at a foreign server, to take over accounts, to
+read a shared mailbox, or to create an admin account that would come with a fresh
+confirmation of its own.
 """
 
 import uuid
@@ -13,9 +14,11 @@ from httpx import AsyncClient
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth.models import AuthSession
+from app.auth.models import AuthSession, Invitation
 from app.mail.models import Mailbox, MailboxAssignment, MailboxType
+from app.privacy.models import RetentionSettingsRecord
 from app.users.models import User, UserRole
+from app.users.service import add_local_user
 from tests.auth.conftest import PASSWORD, login, make_local_user
 
 pytestmark = pytest.mark.db
@@ -39,6 +42,11 @@ CRITICAL = [
     ("PATCH", "/admin/auth/saml/providers/corp", {}),
     ("POST", "/auth/ldap/directories", {}),
     ("PUT", "/auth/ldap/directories/corp", {}),
+    # Removing a sign-in provider locks its users out (#218).
+    ("DELETE", "/admin/auth/oidc/providers/corp", None),
+    ("DELETE", "/admin/auth/github/providers/corp", None),
+    ("DELETE", "/admin/auth/saml/providers/corp", None),
+    ("DELETE", "/auth/ldap/directories/corp", None),
     (
         "POST",
         "/admin/ai/providers",
@@ -183,6 +191,100 @@ async def test_assigning_a_shared_mailbox_needs_a_recent_confirmation(
     )
 
 
+NEW_ADMIN = "mallory@example.org"
+
+
+async def test_creating_an_admin_needs_a_recent_confirmation(
+    db_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """Otherwise a stolen cookie creates a new admin, signs in with it and gets a fresh
+    confirmation for everything above (#218)."""
+    await _stale_admin(db_client, db_session)
+
+    created = await db_client.post(
+        "/users",
+        json={
+            "email": NEW_ADMIN,
+            "display_name": "Mallory",
+            "password": "correct horse battery staple",
+            "role": "admin",
+        },
+    )
+    invited = await db_client.post(
+        "/users/invitations",
+        json={"email": NEW_ADMIN, "display_name": "Mallory", "role": "admin"},
+    )
+
+    for response in (created, invited):
+        assert response.status_code == 403, response.text
+        assert response.json()["type"] == REAUTH_REQUIRED
+        assert "invite_url" not in response.json()
+    assert await db_session.scalar(select(User.id).where(User.email == NEW_ADMIN)) is None
+
+
+async def test_renewing_an_invitation_needs_a_recent_confirmation(
+    db_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """A new link for an invited admin would let the caller set its password (#218)."""
+    invited = await add_local_user(
+        db_session,
+        email=NEW_ADMIN,
+        display_name="Mallory",
+        password_hash=None,
+        role=UserRole.ADMIN,
+        language="en",
+        timezone="UTC",
+    )
+    db_session.add(
+        Invitation(
+            user_id=invited.id,
+            token_hash="old",
+            expires_at=datetime.now(UTC) + timedelta(hours=1),
+        )
+    )
+    await db_session.commit()
+    await _stale_admin(db_client, db_session)
+
+    response = await db_client.post(f"/users/{invited.id}/invitation")
+
+    assert response.status_code == 403, response.text
+    assert response.json()["type"] == REAUTH_REQUIRED
+    assert "invite_url" not in response.json()
+    db_session.expire_all()
+    assert await db_session.scalar(select(Invitation.token_hash)) == "old"
+
+
+async def test_shortening_retention_needs_a_recent_confirmation(
+    db_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    """One day of retention deletes the audit log or the mails of all users (#218)."""
+    await _stale_admin(db_client, db_session)
+
+    response = await db_client.patch(
+        "/admin/privacy/retention", json={"audit_days": 1, "mail_days": 1}
+    )
+
+    assert response.status_code == 403, response.text
+    assert response.json()["type"] == REAUTH_REQUIRED
+    assert await db_session.scalar(select(RetentionSettingsRecord.audit_days)) is None
+
+
+async def test_deleting_a_shared_mailbox_needs_a_recent_confirmation(
+    db_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await _stale_admin(db_client, db_session)
+    mailbox_id = await _shared_mailbox(db_session)
+
+    response = await db_client.delete(f"/admin/shared-mailboxes/{mailbox_id}")
+
+    assert response.status_code == 403, response.text
+    assert response.json()["type"] == REAUTH_REQUIRED
+    db_session.expire_all()
+    mailbox = await db_session.get(Mailbox, mailbox_id)
+    assert mailbox is not None
+    assert mailbox.deletion_requested_at is None
+
+
 async def test_non_admins_get_the_admin_error_first(
     db_client: AsyncClient, db_session: AsyncSession
 ) -> None:
@@ -233,3 +335,32 @@ async def test_a_confirmation_unlocks_the_actions(
     assert confirmed.status_code == 200, confirmed.text
     assert changed.status_code == 200, changed.text
     assert changed.json()["role"] == "admin"
+
+
+async def test_a_confirmation_unlocks_creating_and_inviting(
+    db_client: AsyncClient, db_session: AsyncSession
+) -> None:
+    await _stale_admin(db_client, db_session)
+    confirmed = await db_client.post(
+        "/auth/reauth", json={"method": "password", "password": PASSWORD}
+    )
+    assert confirmed.status_code == 200, confirmed.text
+
+    created = await db_client.post(
+        "/users",
+        json={
+            "email": NEW_ADMIN,
+            "display_name": "Mallory",
+            "password": "correct horse battery staple",
+            "role": "admin",
+        },
+    )
+    invited = await db_client.post(
+        "/users/invitations", json={"email": "trent@example.org", "display_name": "Trent"}
+    )
+    renewed = await db_client.post(f"/users/{invited.json()['user']['id']}/invitation")
+
+    assert created.status_code == 201, created.text
+    assert invited.status_code == 201, invited.text
+    assert renewed.status_code == 200, renewed.text
+    assert renewed.json()["invite_url"] != invited.json()["invite_url"]
