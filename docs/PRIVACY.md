@@ -101,6 +101,9 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
 - Der Verbindungstest im Admin-Bereich ruft nur die Modellliste ab; es gehen keine Mail-Inhalte hinaus.
 - Für alle Nutzer zeigt die UI dauerhaft und dezent an, welcher Cloud-Provider für welche Aufgaben
   (Triage, Aufgaben, Zusammenfassung, Fragen, Suchindex) Mail-Inhalte erhält (`GET /api/ai/status`).
+  Der Hinweis lässt sich für die Browser-Sitzung ausblenden (gespeichert nur im `sessionStorage`);
+  er erscheint im nächsten Tab bzw. nach dem Schließen des Browsers wieder und sofort, sobald sich
+  Provider oder Aufgaben ändern.
 - API-Keys werden verschlüsselt gespeichert (`EncryptedStr`) und nie an das Frontend zurückgegeben
   (nur „gesetzt/nicht gesetzt“).
 

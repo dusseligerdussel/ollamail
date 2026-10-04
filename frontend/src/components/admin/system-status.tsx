@@ -143,7 +143,9 @@ export function ModelStatusSection() {
           <ListSkeleton rows={3} />
         </div>
       )}
-      {models.isError && <InlineError error={models.error} />}
+      {models.isError && (
+        <InlineError error={models.error} onRetry={models.refetch} retrying={models.isFetching} />
+      )}
       {models.data && (
         <ul className="divide-y rounded-lg border">
           {models.data.map((model) => (
@@ -237,7 +239,13 @@ export function ProcessingSection() {
           <ListSkeleton rows={2} />
         </div>
       )}
-      {overview.isError && <InlineError error={overview.error} />}
+      {overview.isError && (
+        <InlineError
+          error={overview.error}
+          onRetry={overview.refetch}
+          retrying={overview.isFetching}
+        />
+      )}
       {overview.data?.mailboxes.length === 0 && (
         <p className="rounded-lg border px-4 py-3 text-ui text-muted-foreground">
           {t("pages.admin.processing.empty")}

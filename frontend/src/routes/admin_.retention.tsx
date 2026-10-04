@@ -44,7 +44,14 @@ function RetentionContent() {
   const settings = useQuery(retentionQueryOptions);
   if (settings.isPending) return <ListSkeleton />;
   if (!settings.data) {
-    return <InlineError error={settings.error} className="px-4 py-4 md:px-5" />;
+    return (
+      <InlineError
+        error={settings.error}
+        onRetry={settings.refetch}
+        retrying={settings.isFetching}
+        className="px-4 py-4 md:px-5"
+      />
+    );
   }
   return (
     <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-6 md:py-8">

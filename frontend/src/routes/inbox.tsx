@@ -418,7 +418,14 @@ function InboxPage() {
   } else if (messages.isPending) {
     listContent = <ListSkeleton rows={12} />;
   } else if (messages.isError) {
-    listContent = <InlineError error={messages.error} className="m-4" />;
+    listContent = (
+      <InlineError
+        error={messages.error}
+        onRetry={messages.refetch}
+        retrying={messages.isFetching}
+        className="m-4"
+      />
+    );
   } else if (items.length === 0) {
     listContent = (
       <EmptyState
@@ -479,7 +486,12 @@ function InboxPage() {
     detail = (
       <>
         <div aria-hidden="true" className="h-header shrink-0 border-b" />
-        <InlineError error={thread.error} className="m-4" />
+        <InlineError
+          error={thread.error}
+          onRetry={thread.refetch}
+          retrying={thread.isFetching}
+          className="m-4"
+        />
       </>
     );
   } else {

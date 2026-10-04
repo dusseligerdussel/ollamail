@@ -37,6 +37,7 @@ import { useListNavigation } from "@/hooks/use-list-navigation";
 import { mediaQueries, useMediaQuery } from "@/hooks/use-media-query";
 import type { Command } from "@/lib/commands";
 import { isQuestion, queryTerms } from "@/lib/search-text";
+import { cn } from "@/lib/utils";
 
 /**
  * Only IDs live in the URL. The query itself stays in memory: it is mail content and must
@@ -351,32 +352,53 @@ function SearchPage() {
     !!submitted &&
     (!submitted.question || (turns.length > 0 && (hits.isError || hitItems.length > 0)));
 
+  // Side by side, the answer gets the wide detail pane while no mail is open there.
+  const answersInDetail = split && !params.message;
   let answers: ReactNode = null;
   if (params.conversation && conversation.isPending && turns.length === 0) {
     answers = <ListSkeleton rows={3} />;
   } else if (params.conversation && conversation.isError && turns.length === 0) {
-    answers = <InlineError error={conversation.error} className="m-4" />;
+    answers = (
+      <InlineError
+        error={conversation.error}
+        onRetry={conversation.refetch}
+        retrying={conversation.isFetching}
+        className="m-4"
+      />
+    );
   } else if (turns.length > 0) {
     answers = (
-      <section aria-label={t("search.answer.title")} className="flex flex-col divide-y border-b">
+      <section
+        aria-label={t("search.answer.title")}
+        className={cn("flex flex-col divide-y", !answersInDetail && "border-b")}
+      >
         {turns.map((turn) => (
           <AnswerView
             key={turn.key}
             turn={turn}
             onOpenSource={openSource}
             onCancel={stream.cancel}
+            headingLevel={answersInDetail ? 3 : 2}
           />
         ))}
       </section>
     );
   }
+  const listAnswers = answersInDetail ? null : answers;
 
   let hitContent: ReactNode = null;
   if (showHits) {
     if (hits.isPending) {
       hitContent = <ListSkeleton rows={6} />;
     } else if (hits.isError) {
-      hitContent = <InlineError error={hits.error} className="m-4" />;
+      hitContent = (
+        <InlineError
+          error={hits.error}
+          onRetry={hits.refetch}
+          retrying={hits.isFetching}
+          className="m-4"
+        />
+      );
     } else if (hitItems.length === 0) {
       hitContent = (
         <EmptyState
@@ -421,7 +443,7 @@ function SearchPage() {
         }
       />
     );
-  } else if (!answers && !showHits) {
+  } else if (!listAnswers && !showHits) {
     content = (
       <HistoryList
         activeId={params.conversation}
@@ -437,7 +459,7 @@ function SearchPage() {
   } else {
     content = (
       <>
-        {answers}
+        {listAnswers}
         {showHits && (
           <section aria-labelledby="search-hits" className="flex flex-col">
             <div className="flex h-10 shrink-0 items-center gap-2 px-4 md:px-5">
@@ -534,7 +556,16 @@ function SearchPage() {
   );
 
   let detail: ReactNode;
-  if (!params.message) {
+  if (answersInDetail && answers) {
+    detail = (
+      <>
+        <PageHeader title={t("search.answer.title")} headingLevel={2} />
+        <div className="min-h-0 flex-1 overflow-y-auto">
+          <div className="max-w-3xl">{answers}</div>
+        </div>
+      </>
+    );
+  } else if (!params.message) {
     detail = (
       <>
         <div aria-hidden="true" className="h-header shrink-0 border-b" />
@@ -559,7 +590,12 @@ function SearchPage() {
     detail = (
       <>
         <div aria-hidden="true" className="h-header shrink-0 border-b" />
-        <InlineError error={thread.error} className="m-4" />
+        <InlineError
+          error={thread.error}
+          onRetry={thread.refetch}
+          retrying={thread.isFetching}
+          className="m-4"
+        />
       </>
     );
   } else {

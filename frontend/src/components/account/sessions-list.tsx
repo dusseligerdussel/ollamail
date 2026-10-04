@@ -109,7 +109,14 @@ export function SessionsList() {
     );
   }
   if (sessions.isError) {
-    return <InlineError error={sessions.error} className="px-4 py-3.5" />;
+    return (
+      <InlineError
+        error={sessions.error}
+        onRetry={sessions.refetch}
+        retrying={sessions.isFetching}
+        className="px-4 py-3.5"
+      />
+    );
   }
 
   // This device first, then the others by last use (server order).

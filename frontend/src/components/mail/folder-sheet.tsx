@@ -79,7 +79,14 @@ function FolderSelection({ mailboxId, onDone }: { mailboxId: string; onDone: () 
     <>
       <div className="min-h-0 flex-1 overflow-y-auto">
         {folders.isPending && <ListSkeleton rows={6} />}
-        {folders.isError && <InlineError error={folders.error} className="m-4" />}
+        {folders.isError && (
+          <InlineError
+            error={folders.error}
+            onRetry={folders.refetch}
+            retrying={folders.isFetching}
+            className="m-4"
+          />
+        )}
         {folders.data?.length === 0 && (
           <p className="px-4 py-6 text-ui text-muted-foreground">{t("mailboxes.folders.empty")}</p>
         )}

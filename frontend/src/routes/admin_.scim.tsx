@@ -36,6 +36,7 @@ import { Label } from "@/components/ui/label";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { retryFailed } from "@/lib/retry-failed";
 
 export const Route = createFileRoute("/admin_/scim")({
   component: ScimPage,
@@ -74,7 +75,8 @@ function ScimContent() {
     return <ListSkeleton />;
   }
   const error = scim.error ?? oidc.error ?? github.error ?? ldap.error;
-  if (error || !scim.data) return <InlineError error={error} />;
+  if (error || !scim.data)
+    return <InlineError error={error} {...retryFailed(scim, oidc, github, ldap)} />;
 
   const providers: ProviderOption[] = [
     ...(oidc.data ?? []).map((p) => ({ key: p.provider, label: p.display_name })),

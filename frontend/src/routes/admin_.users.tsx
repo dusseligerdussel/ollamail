@@ -91,7 +91,15 @@ function UserList({ onInvite }: { onInvite: () => void }) {
   const actions = useUserActions();
 
   if (users.isPending) return <ListSkeleton />;
-  if (!users.data) return <InlineError error={users.error} className="px-4 py-4 md:px-5" />;
+  if (!users.data)
+    return (
+      <InlineError
+        error={users.error}
+        onRetry={users.refetch}
+        retrying={users.isFetching}
+        className="px-4 py-4 md:px-5"
+      />
+    );
   if (users.data.length === 0) {
     return (
       <EmptyState

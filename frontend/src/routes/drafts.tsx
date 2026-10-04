@@ -79,7 +79,14 @@ function DraftsPage() {
   if (drafts.isPending) {
     content = <ListSkeleton rows={8} />;
   } else if (drafts.isError) {
-    content = <InlineError error={drafts.error} className="m-4" />;
+    content = (
+      <InlineError
+        error={drafts.error}
+        onRetry={drafts.refetch}
+        retrying={drafts.isFetching}
+        className="m-4"
+      />
+    );
   } else if (items.length === 0) {
     content = (
       <EmptyState
