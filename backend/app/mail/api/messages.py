@@ -159,7 +159,7 @@ def _attachment_url(message_id: uuid.UUID, attachment_id: uuid.UUID) -> str:
 
 def _body(message: Message, *, external_images: bool) -> MessageBody:
     if not message.body_html:
-        return MessageBody(html=None, blocked_images=0)
+        return MessageBody(html=None, blocked_images=0, text=message.body_text)
     by_cid = {
         attachment.content_id: attachment.id
         for attachment in message.attachments
@@ -173,7 +173,7 @@ def _body(message: Message, *, external_images: bool) -> MessageBody:
     safe = sanitize_html(
         message.body_html, allow_external_images=external_images, resolve_cid=resolve
     )
-    return MessageBody(html=safe.html, blocked_images=safe.blocked_images)
+    return MessageBody(html=safe.html, blocked_images=safe.blocked_images, text=message.body_text)
 
 
 def _summary_fields(message: Message) -> dict[str, Any]:
@@ -194,15 +194,14 @@ def _summary_fields(message: Message) -> dict[str, Any]:
     }
 
 
-def _detail(message: Message) -> MessageDetail:
+def _detail(message: Message, *, with_body: bool) -> MessageDetail:
     return MessageDetail(
         **_summary_fields(message),
         to=_addresses(message.to),
         cc=_addresses(message.cc),
         reply_to=_addresses(message.reply_to),
         sent_at=message.sent_at,
-        text=message.body_text,
-        body=_body(message, external_images=False),
+        body=_body(message, external_images=False) if with_body else None,
         attachments=[
             AttachmentRead(
                 id=a.id,
@@ -258,8 +257,11 @@ async def list_messages(
 @router.get("/{message_id}/thread", responses=NOT_FOUND)
 async def get_thread(message_id: uuid.UUID, current: CurrentSessionDep, db: DbDep) -> ThreadRead:
     """The conversation of a message, oldest first (at most the newest 100 messages).
-    HTML comes sanitised with external images removed."""
-    message = await _message(db, current.user_id, message_id)
+    Bodies come only for the opened and the newest message, the ones the UI shows
+    expanded; the others have ``body: null`` and are loaded with ``/body`` (#210). HTML
+    comes sanitised with external images removed."""
+    without_bodies = (*listing.without_bodies(), selectinload(Message.attachments))
+    message = await _message(db, current.user_id, message_id, *without_bodies)
     messages = [message]
     if message.thread_id is not None:
         newest = list(
@@ -269,7 +271,7 @@ async def get_thread(message_id: uuid.UUID, current: CurrentSessionDep, db: DbDe
                     Message.thread_id == message.thread_id,
                     Message.mailbox_id == message.mailbox_id,
                 )
-                .options(selectinload(Message.attachments))
+                .options(*without_bodies)
                 .order_by(*listing.NEWEST_FIRST)
                 .limit(MAX_THREAD_MESSAGES)
             )
@@ -277,9 +279,14 @@ async def get_thread(message_id: uuid.UUID, current: CurrentSessionDep, db: DbDe
         if message not in newest:
             newest[-1:] = [message]
         messages = sorted(newest, key=lambda m: (_date_of(m), m.id))
-    # Sanitising up to 100 HTML bodies is CPU-bound: off the event loop (#147). Everything
-    # read here is loaded already, so the thread never touches the session.
-    details = await asyncio.to_thread(lambda: [_detail(m) for m in messages])
+    expanded = {message, messages[-1]}
+    for shown in expanded:
+        await db.refresh(shown, ["body_html", "body_text"])
+    # Sanitising HTML is CPU-bound: off the event loop (#147). Everything read here is
+    # loaded already, so the thread never touches the session.
+    details = await asyncio.to_thread(
+        lambda: [_detail(m, with_body=m in expanded) for m in messages]
+    )
     return ThreadRead(
         thread_id=message.thread_id,
         mailbox_id=message.mailbox_id,
@@ -295,13 +302,14 @@ async def get_message_body(
     db: DbDep,
     external_images: bool = False,
 ) -> MessageBody:
-    """Sanitised HTML; with ``external_images=true`` remote images are kept (the user
-    chose to load them for this message)."""
+    """Sanitised HTML and plain text, e.g. for a message expanded in the thread; with
+    ``external_images=true`` remote images are kept (the user chose to load them for this
+    message)."""
     message = await _message(
         db,
         current.user_id,
         message_id,
-        load_only(Message.id, Message.mailbox_id, Message.body_html),
+        load_only(Message.id, Message.mailbox_id, Message.body_html, Message.body_text),
         selectinload(Message.attachments),
     )
     return await asyncio.to_thread(_body, message, external_images=external_images)

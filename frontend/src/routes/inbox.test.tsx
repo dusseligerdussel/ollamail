@@ -2,9 +2,9 @@ import { fireEvent, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
 
-import type { MessageSummary, Thread } from "@/api/mail";
-import { backend, json, mockFetch } from "@/test/fetch";
-import { messageId, testMailbox, testMessage, testThread } from "@/test/mail";
+import type { MessageBody, MessageSummary, Thread } from "@/api/mail";
+import { backend, json, mockFetch, problem } from "@/test/fetch";
+import { messageId, testDetail, testMailbox, testMessage, testThread } from "@/test/mail";
 import { setViewportWidth } from "@/test/media";
 
 const SHARED_ID = "0199b000-0000-7000-8000-000000000002";
@@ -15,6 +15,8 @@ interface MailBackend {
   mailboxes?: ReturnType<typeof testMailbox>[];
   messages?: MessageSummary[];
   threads?: Record<string, Thread>;
+  /** Bodies of collapsed thread messages (`GET /messages/{id}/body`); `null`: 500. */
+  bodies?: Record<string, MessageBody | null>;
 }
 
 /** Mail endpoints on top of the default backend; records PATCH bodies and list queries. */
@@ -22,8 +24,10 @@ function mockMailApi({
   mailboxes = [testMailbox()],
   messages = [],
   threads = {},
+  bodies = {},
 }: MailBackend = {}) {
   const patches: { id: string; body: unknown }[] = [];
+  const bodyRequests: string[] = [];
   const queries: URLSearchParams[] = [];
   const base = backend();
   const fetchMock = mockFetch(async (request) => {
@@ -38,6 +42,12 @@ function mockMailApi({
     }
     const thread = /^GET \/api\/messages\/([^/]+)\/thread$/.exec(route);
     if (thread?.[1] && threads[thread[1]]) return json(threads[thread[1]]);
+    const body = /^GET \/api\/messages\/([^/]+)\/body$/.exec(route);
+    if (body?.[1] && body[1] in bodies) {
+      bodyRequests.push(body[1]);
+      const found = bodies[body[1]];
+      return found ? json(found) : problem(500);
+    }
     const patch = /^PATCH \/api\/messages\/([^/]+)$/.exec(route);
     if (patch?.[1]) {
       const body = await request.json();
@@ -47,7 +57,7 @@ function mockMailApi({
     }
     return base(request);
   });
-  return { patches, queries, fetchMock };
+  return { patches, queries, bodyRequests, fetchMock };
 }
 
 // jsdom has no layout; the virtualised list needs a viewport height to render rows.
@@ -134,12 +144,66 @@ describe("inbox", () => {
     await waitFor(() => expect(router.state.location.search).not.toHaveProperty("message"));
   });
 
+  it("loads the body of an older message when it is expanded", async () => {
+    const id = messageId(2);
+    const older = messageId(1);
+    const thread: Thread = {
+      thread_id: "0199c100-0000-7000-8000-000000000001",
+      mailbox_id: testMailbox().id,
+      subject: "Subject 1",
+      messages: [
+        testDetail(1, { snippet: "Earlier snippet", body: null }),
+        testDetail(2, { text: "Newest body" }),
+      ],
+    };
+    const { bodyRequests } = mockMailApi({
+      messages: [testMessage(2)],
+      threads: { [id]: thread },
+      bodies: { [older]: { html: null, blocked_images: 0, text: "Earlier body" } },
+    });
+    await renderApp(`/inbox?message=${id}`);
+    expect(await screen.findByText("Newest body")).toBeInTheDocument();
+    // Collapsed: only the snippet, nothing loaded yet.
+    expect(screen.getByText("Earlier snippet")).toBeInTheDocument();
+    expect(bodyRequests).toEqual([]);
+
+    await userEvent.click(screen.getByRole("button", { name: /Sender 1/ }));
+    expect(await screen.findByText("Earlier body")).toBeInTheDocument();
+    expect(bodyRequests).toEqual([older]);
+  });
+
+  it("offers a retry when the body of an expanded message fails to load", async () => {
+    const id = messageId(2);
+    const older = messageId(1);
+    const bodies: Record<string, MessageBody | null> = { [older]: null };
+    mockMailApi({
+      messages: [testMessage(2)],
+      threads: {
+        [id]: {
+          thread_id: "0199c100-0000-7000-8000-000000000001",
+          mailbox_id: testMailbox().id,
+          subject: "Subject 1",
+          messages: [testDetail(1, { body: null }), testDetail(2)],
+        },
+      },
+      bodies,
+    });
+    await renderApp(`/inbox?message=${id}`);
+    await userEvent.click(await screen.findByRole("button", { name: /Sender 1/ }));
+    const retry = await screen.findByRole("button", { name: "Try again" });
+    bodies[older] = { html: null, blocked_images: 0, text: "Earlier body" };
+    await userEvent.click(retry);
+    expect(await screen.findByText("Earlier body")).toBeInTheDocument();
+  });
+
   it("shows HTML in a sandboxed frame and blocks external images until asked", async () => {
     const id = messageId(3);
     mockMailApi({
       messages: [testMessage(3)],
       threads: {
-        [id]: testThread(3, { body: { html: "<p>Figures</p>", blocked_images: 2 } }),
+        [id]: testThread(3, {
+          body: { html: "<p>Figures</p>", blocked_images: 2, text: "Figures" },
+        }),
       },
     });
     await renderApp(`/inbox?message=${id}`);

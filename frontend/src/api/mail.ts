@@ -35,7 +35,8 @@ export const mailKeys = {
   folders: (mailboxId: string) => ["mailbox", mailboxId, "folders"] as const,
   messages: (filters: MessageFilters) => ["message", "list", filters] as const,
   thread: (messageId: string) => ["message", "thread", messageId] as const,
-  body: (messageId: string) => ["message", "body", messageId, "external"] as const,
+  body: (messageId: string, externalImages: boolean) =>
+    ["message", "body", messageId, externalImages ? "external" : "blocked"] as const,
 };
 
 function fetchMailboxes({ signal }: { signal: AbortSignal }) {
@@ -119,19 +120,31 @@ export function threadQueryOptions(messageId: string) {
   });
 }
 
-/** The body with external images, loaded only after the user asked for them. */
-export function bodyWithImagesQueryOptions(messageId: string) {
+function bodyQueryOptions(messageId: string, externalImages: boolean) {
   return queryOptions({
-    queryKey: mailKeys.body(messageId),
+    queryKey: mailKeys.body(messageId, externalImages),
     queryFn: ({ signal }) =>
       unwrap(
         api.GET("/messages/{message_id}/body", {
-          params: { path: { message_id: messageId }, query: { external_images: true } },
+          params: { path: { message_id: messageId }, query: { external_images: externalImages } },
           signal,
         }),
       ),
     staleTime: Number.POSITIVE_INFINITY,
   });
+}
+
+/**
+ * The body of a message the thread lists collapsed (`body: null`), loaded when it is
+ * expanded (#210). External images stay blocked.
+ */
+export function messageBodyQueryOptions(messageId: string) {
+  return bodyQueryOptions(messageId, false);
+}
+
+/** The body with external images, loaded only after the user asked for them. */
+export function bodyWithImagesQueryOptions(messageId: string) {
+  return bodyQueryOptions(messageId, true);
 }
 
 export function attachmentUrl(messageId: string, attachmentId: string) {
