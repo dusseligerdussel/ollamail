@@ -21,7 +21,8 @@ as a matching rule. With the mapping off, ``role`` is applied as is; without one
 get ``user`` and existing users keep their role. The last active admin is never demoted at
 login (the change is skipped and logged), so a wrong rule cannot lock the instance out.
 Creating a user, linking a login to an existing account by e-mail address and changing a
-role are recorded in the audit log (actor ``system``).
+role are recorded in the audit log (actor ``system``); a link also leaves a notice for the
+user (``app.auth.link_notices``, #208).
 
 Users created by SCIM (#95): the groups SCIM keeps for them count for the role mapping
 like the groups of the login, and providers the admin lists in the SCIM settings may link
@@ -42,6 +43,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.auth.admin_access import other_active_admins
+from app.auth.link_notices import add_link_notice
 from app.auth.models import SCIM_PROVIDER, Identity
 from app.auth.policy import resolve_role
 from app.auth.providers.base import VerifiedIdentity
@@ -237,6 +239,8 @@ async def provision_user(
             audit.Target.of(audit.TargetType.USER, existing.id),
             {"provider": identity.provider, "via": "email" if policy.link_by_email else "scim"},
         )
+        # ... and tell the user in their other sign-ins (#208).
+        await add_link_notice(db, existing.id, identity.provider)
         log.info("identity_linked", user_id=existing.id, provider=identity.provider)
         return ProvisioningResult(user=existing, linked=True)
 

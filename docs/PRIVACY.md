@@ -29,8 +29,11 @@ Feature, sondern eine Randbedingung für jede Änderung.
    verlangen eine erneute Bestätigung des Admin-Kontos ([`auth/mfa.md`](auth/mfa.md#bestätigung-vor-sensiblen-aktionen-144)),
    jede Provider- und KI-Änderung steht im Audit-Log (`idp.config_changed`,
    `ai.settings_changed`), eine Verknüpfung per E-Mail-Adresse als `user.identity_linked`, und
-   die neue Sitzung erscheint in der Sitzungsliste des betroffenen Kontos (Einstellungen), wo sie
-   sich beenden lässt. Betreiber vergeben die Admin-Rolle deshalb sparsam, prüfen das
+   die neue Sitzung erscheint in der Sitzungsliste des betroffenen Kontos (Einstellungen) mit dem
+   Anmeldeverfahren, über das sie entstand, und lässt sich dort beenden. Zusätzlich bekommt die
+   betroffene Person bei der nächsten Anmeldung über ein bisheriges Verfahren einen Hinweis
+   („Neue Anmeldung verknüpft“, #208), den nur sie selbst schließen kann – nicht über eine
+   Sitzung des neu verknüpften Providers. Betreiber vergeben die Admin-Rolle deshalb sparsam, prüfen das
    Audit-Log regelmäßig und halten `link_by_email` aus, wo es nicht gebraucht wird.
 5. **Transparenz** – Jede KI-Bewertung (Triage, Todo) ist für den Nutzer erklärbar und korrigierbar.
 
@@ -227,8 +230,8 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 
 - **Auskunft/Export (Art. 15/20):** Unter Einstellungen → Deine Daten fordert der Nutzer einen
   Export an (`POST /api/privacy/exports`). Der Hintergrundjob `privacy.export` (Argument: nur die
-  Export-ID) schreibt ein ZIP mit JSON-Dateien: Profil mit Anmeldeidentitäten und Sitzungen,
-  eigene Postfächer (ohne Zugangsdaten), eigene Kategorien, Kategorie-Einstellungen,
+  Export-ID) schreibt ein ZIP mit JSON-Dateien: Profil mit Anmeldeidentitäten, offenen
+  Verknüpfungshinweisen (#208) und Sitzungen, eigene Postfächer (ohne Zugangsdaten), eigene Kategorien, Kategorie-Einstellungen,
   Absenderregeln, Korrekturen und die Triage-Ergebnisse der eigenen Mails, Aufgaben,
   Einstellungen des Aufgaben-Exports (ohne Passwort),
   Digest-Einstellungen (ohne Feed-Token) und Digests mit Audiodateien, Fragen-Verläufe mit
@@ -405,6 +408,7 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 |---|---|---|
 | `users` | E-Mail-Adresse, Anzeigename, Rolle, Sprache, Zeitzone, letzter Login | Konto löschen |
 | `auth_identities` | Anbieter, Kennung beim Anbieter (`sub`, GitHub-ID, LDAP-GUID, SAML-NameID), Gruppen, Argon2id-Hash | U |
+| `auth_identity_link_notices` | Offene Hinweise auf per E-Mail-Adresse verknüpfte Anmeldungen (#208): Nutzer-ID, Provider-Key, Zeitpunkt | U; Nutzer (Hinweis schließen) |
 | `auth_sessions` | SHA-256 des Session-Tokens, gekürzte Browser-Kennung, Zeiten (inkl. letzter Anmeldung bzw. Bestätigung) | U; abgelaufene stündlich (`auth.cleanup`) |
 | `auth_mfa_totp`, `auth_mfa_passkeys`, `auth_mfa_recovery_codes` | TOTP-Secret (verschlüsselt), Passkey (Credential-ID, öffentlicher Schlüssel, Name, Zähler), HMACs der Wiederherstellungscodes | U |
 | `auth_mfa_pending` | SHA-256 des Zwischenzustands nach dem Passwort bzw. vor einer Passkey-Bestätigung, ggf. WebAuthn-Challenge | U; nach wenigen Minuten ungültig, stündlich gelöscht (`auth.cleanup`) |

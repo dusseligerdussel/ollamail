@@ -14,7 +14,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.mfa.models import Passkey, PendingLogin, RecoveryCode, TotpFactor
-from app.auth.models import Invitation
+from app.auth.models import IdentityLinkNotice, Invitation
 from app.core.config import get_settings
 from app.digest.models import Digest, DigestLength, DigestStatus, DigestTrigger, DigestUserSettings
 from app.digest.storage import DigestStorage
@@ -265,6 +265,7 @@ async def seed_user_data(
                 user_id=user_id, token_hash=os.urandom(32), expires_at=NOW + timedelta(days=1)
             ),
             ScimUser(user_id=user_id, user_name=f"scim-{marker}", external_id=marker),
+            IdentityLinkNotice(user_id=user_id, provider="oidc:corp"),
         ]
     )
     # Like the shared mailbox, the SCIM group stays when a member is deleted.

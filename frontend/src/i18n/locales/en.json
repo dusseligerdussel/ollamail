@@ -36,6 +36,13 @@
       "unreachableText_one": "Endpoint {{endpoints}} does not respond.",
       "unreachableText_other": "Endpoints {{endpoints}} do not respond.",
       "action": "Show details"
+    },
+    "linkNotice": {
+      "label": "New sign-in linked",
+      "text_one": "On {{date}}, a sign-in through {{providers}} was linked to your account. Not you?",
+      "text_other": "Since {{date}}, sign-ins through {{providers}} were linked to your account. Not you?",
+      "action": "Review sessions",
+      "dismiss": "That was me – dismiss notice"
     }
   },
   "nav": {
@@ -1163,10 +1170,12 @@
       "unknownDevice": "Unknown device",
       "device": "{{browser}} on {{os}}",
       "current": "This device",
-      "lastActive": "Last active: {{date}}",
       "revoke": "Sign out",
       "revokeLabel": "Sign out {{device}}",
-      "revokeOthers": "Sign out all other sessions"
+      "revokeOthers": "Sign out all other sessions",
+      "localMethod": "Local account",
+      "method": "Sign-in: {{method}}",
+      "lastActive": "Last active: {{date}}"
     },
     "security": {
       "title": "Security",

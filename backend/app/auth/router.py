@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
-from app.auth import service
+from app.auth import link_notices, service
 from app.auth import sessions as session_store
 from app.auth.dependencies import CurrentSessionDep, CurrentUserDep, SettingsDep
 from app.auth.mfa import service as mfa_service
@@ -28,6 +28,7 @@ from app.auth.providers.ldap.service import list_directories
 from app.auth.schemas import (
     AuthProviderInfo,
     AuthProviders,
+    LinkNoticeRead,
     LoginRequest,
     RegisterRequest,
     SessionRead,
@@ -268,16 +269,27 @@ async def update_me(body: ProfileUpdate, user: CurrentUserDep, db: DbDep) -> Use
     return UserRead.model_validate(user)
 
 
+async def _provider_names(request: Request, db: AsyncSession) -> dict[str, str]:
+    """Display names of the configured external providers by key (incl. disabled LDAP
+    directories, so older sessions keep their name)."""
+    registry: AuthProviderRegistry = request.app.state.auth_providers
+    names = {d.provider: d.display_name for d in await list_directories(db)}
+    names.update({p.name: p.display_name for p in await registry.available(db)})
+    return names
+
+
 @router.get("/sessions", responses=_UNAUTHORIZED)
 async def list_sessions(
-    current: CurrentSessionDep, db: DbDep, settings: SettingsDep
+    request: Request, current: CurrentSessionDep, db: DbDep, settings: SettingsDep
 ) -> list[SessionRead]:
-    """The own active sessions, most recently used first."""
+    """The own active sessions, most recently used first, with the sign-in method of each."""
     rows = await session_store.list_sessions(db, settings.auth, current.user_id)
+    names = await _provider_names(request, db) if rows else {}
     return [
         SessionRead(
             id=row.id,
             provider=row.provider,
+            provider_name=names.get(row.provider),
             created_at=row.created_at,
             last_seen_at=row.last_seen_at,
             expires_at=row.expires_at,
@@ -286,6 +298,44 @@ async def list_sessions(
         )
         for row in rows
     ]
+
+
+@router.get("/link-notices", responses=_UNAUTHORIZED)
+async def list_link_notices(
+    request: Request, current: CurrentSessionDep, db: DbDep
+) -> list[LinkNoticeRead]:
+    """Sign-ins linked to the own account by e-mail address that are not acknowledged yet
+    (#208), newest first. Sessions of the linked provider itself do not see them."""
+    rows = await link_notices.list_link_notices(db, current.user_id, current.session_id)
+    names = await _provider_names(request, db) if rows else {}
+    return [
+        LinkNoticeRead(
+            id=row.id,
+            provider=row.provider,
+            provider_name=names.get(row.provider),
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]
+
+
+@router.delete(
+    "/link-notices/{notice_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**_UNAUTHORIZED, 404: {"description": "No such notice"}},
+)
+async def dismiss_link_notice(
+    notice_id: uuid.UUID, current: CurrentSessionDep, db: DbDep
+) -> Response:
+    """Acknowledge a link notice. Not possible from a session of the linked provider."""
+    provider = await link_notices.dismiss_link_notice(
+        db, current.user_id, current.session_id, notice_id
+    )
+    if provider is None:
+        raise ProblemError(404, detail="Notice not found.")
+    await db.commit()
+    log.info("identity_link_notice_dismissed", user_id=current.user_id, provider=provider)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
 @router.delete(

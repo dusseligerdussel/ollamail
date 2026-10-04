@@ -61,12 +61,26 @@ class AuthProviders(BaseModel):
 class SessionRead(BaseModel):
     id: uuid.UUID
     provider: str
+    # Display name of an external provider (``Corporate SSO``); null for local sign-in and for
+    # providers that are no longer configured (#208).
+    provider_name: str | None = None
     created_at: datetime
     last_seen_at: datetime
     expires_at: datetime
     user_agent: str | None
     # The session of this request.
     current: bool
+
+
+class LinkNoticeRead(BaseModel):
+    """A sign-in linked to the own account by e-mail address that is not acknowledged yet
+    (#208)."""
+
+    id: uuid.UUID
+    provider: str
+    # As in ``SessionRead``.
+    provider_name: str | None = None
+    created_at: datetime
 
 
 # -- Administration (#33) ----------------------------------------------------------------

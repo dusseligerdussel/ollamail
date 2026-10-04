@@ -169,3 +169,17 @@ class Invitation(Base):
     )
     token_hash: Mapped[bytes] = mapped_column(LargeBinary(32), unique=True)
     expires_at: Mapped[datetime] = mapped_column(index=True)
+
+
+class IdentityLinkNotice(Base):
+    """A sign-in linked to the account by e-mail address (link_by_email or SCIM linking, #208)
+    that the user has not acknowledged yet. Shown in sessions of the user's other sign-in
+    methods until dismissed; deleted with the user."""
+
+    __tablename__ = "auth_identity_link_notices"
+
+    user_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    # Provider key of the linked identity (``oidc:corp``, ``ldap:corp``).
+    provider: Mapped[str] = mapped_column(String(64))

@@ -38,6 +38,7 @@ export async function mockApi(page: Page, { initialized = true, role = "admin" }
         current: true,
       },
     ],
+    "GET /api/auth/link-notices": user && [],
     "GET /api/privacy/account": user && { self_delete_enabled: true, export_expiry_hours: 24 },
     "GET /api/privacy/exports": user && [],
     "GET /api/auth/mfa": user && {

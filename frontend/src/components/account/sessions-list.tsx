@@ -42,6 +42,12 @@ function SessionRow({ session }: { session: AuthSession }) {
     onSuccess: () => queryClient.invalidateQueries({ queryKey: sessionsQueryOptions.queryKey }),
   });
 
+  // How the session signed in (#208): a sign-in linked by e-mail address shows up here.
+  const method =
+    session.provider === "local"
+      ? t("account.sessions.localMethod")
+      : (session.provider_name ?? session.provider);
+
   let name = t("account.sessions.unknownDevice");
   if (device.browser && device.os) {
     name = t("account.sessions.device", { browser: device.browser, os: device.os });
@@ -62,6 +68,9 @@ function SessionRow({ session }: { session: AuthSession }) {
               {t("account.sessions.current")}
             </Badge>
           )}
+        </div>
+        <div className="truncate text-ui text-muted-foreground">
+          {t("account.sessions.method", { method })}
         </div>
         <div className="truncate text-ui text-muted-foreground">
           {t("account.sessions.lastActive", { date: formatDate(session.last_seen_at) })}
@@ -101,6 +110,7 @@ export function SessionsList() {
             <Skeleton className="size-4" />
             <div className="flex flex-1 flex-col gap-1.5">
               <Skeleton className="h-3.5 w-40" />
+              <Skeleton className="h-3.5 w-32" />
               <Skeleton className="h-3.5 w-56" />
             </div>
           </div>

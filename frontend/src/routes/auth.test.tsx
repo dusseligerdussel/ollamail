@@ -366,6 +366,8 @@ describe("account settings", () => {
         ...testSession,
         id: "00000000-0000-4000-8000-0000000000a2",
         current: false,
+        provider: "oidc:corp",
+        provider_name: "Corporate SSO",
         user_agent:
           "Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/18.0 Mobile/15E148 Safari/604.1",
       },
@@ -428,9 +430,11 @@ describe("account settings", () => {
     if (!current || !other) throw new Error("expected two sessions");
     expect(current).toHaveTextContent("Firefox on Linux");
     expect(current).toHaveTextContent("This device");
-    expect(current).toHaveTextContent("Last active: Jan 2, 2026, 9:30 AM");
+    expect(current).toHaveTextContent("Sign-in: Local accountLast active: Jan 2, 2026, 9:30 AM");
     expect(within(current).queryByRole("button")).not.toBeInTheDocument();
     expect(other).toHaveTextContent("Safari on iOS");
+    // The sign-in method shows sessions of a linked provider (#208).
+    expect(other).toHaveTextContent("Sign-in: Corporate SSO");
 
     await user.click(within(other).getByRole("button", { name: "Sign out Safari on iOS" }));
     await waitFor(() => expect(within(section).getAllByRole("listitem")).toHaveLength(1));
@@ -471,5 +475,58 @@ describe("safeRedirect", () => {
     ["/setup", "/inbox"],
   ])("%s → %s", (target, expected) => {
     expect(safeRedirect(target)).toBe(expected);
+  });
+});
+
+describe("link notice", () => {
+  const notice = {
+    id: "00000000-0000-4000-8000-0000000000c1",
+    provider: "oidc:corp",
+    provider_name: "Corporate SSO",
+    created_at: "2026-01-02T09:30:00Z",
+  };
+
+  function noticeBackend() {
+    let notices = [notice];
+    return mockFetch((request) => {
+      const { pathname } = new URL(request.url);
+      if (`${request.method} ${pathname}` === "GET /api/auth/link-notices") return json(notices);
+      if (request.method === "DELETE" && pathname === `/api/auth/link-notices/${notice.id}`) {
+        notices = [];
+        return new Response(null, { status: 204 });
+      }
+      return backend()(request);
+    });
+  }
+
+  it("tells the user about a linked sign-in and links to the sessions", async () => {
+    noticeBackend();
+    const user = userEvent.setup();
+    const { router } = await renderApp("/inbox");
+
+    const bar = await screen.findByRole("complementary", { name: "New sign-in linked" });
+    expect(bar).toHaveTextContent(
+      "On Jan 2, 2026, 9:30 AM, a sign-in through Corporate SSO was linked to your account. Not you?",
+    );
+
+    await user.click(within(bar).getByRole("link", { name: "Review sessions" }));
+    await waitFor(() => expect(router.state.location.pathname).toBe("/settings"));
+    expect(router.state.location.hash).toBe("settings-sessions");
+  });
+
+  it("is dismissed for good once confirmed", async () => {
+    const fetchMock = noticeBackend();
+    const user = userEvent.setup();
+    await renderApp("/inbox");
+
+    const bar = await screen.findByRole("complementary", { name: "New sign-in linked" });
+    await user.click(within(bar).getByRole("button", { name: "That was me – dismiss notice" }));
+
+    await waitFor(() =>
+      expect(
+        screen.queryByRole("complementary", { name: "New sign-in linked" }),
+      ).not.toBeInTheDocument(),
+    );
+    expect(sent(fetchMock)).toContain(`DELETE /api/auth/link-notices/${notice.id}`);
   });
 });
