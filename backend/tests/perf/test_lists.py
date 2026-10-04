@@ -43,12 +43,12 @@ PAGE_INDEXES = {
     "uq_triage_results_message_id",
 }
 LIST_TABLES = {"mail_messages", "triage_results"}
-# Rows a page may fetch from those tables: one page plus what the filters skip
+# Rows a page may fetch from ``mail_messages``: one page plus what the filters skip
 # (archive, segment boundaries), far below the 100k of a full scan.
 MAX_ROWS_PER_PAGE = 5_000
-# Index entries a page may read without fetching rows (an index-only scan of a triage
-# segment, joined with the unread messages): a part of the mailbox, never all of it.
-MAX_INDEX_ONLY_ROWS_PER_PAGE = MESSAGES // 5
+# Entries a page may read from an index range without fetching messages: a triage segment
+# (joined with the unread messages) or the unread index. A part of the mailbox, never all.
+MAX_RANGE_ROWS_PER_PAGE = MESSAGES // 5
 
 
 @pytest.fixture
@@ -116,21 +116,27 @@ async def _page(
     return response.json(), await _plans(session, statements), elapsed
 
 
-def _rows_read(plan: dict[str, Any], *, index_only: bool) -> int:
-    """Rows the plan read from ``LIST_TABLES`` (with the rows a filter dropped), by
-    index-only scans or by all other scans."""
+def _rows_read(plan: dict[str, Any], *, messages: bool) -> int:
+    """Rows the plan fetched from ``mail_messages`` (``messages``; all scans but index-only
+    ones, with the rows a filter dropped), or entries it read from index ranges otherwise
+    (``triage_results`` and index-only scans of ``mail_messages``)."""
+
+    def fetches(node: dict[str, Any]) -> bool:
+        return (
+            node.get("Relation Name") == "mail_messages" and node["Node Type"] != "Index Only Scan"
+        )
+
     return sum(
         int(
             (node.get("Actual Rows", 0) + node.get("Rows Removed by Filter", 0))
             * node.get("Actual Loops", 1)
         )
         for node in _nodes(plan)
-        if node.get("Relation Name") in LIST_TABLES
-        and (node["Node Type"] == "Index Only Scan") == index_only
+        if node.get("Relation Name") in LIST_TABLES and fetches(node) == messages
     )
 
 
-def _assert_keyset_page(plans: list[dict[str, Any]]) -> None:
+def _assert_keyset_page(plans: list[dict[str, Any]], max_fetched: int = MAX_ROWS_PER_PAGE) -> None:
     """The page rows come from the list indexes, in their order, without reading everything;
     the counts (first page only) read the folders, never all messages of the mailbox."""
     pages = [p for p in plans if p["Node Type"] == "Limit"]
@@ -140,8 +146,8 @@ def _assert_keyset_page(plans: list[dict[str, Any]]) -> None:
         assert {n.get("Index Name") for n in scans} <= PAGE_INDEXES, scans
         # Merging the parts of several mailboxes or categories sorts a few pages of rows.
         assert all(n["Actual Rows"] <= 1_000 for n in _nodes(plan) if n["Node Type"] == "Sort")
-        assert _rows_read(plan, index_only=False) <= MAX_ROWS_PER_PAGE
-        assert _rows_read(plan, index_only=True) <= MAX_INDEX_ONLY_ROWS_PER_PAGE
+        assert _rows_read(plan, messages=True) <= max_fetched
+        assert _rows_read(plan, messages=False) <= MAX_RANGE_ROWS_PER_PAGE
     for plan in plans:
         if plan["Node Type"] != "Limit":
             assert all(
@@ -152,7 +158,12 @@ def _assert_keyset_page(plans: list[dict[str, Any]]) -> None:
 
 
 async def _walk(
-    client: AsyncClient, session: AsyncSession, path: str, pages: int, **params: Any
+    client: AsyncClient,
+    session: AsyncSession,
+    path: str,
+    pages: int,
+    max_fetched: int = MAX_ROWS_PER_PAGE,
+    **params: Any,
 ) -> int:
     """Load up to ``pages`` pages; check the first (with counts) and the last (deep keyset
     page). Returns the number of messages loaded."""
@@ -164,7 +175,7 @@ async def _walk(
         cursor = body["next_cursor"]
         if number in (1, pages) or cursor is None:
             print(f"{path} {params} page {number}: {elapsed:.1f} ms")
-            _assert_keyset_page(plans)
+            _assert_keyset_page(plans, max_fetched)
             assert (body["total"] is None) == (number > 1)
         loaded += len(body["items"])
         assert len(body["items"]) == 100 or cursor is None
@@ -206,7 +217,10 @@ async def test_rare_filters_read_only_their_rows(
 
     path = "/triage/inbox/messages"
     await _walk(db_client, db_session, path, 51)
-    await _walk(db_client, db_session, path, 5, unread=True)
+    # Unread in a triage segment: depending on its estimates the planner starts from the
+    # unread messages or walks the segment and checks each message; either is bounded by
+    # the segment, not the mailbox.
+    await _walk(db_client, db_session, path, 5, MAX_RANGE_ROWS_PER_PAGE, unread=True)
     groups = (await db_client.get(path)).json()["groups"]
     important, spam, newsletter = (groups[i]["category_id"] for i in (0, 6, 4))
     for category in (important, spam, "none"):
