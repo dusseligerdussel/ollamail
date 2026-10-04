@@ -26,6 +26,7 @@ import {
   requestNotificationAccess,
   showNotification,
 } from "@/lib/browser-notifications";
+import { cn } from "@/lib/utils";
 
 export const Route = createFileRoute("/settings_/notifications")({
   component: NotificationsPage,
@@ -185,7 +186,14 @@ function NotificationsForm({ settings }: { settings: NotificationSettings }) {
                       disabled={off || busy}
                       onCheckedChange={(value) => toggleCategory(category.id, value === true)}
                     />
-                    <label htmlFor={id} className="min-w-0 truncate text-ui">
+                    <label
+                      htmlFor={id}
+                      // Dim only while notifications are off, not during a save (no flicker).
+                      className={cn(
+                        "min-w-0 truncate text-ui peer-disabled:cursor-not-allowed",
+                        off && "opacity-50",
+                      )}
+                    >
                       {categoryName(category)}
                     </label>
                   </li>

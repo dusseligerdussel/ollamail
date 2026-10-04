@@ -31,6 +31,8 @@
   --muted-foreground: oklch(0.5 0.014 285.938);
   --accent: oklch(0.955 0.002 286.32);
   --accent-foreground: oklch(0.21 0.006 285.885);
+  /* Loading placeholders: clearly visible on background, muted and accent surfaces. */
+  --skeleton: oklch(0.93 0.004 286.32);
   /* Error text keeps 4.5:1 on muted and accent surfaces as well. */
   --destructive: oklch(0.55 0.245 27.325);
   --border: oklch(0.92 0.004 286.32);
@@ -76,6 +78,7 @@
   --muted-foreground: oklch(0.71 0.012 286.067);
   --accent: oklch(0.235 0.005 286.033);
   --accent-foreground: oklch(0.95 0.002 286.32);
+  --skeleton: oklch(0.3 0.006 286.033);
   --destructive: oklch(0.704 0.191 22.216);
   --border: oklch(0.27 0.005 286.033);
   /* Boundary of form controls: at least 3:1 against the surfaces (WCAG 1.4.11). */
@@ -134,6 +137,7 @@
   --color-muted-foreground: var(--muted-foreground);
   --color-accent: var(--accent);
   --color-accent-foreground: var(--accent-foreground);
+  --color-skeleton: var(--skeleton);
   --color-destructive: var(--destructive);
   --color-border: var(--border);
   --color-input: var(--input);

@@ -16,7 +16,8 @@ Ziel: ein ruhiges, schnelles, professionelles Werkzeug. Vorbilder: Linear, Super
 - Schnelle, kurze Übergänge (≤ 150 ms), `prefers-reduced-motion` respektieren.
 - Leere Zustände sachlich mit einer klaren nächsten Aktion. Fehler beim Laden ebenso:
   `InlineError` mit „Erneut versuchen“ (`onRetry`).
-- Skeletons statt Spinner bei Listen.
+- Skeletons statt Spinner bei Listen; sie haben die Zeilenhöhe der echten Liste (Mail-Listen mobil
+  zweizeilig), damit nichts springt.
 - Barrierefreiheit: WCAG 2.2 AA, Fokus sichtbar, alles per Tastatur bedienbar. Prüfumfang, Funde und
   bekannte Einschränkungen: `docs/accessibility.md`.
 
@@ -44,6 +45,26 @@ Ziel: ein ruhiges, schnelles, professionelles Werkzeug. Vorbilder: Linear, Super
 ```
 
 Mobil: Navigation als Bottom-Bar oder Sheet, Liste und Detail als gestapelte Ansichten.
+
+Einstellungs- und Admin-Seiten (Formulare, Abschnitte mit Zeilen) nutzen eine gemeinsame Spalte
+`max-w-2xl` (624 px Inhalt). Breiter sind nur Lesebereiche (Thread, Digest, Aufgaben, Entwürfe:
+`max-w-3xl`) und Tabellen (volle Breite).
+
+Die Hauptaktion einer Seite („Provider hinzufügen“, „Kategorie anlegen“ …) steht als Primary-Button
+(`size="sm"`) rechts im Seitenkopf – auch wenn sie nur einen Abschnitt der Seite betrifft. In
+Abschnittsköpfen stehen keine Buttons.
+
+## Typografie
+
+| Rolle | Größe | Klasse |
+|---|---|---|
+| Seitentitel (h1 im Seitenkopf) | 14 px, medium | `text-sm font-medium` |
+| Fließtext, Listenzeilen, Buttons `sm` | 13 px | `text-ui` |
+| Abschnittstitel, Meta, Labels über Feldern | 12 px | `text-xs` |
+
+In dichten Ansichten sind Buttons `size="sm"` (13 px); damit bleibt der Seitentitel die größte
+Schrift im Kopf. Größere Buttons (`default`, 14 px) nur in Dialogen und auf öffentlichen Seiten
+(Anmeldung, Einrichtung).
 
 ## Komponenten
 

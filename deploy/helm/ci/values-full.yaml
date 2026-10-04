@@ -65,6 +65,8 @@ metrics:
     - namespaceSelector:
         matchLabels:
           kubernetes.io/metadata.name: monitoring
+frontend:
+  hsts: max-age=31536000; includeSubDomains
 persistence:
   accessModes: [ReadWriteMany]
   storageClass: nfs
@@ -90,6 +92,16 @@ ollama:
       effect: NoSchedule
 networkPolicy:
   enabled: true
+  database:
+    enabled: true
+    extraIngress:
+      - from:
+          - namespaceSelector:
+              matchLabels:
+                kubernetes.io/metadata.name: monitoring
+        ports:
+          - port: 9187
+            protocol: TCP
   frontend:
     from:
       - namespaceSelector:

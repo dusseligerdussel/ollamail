@@ -76,3 +76,22 @@ updates:
     groups:
       docker:
         patterns: ["*"]
+
+  # Third-party images of deploy/compose.yaml (pgvector, Ollama): the pinned default after
+  # `${POSTGRES_IMAGE:-…}` / `${OLLAMA_IMAGE:-…}`. Dependabot keeps a tag's suffix, so
+  # 0.8.7-pg16-bookworm only moves to newer pgvector releases for PostgreSQL 16 on bookworm
+  # (docs/OPERATIONS.md, section 6.5). Ollama updates also change the tag in
+  # deploy/helm/ollamail/values.yaml and deploy/.env.example by hand.
+  - package-ecosystem: docker-compose
+    directory: /deploy
+    schedule:
+      interval: weekly
+      day: monday
+      time: "04:00"
+      timezone: Europe/Berlin
+    open-pull-requests-limit: 5
+    commit-message:
+      prefix: chore(deps)
+    groups:
+      compose:
+        patterns: ["*"]
