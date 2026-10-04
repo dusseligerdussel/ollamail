@@ -14,6 +14,7 @@ from app.auth.sessions import SESSION_COOKIE, purge_expired_sessions, session_ac
 from app.core.config import Settings
 from app.core.db import get_db
 from app.main import create_app
+from app.users.models import User
 from tests.auth.conftest import login, make_local_user
 from tests.conftest import api_client
 
@@ -166,8 +167,10 @@ async def test_session_active_does_not_refresh_the_session(
     )
 
     assert await session_active(db_session, settings.auth, session.id)
-    db_session.expire_all()
-    assert (await db_session.get(AuthSession, session.id)).last_seen_at == seen  # type: ignore[union-attr]
+    stored = await db_session.scalar(
+        select(AuthSession.last_seen_at).where(AuthSession.id == session.id)
+    )
+    assert stored == seen
 
     # Idle, deactivated and ended sessions are no longer active.
     idle = datetime.now(UTC) - timedelta(minutes=settings.auth.session_idle_timeout_minutes + 1)
@@ -178,11 +181,9 @@ async def test_session_active_does_not_refresh_the_session(
     await db_session.execute(
         update(AuthSession).where(AuthSession.id == session.id).values(last_seen_at=seen)
     )
-    user.is_active = False
-    await db_session.flush()
+    await db_session.execute(update(User).where(User.id == user.id).values(is_active=False))
     assert not await session_active(db_session, settings.auth, session.id)
-    user.is_active = True
-    await db_session.flush()
+    await db_session.execute(update(User).where(User.id == user.id).values(is_active=True))
     assert await session_active(db_session, settings.auth, session.id)
     assert (await db_client.post("/auth/logout")).status_code == 204
     assert not await session_active(db_session, settings.auth, session.id)
