@@ -22,12 +22,19 @@ export interface ProblemDetails {
 export class ApiError extends Error {
   readonly status: number;
   readonly problem: ProblemDetails | undefined;
+  /** Seconds to wait before trying again (`Retry-After` of a 429 or 503), if sent. */
+  readonly retryAfter: number | undefined;
 
-  constructor(status: number, problem?: ProblemDetails, options?: ErrorOptions) {
+  constructor(
+    status: number,
+    problem?: ProblemDetails,
+    options?: ErrorOptions & { retryAfter?: number },
+  ) {
     super(problem?.title ?? (status === 0 ? "Network error" : `HTTP ${status}`), options);
     this.name = "ApiError";
     this.status = status;
     this.problem = problem;
+    this.retryAfter = options?.retryAfter;
   }
 
   get requestId(): string | undefined {
@@ -69,6 +76,22 @@ export function isCsrfError(error: unknown): boolean {
  * AI requests (`app/ai/llm/user_limits.py`). */
 export const LLM_BUSY_ERROR_CODE = "llm_busy";
 
+/** The request was refused because other AI requests of the user are still running. */
+export function isLlmBusy(error: unknown): boolean {
+  return (
+    isApiError(error) && error.status === 429 && error.problem?.error_code === LLM_BUSY_ERROR_CODE
+  );
+}
+
+/** `Retry-After` in seconds (delta-seconds or an HTTP date); `undefined` if absent or invalid. */
+export function parseRetryAfter(value: string | null, now = Date.now()): number | undefined {
+  if (!value) return undefined;
+  if (/^\d+$/.test(value.trim())) return Number(value.trim());
+  const date = Date.parse(value);
+  if (Number.isNaN(date)) return undefined;
+  return Math.max(0, Math.ceil((date - now) / 1000));
+}
+
 const messageKeys = {
   0: "errors.network",
   400: "errors.badRequest",
@@ -84,9 +107,7 @@ const messageKeys = {
 
 function messageKey(error: unknown) {
   if (!isApiError(error)) return "errors.unknown" as const;
-  if (error.status === 429 && error.problem?.error_code === LLM_BUSY_ERROR_CODE) {
-    return "errors.llmBusy" as const;
-  }
+  if (isLlmBusy(error)) return "errors.llmBusy" as const;
   const known = messageKeys[error.status as keyof typeof messageKeys];
   if (known) return known;
   return error.status >= 500 ? ("errors.server" as const) : ("errors.unknown" as const);

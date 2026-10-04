@@ -297,7 +297,7 @@ function PasskeyRow({ passkey }: { passkey: Passkey }) {
   const queryClient = useQueryClient();
   const formatDate = useDate();
   const removalError = useRemovalError();
-  const withReauth = useReauth();
+  const withReauth = useReauth({ action: t("auth.reauth.actions.removePasskey") });
   const remove = useMutation({
     mutationFn: () => withReauth(() => removePasskey(passkey.id)),
     meta: { errorToast: false },
@@ -347,7 +347,7 @@ function TotpRow({ status, onSetup }: { status: MfaStatus; onSetup: () => void }
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const removalError = useRemovalError();
-  const withReauth = useReauth();
+  const withReauth = useReauth({ action: t("auth.reauth.actions.removeTotp") });
   const remove = useMutation({
     mutationFn: () => withReauth(removeTotp),
     meta: { errorToast: false },
@@ -401,7 +401,7 @@ function RegenerateCodesPanel({
   onCreated: (codes: string[]) => void;
 }) {
   const { t } = useTranslation();
-  const withReauth = useReauth();
+  const withReauth = useReauth({ action: t("auth.reauth.actions.recoveryCodes") });
   const create = useMutation({
     mutationFn: () => withReauth(regenerateRecoveryCodes),
     onSuccess: (result) => onCreated(result.codes),

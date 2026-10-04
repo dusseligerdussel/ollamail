@@ -223,7 +223,10 @@ function AccessForm({ mailbox }: { mailbox: SharedMailbox }) {
 
   const dirty = assignmentsKey(selected, groups) !== assignmentsKey(savedUsers, savedGroups);
 
-  const withReauth = useReauth();
+  const withReauth = useReauth({
+    action: t("auth.reauth.actions.saveMailboxAccess"),
+    unsavedChanges: true,
+  });
   const save = useMutation({
     // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: () =>

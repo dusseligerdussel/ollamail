@@ -208,6 +208,13 @@ function SearchPage() {
     [draft, ask, params.conversation, stream.reset, navigate],
   );
 
+  // After an error, the same question again (in the same conversation).
+  const live = stream.answer;
+  const liveKey = live?.phase === "error" ? liveTurn(live).key : undefined;
+  const retry = useCallback(() => {
+    if (live) ask(live.question, live.conversationId);
+  }, [live, ask]);
+
   const askSubmitted = useCallback(() => {
     if (!submitted) return;
     setSubmitted({ ...submitted, question: true });
@@ -378,6 +385,7 @@ function SearchPage() {
             turn={turn}
             onOpenSource={openSource}
             onCancel={stream.cancel}
+            onRetry={turn.key === liveKey ? retry : undefined}
             headingLevel={answersInDetail ? 3 : 2}
           />
         ))}

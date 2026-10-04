@@ -6,7 +6,9 @@
     "close": "Schließen",
     "loading": "Wird geladen…",
     "navigateHint": "Mit <0/> und <1/> durch die Liste bewegen.",
-    "retry": "Erneut versuchen"
+    "retry": "Erneut versuchen",
+    "retryIn_one": "Erneut versuchen in {{count}} s",
+    "retryIn_other": "Erneut versuchen in {{count}} s"
   },
   "shell": {
     "skipToContent": "Zum Inhalt springen",
@@ -342,7 +344,7 @@
       "tasks": {
         "triage": "Triage",
         "todos": "Aufgaben",
-        "digest": "Zusammenfassung",
+        "digest": "Digest",
         "rag_chat": "Fragen an die Inbox",
         "reply_draft": "Antwortentwürfe",
         "embeddings": "Suchindex"
@@ -350,7 +352,7 @@
       "taskDescriptions": {
         "triage": "Sortiert neue Mails in Kategorien.",
         "todos": "Erkennt Aufgaben in Mails.",
-        "digest": "Schreibt die tägliche Zusammenfassung.",
+        "digest": "Schreibt den täglichen Digest.",
         "rag_chat": "Beantwortet Fragen mit Quellen aus den Mails.",
         "reply_draft": "Schreibt Antwortentwürfe; gesendet wird nur durch den Nutzer.",
         "embeddings": "Berechnet Vektoren für die Suche (Embedding-Modell)."
@@ -655,8 +657,6 @@
       "back": "Zurück zum Admin-Bereich",
       "enabled": "Rollen aus Gruppen ableiten",
       "enabledDescription": "Bei jeder Anmeldung über einen Identity-Provider wird die Rolle aus den Gruppen bestimmt. Von Hand vergebene Rollen werden für diese Nutzer überschrieben.",
-      "off": "Aus",
-      "on": "An",
       "defaultRole": "Standardrolle",
       "defaultRoleDescription": "Für alle, auf die keine Regel zutrifft.",
       "rules": "Regeln",
@@ -690,8 +690,6 @@
       "general": "Provisionierung",
       "enabled": "SCIM-Provisionierung",
       "enabledDescription": "Ihr Identity Provider (Entra ID, Okta) legt Nutzer an, ändert und deaktiviert sie und überträgt Gruppen.",
-      "off": "Aus",
-      "on": "An",
       "saved": "SCIM-Einstellungen gespeichert",
       "endpoint": "Endpunkt-URL",
       "endpointDescription": "Beim Identity Provider als Mandanten-URL bzw. SCIM-Basis-URL eintragen.",
@@ -1132,12 +1130,16 @@
       "title": "Bestätige, dass du es bist",
       "description_one": "Für diese Aktion ist eine aktuelle Bestätigung nötig. Sie gilt danach {{count}} Minute.",
       "description_other": "Für diese Aktion ist eine aktuelle Bestätigung nötig. Sie gilt danach {{count}} Minuten.",
+      "descriptionAction_one": "Für „{{action}}“ ist eine aktuelle Bestätigung nötig. Sie gilt danach {{count}} Minute.",
+      "descriptionAction_other": "Für „{{action}}“ ist eine aktuelle Bestätigung nötig. Sie gilt danach {{count}} Minuten.",
       "loading": "Optionen werden geladen …",
       "passwordLabel": "Passwort",
       "totpLabel": "Code aus deiner Authenticator-App",
       "passkeyHint": "Verwende einen der Passkeys, die du für dieses Konto hinzugefügt hast.",
       "ssoHint": "Du hast dich mit {{provider}} angemeldet. Melde dich dort erneut an, um fortzufahren; danach kommst du auf diese Seite zurück.",
       "signinHint": "Melde dich ab und wieder an, um fortzufahren. Danach kommst du auf diese Seite zurück.",
+      "unsavedWarning": "Nicht gespeicherte Eingaben auf dieser Seite gehen dabei verloren.",
+      "unsavedAlternative": "Bestätige mit einer anderen Möglichkeit, um sie zu behalten.",
       "confirm": "Bestätigen",
       "confirming": "Wird bestätigt …",
       "usePasskey": "Passkey verwenden",
@@ -1157,6 +1159,16 @@
         "webauthn": "Passkey verwenden",
         "sso": "Erneut mit {{provider}} anmelden",
         "signin": "Abmelden und neu anmelden"
+      },
+      "actions": {
+        "saveRoleMapping": "Rollen-Zuordnung speichern",
+        "scimSettings": "SCIM-Provisionierung ändern",
+        "createScimToken": "SCIM-Token erstellen",
+        "saveMailboxAccess": "Zugriff speichern",
+        "addProvider": "Anmeldeanbieter hinzufügen",
+        "removePasskey": "Passkey entfernen",
+        "removeTotp": "Authenticator-App entfernen",
+        "recoveryCodes": "Neue Wiederherstellungscodes erstellen"
       }
     }
   },
@@ -1966,7 +1978,7 @@
     "back": "Zurück zu den Einstellungen",
     "manage": "Benachrichtigungen einrichten",
     "linkDescription": "Im Browser Bescheid bekommen, wenn eine wichtige Mail eintrifft.",
-    "intro": "ollamail meldet sich, wenn eine neue Mail in einer der gewählten Kategorien eintrifft – solange ollamail in einem Tab geöffnet ist, du aber gerade woanders arbeitest.",
+    "intro": "ollamail meldet sich, wenn eine neue Mail in einer der gewählten Kategorien eintrifft und du gerade woanders arbeitest – solange ollamail in einem Tab geöffnet ist und, falls eingerichtet, auch ohne geöffneten Tab.",
     "loading": "Einstellungen werden geladen",
     "disabledTitle": "Benachrichtigungen nicht freigegeben",
     "disabledDescription": "Auf diesem Server sind Benachrichtigungen ausgeschaltet. Die Administration kann sie freigeben.",
@@ -2002,6 +2014,7 @@
       "enabledDescription": "Auf diesem Gerät, auch wenn ollamail geschlossen ist. Gilt je Browser und Gerät.",
       "service": "Dafür nutzt der Browser den Push-Dienst seines Herstellers (Chrome: Google, Firefox: Mozilla, Safari: Apple, Edge: Microsoft). Der Dienst sieht, wann eine Nachricht an dieses Gerät geht, aber nicht, worum es geht: ollamail schickt nur eine Kennung, den Inhalt lädt das Gerät direkt von ollamail.",
       "unsupported": "Dieser Browser unterstützt das nicht. Auf iPhone und iPad muss ollamail dafür zum Home-Bildschirm hinzugefügt sein.",
+      "needsBrowser": "Schalte zuerst „{{setting}}“ ein.",
       "devices": "Geräte",
       "noDevices": "Noch kein Gerät eingerichtet.",
       "thisDevice": "Dieses Gerät",

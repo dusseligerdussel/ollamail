@@ -304,6 +304,38 @@ describe("search", () => {
     expect(alert).not.toHaveTextContent("not reachable");
   });
 
+  it("too many AI requests: shown neutrally, retried with the same question after Retry-After", async () => {
+    let refused = false;
+    const { asks } = mockSearchApi({
+      answer: () => {
+        if (refused) return sse([start, { type: "token", text: "Morgen kommt Lena." }]);
+        refused = true;
+        const response = problem(429, { error_code: "llm_busy" });
+        response.headers.set("Retry-After", "1");
+        return response;
+      },
+    });
+    await renderApp("/search");
+    await type("Wer kommt morgen?{Enter}");
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent("You already have several answers or drafts in progress.");
+    expect(alert.querySelector(".text-destructive")).toBeNull();
+    const retry = within(alert).getByRole("button", { name: /^Try again in 1 s$/ });
+    expect(retry).toBeDisabled();
+    await waitFor(
+      () => expect(within(alert).getByRole("button", { name: "Try again" })).toBeEnabled(),
+      {
+        timeout: 2500,
+      },
+    );
+    await userEvent.click(within(alert).getByRole("button", { name: "Try again" }));
+
+    expect(await screen.findByText("Morgen kommt Lena.")).toBeInTheDocument();
+    expect(asks).toHaveLength(2);
+    expect(asks[1]).toEqual(asks[0]);
+  });
+
   it("lists the history and deletes entries", async () => {
     const { deletes } = mockSearchApi({
       conversations: [

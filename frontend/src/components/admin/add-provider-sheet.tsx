@@ -291,7 +291,10 @@ function OidcForm({
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
 
-  const withReauth = useReauth();
+  const withReauth = useReauth({
+    action: t("auth.reauth.actions.addProvider"),
+    unsavedChanges: true,
+  });
   const create = useMutation({
     // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: (body: OidcProviderCreate) => withReauth(() => createOidcProvider(body)),
@@ -441,7 +444,10 @@ function GitHubForm({
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
 
-  const withReauth = useReauth();
+  const withReauth = useReauth({
+    action: t("auth.reauth.actions.addProvider"),
+    unsavedChanges: true,
+  });
   const create = useMutation({
     // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: (body: GitHubProviderCreate) => withReauth(() => createGitHubProvider(body)),
@@ -555,7 +561,10 @@ function SamlForm({
   const [metadataXml, setMetadataXml] = useState<string>();
   const [fileMissing, setFileMissing] = useState(false);
 
-  const withReauth = useReauth();
+  const withReauth = useReauth({
+    action: t("auth.reauth.actions.addProvider"),
+    unsavedChanges: true,
+  });
   const create = useMutation({
     // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: (body: SamlProviderCreate) => withReauth(() => createSamlProvider(body)),
@@ -697,7 +706,10 @@ function LdapForm({
   const [bindPassword, setBindPassword] = useState("");
   const [baseDn, setBaseDn] = useState("");
 
-  const withReauth = useReauth();
+  const withReauth = useReauth({
+    action: t("auth.reauth.actions.addProvider"),
+    unsavedChanges: true,
+  });
   const create = useMutation({
     // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: (body: LdapDirectoryCreate) => withReauth(() => createLdapDirectory(body)),
