@@ -5,14 +5,21 @@
   "common": {
     "close": "Close",
     "loading": "Loading…",
-    "navigateHint": "Use <0/> and <1/> to move through the list."
+    "navigateHint": "Use <0/> and <1/> to move through the list.",
+    "retry": "Try again"
   },
   "shell": {
     "skipToContent": "Skip to content",
     "resizeNavigation": "Resize navigation",
+    "notices": {
+      "label": "Notices",
+      "summary_one": "{{count}} notice",
+      "summary_other": "{{count}} notices"
+    },
     "cloudNotice": {
       "label": "Cloud AI active",
-      "text": "{{provider}} receives mail content for: {{tasks}}"
+      "text": "{{provider}} receives mail content for: {{tasks}}",
+      "dismiss": "Hide cloud notice"
     },
     "syncNotice": {
       "label": "Mailbox not syncing",

@@ -564,7 +564,9 @@ sechsmal im Abstand von 10 s erneut.
   Fortschritt sowie die Verarbeitung je Postfach. Die App-Shell zeigt unter dem Cloud-Hinweis
   dezente Hinweisleisten (`components/system-notices.tsx`): Admins sehen „Modell fehlt“ bzw.
   „Sprachmodell nicht erreichbar“ (Link zur Admin-Seite), alle Nutzer ein eigenes Postfach im
-  Fehlerzustand (Link „Neu verbinden“ zu Einstellungen → Postfächer). Keine Modals.
+  Fehlerzustand (Link „Neu verbinden“ zu Einstellungen → Postfächer). Keine Modals. Auf Mobil
+  fasst eine einzeilige, aufklappbare Leiste alle Hinweise zusammen; der Cloud-Hinweis lässt sich
+  pro Sitzung ausblenden.
 
 #### KI-Einstellungen im Admin-Bereich (`backend/app/ai/settings/`)
 

@@ -129,7 +129,13 @@ function OrganizationCategories() {
               <ListSkeleton rows={7} />
             </div>
           )}
-          {categories.isError && <InlineError error={categories.error} />}
+          {categories.isError && (
+            <InlineError
+              error={categories.error}
+              onRetry={categories.refetch}
+              retrying={categories.isFetching}
+            />
+          )}
           {categories.data?.length === 0 && (
             <EmptyState
               icon={Tags}

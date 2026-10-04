@@ -2,7 +2,6 @@ import { Outlet } from "@tanstack/react-router";
 import { useTranslation } from "react-i18next";
 import { useDefaultLayout } from "react-resizable-panels";
 
-import { CloudNotice } from "@/components/cloud-notice";
 import { CommandPalette } from "@/components/command-palette/command-palette";
 import { MailNotifier } from "@/components/notifications/mail-notifier";
 import { SystemNotices } from "@/components/system-notices";
@@ -23,7 +22,6 @@ function Main() {
       tabIndex={-1}
       className="flex h-full min-h-0 min-w-0 flex-1 flex-col outline-none"
     >
-      <CloudNotice />
       <SystemNotices />
       <Outlet />
     </main>
