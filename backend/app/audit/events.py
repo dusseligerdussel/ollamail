@@ -36,6 +36,8 @@ class AuditAction(enum.StrEnum):
     USER_DELETED = "user.deleted"  # account deletion by the user or an admin (app/privacy)
     # Profile attributes changed by SCIM provisioning (#95): names of the fields only.
     USER_UPDATED = "user.updated"
+    # An external login was linked to an existing account by its e-mail address (#190).
+    USER_IDENTITY_LINKED = "user.identity_linked"
     # Groups pushed by SCIM provisioning (#95) and their members.
     GROUP_CREATED = "group.created"
     GROUP_UPDATED = "group.updated"

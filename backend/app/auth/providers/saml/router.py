@@ -34,6 +34,7 @@ from app.auth.providers.saml.schemas import (
     SAMLProviderRead,
     SAMLProviderUpdate,
 )
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep
 from app.core.config import Settings
 from app.core.db import get_db
 from app.core.errors import ProblemError
@@ -344,13 +345,14 @@ _PRESET_FIELDS = (
     "/providers",
     status_code=status.HTTP_201_CREATED,
     responses={
+        **ADMIN_REAUTH_RESPONSES,
         409: {"description": "Name taken"},
         422: {"description": "Invalid settings or metadata"},
     },
 )
 async def create_saml_provider(
     body: SAMLProviderCreate,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
     settings: SettingsDep,
@@ -402,6 +404,7 @@ _IDP_FIELDS = frozenset({"idp_entity_id", "idp_sso_url", "idp_certificates"})
 @admin_router.patch(
     "/providers/{name}",
     responses={
+        **ADMIN_REAUTH_RESPONSES,
         404: {"description": "Unknown provider"},
         409: {"description": "No administrator could sign in afterwards (admin-lockout)"},
         422: {"description": "Invalid settings or metadata"},
@@ -410,7 +413,7 @@ _IDP_FIELDS = frozenset({"idp_entity_id", "idp_sso_url", "idp_certificates"})
 async def update_saml_provider(
     name: str,
     body: SAMLProviderUpdate,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
     settings: SettingsDep,

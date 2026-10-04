@@ -1392,7 +1392,8 @@ in der DB steht nur der SHA-256. Gültig bis `expires_at` (Lebensdauer) und sola
 Anfrage weniger als das Idle-Timeout zurückliegt (`last_seen_at`, höchstens minütlich
 geschrieben). `authenticated_at` hält fest, wann sich der Nutzer in dieser Session zuletzt
 ausgewiesen hat (Login oder Bestätigung); sensible Endpunkte (Faktor entfernen, neue
-Wiederherstellungscodes, Datenexport, Konto löschen) verlangen über `RecentAuthDep`
+Wiederherstellungscodes, Datenexport, Konto löschen; kritische Admin-Aktionen wie Nutzer
+löschen, Rollen, SCIM-Tokens, Anmelde- und KI-Provider über `RecentAdminDep`, #190) verlangen über `RecentAuthDep`
 (`app/auth/reauth.py`) eine Bestätigung innerhalb von `OLLAMAIL_AUTH_REAUTH_MINUTES` per
 Passwort, TOTP, Passkey oder erneuter (SSO-)Anmeldung, sonst 403 `reauth-required`
 (Details: [`auth/mfa.md`](auth/mfa.md#bestätigung-vor-sensiblen-aktionen-144)). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort

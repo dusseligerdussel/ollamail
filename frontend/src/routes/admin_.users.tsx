@@ -24,11 +24,13 @@ import {
 import { pageNavigation } from "@/api/auth";
 import { describeApiError } from "@/api/errors";
 import type { UserDeletionResult } from "@/api/privacy";
+import { isReauthCancelled } from "@/api/reauth";
 import { SCIM_PROVIDER } from "@/api/scim";
 import { AdminSubPage } from "@/components/admin/admin-page";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { DeleteUserDialog } from "@/components/admin/delete-user-dialog";
 import { InvitationLink, InviteUserSheet } from "@/components/admin/invite-user-sheet";
+import { useReauth } from "@/components/auth/reauth";
 import { EmptyState } from "@/components/empty-state";
 import { Forbidden } from "@/components/forbidden";
 import { InlineError } from "@/components/inline-error";
@@ -144,14 +146,18 @@ function useUserActions() {
     await queryClient.invalidateQueries({ queryKey: authSettingsQueryOptions.queryKey });
   }
 
+  const withReauth = useReauth();
   const run = useMutation({
     mutationFn: async (action: Action) => {
       const { user } = action;
       switch (action.type) {
+        // Role and status need a recent confirmation (components/auth/reauth.tsx).
         case "role":
-          return updateUser(user.id, { role: user.role === "admin" ? "user" : "admin" });
+          return withReauth(() =>
+            updateUser(user.id, { role: user.role === "admin" ? "user" : "admin" }),
+          );
         case "active":
-          return updateUser(user.id, { is_active: !user.is_active });
+          return withReauth(() => updateUser(user.id, { is_active: !user.is_active }));
         case "sessions":
           return revokeUserSessions(user.id);
         case "invitation":
@@ -174,7 +180,7 @@ function useUserActions() {
     },
     onError: (error) => {
       // Inside the confirmation dialog the error is shown there.
-      if (confirm) return;
+      if (confirm || isReauthCancelled(error)) return;
       toast.error(
         isAdminLockout(error) ? t("pages.users.lockout") : describeApiError(error, t).title,
       );
@@ -193,7 +199,7 @@ function useUserActions() {
   }
 
   let confirmError: string | undefined;
-  if (confirm && run.isError) {
+  if (confirm && run.isError && !isReauthCancelled(run.error)) {
     confirmError = isAdminLockout(run.error)
       ? t("pages.users.lockout")
       : describeApiError(run.error, t).title;

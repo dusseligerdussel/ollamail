@@ -84,6 +84,24 @@ oder das Konto zu löschen. Diese Endpunkte verlangen deshalb eine **aktuelle Be
 | Vollständiger Datenexport | `POST /api/privacy/exports` |
 | Konto löschen | `DELETE /api/privacy/account` (zusätzlich Eingabe der E-Mail-Adresse) |
 
+Dasselbe gilt für **kritische Admin-Aktionen** (#190), denn ein gestohlenes Admin-Cookie
+reicht sonst, um einen Identity-Provider mit `link_by_email` anzulegen, der sich als beliebiger
+Nutzer anmeldet, oder einen KI-Endpunkt auf einen fremden Server umzubiegen. Sie hängen an
+`RecentAdminDep` (erst Admin-Prüfung, dann Bestätigung):
+
+| Aktion | Endpunkt |
+|---|---|
+| Nutzer löschen | `DELETE /api/admin/privacy/users/{id}` |
+| Rolle ändern, deaktivieren/reaktivieren | `PATCH /api/users/{id}` |
+| SCIM-Token erstellen | `POST /api/admin/scim/tokens` |
+| OIDC-, GitHub-, SAML-Provider anlegen/ändern | `POST /api/admin/auth/{oidc,github,saml}/providers`, `PATCH …/providers/{name}` |
+| LDAP-Verzeichnis anlegen/ändern | `POST /api/auth/ldap/directories`, `PUT …/{name}` |
+| Anmelde-Einstellungen (lokale Anmeldung, 2FA-Pflicht) | `PATCH /api/admin/auth/settings` |
+| KI-Provider anlegen/ändern | `POST /api/admin/ai/providers`, `PATCH /api/admin/ai/providers/{name}` |
+
+Lesen, Verbindungstests, Löschen von Providern und „Überall abmelden“ brauchen keine
+Bestätigung: Sie geben niemandem Zugang zu fremden Konten oder Mails.
+
 Jede Session speichert `authenticated_at` (Anmeldung oder letzte Bestätigung). Liegt das länger
 als `OLLAMAIL_AUTH_REAUTH_MINUTES` (Standard 10) zurück, antworten die Endpunkte mit **403**
 `urn:ollamail:problem:reauth-required` (`reauth_minutes`). Die Web-UI öffnet dann das Sheet

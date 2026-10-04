@@ -118,6 +118,10 @@ die API liefert nur Kontodaten (docs/PRIVACY.md, „Admin ≠ Leser“).
 | Lokalen Nutzer einladen | `POST /api/users/invitations` | `user.created` (`via: invitation`), `user.invited` |
 | Neuer Einladungslink | `POST /api/users/{id}/invitation` | `user.invited` (`renewed`) |
 
+Rolle ändern, Deaktivieren und Löschen sowie Anlegen/Ändern von Anmelde-Providern,
+Anmelde-Einstellungen und SCIM-Tokens verlangen eine aktuelle Bestätigung des Admin-Kontos
+(403 `reauth-required`, [`mfa.md`](mfa.md#bestätigung-vor-sensiblen-aktionen-144), #190).
+
 **Einladungen:** Das Konto wird mit lokaler Identität ohne Passwort angelegt. Der Admin erhält
 einmalig einen Link `https://<host>/invite#<token>` und gibt ihn weiter (ollamail verschickt
 selbst keine Mails). Der Token (256 Bit) steht im URL-Fragment und erreicht so weder Server-Logs
