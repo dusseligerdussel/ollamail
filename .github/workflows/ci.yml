@@ -615,7 +615,7 @@ jobs:
           db_password="$(sed -n 's/^POSTGRES_PASSWORD=//p' .env)"
           sed -e "s|/mnt/CHANGEME_POOL|$pool|g" -e "s|CHANGEME_SECRET_KEY|$key|" \
             -e "s|CHANGEME_DB_PASSWORD|$db_password|g" truenas/compose.yaml > "$dir/compose.yaml"
-          if grep -q CHANGEME "$dir/compose.yaml"; then echo "::error::placeholder left"; exit 1; fi
+          if grep -v '^ *#' "$dir/compose.yaml" | grep -q 'CHANGEME_'; then echo "::error::placeholder left"; exit 1; fi
           # TTS voices would be downloaded on start; not needed here.
           sed -i 's|^  # Further settings from deploy/.env.example go here.*|  OLLAMAIL_TTS_DOWNLOAD_VOICES: "false"|' "$dir/compose.yaml"
           grep -q '^  OLLAMAIL_TTS_DOWNLOAD_VOICES: "false"$' "$dir/compose.yaml"
