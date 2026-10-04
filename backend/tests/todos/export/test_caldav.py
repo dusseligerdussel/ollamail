@@ -275,6 +275,36 @@ async def test_well_known_redirect_on_the_same_host_is_followed() -> None:
 
 
 @respx.mock
+async def test_a_redirect_to_a_calendar_makes_the_target_the_list() -> None:
+    respx.route(method="PROPFIND", url="https://dav.example.org/tasks").mock(
+        return_value=httpx.Response(301, headers={"Location": "/dav/cal/t%C3%A4sks/"})
+    )
+    respx.route(method="PROPFIND", url="https://dav.example.org/dav/cal/t%C3%A4sks/").mock(
+        return_value=httpx.Response(
+            207,
+            text='<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" '
+            'xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response>'
+            "<d:href>/dav/cal/t%C3%A4sks/</d:href><d:propstat><d:prop>"
+            "<d:resourcetype><d:collection/><c:calendar/></d:resourcetype>"
+            "<d:displayname>Aufgaben</d:displayname></d:prop>"
+            "<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>",
+        )
+    )
+    put = respx.route(method="PUT").mock(return_value=httpx.Response(201, headers={"ETag": '"1"'}))
+    sink = CalDAVSink("https://dav.example.org/tasks", "erika", "x")
+    try:
+        lists = await sink.list_task_lists()
+        version = await sink.push(lists[0].id, task("abc"))
+    finally:
+        await sink.aclose()
+
+    assert [(item.id, item.name) for item in lists] == [("/dav/cal/täsks/", "Aufgaben")]
+    # Writes go straight to the target: PUT does not follow redirects.
+    assert put.calls.last.request.url == "https://dav.example.org/dav/cal/t%C3%A4sks/abc.ics"
+    assert version.remote_id == "/dav/cal/täsks/abc.ics"
+
+
+@respx.mock
 async def test_entity_declarations_are_rejected() -> None:
     respx.route(method="PROPFIND").mock(
         return_value=httpx.Response(
