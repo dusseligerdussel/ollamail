@@ -1,0 +1,179 @@
+{
+  "run": {
+    "started_at": "2026-10-04T08:18:20+00:00",
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+      "cpu_count": 4,
+      "description": "Intel(R) Xeon(R) Processor @ 2.10GHz, 4 logical CPUs, Linux x86_64"
+    },
+    "endpoint": {
+      "provider": "ollama",
+      "base_url": "http://localhost:11434"
+    },
+    "profile": "cpu",
+    "stages": [
+      "todos"
+    ],
+    "dataset": {
+      "mails": 100,
+      "questions": 39,
+      "languages": [
+        "de",
+        "en"
+      ],
+      "injection_mails": 0
+    },
+    "injections_only": false,
+    "prefilter": true,
+    "call_timeouts": {
+      "triage": 180.0,
+      "todos": 180.0,
+      "digest": 360.0,
+      "rag_chat": 360.0
+    },
+    "judge_model": null,
+    "prompt_versions": {
+      "triage": "triage@3",
+      "todos_extract": "todos_extract@3",
+      "digest_map": "digest_map@2",
+      "digest_condense": "digest_condense@1",
+      "digest_reduce": "digest_reduce@2",
+      "rag_query": "rag_query@1",
+      "rag_rerank": "rag_rerank@1",
+      "rag_answer": "rag_answer@1",
+      "eval_judge": "eval_judge@1"
+    },
+    "finished_at": "2026-10-04T08:34:27+00:00",
+    "note": "Code 5c4a843 (main), defaults from #133, --no-injections. Issue #134."
+  },
+  "models": [
+    {
+      "model": "qwen2.5:3b",
+      "seconds": 966.2,
+      "error": null,
+      "timeouts": {
+        "calls": 53,
+        "timed_out": 0,
+        "rate": 0.0
+      },
+      "stages": {
+        "todos": {
+          "mails": 53,
+          "expected_todos": 26,
+          "predicted_todos": 38,
+          "precision": 0.6316,
+          "recall": 0.9231,
+          "f1": 0.75,
+          "due_date_accuracy": 0.7917,
+          "due_dates_checked": 24,
+          "errors": 0,
+          "skipped_mails": 47,
+          "skipped_expected_todos": 0,
+          "mistakes": [
+            {
+              "mail": "de-a-025",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 1
+            },
+            {
+              "mail": "de-a-035",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-013",
+              "missed": 0,
+              "extra": 3,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-027",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-035",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-037",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 1
+            },
+            {
+              "mail": "de-b-043",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-045",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-049",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-049",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-021",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 1
+            },
+            {
+              "mail": "en-b-027",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 2
+            },
+            {
+              "mail": "en-b-037",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-045",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 0
+            }
+          ]
+        }
+      },
+      "calls": {
+        "todos": {
+          "calls": 53,
+          "failed": 0,
+          "timeouts": 0,
+          "seconds_mean": 18.23,
+          "seconds_p50": 14.78,
+          "seconds_p95": 30.21,
+          "prompt_tokens": 77708,
+          "completion_tokens": 3105,
+          "tokens_per_second": 3.21,
+          "processed_tokens_per_second": 83.65,
+          "tokens_estimated": false
+        }
+      }
+    }
+  ]
+}
