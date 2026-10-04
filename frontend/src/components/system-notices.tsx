@@ -3,12 +3,14 @@ import { Link, useLocation } from "@tanstack/react-router";
 import { ChevronDown, Cloud, KeyRound, type LucideIcon, TriangleAlert, X } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { toast } from "sonner";
 
 import { aiStatusQueryOptions } from "@/api/ai";
 import { dismissLinkNotice, linkNoticesQueryOptions } from "@/api/auth";
+import { describeApiError } from "@/api/errors";
 import { mailboxesQueryOptions } from "@/api/mail";
 import { modelStatusQueryOptions } from "@/api/system";
-import { useDateFormat } from "@/components/account/sessions-list";
+import { useDateFormat, useSignInMethodName } from "@/components/account/sessions-list";
 import { useMailErrorText } from "@/components/mail/sync-status";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -22,6 +24,8 @@ interface Notice {
   /** Something does not work (red icon) or plain information. */
   warning: boolean;
   content: ReactNode;
+  /** Visible buttons after the text; they wrap below it on narrow screens. */
+  actions?: ReactNode;
   dismissLabel?: string;
   onDismiss?: () => void;
 }
@@ -107,11 +111,14 @@ function NoticeContent({ notice }: { notice: Notice }) {
         aria-hidden
         className={cn("mt-px size-3.5 shrink-0", notice.warning && "text-destructive")}
       />
-      <p className="min-w-0 flex-1 text-xs text-muted-foreground">
-        <span className="font-medium text-foreground">{notice.label}</span>
-        {" · "}
-        {notice.content}
-      </p>
+      <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-3 gap-y-1">
+        <p className="min-w-0 flex-[1_1_16rem] text-xs text-muted-foreground">
+          <span className="font-medium text-foreground">{notice.label}</span>
+          {" · "}
+          {notice.content}
+        </p>
+        {notice.actions && <div className="-my-0.5 flex shrink-0 gap-1.5">{notice.actions}</div>}
+      </div>
       {notice.onDismiss && (
         <Button
           variant="ghost"
@@ -132,41 +139,58 @@ const linkClass =
 
 /**
  * A sign-in was linked to the account by e-mail address (#208). The server only shows it to
- * sessions of other sign-in methods, so whoever uses the new link cannot hide it. Dismissing
- * confirms the link; otherwise the sessions list shows and ends the session it created.
+ * sessions of sign-in methods the user had before (#220), so whoever uses the new link cannot
+ * hide it. "That was me" confirms the link; "That wasn't me" leads to the sign-in methods, where
+ * unlinking ends its sessions, blocks the provider and drops the notice (#216).
  */
 function useLinkNotice(): Notice | null {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const formatDate = useDateFormat();
+  const methodName = useSignInMethodName();
   const { data } = useQuery(linkNoticesQueryOptions);
-  const dismiss = useMutation({
+  const confirm = useMutation({
+    meta: { errorToast: false },
     mutationFn: (ids: string[]) => Promise.all(ids.map(dismissLinkNotice)),
+    onError: (error) => {
+      toast.error(t("shell.linkNotice.confirmFailed"), {
+        id: "link-notice-confirm",
+        description: describeApiError(error, t).title,
+      });
+    },
     onSettled: () => queryClient.invalidateQueries({ queryKey: linkNoticesQueryOptions.queryKey }),
   });
   const oldest = data?.at(-1);
-  if (!data || !oldest || dismiss.isPending) return null;
+  if (!data || !oldest || confirm.isPending) return null;
 
-  const providers = [...new Set(data.map((notice) => notice.provider_name ?? notice.provider))];
+  const providers = [...new Set(data.map(methodName))];
   return {
     id: "link",
     label: t("shell.linkNotice.label"),
     icon: KeyRound,
     warning: true,
-    content: (
+    content: t("shell.linkNotice.text", {
+      count: data.length,
+      providers: providers.join(", "),
+      date: formatDate(oldest.created_at),
+    }),
+    actions: (
       <>
-        {t("shell.linkNotice.text", {
-          count: data.length,
-          providers: providers.join(", "),
-          date: formatDate(oldest.created_at),
-        })}{" "}
-        <Link to="/settings" hash="settings-sessions" className={linkClass}>
-          {t("shell.linkNotice.action")}
-        </Link>
+        <Button
+          variant="outline"
+          size="xs"
+          className="bg-background"
+          onClick={() => confirm.mutate(data.map((notice) => notice.id))}
+        >
+          {t("shell.linkNotice.confirm")}
+        </Button>
+        <Button variant="outline" size="xs" className="bg-background" asChild>
+          <Link to="/settings" hash="settings-sign-in-methods">
+            {t("shell.linkNotice.report")}
+          </Link>
+        </Button>
       </>
     ),
-    dismissLabel: t("shell.linkNotice.dismiss"),
-    onDismiss: () => dismiss.mutate(data.map((notice) => notice.id)),
   };
 }
 

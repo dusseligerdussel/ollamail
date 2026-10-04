@@ -1,5 +1,6 @@
 import {
   type InfiniteData,
+  type Query,
   type QueryClient,
   type QueryKey,
   useQueryClient,
@@ -7,6 +8,7 @@ import {
 import { useEffect } from "react";
 
 import { API_BASE_PATH } from "@/api/client";
+import { patchMessage, removeFromLists } from "@/components/mail/message-cache";
 
 export const EVENTS_URL = `${API_BASE_PATH}/events`;
 
@@ -24,8 +26,12 @@ export interface ServerEvent {
  * A query key to invalidate. `firstPage` (#188) drops all but the first page of the infinite
  * queries under the key before they are refetched, so a list scrolled through many pages
  * refetches one page, not all of them; further pages load again while scrolling.
+ * `minAgeMs` (#223) refetches a query only once its data is that old; younger queries are
+ * refetched when they reach that age, so a burst of events reloads them at most that often.
  */
-export type Invalidation = QueryKey | { queryKey: QueryKey; firstPage: true };
+export type Invalidation =
+  | QueryKey
+  | { queryKey: QueryKey; firstPage?: boolean; minAgeMs?: number };
 
 /** Queries to invalidate for an event. */
 export type InvalidationRule = (event: ServerEvent) => Invalidation[];
@@ -35,9 +41,38 @@ export function firstPage(queryKey: QueryKey): Invalidation {
   return { queryKey, firstPage: true };
 }
 
+/**
+ * How often the inbox by category is reloaded at most while messages are triaged (#223): its
+ * first page also counts the messages per category, and during an import every message is
+ * triaged.
+ */
+export const TRIAGE_REFRESH_MS = 30_000;
+
 // Inbox lists (by date and by category): long, paged, and changed by every import batch.
 const LIST_BY_DATE = firstPage(["message", "list"]);
 const LIST_BY_CATEGORY = firstPage(["message", "triage", "inbox"]);
+const LIST_BY_CATEGORY_THROTTLED: Invalidation = {
+  queryKey: ["message", "triage", "inbox"],
+  firstPage: true,
+  minAgeMs: TRIAGE_REFRESH_MS,
+};
+
+/** ID of the message an event is about (`ids.message_id`), if any. */
+export function eventMessageId(event: ServerEvent): string | undefined {
+  const ids = event.ids;
+  if (typeof ids !== "object" || ids === null) return undefined;
+  const id = (ids as Record<string, unknown>).message_id;
+  return typeof id === "string" ? id : undefined;
+}
+
+// `message.updated` (#223): what changed (`status`) and how the cached message changes.
+const STATE_CHANGES: Record<string, { unread: boolean } | { flagged: boolean }> = {
+  seen: { unread: false },
+  unseen: { unread: true },
+  flagged: { flagged: true },
+  unflagged: { flagged: false },
+};
+const MOVES = new Set(["archive", "move", "trash"]);
 
 /**
  * Event types that need more than the default. By default an event `<resource>.<action>`
@@ -51,20 +86,70 @@ export const invalidationRules: Record<string, InvalidationRule> = {
     event.status === "progress" ? [["mailbox"]] : [["mailbox"], LIST_BY_DATE, LIST_BY_CATEGORY],
   // A removed or reconfigured mailbox changes which mails are listed.
   "mailbox.changed": () => [["mailbox"], ["message"]],
-  // A message got its category (#21): labels and the inbox by category, not the threads.
-  "message.triaged": () => [["message", "triage", "result"], LIST_BY_CATEGORY],
-  // A message is processed (#140): its tasks and labels may be new, the search finds it. Not
-  // the threads and the list by date: processing changes neither, and during an import every
-  // message sends this event.
+  // A message got its category (#21): labels and the inbox by category, not the threads. The
+  // inbox by category at most every `TRIAGE_REFRESH_MS` (#223).
+  "message.triaged": () => [["message", "triage", "result"], LIST_BY_CATEGORY_THROTTLED],
+  // A message is processed (#140): its tasks and labels may be new. Not the threads and the
+  // list by date: processing changes neither, and during an import every message sends this
+  // event. Not the search either (#223): rerunning it embeds the query again; a search
+  // started later finds the message.
   "message.processed": () => [
     ["message", "todos"],
     ["message", "triage", "result"],
-    LIST_BY_CATEGORY,
-    ["message", "search"],
+    LIST_BY_CATEGORY_THROTTLED,
   ],
+  // A message was marked read/unread, flagged/unflagged (patched in the cache, see
+  // `cacheUpdates`) or moved (#223). Opening a mail sends this, so neither the thread nor the
+  // search is reloaded. Lists filtered by read state may gain or lose the message; moved
+  // messages leave the lists and may enter the one of their new folder.
+  "message.updated": (event) => {
+    const status = typeof event.status === "string" ? event.status : "";
+    if (status === "seen" || status === "unseen") {
+      return [
+        ["message", "list", { unread: true }],
+        ["message", "list", { unread: false }],
+        ["message", "triage", "inbox", { unread: true }],
+        ["message", "triage", "inbox", { unread: false }],
+      ];
+    }
+    if (Object.hasOwn(STATE_CHANGES, status)) return [];
+    if (MOVES.has(status)) {
+      return [
+        ["message", "list"],
+        ["message", "triage", "inbox"],
+      ];
+    }
+    return [["message"]];
+  },
   // A new mail to announce (#149): shown as a browser notification, no data to reload.
   "notification.message": () => [],
 };
+
+/**
+ * Cache changes applied at once for an event, before (and instead of most of) its
+ * invalidations: the event carries all that changed, so nothing needs to be refetched.
+ */
+export type CacheUpdate = (queryClient: QueryClient, event: ServerEvent) => void;
+
+export const cacheUpdates: Record<string, CacheUpdate> = {
+  "message.updated": (queryClient, event) => {
+    const messageId = eventMessageId(event);
+    const status = typeof event.status === "string" ? event.status : "";
+    if (!messageId) return;
+    const change = Object.hasOwn(STATE_CHANGES, status) ? STATE_CHANGES[status] : undefined;
+    if (change) patchMessage(queryClient, messageId, change);
+    else if (MOVES.has(status)) removeFromLists(queryClient, messageId);
+  },
+};
+
+export function applyCacheUpdate(
+  queryClient: QueryClient,
+  event: ServerEvent,
+  updates: Record<string, CacheUpdate> = cacheUpdates,
+) {
+  const update = Object.hasOwn(updates, event.type) ? updates[event.type] : undefined;
+  update?.(queryClient, event);
+}
 
 export type ServerEventListener = (event: ServerEvent) => void;
 
@@ -128,13 +213,21 @@ function startsWith(key: QueryKey, prefix: QueryKey) {
 interface PendingInvalidation {
   queryKey: QueryKey;
   firstPage: boolean;
+  /** 0: refetch now, whatever the age of the data. */
+  minAgeMs: number;
 }
 
 function pendingInvalidation(item: Invalidation): PendingInvalidation {
-  return Array.isArray(item)
-    ? { queryKey: item, firstPage: false }
-    : { queryKey: (item as { queryKey: QueryKey }).queryKey, firstPage: true };
+  if (Array.isArray(item)) return { queryKey: item, firstPage: false, minAgeMs: 0 };
+  const options = item as Exclude<Invalidation, QueryKey>;
+  return {
+    queryKey: options.queryKey,
+    firstPage: options.firstPage ?? false,
+    minAgeMs: options.minAgeMs ?? 0,
+  };
 }
+
+type QueryFilter = (query: Query) => boolean;
 
 function isInfiniteData(data: unknown): data is InfiniteData<unknown, unknown> {
   return (
@@ -146,8 +239,12 @@ function isInfiniteData(data: unknown): data is InfiniteData<unknown, unknown> {
 }
 
 /** Drops all but the first page of the infinite queries under `queryKey`. */
-export function keepFirstPage(queryClient: QueryClient, queryKey: QueryKey) {
-  for (const query of queryClient.getQueryCache().findAll({ queryKey })) {
+export function keepFirstPage(
+  queryClient: QueryClient,
+  queryKey: QueryKey,
+  predicate: QueryFilter = () => true,
+) {
+  for (const query of queryClient.getQueryCache().findAll({ queryKey, predicate })) {
     const data = query.state.data;
     if (!isInfiniteData(data) || data.pages.length <= 1) continue;
     queryClient.setQueryData(query.queryKey, {
@@ -163,7 +260,8 @@ export function keepFirstPage(queryClient: QueryClient, queryKey: QueryKey) {
  * latest `maxWaitMs` after the batch started. Each key is invalidated once per batch, and
  * not at all if a shorter key of the same batch covers it. So an import of thousands of
  * messages refetches the lists every few seconds instead of once per message. A key keeps
- * `firstPage` only if every invalidation it stands for asked for it.
+ * `firstPage` (and `minAgeMs`) only if every invalidation it stands for asked for it.
+ * Queries too young for `minAgeMs` are invalidated once they are old enough (#223).
  */
 export function createInvalidationBatcher(
   queryClient: QueryClient,
@@ -173,23 +271,65 @@ export function createInvalidationBatcher(
   let timer: ReturnType<typeof setTimeout> | undefined;
   // Start of the current batch; `undefined` while quiet.
   let batchStart: number | undefined;
+  // Invalidations waiting for their queries to reach `minAgeMs`, and when the next is due.
+  const deferred = new Map<string, PendingInvalidation>();
+  let deferredTimer: ReturnType<typeof setTimeout> | undefined;
+  let deferredDue = Number.POSITIVE_INFINITY;
 
+  const merge = (known: PendingInvalidation | undefined, next: PendingInvalidation) =>
+    known
+      ? {
+          ...known,
+          firstPage: known.firstPage && next.firstPage,
+          minAgeMs: Math.min(known.minAgeMs, next.minAgeMs),
+        }
+      : next;
   const collect = (target: Map<string, PendingInvalidation>, items: Invalidation[]) => {
     for (const item of items) {
       const next = pendingInvalidation(item);
       const id = JSON.stringify(next.queryKey);
-      const known = target.get(id);
-      target.set(id, known ? { ...known, firstPage: known.firstPage && next.firstPage } : next);
+      target.set(id, merge(target.get(id), next));
     }
+  };
+  const runDeferred = () => {
+    deferredTimer = undefined;
+    deferredDue = Number.POSITIVE_INFINITY;
+    const entries = [...deferred.values()];
+    deferred.clear();
+    invalidate(entries);
+  };
+  const defer = (entry: PendingInvalidation, due: number) => {
+    const id = JSON.stringify(entry.queryKey);
+    deferred.set(id, merge(deferred.get(id), entry));
+    if (due >= deferredDue) return;
+    clearTimeout(deferredTimer);
+    deferredDue = due;
+    deferredTimer = setTimeout(runDeferred, Math.max(0, due - Date.now()));
   };
   const invalidate = (entries: PendingInvalidation[]) => {
     const covers = (outer: PendingInvalidation, inner: PendingInvalidation) =>
       outer.queryKey.length < inner.queryKey.length && startsWith(inner.queryKey, outer.queryKey);
     for (const entry of entries) {
-      if (entries.some((other) => covers(other, entry))) continue;
+      if (entries.some((other) => covers(other, entry) && other.minAgeMs === 0)) continue;
       const firstPage = entries.every((other) => !covers(entry, other) || other.firstPage);
-      if (entry.firstPage && firstPage) keepFirstPage(queryClient, entry.queryKey);
-      void queryClient.invalidateQueries({ queryKey: entry.queryKey });
+      let predicate: QueryFilter | undefined;
+      if (entry.minAgeMs > 0) {
+        const now = Date.now();
+        const old = new Set<Query>();
+        let due = Number.POSITIVE_INFINITY;
+        for (const query of queryClient.getQueryCache().findAll({ queryKey: entry.queryKey })) {
+          const updatedAt = query.state.dataUpdatedAt;
+          if (now - updatedAt >= entry.minAgeMs) old.add(query);
+          else due = Math.min(due, updatedAt + entry.minAgeMs);
+        }
+        if (due < Number.POSITIVE_INFINITY) defer(entry, due);
+        // Decided before `keepFirstPage`, which renews the data of the queries it trims.
+        predicate = (query) => old.has(query);
+      }
+      if (entry.firstPage && firstPage) keepFirstPage(queryClient, entry.queryKey, predicate);
+      void queryClient.invalidateQueries(
+        predicate ? { queryKey: entry.queryKey, predicate } : { queryKey: entry.queryKey },
+      );
     }
   };
   const flush = () => {
@@ -227,6 +367,10 @@ export function createInvalidationBatcher(
       timer = undefined;
       pending.clear();
       batchStart = undefined;
+      clearTimeout(deferredTimer);
+      deferredTimer = undefined;
+      deferredDue = Number.POSITIVE_INFINITY;
+      deferred.clear();
     },
   };
 }
@@ -235,6 +379,7 @@ export interface UseEventsOptions {
   url?: string;
   enabled?: boolean;
   rules?: Record<string, InvalidationRule>;
+  updates?: Record<string, CacheUpdate>;
 }
 
 /**
@@ -248,6 +393,7 @@ export function useEvents({
   url = EVENTS_URL,
   enabled = true,
   rules = invalidationRules,
+  updates = cacheUpdates,
 }: UseEventsOptions = {}) {
   const queryClient = useQueryClient();
 
@@ -261,6 +407,7 @@ export function useEvents({
     const onMessage = (message: MessageEvent<unknown>) => {
       const event = parseServerEvent(message);
       if (!event) return;
+      applyCacheUpdate(queryClient, event, updates);
       batcher.add(invalidationsFor(event, rules));
       emitServerEvent(event);
     };
@@ -279,13 +426,14 @@ export function useEvents({
     source.addEventListener("open", onOpen);
     source.addEventListener("error", onError);
     // Named SSE events (`event: <type>`) only reach listeners registered for that name.
-    for (const type of Object.keys(rules)) source.addEventListener(type, onMessage);
+    const named = new Set([...Object.keys(rules), ...Object.keys(updates)]);
+    for (const type of named) source.addEventListener(type, onMessage);
 
     return () => {
       source.close();
       batcher.cancel();
     };
-  }, [queryClient, url, enabled, rules]);
+  }, [queryClient, url, enabled, rules, updates]);
 }
 
 /** Mount once inside the app shell. */

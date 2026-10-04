@@ -436,7 +436,7 @@ describe("admin: role mapping", () => {
     const calls = mockAdminApi();
     await renderApp("/admin/role-mapping");
 
-    await user.click(await screen.findByRole("radio", { name: "On" }));
+    await user.click(await screen.findByRole("switch", { name: "Derive roles from groups" }));
     await user.click(screen.getByRole("button", { name: "Add rule" }));
     const rules = screen.getByRole("region", { name: "Rules" });
     // fireEvent: in jsdom (no layout) the resize handle of the shell takes pointer focus.

@@ -190,7 +190,8 @@ entfernt sie der nächste Sync; „Rückgängig“ wirkt dort nur bis zu diesem 
   ab, solange der Admin `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS` nicht setzt.
 - **Zielprüfung** (`app/core/network.py`, gilt für IMAP, SMTP und den CalDAV-Export): Der Host
   wird einmal aufgelöst; nur global erreichbare Adressen sind erlaubt. Loopback, RFC 1918,
-  Link-Local (inkl. `169.254.169.254`), ULA, CGNAT, Multicast und reservierte Bereiche nur, wenn
+  Link-Local (inkl. `169.254.169.254`), ULA, CGNAT, Multicast und reservierte Bereiche – auch
+  eingebettet in IPv6 (IPv4-mapped, NAT64 `64:ff9b::/96`, IPv4-compatible `::/96`) – nur, wenn
   der Hostname oder ein passender Bereich in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` (CalDAV:
   `OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS`) steht. Verbunden wird mit der
   geprüften Adresse (TLS prüft weiter den Hostnamen), damit DNS-Rebinding nicht greift. Ein
@@ -355,10 +356,12 @@ und den Lösch-Job (`app/mail/deletion.py`); sie baut nichts davon nach.
   Postfach fehlgeschlagen) | `syncing` (Sync-Job wartet oder läuft, aus `procrastinate_jobs`) |
   `pending` (nie synchronisiert) | `importing` (Initialimport eines Ordners offen) | `idle`, dazu
   letzte Synchronisierung, Fehlercode, Ordner gesamt/importiert/fehlgeschlagen und Anzahl Mails.
-  Die Anzahl wird für Postfächer in `syncing`/`importing`/`pending` je API-Prozess bis zu 15 s
-  wiederverwendet (#188, `service.message_counts`): Während eines Imports lädt jeder Tab den Status
-  nach jedem Batch neu, und `count(*)` über 100k Mails ist dafür zu teuer. Ruhende Postfächer
-  werden bei jedem Request gezählt.
+  Die Anzahl wird je API-Prozess wiederverwendet (`service.message_counts`): Während eines Imports
+  lädt jeder Tab den Status nach jedem Batch neu, und `count(*)` über 100k Mails ist dafür zu teuer.
+  Postfächer, die sich gerade ändern (`syncing`/`importing`/`pending`/`error`/`deleting`), werden
+  höchstens alle 15 s neu gezählt (#188). Ruhende (`idle`/`paused`) bis zum Ende des nächsten Syncs
+  (anderes `last_synced_at`) oder einem Phasenwechsel, spätestens nach 5 Minuten (Löschungen durch
+  die Aufbewahrungsfristen ändern den Sync-Status nicht, #226).
   „Import offen“ heißt: kein Cursor oder der Cursor enthält den Schlüssel `import`
   (Konvention für Provider, die in Batches importieren, siehe `SyncCursor`).
 - **Ordnerauswahl** setzt `Folder.sync_enabled` und hält `SyncSettings.excluded_folders`
@@ -796,6 +799,14 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   `NOT EXISTS` auf fehlende Zeilen. Eine noch ungeplante Mail hält `planned_before` fest, bis sie
   geplant ist. Neue oder geänderte Schritte und das Wiedereinschalten eines Postfachs
   (`set_mailbox_enabled`) setzen die Versionen zurück; dann prüft der Job wieder alle Mails.
+  Diese Prüfung läuft mit einem Keyset-Cursor (`processing_scan_state.cursor`, #226): Jeder Lauf
+  liest unterhalb der zuletzt eingereihten Mail weiter, statt wieder bei der neuesten zu beginnen,
+  so liest ein Versionssprung jede Mail einmal und nicht einmal je Batch. An der ältesten Mail
+  beginnt der Job oben neu; erst ein Lauf ohne Treffer gilt als abgeschlossen. Gibt der Plan-Job
+  einer Mail endgültig auf (alle Retries verbraucht), setzt `fail_plan` ihre fehlenden bzw.
+  veralteten Schritte auf `failed` mit Fehlercode. Sie wird dann nicht mehr alle 10 Minuten neu
+  eingereiht, hält `planned_before` nicht mehr fest, erscheint in der Admin-Übersicht als
+  fehlgeschlagen und läuft per Reprocessing erneut.
   Mehrere Mails reiht `requeue_messages` in Batches ein (ein `INSERT` je 200 Jobs; ist eine
   davon schon eingereiht, wird dieser Batch einzeln eingereiht).
 - **Priorität:** Alle Jobs einer Mail erben die Priorität. Worker nehmen immer den Job mit der
@@ -1041,7 +1052,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
     der Liste und per `calendar-multiget` nur die geänderten Aufgaben. Die Beschreibung enthält
     den Link zur Mail (`<OLLAMAIL_AUTH_PUBLIC_URL bzw. Origin beim Verbinden>/inbox?message=<id>`,
     auch als `URL`). Anfragen gehen nur an den eingetragenen Server; `https` ist Pflicht
-    (`OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP` nur für Tests), keine DTDs in Antworten.
+    (`OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP` nur für Tests), keine DTDs in Antworten. Antworten
+    werden gestreamt gelesen und bei mehr als 10 MB abgebrochen (`not_caldav`).
     **Zielprüfung** (#189): dieselbe wie bei IMAP/SMTP (`app/core/network.py`), über einen
     eigenen `httpx`-Transport (`app/core/http_guard.py`) für jede Verbindung, auch nach einer
     Weiterleitung. Interne Adressen nur mit Eintrag in
@@ -1153,7 +1165,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   ohne Referenzen gesprochen. Abgeschaltete Cloud-LLMs und fehlende Stimmen sind dauerhafte Fehler
   (kein Retry).
 - **API** (angemeldet, nur eigene Digests, fremde = 404): `GET /api/digests`,
-  `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft), `GET/DELETE
+  `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft – parallele Anfragen
+  eines Nutzers serialisiert `pg_advisory_xact_lock`, #221), `GET/DELETE
   /api/digests/{id}`, `GET /api/digests/{id}/audio.{mp3|opus}` (Range-Requests, Web-Player).
   `GET /api/digests/voices` listet die wählbaren Stimmen (installierte, Standardstimme je
   Sprache und `OLLAMAIL_TTS_VOICE_ALLOWLIST`, mit `default`/`installed`); eine andere Stimme lehnt
@@ -1219,19 +1232,29 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Embeddings** über `LLMGateway.embed` (Aufgabe `embeddings`) in Batches
   (`OLLAMAIL_SEARCH_EMBED_BATCH_SIZE`, optional Pause), auf der Queue `llm` mit deren
   Parallelität. Schlägt das Einbetten fehl, werden die Chunks ohne Vektor gespeichert; der Job
-  `search.fill_embeddings` ergänzt sie. Damit er nicht alle 5 Minuten alle Chunks liest (#187),
-  erhöht jedes Speichern von Chunks ohne Vektor des aktuellen Modells (Einbetten fehlgeschlagen,
-  OCR) `search_index_state.fill_requested`; der Job sucht nur, wenn dieser Zähler von
+  `search.fill_embeddings` ergänzt sie. Damit er nicht alle 5 Minuten alle Chunks liest
+  (#187, #224), trägt jedes Speichern von Chunks ohne Vektor des aktuellen Modells (Einbetten
+  fehlgeschlagen, OCR) deren IDs in `search_embedding_backlog` ein und erhöht
+  `search_index_state.fill_requested`. Der Job arbeitet nur, wenn dieser Zähler von
   `fill_checked` abweicht (Wert, bei dem zuletzt nichts fehlte) oder ein Modellwechsel läuft, und
-  dann über den Index `ix_search_chunks_created_at_id` (neueste zuerst, `NOT EXISTS`, `LIMIT`).
-- **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte vom aktiven Modell ab,
-  rechnet `search.fill_embeddings` alle Chunks batchweise neu; Anfragen nutzen bis zum Abschluss
-  das alte Modell (`LLMGateway.embed(model=...)`), dann wird umgeschaltet und aufgeräumt.
+  nimmt die Chunks dann aus dem Backlog (höchste UUIDv7 = neueste zuerst, `LIMIT`) – kein
+  Abgleich aller Chunks mit ihren Vektoren. Vektoren früherer Modelle löscht er mit
+  `model < aktuell OR model > aktuell` (nutzt den Index auf `model`, anders als `!=`).
+- **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte Modell von
+  `search_index_state.backlog_model` ab (Wechsel, erster Lauf nach dem Upgrade), baut
+  `search.fill_embeddings` den Backlog einmal aus allen Chunks ohne Vektor dieses Modells neu auf
+  und rechnet sie batchweise; Anfragen nutzen bis zum Abschluss das alte Modell
+  (`LLMGateway.embed(model=...)`). Vor dem Umschalten prüft ein zweiter Abgleich, ob Jobs
+  inzwischen Chunks nur mit dem alten Modell gespeichert haben; dann wird umgeschaltet und
+  aufgeräumt.
   Dimensionswechsel: `python -m app.cli search resize` (`docs/OPERATIONS.md` 3.7).
 - **Suche:** `search(session, user_id, query, filters, embedder=..., settings=...)` in
   `app.search.service` liefert Chunks (für #25) oder mit `per_message=True` die beste Stelle je
   Mail (klassische Suche). Volltext: `websearch_to_tsquery` in allen drei Konfigurationen,
-  ODER-verknüpft, Rang `ts_rank_cd`. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
+  ODER-verknüpft, Rang `ts_rank_cd`. Gibt es mehr als `OLLAMAIL_SEARCH_TEXT_RANK_WINDOW` Treffer
+  (eine auf `WINDOW + 1` begrenzte Zählung prüft das), werden nur die neuesten so vielen
+  (`sort_date`) gerankt, weil das Ranking den `tsvector` jedes Treffers liest und häufige Wörter
+  Hunderttausende Chunks treffen (#224); ältere Treffer findet weiterhin die Vektorsuche. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
   `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
   (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
   Filter: Postfächer, Ordner, Absender, Zeitraum, Quelle (Mail/Anhang, mit oder ohne OCR).
@@ -1370,7 +1393,7 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
 **Datenmodell:** `users` (E-Mail normalisiert und eindeutig, Anzeigename, Rolle `admin|user`,
 Sprache, Zeitzone, aktiv), `auth_identities` (`provider`, `subject`, `user_id`; ein Nutzer kann
 mehrere Identitäten haben; lokal: `provider=local`, `subject` = Nutzer-ID, Argon2id-Hash),
-`auth_sessions`, `auth_rate_limits`, `auth_identity_link_notices` (#208). Alles hängt per `ON DELETE CASCADE` am Nutzer.
+`auth_sessions`, `auth_rate_limits`, `auth_identity_link_notices` (#208), `auth_identity_link_blocks` (#216). Alles hängt per `ON DELETE CASCADE` am Nutzer.
 
 **Provider-Interface** (`app/auth/providers/base.py`): Ein Provider beweist nur, wer jemand ist,
 und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups,
@@ -1389,7 +1412,9 @@ LDAP-Verzeichnisse aus der Datenbank.
 ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben Adresse
 wird nur verknüpft, wenn der Provider es erlaubt (`link_by_email`) **und** die Adresse als
 verifiziert meldet; sonst 409 (`account-exists`), denn wer ein E-Mail-Attribut im externen
-Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Dazu kommen
+Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Hat die Person
+diesen Provider selbst getrennt (#216, `auth_identity_link_blocks`), wird ebenfalls nicht
+verknüpft (`email_conflict`) – auch nicht per SCIM-Linking –, bis sie die Sperre aufhebt. Dazu kommen
 Domain-Allowlist und Abschalten der Kontoanlage je Provider. `role` kommt aus dem Gruppen-Mapping
 des Providers; `None` heißt, der Provider verwaltet keine Rollen. Ist die zentrale
 Rollen-Zuordnung (#33) aktiv, bestimmt sie die Rolle für alle Provider gleich
@@ -1492,7 +1517,7 @@ Anfrage weniger als das Idle-Timeout zurückliegt (`last_seen_at`, höchstens mi
 geschrieben). `authenticated_at` hält fest, wann sich der Nutzer in dieser Session zuletzt
 ausgewiesen hat (Login oder Bestätigung); sensible Endpunkte (Faktor entfernen, neue
 Wiederherstellungscodes, Datenexport, Konto löschen; kritische Admin-Aktionen wie Nutzer
-löschen, Rollen, SCIM-Tokens und -Einstellungen, Rollen-Zuordnung, Anmelde- und KI-Provider, KI-Cloud-Freigabe und Aufgaben-Zuordnung, Shared-Mailbox-Zuweisungen über `RecentAdminDep` bzw. `check_recent`, #190, #206) verlangen über `RecentAuthDep`
+anlegen, einladen und löschen, Rollen, SCIM-Tokens und -Einstellungen, Rollen-Zuordnung, Anmelde- und KI-Provider, KI-Cloud-Freigabe und Aufgaben-Zuordnung, Shared-Mailbox-Zuweisungen und -Entfernen, Aufbewahrungsfristen über `RecentAdminDep` bzw. `check_recent`, #190, #206, #218) verlangen über `RecentAuthDep`
 (`app/auth/reauth.py`) eine Bestätigung innerhalb von `OLLAMAIL_AUTH_REAUTH_MINUTES` per
 Passwort, TOTP, Passkey oder erneuter (SSO-)Anmeldung, sonst 403 `reauth-required`
 (Details: [`auth/mfa.md`](auth/mfa.md#bestätigung-vor-sensiblen-aktionen-144)). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort
@@ -1509,12 +1534,34 @@ und nicht mehr konfigurierte Provider, #208).
 (`link_by_email` oder SCIM-Linking), entsteht neben `user.identity_linked` im Audit-Log eine Zeile
 in `auth_identity_link_notices` (nur Nutzer-ID, Provider-Key, Zeitpunkt; `ON DELETE CASCADE`).
 `GET /api/auth/link-notices` liefert die offenen Hinweise, `DELETE /api/auth/link-notices/{id}`
-bestätigt einen. Beides gilt nur für Sitzungen eines *anderen* Anmeldeverfahrens als des
-verknüpften Providers (fremde oder unsichtbare Hinweise: 404) – wer sich über die neue Verknüpfung
-anmeldet, kann den Hinweis also weder sehen noch wegklicken. Die UI zeigt ihn als Hinweisleiste
-(`SystemNotices`) mit Link zu Einstellungen → Sitzungen, wo sich die neue Sitzung beenden lässt.
-Eine Verknüpfung selbst zu trennen ist bewusst nicht vorgesehen: Mit `link_by_email` würde der
-Provider beim nächsten Login einfach neu verknüpfen; dafür ist der Admin zuständig.
+bestätigt einen („Das war ich“, Audit `user.identity_link_confirmed`). Beides gilt nur für
+Sitzungen eines Anmeldeverfahrens, das die Person schon *vorher* hatte (#220): Seine Identität ist
+nicht jünger als der Hinweis, und es hat selbst keinen offenen Hinweis (fremde oder unsichtbare
+Hinweise: 404). Wer sich über eine neue Verknüpfung anmeldet, kann ihren Hinweis also weder sehen
+noch wegklicken – auch nicht über einen zweiten, ebenso verknüpften Provider (ein Admin mit P1 und
+P2 könnte sonst in der P2-Sitzung den Hinweis zu P1 schließen und umgekehrt). Die UI zeigt ihn als
+Hinweisleiste (`SystemNotices`) mit zwei Schaltflächen: „Das war ich“ bestätigt, „Das war ich
+nicht“ führt zu Einstellungen → Anmeldeverfahren (#216); Trennen löscht den Hinweis mit. In
+Einstellungen → Sitzungen tragen die Sitzungen eines Providers mit offenem Hinweis das Badge „Neu
+verknüpft“ und lassen sich dort beenden.
+
+**Anmeldeverfahren selbst trennen (#216, `app/auth/identities.py`):** `GET /api/auth/identities`
+liefert die eigenen Identitäten ohne SCIM (lokal nur mit Passwort oder Passkey; eine lokale
+Identität ohne beides ist eine offene Einladung) mit Provider, Anzeigename, Verknüpfungszeitpunkt,
+letzter Nutzung, `current` und `unlink_refusal`. `DELETE /api/auth/identities/{id}` (mit
+`RecentAuthDep`) trennt eine externe Identität; 409 mit `reason` (`local`, `current_session`,
+`last_sign_in`), wenn es die lokale Anmeldung, das Verfahren der aktuellen Sitzung oder die
+letzte Anmeldemöglichkeit ist (Passwort und Passkeys zählen als lokal). Das Trennen beendet alle
+Sitzungen dieses Providers für das Konto, löscht dessen offene Verknüpfungshinweise, protokolliert
+`user.identity_unlinked` (Akteur = Nutzer) und legt eine Sperrzeile in `auth_identity_link_blocks`
+an (Nutzer-ID, Provider-Key, Zeitpunkt; eindeutig je Nutzer und Provider; `ON DELETE CASCADE`).
+`provision_user` prüft sie, bevor es per E-Mail-Adresse verknüpft. Ohne Sperre würde der
+Provider bei `link_by_email` beim nächsten Login sofort neu verknüpfen.
+`GET /api/auth/link-blocks` listet die Sperren, `DELETE /api/auth/link-blocks/{id}` (mit
+`RecentAuthDep`, `user.identity_link_unblocked`) hebt eine auf. Beides gilt wie bei den Hinweisen
+nur für Sitzungen eines anderen Anmeldeverfahrens. Einen Admin-Endpunkt dafür gibt es bewusst
+nicht: Die Sperre schützt gerade gegen einen böswilligen oder übernommenen Admin-Account
+(docs/PRIVACY.md, „Admin ≠ Leser“).
 
 **CSRF:** Signiertes Double-Submit-Cookie (`CSRFMiddleware`, gilt für die ganze App). Jede
 Anfrage außer `GET`/`HEAD`/`OPTIONS`/`TRACE` muss den Wert des Cookies `ollamail_csrf` im Header

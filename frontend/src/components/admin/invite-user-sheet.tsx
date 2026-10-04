@@ -10,7 +10,9 @@ import {
   roles,
 } from "@/api/admin-auth";
 import { describeApiError, isApiError } from "@/api/errors";
+import { isReauthCancelled } from "@/api/reauth";
 import { Notice } from "@/components/admin/notice";
+import { useReauth } from "@/components/auth/reauth";
 import { CopyField } from "@/components/copy-field";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
@@ -76,9 +78,13 @@ function InviteForm({ onDone }: { onDone: () => void }) {
   const [language, setLanguage] = useState<SupportedLanguage>(
     (i18n.resolvedLanguage as SupportedLanguage | undefined) ?? "en",
   );
+  const withReauth = useReauth();
   const invite = useMutation({
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: () =>
-      inviteUser({ email, display_name: name, role, language, timezone: browserTimeZone() }),
+      withReauth(() =>
+        inviteUser({ email, display_name: name, role, language, timezone: browserTimeZone() }),
+      ),
     meta: { errorToast: false },
     onSuccess: () => queryClient.invalidateQueries({ queryKey: adminUsersQueryOptions.queryKey }),
   });
@@ -97,7 +103,7 @@ function InviteForm({ onDone }: { onDone: () => void }) {
   }
 
   let error: string | undefined;
-  if (invite.isError) {
+  if (invite.isError && !isReauthCancelled(invite.error)) {
     const type = isApiError(invite.error) ? invite.error.problem?.type : undefined;
     error =
       type === "urn:ollamail:problem:local-login-disabled"

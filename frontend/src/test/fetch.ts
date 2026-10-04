@@ -1,6 +1,6 @@
 import { vi } from "vitest";
 
-import type { AuthProviders, AuthSession, User } from "@/api/auth";
+import type { AuthProviders, AuthSession, SignInIdentity, User } from "@/api/auth";
 
 export type FetchHandler = (request: Request) => Response | Promise<Response>;
 
@@ -48,6 +48,16 @@ export const testSession: AuthSession = {
   current: true,
 };
 
+export const testIdentity: SignInIdentity = {
+  id: "00000000-0000-4000-8000-0000000000d1",
+  provider: "local",
+  provider_name: null,
+  created_at: "2026-01-01T08:00:00Z",
+  last_used_at: "2026-01-02T09:30:00Z",
+  current: true,
+  unlink_refusal: "local",
+};
+
 export interface TestBackend {
   initialized?: boolean;
   /** Signed-in user, `null` without a session. */
@@ -79,6 +89,10 @@ export function backend({
       case "GET /api/auth/sessions":
         return user ? json([testSession]) : problem(401);
       case "GET /api/auth/link-notices":
+        return user ? json([]) : problem(401);
+      case "GET /api/auth/identities":
+        return user ? json([testIdentity]) : problem(401);
+      case "GET /api/auth/link-blocks":
         return user ? json([]) : problem(401);
       case "GET /api/privacy/account":
         return user ? json({ self_delete_enabled: true, export_expiry_hours: 24 }) : problem(401);

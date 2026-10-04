@@ -101,8 +101,11 @@ export function useDeleteUser() {
 
 export function useUpdateRetention() {
   const queryClient = useQueryClient();
+  const withReauth = useReauth();
   return useMutation({
-    mutationFn: (body: RetentionUpdate) => unwrap(api.PATCH("/admin/privacy/retention", { body })),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: (body: RetentionUpdate) =>
+      withReauth(() => unwrap(api.PATCH("/admin/privacy/retention", { body }))),
     onSuccess: (settings) => queryClient.setQueryData(retentionQueryOptions.queryKey, settings),
   });
 }

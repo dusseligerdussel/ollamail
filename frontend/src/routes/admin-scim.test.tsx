@@ -75,7 +75,7 @@ describe("admin: SCIM provisioning", () => {
     expect(screen.getByText("Nothing provisioned yet.")).toBeInTheDocument();
     expect(screen.getByText(/No tokens yet/)).toBeInTheDocument();
 
-    await userEvent.click(screen.getByRole("radio", { name: "On" }));
+    await userEvent.click(screen.getByRole("switch", { name: "SCIM provisioning" }));
     await waitFor(() =>
       expect(requests).toEqual([{ route: "PATCH /api/admin/scim", body: { enabled: true } }]),
     );

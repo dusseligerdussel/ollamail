@@ -27,6 +27,7 @@ import {
   type ReauthOptions,
   reauthOptionsQueryOptions,
 } from "@/api/reauth";
+import { Notice } from "@/components/admin/notice";
 import { FormError, FormField } from "@/components/form-field";
 import { InlineError } from "@/components/inline-error";
 import { Button } from "@/components/ui/button";
@@ -44,9 +45,20 @@ import { isWebauthnAbort, webauthnSupported } from "@/lib/webauthn";
 /** Runs `action`; if the server asks for a confirmation first, asks for it and retries. */
 export type WithReauth = <T>(action: () => Promise<T>) => Promise<T>;
 
-const ReauthContext = createContext<WithReauth | null>(null);
+/** What the confirmation sheet tells about the action waiting for it. */
+export interface ReauthRequest {
+  /** The action, e.g. "Save role mapping"; named in the sheet. */
+  action?: string;
+  /** The action saves a form: signing in again would discard what was entered. */
+  unsavedChanges?: boolean;
+}
+
+type RequestReauth = <T>(action: () => Promise<T>, request?: ReauthRequest) => Promise<T>;
+
+const ReauthContext = createContext<RequestReauth | null>(null);
 
 interface PendingConfirmation {
+  request?: ReauthRequest;
   resolve: () => void;
   reject: (error: Error) => void;
 }
@@ -61,9 +73,9 @@ export function ReauthProvider({ children }: { children: ReactNode }) {
   // Concurrent actions wait for the same confirmation.
   const waiting = useRef<Promise<void>>(undefined);
 
-  const confirmFirst = useCallback(() => {
+  const confirmFirst = useCallback((request?: ReauthRequest) => {
     waiting.current ??= new Promise<void>((resolve, reject) => {
-      setPending({ resolve, reject });
+      setPending({ request, resolve, reject });
     }).finally(() => {
       waiting.current = undefined;
       setPending(undefined);
@@ -71,14 +83,14 @@ export function ReauthProvider({ children }: { children: ReactNode }) {
     return waiting.current;
   }, []);
 
-  const withReauth = useCallback<WithReauth>(
-    async (action) => {
+  const withReauth = useCallback<RequestReauth>(
+    async (action, request) => {
       try {
         return await action();
       } catch (error) {
         if (!isReauthRequired(error)) throw error;
       }
-      await confirmFirst();
+      await confirmFirst(request);
       return action();
     },
     [confirmFirst],
@@ -89,6 +101,8 @@ export function ReauthProvider({ children }: { children: ReactNode }) {
       {children}
       {pending && (
         <ReauthSheet
+          action={pending.request?.action}
+          unsavedChanges={pending.request?.unsavedChanges}
           onConfirmed={pending.resolve}
           onCancel={() => pending.reject(new ReauthCancelledError())}
         />
@@ -99,9 +113,18 @@ export function ReauthProvider({ children }: { children: ReactNode }) {
 
 const runDirectly: WithReauth = (action) => action();
 
-/** See `ReauthProvider`. Without the provider (isolated component tests) actions just run. */
-export function useReauth(): WithReauth {
-  return useContext(ReauthContext) ?? runDirectly;
+/**
+ * See `ReauthProvider`. `request` names the action in the sheet. Without the provider
+ * (isolated component tests) actions just run.
+ */
+export function useReauth(request?: ReauthRequest): WithReauth {
+  const requestReauth = useContext(ReauthContext);
+  const action = request?.action;
+  const unsavedChanges = request?.unsavedChanges;
+  return useMemo<WithReauth>(
+    () => (requestReauth ? (run) => requestReauth(run, { action, unsavedChanges }) : runDirectly),
+    [requestReauth, action, unsavedChanges],
+  );
 }
 
 function usableMethods(options: ReauthOptions): ReauthMethod[] {
@@ -122,9 +145,13 @@ function errorMessage(error: unknown, method: ReauthMethod, t: TFunction) {
 
 /** Right-hand sheet: confirm with password, authenticator code, passkey or a new sign-in. */
 export function ReauthSheet({
+  action,
+  unsavedChanges = false,
   onConfirmed,
   onCancel,
 }: {
+  action?: string;
+  unsavedChanges?: boolean;
   onConfirmed: () => void;
   onCancel: () => void;
 }) {
@@ -174,6 +201,10 @@ export function ReauthSheet({
 
   const error = confirm.isError && method ? errorMessage(confirm.error, method, t) : undefined;
   const textInput = method === "password" || method === "totp";
+  // Signing in again leaves the page: what was entered there is lost.
+  const leavesPage = method === "sso" || method === "signin";
+  const keepsPage = methods.some((other) => other !== "sso" && other !== "signin");
+  const count = options.data?.reauth_minutes ?? 10;
 
   let submitLabel = t("auth.reauth.confirm");
   if (confirm.isPending) {
@@ -193,7 +224,9 @@ export function ReauthSheet({
         <SheetHeader className="border-b">
           <SheetTitle>{t("auth.reauth.title")}</SheetTitle>
           <SheetDescription id={`${id}-intro`}>
-            {t("auth.reauth.description", { count: options.data?.reauth_minutes ?? 10 })}
+            {action
+              ? t("auth.reauth.descriptionAction", { action, count })
+              : t("auth.reauth.description", { count })}
           </SheetDescription>
         </SheetHeader>
         <div className="flex flex-1 flex-col gap-4 overflow-y-auto p-4">
@@ -252,6 +285,12 @@ export function ReauthSheet({
               {method === "signin" && (
                 <p className="text-ui text-muted-foreground">{t("auth.reauth.signinHint")}</p>
               )}
+              {leavesPage && unsavedChanges && (
+                <Notice tone="warning">
+                  {t("auth.reauth.unsavedWarning")}
+                  {keepsPage && ` ${t("auth.reauth.unsavedAlternative")}`}
+                </Notice>
+              )}
               {error && <FormError>{error}</FormError>}
             </form>
           )}
@@ -267,7 +306,7 @@ export function ReauthSheet({
                     key={other}
                     type="button"
                     variant="link"
-                    className="h-auto p-0 text-ui"
+                    className="h-auto p-0 text-ui underline"
                     onClick={() => select(other)}
                   >
                     {t(`auth.reauth.switch.${other}`, { provider })}

@@ -38,6 +38,12 @@ class AuditAction(enum.StrEnum):
     USER_UPDATED = "user.updated"
     # An external login was linked to an existing account by its e-mail address (#190).
     USER_IDENTITY_LINKED = "user.identity_linked"
+    # The user unlinked an external sign-in (#216), which also blocks linking that provider
+    # again by e-mail address; the user lifted that block. ``provider`` only.
+    USER_IDENTITY_UNLINKED = "user.identity_unlinked"
+    USER_IDENTITY_LINK_UNBLOCKED = "user.identity_link_unblocked"
+    # The user dismissed the notice about a link (#208, #220): "that was me". ``provider`` only.
+    USER_IDENTITY_LINK_CONFIRMED = "user.identity_link_confirmed"
     # Groups pushed by SCIM provisioning (#95) and their members.
     GROUP_CREATED = "group.created"
     GROUP_UPDATED = "group.updated"

@@ -6,7 +6,9 @@
     "close": "Close",
     "loading": "Loading…",
     "navigateHint": "Use <0/> and <1/> to move through the list.",
-    "retry": "Try again"
+    "retry": "Try again",
+    "retryIn_one": "Try again in {{count}} s",
+    "retryIn_other": "Try again in {{count}} s"
   },
   "shell": {
     "skipToContent": "Skip to content",
@@ -39,10 +41,11 @@
     },
     "linkNotice": {
       "label": "New sign-in linked",
-      "text_one": "On {{date}}, a sign-in through {{providers}} was linked to your account. Not you?",
-      "text_other": "Since {{date}}, sign-ins through {{providers}} were linked to your account. Not you?",
-      "action": "Review sessions",
-      "dismiss": "That was me – dismiss notice"
+      "text_one": "On {{date}}, a sign-in through {{providers}} was linked to your account.",
+      "text_other": "Since {{date}}, sign-ins through {{providers}} were linked to your account.",
+      "confirm": "That was me",
+      "report": "That wasn't me",
+      "confirmFailed": "Could not confirm the notice"
     }
   },
   "nav": {
@@ -290,7 +293,10 @@
           "invited": "User invited",
           "password_set": "Password set",
           "updated": "User updated",
-          "identity_linked": "Sign-in linked by e-mail address"
+          "identity_linked": "Sign-in linked by e-mail address",
+          "identity_unlinked": "Sign-in unlinked by the user",
+          "identity_link_unblocked": "Sign-in link block lifted",
+          "identity_link_confirmed": "Sign-in link confirmed by the user"
         },
         "group": {
           "created": "Group created",
@@ -651,8 +657,6 @@
       "back": "Back to admin",
       "enabled": "Derive roles from groups",
       "enabledDescription": "At every sign-in through an identity provider the role is determined from the groups. Roles set by hand are overwritten for these users.",
-      "off": "Off",
-      "on": "On",
       "defaultRole": "Default role",
       "defaultRoleDescription": "For everyone no rule matches.",
       "rules": "Rules",
@@ -686,8 +690,6 @@
       "general": "Provisioning",
       "enabled": "SCIM provisioning",
       "enabledDescription": "Your identity provider (Entra ID, Okta) creates, updates and deactivates users and pushes groups.",
-      "off": "Off",
-      "on": "On",
       "saved": "SCIM settings saved",
       "endpoint": "Endpoint URL",
       "endpointDescription": "Enter it at the identity provider as tenant URL or SCIM base URL.",
@@ -1128,12 +1130,16 @@
       "title": "Confirm it is you",
       "description_one": "This action needs a recent confirmation. It stays valid for {{count}} minute.",
       "description_other": "This action needs a recent confirmation. It stays valid for {{count}} minutes.",
+      "descriptionAction_one": "“{{action}}” needs a recent confirmation. It stays valid for {{count}} minute.",
+      "descriptionAction_other": "“{{action}}” needs a recent confirmation. It stays valid for {{count}} minutes.",
       "loading": "Loading options…",
       "passwordLabel": "Password",
       "totpLabel": "Code from your authenticator app",
       "passkeyHint": "Use one of the passkeys you added to this account.",
       "ssoHint": "You signed in with {{provider}}. Sign in there again to continue; you will come back to this page.",
       "signinHint": "Sign out and sign in again to continue. You will come back to this page.",
+      "unsavedWarning": "Anything not saved on this page will be lost.",
+      "unsavedAlternative": "Confirm another way to keep it.",
       "confirm": "Confirm",
       "confirming": "Confirming…",
       "usePasskey": "Use passkey",
@@ -1153,6 +1159,16 @@
         "webauthn": "Use a passkey",
         "sso": "Sign in with {{provider}} again",
         "signin": "Sign out and sign in again"
+      },
+      "actions": {
+        "saveRoleMapping": "Save role mapping",
+        "scimSettings": "Change SCIM provisioning",
+        "createScimToken": "Create SCIM token",
+        "saveMailboxAccess": "Save access",
+        "addProvider": "Add sign-in provider",
+        "removePasskey": "Remove passkey",
+        "removeTotp": "Remove authenticator app",
+        "recoveryCodes": "Create new recovery codes"
       }
     }
   },
@@ -1175,8 +1191,35 @@
       "revokeLabel": "Sign out {{device}}",
       "revokeOthers": "Sign out all other sessions",
       "localMethod": "Local account",
+      "otherMethod": "External provider",
+      "newlyLinked": "Newly linked",
       "method": "Sign-in: {{method}}",
       "lastActive": "Last active: {{date}}"
+    },
+    "signIn": {
+      "title": "Sign-in methods",
+      "current": "This session",
+      "localDescription": "Password and passkeys",
+      "linked": "Linked: {{date}}",
+      "lastUsed": "Last used: {{date}}",
+      "refusal": {
+        "local": "Local sign-in cannot be unlinked.",
+        "currentSession": "This session signed in with it. To unlink it, sign in another way.",
+        "lastSignIn": "Your only way to sign in, so it cannot be unlinked."
+      },
+      "unlink": "Unlink",
+      "unlinkLabel": "Unlink {{method}}",
+      "blocked": "Blocked",
+      "blockedDescription": "Unlinked on {{date}}. Not linked to your account again automatically.",
+      "unblock": "Lift block",
+      "unblockLabel": "Lift block for {{method}}",
+      "confirmTitle": "Unlink {{method}}?",
+      "confirmDescription": "Whoever signs in through {{method}} with your e-mail address can then no longer use your account.",
+      "consequenceSessions": "All sessions that signed in with {{method}} end immediately.",
+      "consequenceBlock": "{{method}} is no longer linked to your account automatically by e-mail address, even if an administrator allows it.",
+      "consequenceUndo": "Only you can lift this block, here in the settings.",
+      "cancel": "Cancel",
+      "confirm": "Unlink"
     },
     "security": {
       "title": "Security",
@@ -1935,7 +1978,7 @@
     "back": "Back to settings",
     "manage": "Set up notifications",
     "linkDescription": "Get notified in the browser when an important mail arrives.",
-    "intro": "ollamail lets you know when a new mail in one of the chosen categories arrives – while ollamail is open in a tab but you are working elsewhere.",
+    "intro": "ollamail lets you know when a new mail in one of the chosen categories arrives while you are working elsewhere – as long as ollamail is open in a tab and, if set up, even without an open tab.",
     "loading": "Loading settings",
     "disabledTitle": "Notifications not enabled",
     "disabledDescription": "Notifications are switched off on this server. Your administrator can enable them.",
@@ -1971,6 +2014,7 @@
       "enabledDescription": "On this device, even when ollamail is closed. Applies per browser and device.",
       "service": "For this, the browser uses its vendor's push service (Chrome: Google, Firefox: Mozilla, Safari: Apple, Edge: Microsoft). The service sees when a message goes to this device, but not what it is about: ollamail only sends an identifier, and the device loads the content directly from ollamail.",
       "unsupported": "This browser does not support it. On iPhone and iPad, add ollamail to the home screen first.",
+      "needsBrowser": "Turn on “{{setting}}” first.",
       "devices": "Devices",
       "noDevices": "No device set up yet.",
       "thisDevice": "This device",

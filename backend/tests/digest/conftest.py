@@ -24,6 +24,7 @@ from app.triage.models import TriageCategory, TriageResult, TriageSource
 from app.users.models import User
 from tests.ai.fakes import Call, FakeFactory, FakeProvider, RecordingSink
 from tests.ai.tts.fakes import FakeEngine
+from tests.auth.conftest import scratch_database  # noqa: F401
 from tests.factories import make_user
 
 MAIL_REF = re.compile(r"^\[(\d+)\] From:", re.MULTILINE)

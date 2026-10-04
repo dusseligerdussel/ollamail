@@ -10,7 +10,8 @@ import time
 import uuid
 from collections import defaultdict
 from collections.abc import Sequence
-from datetime import timedelta
+from dataclasses import dataclass
+from datetime import datetime, timedelta
 from typing import Any
 
 from sqlalchemy import func, select, text
@@ -285,26 +286,51 @@ async def folder_reads(session: AsyncSession, mailbox: Mailbox) -> list[FolderRe
     return result
 
 
-# Message counts of mailboxes that are syncing: reused for a few seconds (#188). During an
-# import every tab reloads the mailbox list after each batch, and counting 100k rows each
-# time costs more than the number is worth. Idle mailboxes are counted on every request.
+# Message counts per mailbox, reused per process (#188, #226): counting 100k rows costs
+# more than the number is worth, and every tab reloads the mailbox list after each import
+# batch. While a mailbox changes (sync, import, deletion, sync error) a count is reused
+# for ``MESSAGE_COUNT_TTL_SECONDS``. An idle or paused mailbox only changes when a sync
+# ends (``last_synced_at``) or the phase changes, so its count is reused until then, at
+# most ``STABLE_MESSAGE_COUNT_TTL_SECONDS`` (deletions by the retention job).
 MESSAGE_COUNT_TTL_SECONDS = 15.0
-_BUSY_PHASES: frozenset[SyncPhase] = frozenset({"syncing", "importing", "pending"})
-_message_counts: dict[uuid.UUID, tuple[float, int]] = {}
+STABLE_MESSAGE_COUNT_TTL_SECONDS = 300.0
+_STABLE_PHASES: frozenset[SyncPhase] = frozenset({"idle", "paused"})
+
+
+@dataclass(frozen=True)
+class CountStamp:
+    """What a cached message count was taken at."""
+
+    phase: SyncPhase
+    last_synced_at: datetime | None = None
+
+
+_message_counts: dict[uuid.UUID, tuple[float, CountStamp, int]] = {}
+
+
+def _cached_count(mailbox_id: uuid.UUID, stamp: CountStamp, now: float) -> int | None:
+    cached = _message_counts.get(mailbox_id)
+    if cached is None:
+        return None
+    at, cached_stamp, count = cached
+    if stamp.phase in _STABLE_PHASES:
+        fresh = cached_stamp == stamp and now - at < STABLE_MESSAGE_COUNT_TTL_SECONDS
+    else:
+        fresh = cached_stamp.phase not in _STABLE_PHASES and now - at < MESSAGE_COUNT_TTL_SECONDS
+    return count if fresh else None
 
 
 async def message_counts(
-    session: AsyncSession, phases: dict[uuid.UUID, SyncPhase]
+    session: AsyncSession, stamps: dict[uuid.UUID, CountStamp]
 ) -> dict[uuid.UUID, int]:
-    """Messages per mailbox; for busy mailboxes (``_BUSY_PHASES``) at most
-    ``MESSAGE_COUNT_TTL_SECONDS`` old (per process)."""
+    """Messages per mailbox, possibly reused (see ``MESSAGE_COUNT_TTL_SECONDS``)."""
     now = time.monotonic()
     counts: dict[uuid.UUID, int] = {}
-    for mailbox_id, phase in phases.items():
-        cached = _message_counts.get(mailbox_id)
-        if phase in _BUSY_PHASES and cached and now - cached[0] < MESSAGE_COUNT_TTL_SECONDS:
-            counts[mailbox_id] = cached[1]
-    missing = [mailbox_id for mailbox_id in phases if mailbox_id not in counts]
+    for mailbox_id, stamp in stamps.items():
+        cached = _cached_count(mailbox_id, stamp, now)
+        if cached is not None:
+            counts[mailbox_id] = cached
+    missing = [mailbox_id for mailbox_id in stamps if mailbox_id not in counts]
     if missing:
         fresh = dict.fromkeys(missing, 0)
         rows = await session.execute(
@@ -315,10 +341,7 @@ async def message_counts(
         fresh.update({mailbox_id: count for mailbox_id, count in rows.tuples()})
         counts.update(fresh)
         for mailbox_id, count in fresh.items():
-            if phases[mailbox_id] in _BUSY_PHASES:
-                _message_counts[mailbox_id] = (now, count)
-            else:
-                _message_counts.pop(mailbox_id, None)
+            _message_counts[mailbox_id] = (now, stamps[mailbox_id], count)
     return counts
 
 
@@ -373,7 +396,10 @@ async def statuses(
             folders_failed=failed,
             message_count=0,
         )
-    counts = await message_counts(session, {key: value.phase for key, value in result.items()})
+    counts = await message_counts(
+        session,
+        {key: CountStamp(value.phase, value.last_synced_at) for key, value in result.items()},
+    )
     for mailbox_id, status in result.items():
         status.message_count = counts.get(mailbox_id, 0)
     return result

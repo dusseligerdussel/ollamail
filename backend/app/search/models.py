@@ -16,14 +16,16 @@ from typing import Any
 from pgvector.sqlalchemy import HALFVEC
 from sqlalchemy import (
     CheckConstraint,
+    Column,
     Computed,
     ForeignKey,
     Index,
     SmallInteger,
     String,
+    Table,
     Text,
     UniqueConstraint,
-    text,
+    Uuid,
 )
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
@@ -68,8 +70,6 @@ class SearchChunk(Base):
             "ts_config IN (" + ", ".join(f"'{c}'" for c in TS_CONFIGS) + ")", name="ts_config"
         ),
         Index("ix_search_chunks_tsv", "tsv", postgresql_using="gin"),
-        # ``fill_embeddings`` looks for chunks without a vector newest first.
-        Index("ix_search_chunks_created_at_id", text("created_at DESC"), "id"),
         Index(None, "message_id"),
         Index(None, "mailbox_id"),
     )
@@ -118,6 +118,21 @@ class SearchEmbedding(Base):
     embedding: Mapped[Any] = mapped_column(HALFVEC(get_settings().search.embedding_dimensions))
 
 
+# Chunks without a vector of the model ``SearchIndexState.backlog_model`` (stored while the
+# LLM was unavailable, OCR, model switch). ``fill_embeddings`` takes them from here, highest
+# (UUIDv7: newest) chunk ID first, instead of comparing every chunk with its vectors.
+embedding_backlog = Table(
+    "search_embedding_backlog",
+    Base.metadata,
+    Column(
+        "chunk_id",
+        Uuid,
+        ForeignKey("search_chunks.id", ondelete="CASCADE"),
+        primary_key=True,
+    ),
+)
+
+
 class SearchIndexState(Base):
     """Which embedding model's vectors answer queries (one row, ``key = 'embeddings'``)."""
 
@@ -128,6 +143,10 @@ class SearchIndexState(Base):
     # Raised whenever chunks are stored without a vector of the current model (LLM
     # unavailable while indexing, OCR). ``fill_embeddings`` records the value it last
     # found nothing missing at in ``fill_checked``; while both match and no model switch
-    # runs, it skips the scan over all chunks.
+    # runs, it skips its work (backlog, deleting vectors of earlier models).
     fill_requested: Mapped[int] = mapped_column(server_default="1")
     fill_checked: Mapped[int] = mapped_column(server_default="0")
+    # Model ``search_embedding_backlog`` lists the missing vectors of. When the current
+    # model differs (switch, first run after the upgrade), ``fill_embeddings`` rebuilds the
+    # backlog with one scan over all chunks.
+    backlog_model: Mapped[str | None] = mapped_column(String(255))
