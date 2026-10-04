@@ -187,7 +187,8 @@ entfernt sie der nächste Sync; „Rückgängig“ wirkt dort nur bis zu diesem 
   ab, solange der Admin `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS` nicht setzt.
 - **Zielprüfung** (`app/core/network.py`, gilt für IMAP, SMTP und den CalDAV-Export): Der Host
   wird einmal aufgelöst; nur global erreichbare Adressen sind erlaubt. Loopback, RFC 1918,
-  Link-Local (inkl. `169.254.169.254`), ULA, CGNAT, Multicast und reservierte Bereiche nur, wenn
+  Link-Local (inkl. `169.254.169.254`), ULA, CGNAT, Multicast und reservierte Bereiche – auch
+  eingebettet in IPv6 (IPv4-mapped, NAT64 `64:ff9b::/96`, IPv4-compatible `::/96`) – nur, wenn
   der Hostname oder ein passender Bereich in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` (CalDAV:
   `OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS`) steht. Verbunden wird mit der
   geprüften Adresse (TLS prüft weiter den Hostnamen), damit DNS-Rebinding nicht greift. Ein
@@ -1037,7 +1038,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
     der Liste und per `calendar-multiget` nur die geänderten Aufgaben. Die Beschreibung enthält
     den Link zur Mail (`<OLLAMAIL_AUTH_PUBLIC_URL bzw. Origin beim Verbinden>/inbox?message=<id>`,
     auch als `URL`). Anfragen gehen nur an den eingetragenen Server; `https` ist Pflicht
-    (`OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP` nur für Tests), keine DTDs in Antworten.
+    (`OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP` nur für Tests), keine DTDs in Antworten. Antworten
+    werden gestreamt gelesen und bei mehr als 10 MB abgebrochen (`not_caldav`).
     **Zielprüfung** (#189): dieselbe wie bei IMAP/SMTP (`app/core/network.py`), über einen
     eigenen `httpx`-Transport (`app/core/http_guard.py`) für jede Verbindung, auch nach einer
     Weiterleitung. Interne Adressen nur mit Eintrag in
@@ -1149,7 +1151,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   ohne Referenzen gesprochen. Abgeschaltete Cloud-LLMs und fehlende Stimmen sind dauerhafte Fehler
   (kein Retry).
 - **API** (angemeldet, nur eigene Digests, fremde = 404): `GET /api/digests`,
-  `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft), `GET/DELETE
+  `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft – parallele Anfragen
+  eines Nutzers serialisiert `pg_advisory_xact_lock`, #221), `GET/DELETE
   /api/digests/{id}`, `GET /api/digests/{id}/audio.{mp3|opus}` (Range-Requests, Web-Player).
   `GET /api/digests/voices` listet die wählbaren Stimmen (installierte, Standardstimme je
   Sprache und `OLLAMAIL_TTS_VOICE_ALLOWLIST`, mit `default`/`installed`); eine andere Stimme lehnt
