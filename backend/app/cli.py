@@ -18,6 +18,7 @@ from app.core.crypto import CryptoError, RotationResult, configure_keyring, gene
 from app.core.crypto import rotate_keys as rotate_all
 from app.core.db import Database
 from app.core.logging import configure_logging
+from app.notifications.cli import notifications_cli
 from app.processing.cli import processing_cli
 from app.search.cli import search_cli
 
@@ -25,6 +26,7 @@ if TYPE_CHECKING:
     from sqlalchemy.ext.asyncio import AsyncSession
 
 cli = typer.Typer(name="ollamail", no_args_is_help=True, add_completion=False)
+cli.add_typer(notifications_cli)
 cli.add_typer(processing_cli)
 cli.add_typer(search_cli)
 

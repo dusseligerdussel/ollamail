@@ -1942,7 +1942,24 @@
     "showSubjectDescription": "By default a notification only shows the sender and the category. Notifications may be visible on the lock screen.",
     "sound": "Sound",
     "soundDescription": "Silent by default. When on, the browser plays its notification sound.",
-    "privacy": "Notifications are created in this browser; no external service is used. The content stays in the device's notification area until you dismiss it.",
-    "unknownSender": "New mail"
+    "privacy": "Notifications in an open tab are created in this browser; no external service is used. The content stays in the device's notification area until you dismiss it.",
+    "unknownSender": "New mail",
+    "push": {
+      "title": "Without an open tab",
+      "enabled": "Notify me without an open tab",
+      "enabledDescription": "On this device, even when ollamail is closed. Applies per browser and device.",
+      "service": "For this, the browser uses its vendor's push service (Chrome: Google, Firefox: Mozilla, Safari: Apple, Edge: Microsoft). The service sees when a message goes to this device, but not what it is about: ollamail only sends an identifier, and the device loads the content directly from ollamail.",
+      "unsupported": "This browser does not support it. On iPhone and iPad, add ollamail to the home screen first.",
+      "devices": "Devices",
+      "noDevices": "No device set up yet.",
+      "thisDevice": "This device",
+      "since": "Set up: {{date}} · via {{service}}",
+      "remove": "Remove",
+      "removeLabel": "Remove {{device}}",
+      "enableFailed": "The setting could not be changed on this device.",
+      "removeFailed": "The device could not be removed.",
+      "fallbackTitle": "ollamail",
+      "fallbackBody": "New mail. Open ollamail to see it."
+    }
   }
 }

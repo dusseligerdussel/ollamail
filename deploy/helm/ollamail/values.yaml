@@ -34,7 +34,8 @@ secrets:
   # Must contain OLLAMAIL_SECRET_KEY (`openssl rand -base64 32`); may contain every other
   # sensitive setting: OLLAMAIL_DATABASE_URL, OLLAMAIL_SECRET_KEYS_OLD, OLLAMAIL_SETUP_TOKEN,
   # OLLAMAIL_LLM_API_KEY, OLLAMAIL_LLM_ENDPOINTS, OLLAMAIL_AUTH_OIDC_PROVIDERS,
-  # OLLAMAIL_MAIL_GRAPH_CLIENT_SECRET, OLLAMAIL_GMAIL_CLIENT_SECRET, ...
+  # OLLAMAIL_MAIL_GRAPH_CLIENT_SECRET, OLLAMAIL_GMAIL_CLIENT_SECRET,
+  # OLLAMAIL_NOTIFICATIONS_VAPID_PRIVATE_KEY, ...
   existingSecret: ""
 
 # -----------------------------------------------------------------------------

@@ -2,6 +2,7 @@ import { type QueryClient, queryOptions } from "@tanstack/react-query";
 
 import { api, createApiClient, unwrap } from "./client";
 import { isApiError } from "./errors";
+import { forgetPushDevice } from "./notifications";
 import type { components } from "./schema.gen";
 
 export type User = components["schemas"]["UserRead"];
@@ -94,6 +95,8 @@ export function logout() {
 
 /** Like `logout`, but continues at `url` (e.g. the login page with a `redirect`). */
 export async function logoutTo(url: string) {
+  // While still signed in: this browser no longer receives the user's notifications (#181).
+  await forgetPushDevice();
   await unwrap(authApi.POST("/auth/logout"));
   pageNavigation.assign(url);
 }

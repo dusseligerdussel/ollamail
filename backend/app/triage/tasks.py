@@ -14,6 +14,7 @@ all messages are then triaged again, newest first; user corrections are kept.
 
 from collections.abc import Iterator
 from contextlib import contextmanager
+from functools import partial
 
 from app.ai.llm import LLMGateway
 from app.ai.settings.runtime import worker_gateway
@@ -22,6 +23,7 @@ from app.core.logging import get_logger
 from app.mail.providers.base import ProviderError
 from app.mail.providers.registry import UnknownProviderError
 from app.notifications.service import notify_triaged
+from app.notifications.tasks import enqueue_web_push
 from app.processing.steps import StepContext, StepError, registry
 from app.processing.tasks import get_database
 from app.todos.extraction import set_category_lookup
@@ -74,10 +76,15 @@ async def triage_step(ctx: StepContext) -> None:
     )
     if result is not None:
         await publish_triaged(ctx.session, ctx.message_id, ctx.mailbox_id)
-        # Readers who opted in to the category hear about a new message (#149).
-        await notify_triaged(
+        # Readers who opted in to the category hear about a new message (#149), on their
+        # devices with Web Push also without an open tab (#181).
+        recipients = await notify_triaged(
             ctx.session, ctx.message_id, ctx.mailbox_id, get_settings().notifications
         )
+        if recipients:
+            ctx.after_commit.append(
+                partial(enqueue_web_push, recipients, ctx.message_id, ctx.mailbox_id)
+            )
 
 
 @registry.step("triage_write_back", version=1, queue="sync", depends_on=("triage",))

@@ -90,7 +90,7 @@ imagePullPolicy: {{ include "ollamail.pullPolicy" (dict "root" . "tag" $tag) }}
 
 {{/* Settings that must come from a Secret, never from `config`. */}}
 {{- define "ollamail.secretSettingPattern" -}}
-^OLLAMAIL_(SECRET_KEY|SECRET_KEYS_OLD|SETUP_TOKEN|DATABASE_URL)$|(_SECRET|_PASSWORD|_API_KEY|_TOKEN)$
+^OLLAMAIL_(SECRET_KEY|SECRET_KEYS_OLD|SETUP_TOKEN|DATABASE_URL)$|(_SECRET|_PASSWORD|_API_KEY|_TOKEN|_PRIVATE_KEY)$
 {{- end }}
 
 {{/* Fails on invalid combinations; included once from every workload template. */}}

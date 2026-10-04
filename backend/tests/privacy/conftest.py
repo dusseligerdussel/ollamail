@@ -2,6 +2,7 @@
 ``tmp_path``) and a helper that gives a user data in every module. All names, addresses
 and texts are invented."""
 
+import hashlib
 import os
 import uuid
 from dataclasses import dataclass, field
@@ -21,7 +22,7 @@ from app.drafts.models import DraftSettings, ReplyDraft
 from app.mail.deletion import purge_mailbox
 from app.mail.models import Attachment, Mailbox, MailboxAssignment, MailboxType, Message
 from app.mail.storage import AttachmentStorage
-from app.notifications.models import MailNotification, NotificationSettings
+from app.notifications.models import MailNotification, NotificationSettings, PushSubscription
 from app.privacy.deletion import FileStores, purge_user
 from app.privacy.storage import ExportStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
@@ -245,6 +246,17 @@ async def seed_user_data(
             DraftSettings(user_id=user_id, signature=f"Signature {marker}"),
             NotificationSettings(user_id=user_id, enabled=True, category_ids=[category.id]),
             MailNotification(message_id=message.id),
+            PushSubscription(
+                user_id=user_id,
+                endpoint_hash=hashlib.sha256(marker.encode()).hexdigest(),
+                subscription={
+                    "endpoint": f"https://fcm.googleapis.com/fcm/send/{marker}",
+                    "p256dh": "p256dh",
+                    "auth": "auth",
+                },
+                browser="Firefox",
+                os="Linux",
+            ),
             Invitation(
                 user_id=user_id, token_hash=os.urandom(32), expires_at=NOW + timedelta(days=1)
             ),
