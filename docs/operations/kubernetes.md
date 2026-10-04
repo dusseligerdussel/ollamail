@@ -290,6 +290,8 @@ Regeln:
   Cluster oder im internen Netz muss in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` stehen (Hostnamen
   oder CIDR-Bereiche, kommagetrennt), siehe
   [`OPERATIONS.md`](../OPERATIONS.md#66-upgrade-hinweise-sichere-standardwerte-143).
+  Dasselbe gilt für CalDAV-Server des Aufgaben-Exports:
+  `OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS`.
 - Die Worker-Variablen `OLLAMAIL_WORKER_QUEUES`, `OLLAMAIL_WORKER_CONCURRENCY` und
   `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` kommen aus `worker.*` ([Abschnitt 7](#7-worker-und-queues)).
 - Mit `OLLAMAIL_AUTH_COOKIE_SECURE=true` (Standard) funktioniert die Anmeldung nur über HTTPS

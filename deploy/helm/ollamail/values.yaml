@@ -105,6 +105,9 @@ config:
   # CIDR ranges, comma-separated, e.g. an IMAP server in the cluster or LAN. Default: public
   # addresses only (no cluster services, no private networks, no metadata endpoint).
   # OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS: "imap.mail.svc.cluster.local,10.20.0.0/16"
+  # The same for CalDAV servers of the task export (OLLAMAIL_TODOS_EXPORT_SINKS=caldav), e.g.
+  # a Nextcloud in the cluster. Default: public addresses only.
+  # OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS: "nextcloud.apps.svc.cluster.local"
   # Connection tests per user within 10 minutes (default 20).
   # OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS: "20"
 

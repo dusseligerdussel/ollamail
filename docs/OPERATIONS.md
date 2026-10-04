@@ -846,6 +846,17 @@ Update:
    und laufen nach dem Neustart von `api` und `worker` ohne weiteres Zutun weiter.
 5. **Verbindungstests begrenzt.** Pro Nutzer sind 20 Verbindungstests in 10 Minuten möglich
    (Testen, Anlegen, Verbindung ändern; `OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS`).
+6. **CalDAV-Export auf internen Adressen (#189).** Dieselbe Prüfung gilt für CalDAV-Server des
+   Aufgaben-Exports (`OLLAMAIL_TODOS_EXPORT_SINKS=caldav`). Ein Nextcloud oder Radicale im LAN,
+   auf dem Docker-Host oder im Cluster muss erlaubt werden:
+
+   ```sh
+   OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS=nextcloud.lan,192.168.10.0/24
+   ```
+
+   Bis dahin meldet der Export `unavailable` (Log `todo_export_destination_refused`) und läuft
+   nach dem Neustart von `api` und `worker` weiter. Verbindungen zum CalDAV-Server nutzen keine
+   Proxy-Variablen (`HTTPS_PROXY`) mehr, sondern gehen direkt zur geprüften Adresse.
 
 ### 6.7 Upgrade-Hinweis: Embeddings als `halfvec` (#164)
 
@@ -1250,6 +1261,7 @@ curl http://localhost:8080/api/readyz
 | `uses the placeholder password 'change-me'` (api/migrate starten nicht) | Datenbank-Passwort ändern, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
 | UI aus dem LAN nicht mehr erreichbar | Port ist standardmäßig nur an `127.0.0.1` gebunden; `OLLAMAIL_HTTP_BIND` setzen, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
 | Postfach im LAN meldet `connection_failed`, Log `mail_destination_refused` | Interne Adresse ohne Freigabe: Host in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` eintragen, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
+| CalDAV-Export im LAN meldet `unavailable`, Log `todo_export_destination_refused` | Interne Adresse ohne Freigabe: Host in `OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS` eintragen, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
 | `worker` startet ständig neu | `docker compose -f deploy/compose.yaml logs worker`; häufig ein ungültiger Wert in `OLLAMAIL_WORKER_QUEUES`. |
 | `toomanyrequests` / `429 Too Many Requests` beim Build oder Pull | Rate-Limit von Docker Hub. Mit `docker login` anmelden oder später erneut versuchen. |
 | `failed to bind host port … address already in use` oder `port is already allocated` | Port 8080 ist belegt. `OLLAMAIL_HTTP_PORT` in `deploy/.env` ändern. |
