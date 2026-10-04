@@ -15458,7 +15458,7 @@
             "description": "Not signed in"
           },
           "422": {
-            "description": "Invalid value or mailbox"
+            "description": "Invalid value, mailbox or voice"
           }
         },
         "summary": "Update Digest Settings",
@@ -15469,7 +15469,7 @@
     },
     "/digests/voices": {
       "get": {
-        "description": "Voices for the digest: installed ones plus the default voice of each language.",
+        "description": "Voices for the digest: installed ones plus the default voice of each language and\nthe voices the admin allows (``OLLAMAIL_TTS_VOICE_ALLOWLIST``).",
         "operationId": "digests_list_digest_voices",
         "responses": {
           "200": {
@@ -16118,6 +16118,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many parallel AI requests of the user (`error_code` `llm_busy`)"
           }
         },
         "summary": "Generate Draft",
@@ -16454,7 +16457,7 @@
     },
     "/events": {
       "get": {
-        "description": "Stream the current user's events. Each SSE ``event`` is the event type, ``data``\nthe JSON-encoded event.",
+        "description": "Stream the current user's events. Each SSE ``event`` is the event type, ``data``\nthe JSON-encoded event. The stream ends when the session is no longer valid.",
         "operationId": "events_stream_events",
         "responses": {
           "200": {
@@ -16514,6 +16517,9 @@
               }
             },
             "description": "Server-Sent Events stream of `Event` objects for the current user"
+          },
+          "429": {
+            "description": "Too many open streams of the user"
           },
           "503": {
             "description": "The event listener is unavailable"
@@ -18529,6 +18535,9 @@
               }
             },
             "description": "Validation Error"
+          },
+          "429": {
+            "description": "Too many parallel AI requests of the user (`error_code` `llm_busy`)"
           }
         },
         "summary": "Ask",

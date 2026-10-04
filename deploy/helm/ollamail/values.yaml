@@ -110,6 +110,15 @@ config:
   # OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS: "nextcloud.apps.svc.cluster.local"
   # Connection tests per user within 10 minutes (default 20).
   # OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS: "20"
+  # Limits per user and api pod (docs/OPERATIONS.md, section 8.5); defaults shown. With
+  # several api replicas a user can use each limit once per pod.
+  # OLLAMAIL_LLM_API_CONCURRENCY: "4"
+  # OLLAMAIL_LLM_API_USER_CONCURRENCY: "2"
+  # OLLAMAIL_EVENTS_MAX_STREAMS_PER_USER: "10"
+  # OLLAMAIL_EVENTS_SESSION_CHECK_INTERVAL: "60"
+  # Voices users may pick besides the defaults and installed ones (comma-separated); only
+  # defaults and these are downloaded:
+  # OLLAMAIL_TTS_VOICE_ALLOWLIST: "de_DE-kerstin-low,en_GB-alan-medium"
 
 # Additional environment variables (EnvVar objects) for api, worker and the migration job.
 extraEnv: []

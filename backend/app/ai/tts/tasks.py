@@ -2,8 +2,8 @@
 
 Synthesis jobs belong to the features that own the text (the daily digest, #28); they
 call :func:`app.ai.tts.service.get_tts` inside their own ``queue="tts"`` task, with IDs
-as arguments only. This module only keeps the default voices installed, so the first
-digest does not wait for a download.
+as arguments only. This module keeps the default and allowlisted voices installed, so the
+first digest does not wait for a download.
 """
 
 from app.ai.tts.errors import TTSError
@@ -22,12 +22,13 @@ log = get_logger(__name__)
     retry=DEFAULT_RETRY,
 )
 async def ensure_voices(timestamp: int) -> None:
-    """Download missing default voices (no-op when installed or downloads are off)."""
+    """Download missing default and allowlisted voices (no-op when installed or downloads
+    are off)."""
     tts = get_tts()
     if not tts.settings.download_voices:
         return
     try:
-        await tts.ensure_default_voices()
+        await tts.ensure_offered_voices()
     except TTSError as exc:
         log.warning("tts_ensure_voices_failed", error_type=type(exc).__name__)
         raise

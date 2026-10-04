@@ -17,6 +17,7 @@ from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import LLMGateway, get_llm
+from app.ai.llm.user_limits import LLM_BUSY, user_llm_slot
 from app.auth.dependencies import CurrentSessionDep
 from app.core.config import Settings
 from app.core.db import Database, get_db
@@ -114,7 +115,9 @@ async def _stream(events: AsyncIterator[RagEvent]) -> AsyncIterator[str]:
             "content": {"text/event-stream": {"schema": STREAM_SCHEMA}},
         },
         **NOT_FOUND,
+        **LLM_BUSY,
     },
+    dependencies=[Depends(user_llm_slot)],
 )
 async def ask(
     body: AskRequest,
