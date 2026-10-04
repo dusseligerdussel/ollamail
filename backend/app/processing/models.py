@@ -7,8 +7,10 @@ Löschkonzept). They hold no content: step names, versions, status and error cod
 import enum
 import uuid
 from datetime import datetime
+from typing import Any
 
-from sqlalchemy import Enum, ForeignKey, String, UniqueConstraint, false, true
+from sqlalchemy import Enum, ForeignKey, Index, String, UniqueConstraint, false, text, true
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.core.db import Base
@@ -28,11 +30,21 @@ class StepStatus(enum.StrEnum):
     SKIPPED = "skipped"
 
 
+# Steps not yet run, running or failed: few rows, while done and skipped ones grow with
+# every stored mail. The admin overview and the metrics count them through a partial
+# index; queries must use this exact condition (written out, not as bound parameters,
+# which a generic plan cannot match against the index) to use it.
+OPEN_STEPS = "status NOT IN ('done', 'skipped')"
+
+
 class MessageProcessing(Base):
     """State of one step for one message."""
 
     __tablename__ = "message_processing"
-    __table_args__ = (UniqueConstraint("message_id", "step"),)
+    __table_args__ = (
+        UniqueConstraint("message_id", "step"),
+        Index("ix_message_processing_open", "message_id", postgresql_where=text(OPEN_STEPS)),
+    )
 
     message_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("mail_messages.id", ondelete="CASCADE")
@@ -78,3 +90,19 @@ class MailboxProcessingSettings(Base):
     # Run ``recent_only`` steps (triage, todos) for older mails too, ignoring
     # ``OLLAMAIL_PROCESSING_BACKFILL_LLM_DAYS`` ("classify older mails too").
     include_older: Mapped[bool] = mapped_column(server_default=false())
+
+
+class ProcessingScanState(Base):
+    """What ``processing.requeue_outdated`` has already checked (one row,
+    ``key = 'requeue'``), so that it does not read every message every 10 minutes."""
+
+    __tablename__ = "processing_scan_state"
+
+    key: Mapped[str] = mapped_column(String(32), unique=True)
+    # Registered steps and versions (``{"triage": 3, ...}``) at which all messages were
+    # last found up to date. ``None`` or different from the registry: check all
+    # messages (new step, version bump, a mailbox enabled again).
+    step_versions: Mapped[dict[str, Any] | None] = mapped_column(JSONB)
+    # Every message stored before this time was planned (message IDs are UUIDv7, so
+    # only IDs from shortly before it on are checked for missing rows).
+    planned_before: Mapped[datetime | None]

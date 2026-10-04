@@ -2,9 +2,10 @@
 
 import uuid
 from datetime import UTC, datetime
+from typing import Any
 
 import pytest
-from sqlalchemy import delete, func, select
+from sqlalchemy import delete, event, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.config import SearchSettings
@@ -268,6 +269,50 @@ async def test_chunks_are_stored_when_embedding_fails_and_filled_in_later(
     assert await _embedding_models(mail.session) == {"fake-a": 1}
 
 
+async def test_fill_skips_the_scan_until_chunks_lack_a_vector(
+    mail: MailData, embedder: FakeEmbedder, search_settings: SearchSettings
+) -> None:
+    mailbox = await mail.mailbox(await mail.user())
+    first = await mail.message(mailbox, "Our flight leaves at nine.")
+    await _index(mail, embedder, search_settings, first)
+    # The first run after the upgrade (or a reset) checks all chunks.
+    checked = await service.fill_embeddings(mail.session, embedder, search_settings)
+    assert (checked.embedded, checked.remaining) == (0, False)
+
+    # A chunk without vector that nobody announced is not looked for: no full scan.
+    unannounced = await mail.message(mailbox, "Pizza at noon?")
+    mail.session.add(
+        SearchChunk(
+            message_id=unannounced,
+            mailbox_id=mailbox,
+            source="body",
+            ordinal=0,
+            heading="",
+            content="Pizza at noon?",
+            ts_config="english",
+        )
+    )
+    await mail.session.flush()
+    embedder.calls.clear()
+    skipped = await service.fill_embeddings(mail.session, embedder, search_settings)
+    assert (skipped.embedded, skipped.remaining) == (0, False)
+    assert embedder.calls == []
+
+    # Indexing without the LLM announces its chunks; the next run scans and finds both.
+    embedder.fail = True
+    later = await mail.message(mailbox, "Invoice attached.")
+    await _index(mail, embedder, search_settings, later)
+    embedder.fail = False
+    filled = await service.fill_embeddings(mail.session, embedder, search_settings)
+    assert (filled.embedded, filled.remaining) == (2, False)
+    assert await _embedding_models(mail.session) == {"fake-a": 3}
+
+    embedder.calls.clear()
+    again = await service.fill_embeddings(mail.session, embedder, search_settings)
+    assert (again.embedded, again.remaining) == (0, False)
+    assert embedder.calls == []
+
+
 async def test_wrong_dimension_is_deferred(
     mail: MailData, embedder: FakeEmbedder, search_settings: SearchSettings
 ) -> None:
@@ -370,6 +415,36 @@ async def test_hybrid_ranking_combines_full_text_and_vectors(
         mail.session, owner, "invoice", embedder=None, settings=search_settings
     )
     assert {hit.message_id for hit in text_only} == {both, lexical}
+
+
+async def test_pgvector_version_is_read_once_per_process(
+    mail: MailData,
+    embedder: FakeEmbedder,
+    search_settings: SearchSettings,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    owner = await mail.user()
+    message_id = await mail.message(await mail.mailbox(owner), "The invoice is attached.")
+    await _index(mail, embedder, search_settings, message_id)
+    monkeypatch.setattr(service, "_iterative_scan", None)
+    statements: list[str] = []
+
+    def record(_conn: Any, _cursor: Any, statement: str, *_: Any) -> None:
+        statements.append(statement)
+
+    engine = mail.session.bind.engine.sync_engine  # type: ignore[union-attr]
+    event.listen(engine, "before_cursor_execute", record)
+    try:
+        for _ in range(2):
+            hits = await search(
+                mail.session, owner, "invoice", embedder=embedder, settings=search_settings
+            )
+            assert [hit.message_id for hit in hits] == [message_id]
+    finally:
+        event.remove(engine, "before_cursor_execute", record)
+
+    assert sum("extversion" in statement for statement in statements) == 1
+    assert sum("hnsw.ef_search" in statement for statement in statements) == 2
 
 
 async def test_language_aware_full_text(

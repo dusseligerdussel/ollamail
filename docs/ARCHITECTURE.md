@@ -648,7 +648,11 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   erneut ein, deren Worker seit `OLLAMAIL_WORKER_STALLED_AFTER_SECONDS` keinen Heartbeat
   gesendet hat (Procrastinate `get_stalled_jobs`/`retry_job`); so gibt ein abgestürzter Worker
   auch die Locks seiner Jobs frei.
-- **Housekeeping:** täglicher Job `worker.remove_old_jobs` löscht abgeschlossene Jobs nach 7 Tagen.
+- **Housekeeping:** stündlicher Job `worker.remove_old_jobs` löscht erfolgreiche Jobs nach
+  `OLLAMAIL_WORKER_JOB_RETENTION_HOURS` (Standard 24) und fehlgeschlagene, abgebrochene oder
+  abgewiesene nach `OLLAMAIL_WORKER_FAILED_JOB_RETENTION_HOURS` (Standard 168). Jede Mail erzeugt
+  rund sieben Jobs (ein `plan_message`, je Schritt ein `run_step`); ein Import von 100k Mails
+  hinterlässt also ~700k Zeilen, die so nach einem Tag statt nach einer Woche verschwinden (#187).
   `mail.resume_deletions` (alle 15 Minuten) reiht das Entfernen markierter Postfächer erneut ein,
   falls dessen Job verloren ging (`mail.delete_mailbox`, siehe Postfach-API);
   `privacy.resume_user_deletions` (alle 15 Minuten) ebenso das Löschen markierter Nutzer
@@ -732,11 +736,23 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   Job nach Ablauf der Pause. Nach der Pause prüft ein einzelner Aufruf den Endpunkt.
 - **Zählen:** `count_steps_by_mailbox` liefert `StepCounts(pending, running, failed,
   retry_scheduled, skipped_messages)` je Postfach (Systemstatus; `skipped_messages` zählt Mails), `reset_failed_steps` setzt fehlgeschlagene
-  Schritte eines Postfachs zurück.
+  Schritte eines Postfachs zurück. Offene Schritte (`pending`, `running`, `failed`) liest sie über
+  den Teilindex `ix_message_processing_open` (Bedingung `OPEN_STEPS` wörtlich im SQL, nicht als
+  Parameter); `skipped` gibt es für jede Mail außerhalb des Backfill-Fensters, das Zählen liest
+  sie alle (bei 500k Mails ~0,5 s) und entfällt mit `skipped=False` (Metriken, #187).
 - **Versionen:** Erhöht ein Schritt seine `version` (z. B. neuer Prompt), reiht der periodische Job
   `processing.requeue_outdated` (alle 10 Minuten, `OLLAMAIL_PROCESSING_REQUEUE_BATCH_SIZE` Mails,
   neueste zuerst) die betroffenen Mails ein; nur dieser Schritt läuft erneut. Derselbe Job holt Mails
-  nach, die nie verarbeitet wurden.
+  nach, die nie verarbeitet wurden. Damit er nicht alle 10 Minuten alle Mails liest (#187), merkt
+  sich `processing_scan_state` die Schrittversionen, bei denen zuletzt keine Mail veraltet war, und
+  den Zeitpunkt dieser Prüfung (`planned_before`). Solange die registrierten Schritte gleich bleiben,
+  prüft `messages_to_requeue` nur Mails ab `planned_before − 1 h` (UUIDv7-IDs, Bereichsscan über den
+  Primärschlüssel; die Stunde deckt Transaktionen ab, die nach einer späteren committen) per
+  `NOT EXISTS` auf fehlende Zeilen. Eine noch ungeplante Mail hält `planned_before` fest, bis sie
+  geplant ist. Neue oder geänderte Schritte und das Wiedereinschalten eines Postfachs
+  (`set_mailbox_enabled`) setzen die Versionen zurück; dann prüft der Job wieder alle Mails.
+  Mehrere Mails reiht `requeue_messages` in Batches ein (ein `INSERT` je 200 Jobs; ist eine
+  davon schon eingereiht, wird dieser Batch einzeln eingereiht).
 - **Priorität:** Alle Jobs einer Mail erben die Priorität. Worker nehmen immer den Job mit der
   höchsten Priorität: `NEW` (10) vor `BACKFILL` (0) vor `REPROCESS` (−10). Ein Erstimport blockiert
   neue Mails also höchstens für die Dauer eines laufenden Jobs.
@@ -1124,7 +1140,11 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Embeddings** über `LLMGateway.embed` (Aufgabe `embeddings`) in Batches
   (`OLLAMAIL_SEARCH_EMBED_BATCH_SIZE`, optional Pause), auf der Queue `llm` mit deren
   Parallelität. Schlägt das Einbetten fehl, werden die Chunks ohne Vektor gespeichert; der Job
-  `search.fill_embeddings` ergänzt sie.
+  `search.fill_embeddings` ergänzt sie. Damit er nicht alle 5 Minuten alle Chunks liest (#187),
+  erhöht jedes Speichern von Chunks ohne Vektor des aktuellen Modells (Einbetten fehlgeschlagen,
+  OCR) `search_index_state.fill_requested`; der Job sucht nur, wenn dieser Zähler von
+  `fill_checked` abweicht (Wert, bei dem zuletzt nichts fehlte) oder ein Modellwechsel läuft, und
+  dann über den Index `ix_search_chunks_created_at_id` (neueste zuerst, `NOT EXISTS`, `LIMIT`).
 - **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte vom aktiven Modell ab,
   rechnet `search.fill_embeddings` alle Chunks batchweise neu; Anfragen nutzen bis zum Abschluss
   das alte Modell (`LLMGateway.embed(model=...)`), dann wird umgeschaltet und aufgeräumt.

@@ -3,6 +3,7 @@
 import os
 import time
 import uuid
+from datetime import UTC, datetime
 
 _RAND_A_MASK = (1 << 12) - 1
 _RAND_B_MASK = (1 << 62) - 1
@@ -26,3 +27,15 @@ def uuid7() -> uuid.UUID:
         | (rand & _RAND_B_MASK)
     )
     return uuid.UUID(int=value)
+
+
+def uuid7_floor(moment: datetime) -> uuid.UUID:
+    """Smallest UUIDv7 of ``moment``'s millisecond: every ``uuid7()`` created at or after
+    ``moment`` sorts at or above it (range scans over time-ordered primary keys)."""
+    timestamp_ms = max(0, int(moment.timestamp() * 1000))
+    return uuid.UUID(int=(timestamp_ms & ((1 << 48) - 1)) << 80 | 0x7 << 76 | 0b10 << 62)
+
+
+def uuid7_time(value: uuid.UUID) -> datetime:
+    """Creation time of a UUIDv7 (millisecond precision)."""
+    return datetime.fromtimestamp((value.int >> 80) / 1000, tz=UTC)

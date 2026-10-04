@@ -1,6 +1,7 @@
 import time
 import uuid
 from collections.abc import AsyncIterator
+from datetime import UTC, datetime, timedelta
 from typing import Annotated
 
 import pytest
@@ -12,7 +13,7 @@ from sqlalchemy.orm import Mapped, mapped_column
 from sqlalchemy.pool import NullPool
 
 from app.core.db import Base, get_db
-from app.core.ids import uuid7
+from app.core.ids import uuid7, uuid7_floor, uuid7_time
 from tests.conftest import ExtraRoute
 
 
@@ -68,6 +69,18 @@ def test_uuid7_embeds_current_time() -> None:
     after = time.time_ns() // 1_000_000
 
     assert before <= timestamp <= after
+
+
+def test_uuid7_floor_bounds_ids_created_from_then_on() -> None:
+    moment = datetime.now(UTC)
+    floor = uuid7_floor(moment)
+    later = uuid7()
+
+    assert floor.version == 7 and floor.variant == uuid.RFC_4122
+    assert floor <= later
+    assert uuid7_floor(moment - timedelta(milliseconds=1)) < floor
+    assert uuid7_time(floor) == moment.replace(microsecond=moment.microsecond // 1000 * 1000)
+    assert uuid7_time(later) >= uuid7_time(floor)
 
 
 def test_base_provides_id_and_timestamps() -> None:

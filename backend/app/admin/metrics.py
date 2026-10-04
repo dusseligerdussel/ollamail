@@ -31,7 +31,7 @@ from app.core.metrics import authorized
 from app.mail.api.service import statuses
 from app.mail.models import Mailbox
 from app.processing import service as processing
-from app.processing.models import MessageProcessing, StepStatus
+from app.processing.models import OPEN_STEPS, MessageProcessing, StepStatus
 
 log = get_logger(__name__)
 router = APIRouter(tags=["health"])
@@ -52,8 +52,8 @@ async def _queue_metrics(session: AsyncSession) -> list[Metric]:
         depth.add_metric([queue, str(priority), status], count)
     failed = GaugeMetricFamily(
         "ollamail_queue_failed_jobs",
-        "Failed jobs per queue and task that are still kept (finished jobs are deleted "
-        "after 7 days).",
+        "Failed jobs per queue and task that are still kept (deleted after "
+        "OLLAMAIL_WORKER_FAILED_JOB_RETENTION_HOURS, default 7 days).",
         labels=["queue", "task"],
     )
     for queue, task, count in await session.execute(
@@ -74,7 +74,7 @@ async def _processing_metrics(session: AsyncSession) -> list[Metric]:
     )
     for step, status, count in await session.execute(
         select(MessageProcessing.step, MessageProcessing.status, func.count())
-        .where(MessageProcessing.status != StepStatus.DONE)
+        .where(text(OPEN_STEPS))
         .group_by(MessageProcessing.step, MessageProcessing.status)
     ):
         steps.add_metric([step, StepStatus(status).value], count)
@@ -84,7 +84,9 @@ async def _processing_metrics(session: AsyncSession) -> list[Metric]:
         "again automatically.",
         labels=["mailbox_id", "status"],
     )
-    for mailbox_id, counts in (await processing.count_steps_by_mailbox(session)).items():
+    for mailbox_id, counts in (
+        await processing.count_steps_by_mailbox(session, skipped=False)
+    ).items():
         for name in ("pending", "running", "failed", "retry_scheduled"):
             per_mailbox.add_metric([str(mailbox_id), name], getattr(counts, name))
     return [steps, per_mailbox]
