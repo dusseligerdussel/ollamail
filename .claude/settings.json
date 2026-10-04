@@ -12,6 +12,11 @@
     ]
   },
   "permissions": {
+    "allow": [
+      "mcp__github__merge_pull_request",
+      "mcp__github__update_pull_request_branch",
+      "mcp__claude-code-remote__send_message"
+    ],
     "deny": [
       "Bash(git push origin main)",
       "Bash(git push origin main:*)",
