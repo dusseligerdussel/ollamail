@@ -81,7 +81,7 @@ test("the selected options of a segmented control are outlined", async ({ page }
   await mockDigest(page);
   await page.goto("/digest/settings");
 
-  const weekdays = page.getByRole("group", { name: "Days" });
+  const weekdays = page.getByRole("toolbar", { name: "Days" });
   const on = weekdays.locator("[aria-pressed=true]").first();
   const off = weekdays.locator("[aria-pressed=false]").first();
   await expect(on).toBeVisible();
