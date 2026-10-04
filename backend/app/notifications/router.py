@@ -152,11 +152,15 @@ async def register_push_device(
     db: DbDep,
     settings: SettingsDep,
 ) -> PushDeviceRead:
-    """Register this browser for Web Push, or refresh its registration (same endpoint)."""
+    """Register this browser for Web Push, or refresh its registration (same endpoint).
+
+    The device is bound to the current session: signing out, revoking the session or its
+    expiry stop the pushes."""
     try:
         device = await push.register_device(
             db,
             current.user_id,
+            current.session_id,
             endpoint=body.endpoint,
             p256dh=body.keys.p256dh,
             auth=body.keys.auth,

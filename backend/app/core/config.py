@@ -32,7 +32,7 @@ PRIVATE_NETWORKS = (
     "fc00::/7",
 )
 # Job queues, see app/worker.py.
-QueueName = Literal["sync", "llm", "tts", "ocr", "default"]
+QueueName = Literal["sync", "llm", "tts", "ocr", "default", "push"]
 # Placeholder password of earlier versions of deploy/.env.example; refused at start-up.
 PLACEHOLDER_DATABASE_PASSWORD = "change-me"
 # Minimum length of a configured OLLAMAIL_SETUP_TOKEN (`openssl rand -hex 16` gives 32).
@@ -650,6 +650,10 @@ class NotificationsSettings(BaseSettings):
     web_push_allowed_hosts: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(DEFAULT_WEB_PUSH_HOSTS)
     )
+    # Job slots of the ``push`` queue per worker process (one job sends one mail to all
+    # devices of its readers). Separate from ``OLLAMAIL_WORKER_CONCURRENCY``, so a slow or
+    # unreachable push service never holds up mail sync.
+    web_push_concurrency: int = Field(default=2, ge=1, le=32)
 
     @field_validator("web_push_allowed_hosts", mode="before")
     @classmethod
@@ -891,17 +895,24 @@ class WorkerSettings(BaseSettings):
     model_config = _config("WORKER_")
 
     # Queues this worker process consumes, comma-separated in the environment
-    # (e.g. ``OLLAMAIL_WORKER_QUEUES=llm`` for a dedicated LLM worker).
+    # (e.g. ``OLLAMAIL_WORKER_QUEUES=llm`` for a dedicated LLM worker). ``default`` includes
+    # ``push`` (Web Push, own slots), which can also run alone in a separate worker.
     queues: Annotated[list[QueueName], NoDecode] = Field(
         default=["sync", "llm", "tts", "ocr", "default"], min_length=1
     )
-    # Parallel jobs for all consumed queues except ``llm`` (see ``LLMSettings.concurrency``).
+    # Parallel jobs for all consumed queues except ``llm``, ``ocr`` and ``push`` (own slots).
     concurrency: int = Field(default=4, ge=1)
     # Seconds running jobs get to finish after SIGTERM before they are cancelled.
     shutdown_timeout: float = Field(default=30.0, ge=0)
     # A running job whose worker sent no heartbeat for this long (killed, OOM) is put back
     # into the queue by a periodic job (every 5 minutes). Workers send one every 10 s.
     stalled_after_seconds: float = Field(default=120.0, ge=30)
+    # Hours finished jobs (IDs and arguments, no mail content) are kept before an hourly
+    # cleanup deletes them: succeeded ones, which are the bulk (about seven per mail,
+    # 700k for an import of 100k mails), and failed, cancelled or aborted ones, which
+    # are kept longer for troubleshooting.
+    job_retention_hours: int = Field(default=24, ge=1)
+    failed_job_retention_hours: int = Field(default=7 * 24, ge=1)
     # Liveness: the worker touches this file every ``heartbeat_interval_seconds`` while its
     # event loop and job workers run; ``python -m app.core.heartbeat`` (Compose healthcheck,
     # Kubernetes liveness probe) fails once it is older than four intervals.

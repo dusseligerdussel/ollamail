@@ -23,6 +23,7 @@ from sqlalchemy import (
     String,
     Text,
     UniqueConstraint,
+    text,
 )
 from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column
@@ -67,6 +68,8 @@ class SearchChunk(Base):
             "ts_config IN (" + ", ".join(f"'{c}'" for c in TS_CONFIGS) + ")", name="ts_config"
         ),
         Index("ix_search_chunks_tsv", "tsv", postgresql_using="gin"),
+        # ``fill_embeddings`` looks for chunks without a vector newest first.
+        Index("ix_search_chunks_created_at_id", text("created_at DESC"), "id"),
         Index(None, "message_id"),
         Index(None, "mailbox_id"),
     )
@@ -122,3 +125,9 @@ class SearchIndexState(Base):
 
     key: Mapped[str] = mapped_column(String(32), unique=True)
     active_model: Mapped[str] = mapped_column(String(255))
+    # Raised whenever chunks are stored without a vector of the current model (LLM
+    # unavailable while indexing, OCR). ``fill_embeddings`` records the value it last
+    # found nothing missing at in ``fill_checked``; while both match and no model switch
+    # runs, it skips the scan over all chunks.
+    fill_requested: Mapped[int] = mapped_column(server_default="1")
+    fill_checked: Mapped[int] = mapped_column(server_default="0")

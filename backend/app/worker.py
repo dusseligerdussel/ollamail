@@ -13,7 +13,10 @@ Queues
     job slots, of which the LLM gateway lets the admin-set ``concurrency`` call the model at
     once) so CPU-only hosts are not overloaded; all other queues share
     ``OLLAMAIL_WORKER_CONCURRENCY``. ``ocr`` also has its own slots
-    (``OLLAMAIL_SEARCH_OCR_CONCURRENCY``), so long OCR jobs never hold up mail sync.
+    (``OLLAMAIL_SEARCH_OCR_CONCURRENCY``), so long OCR jobs never hold up mail sync. So has
+    ``push`` (Web Push, ``OLLAMAIL_NOTIFICATIONS_WEB_PUSH_CONCURRENCY``): a slow or unreachable
+    push service never takes the slots of ``sync``. A worker consuming ``default`` also
+    consumes ``push``; ``OLLAMAIL_WORKER_QUEUES=push`` runs it alone.
 
 Task conventions
     * Register tasks with ``@app.task(name="<module>.<action>", queue=..., retry=DEFAULT_RETRY)``
@@ -82,9 +85,6 @@ TASK_MODULES: list[str] = [
 # Waits 2, 4, 8, ... 128 seconds between attempts (8 attempts, ~4 minutes in total).
 DEFAULT_RETRY = RetryStrategy(max_attempts=8, exponential_wait=2)
 
-# Finished jobs (and their arguments) are deleted after this many hours.
-JOB_RETENTION_HOURS = 7 * 24
-
 
 def resource_lock(kind: str, resource_id: UUID | str) -> str:
     """Lock key that serialises all jobs touching one resource, e.g. one mailbox."""
@@ -107,7 +107,7 @@ app = procrastinate.App(
 )
 
 
-@app.periodic(cron="17 3 * * *", periodic_id="remove_old_jobs")
+@app.periodic(cron="17 * * * *", periodic_id="remove_old_jobs")
 @app.task(
     name="worker.remove_old_jobs",
     queue="default",
@@ -115,9 +115,13 @@ app = procrastinate.App(
     pass_context=True,
 )
 async def remove_old_jobs(context: JobContext, timestamp: int) -> None:
-    """Daily: delete finished jobs and their events (data minimisation)."""
+    """Hourly: delete finished jobs and their events (data minimisation, and a small
+    job table): succeeded ones after ``OLLAMAIL_WORKER_JOB_RETENTION_HOURS``, the
+    others after ``OLLAMAIL_WORKER_FAILED_JOB_RETENTION_HOURS``."""
+    settings = get_settings().worker
+    await context.app.job_manager.delete_old_jobs(nb_hours=settings.job_retention_hours)
     await context.app.job_manager.delete_old_jobs(
-        nb_hours=JOB_RETENTION_HOURS,
+        nb_hours=settings.failed_job_retention_hours,
         include_failed=True,
         include_cancelled=True,
         include_aborted=True,
@@ -172,10 +176,18 @@ class WorkerGroup:
     concurrency: int
 
 
+def consumed_queues(settings: Settings) -> tuple[QueueName, ...]:
+    configured = set(settings.worker.queues)
+    # Push jobs ran on ``default`` before they got their own queue (#185).
+    if "default" in configured:
+        configured.add("push")
+    return tuple(q for q in QUEUES if q in configured)
+
+
 def worker_groups(settings: Settings) -> list[WorkerGroup]:
-    queues = tuple(q for q in QUEUES if q in settings.worker.queues)
+    queues = consumed_queues(settings)
     groups = []
-    shared = tuple(q for q in queues if q not in ("llm", "ocr"))
+    shared = tuple(q for q in queues if q not in ("llm", "ocr", "push"))
     if shared:
         groups.append(WorkerGroup("main", shared, settings.worker.concurrency))
     if "llm" in queues:
@@ -184,6 +196,8 @@ def worker_groups(settings: Settings) -> list[WorkerGroup]:
         groups.append(WorkerGroup("llm", ("llm",), slots))
     if "ocr" in queues:
         groups.append(WorkerGroup("ocr", ("ocr",), settings.search.ocr_concurrency))
+    if "push" in queues:
+        groups.append(WorkerGroup("push", ("push",), settings.notifications.web_push_concurrency))
     return groups
 
 
@@ -213,6 +227,9 @@ async def run(settings: Settings, stop: asyncio.Event) -> None:
             metrics.shutdown()
         # The engine all jobs of this process shared (``app.core.db.process_database``).
         await dispose_process_database()
+        from app.notifications.webpush import close_push_client
+
+        await close_push_client()
 
 
 async def _run_groups(settings: Settings, groups: list[WorkerGroup], stop: asyncio.Event) -> None:

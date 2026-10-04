@@ -62,7 +62,13 @@ function NotificationsPage() {
               <ListSkeleton rows={4} />
             </div>
           )}
-          {settings.isError && <InlineError error={settings.error} />}
+          {settings.isError && (
+            <InlineError
+              error={settings.error}
+              onRetry={settings.refetch}
+              retrying={settings.isFetching}
+            />
+          )}
           {settings.data &&
             (settings.data.available ? (
               <NotificationsForm settings={settings.data} />
@@ -163,7 +169,11 @@ function NotificationsForm({ settings }: { settings: NotificationSettings }) {
           {categories.isPending ? (
             <ListSkeleton rows={3} />
           ) : categories.isError ? (
-            <InlineError error={categories.error} />
+            <InlineError
+              error={categories.error}
+              onRetry={categories.refetch}
+              retrying={categories.isFetching}
+            />
           ) : (
             <ul className="flex flex-col gap-2.5">
               {categories.visible.map((category) => {

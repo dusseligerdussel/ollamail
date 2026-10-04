@@ -15,6 +15,7 @@ import { ListSkeleton } from "@/components/list-skeleton";
 import { PageHeader } from "@/components/page-header";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { retryFailed } from "@/lib/retry-failed";
 
 export const Route = createFileRoute("/admin_/ai")({
   component: AISettingsPage,
@@ -63,7 +64,13 @@ function AISettingsContent({
 
   if (settings.isPending || providers.isPending) return <ListSkeleton />;
   if (!settings.data || !providers.data) {
-    return <InlineError error={settings.error ?? providers.error} className="px-4 py-4 md:px-5" />;
+    return (
+      <InlineError
+        error={settings.error ?? providers.error}
+        {...retryFailed(settings, providers)}
+        className="px-4 py-4 md:px-5"
+      />
+    );
   }
   return (
     <div className="mx-auto flex w-full max-w-2xl flex-col gap-8 px-4 py-6 md:px-6 md:py-8">

@@ -53,13 +53,18 @@ class PushSubscription(Base):
     is a capability URL (whoever knows it and the keys can send to the device).
     ``endpoint_hash`` (SHA-256) finds an endpoint again without decrypting, so the same
     browser is registered once. Browser and system come from the user agent and only label
-    the device in the list. Deleted with the user (``ON DELETE CASCADE``) or by the user.
+    the device in the list. Bound to the sign-in session it was registered in (#185): deleted
+    with it (sign-out, revoked session, expiry, ``ON DELETE CASCADE``), with the user or by
+    the user.
     """
 
     __tablename__ = "push_subscriptions"
 
     user_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("users.id", ondelete="CASCADE"), index=True
+    )
+    session_id: Mapped[uuid.UUID] = mapped_column(
+        ForeignKey("auth_sessions.id", ondelete="CASCADE"), index=True
     )
     endpoint_hash: Mapped[str] = mapped_column(String(64), unique=True)
     # {"endpoint": ..., "p256dh": ..., "auth": ...}

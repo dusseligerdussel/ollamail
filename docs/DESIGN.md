@@ -14,7 +14,8 @@ Ziel: ein ruhiges, schnelles, professionelles Werkzeug. Vorbilder: Linear, Super
 - Dark-, Light- und System-Theme, gleichwertig gestaltet.
 - Lucide-Icons, 16 px, Strichstärke einheitlich.
 - Schnelle, kurze Übergänge (≤ 150 ms), `prefers-reduced-motion` respektieren.
-- Leere Zustände sachlich mit einer klaren nächsten Aktion.
+- Leere Zustände sachlich mit einer klaren nächsten Aktion. Fehler beim Laden ebenso:
+  `InlineError` mit „Erneut versuchen“ (`onRetry`).
 - Skeletons statt Spinner bei Listen; sie haben die Zeilenhöhe der echten Liste (Mail-Listen mobil
   zweizeilig), damit nichts springt.
 - Barrierefreiheit: WCAG 2.2 AA, Fokus sichtbar, alles per Tastatur bedienbar. Prüfumfang, Funde und
@@ -71,3 +72,9 @@ Schrift im Kopf. Größere Buttons (`default`, 14 px) nur in Dialogen und auf ö
   (CSS-Variablen), nicht durch Ad-hoc-Klassen.
 - Eigene, wiederverwendbare Komponenten in `frontend/src/components`.
 - Texte über i18n-Keys, nie hartkodiert.
+- Segmented Controls (Auswahl aus wenigen Optionen, z. B. Theme, Wochentage): `ToggleGroup` mit
+  `variant="segmented"`. Die gewählte Option ist angehoben und in der Akzentfarbe umrandet
+  (≥ 3:1, WCAG 1.4.11) – nie nur durch einen leicht anderen Grauton erkennbar.
+- Globale Hinweisleisten (`components/system-notices.tsx`) stehen auf dem Desktop untereinander;
+  auf Mobil sind sie zu einer einzeiligen, aufklappbaren Leiste („2 Hinweise“) zusammengefasst.
+  Rein informative Hinweise (Cloud-KI) lassen sich pro Sitzung ausblenden, Warnungen nicht.

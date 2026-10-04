@@ -253,7 +253,13 @@ function MessageContent({ message, passage }: { message: MessageDetail; passage?
           </Button>
         </div>
       )}
-      {withImages.isError && <InlineError error={withImages.error} />}
+      {withImages.isError && (
+        <InlineError
+          error={withImages.error}
+          onRetry={withImages.refetch}
+          retrying={withImages.isFetching}
+        />
+      )}
       <MailBodyFrame
         html={html}
         externalImages={Boolean(withImages.data)}

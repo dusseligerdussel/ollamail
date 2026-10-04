@@ -142,7 +142,14 @@ export function DataExportSection() {
           </div>
         </div>
       )}
-      {exports.isError && <InlineError error={exports.error} className="px-4 py-3.5" />}
+      {exports.isError && (
+        <InlineError
+          error={exports.error}
+          onRetry={exports.refetch}
+          retrying={exports.isFetching}
+          className="px-4 py-3.5"
+        />
+      )}
       {exports.data && exports.data.length > 0 && (
         <ul className="divide-y" aria-label={t("privacy.export.list")}>
           {exports.data.map((item) => (

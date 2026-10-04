@@ -79,7 +79,13 @@ function SecurityPage() {
       <div className="flex-1 overflow-y-auto">
         <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
           {status.isPending && <ListSkeleton />}
-          {status.isError && <InlineError error={status.error} />}
+          {status.isError && (
+            <InlineError
+              error={status.error}
+              onRetry={status.refetch}
+              retrying={status.isFetching}
+            />
+          )}
           {status.data && (
             <SecurityOverview status={status.data} onOpen={(next) => setPanel(next)} />
           )}

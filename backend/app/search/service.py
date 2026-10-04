@@ -99,6 +99,16 @@ async def _ensure_active_model(session: AsyncSession, current: str) -> str:
     return model
 
 
+async def _request_fill(session: AsyncSession) -> None:
+    """Chunks were stored without a vector of the current model: the next
+    ``fill_embeddings`` scans for them (it skips the scan otherwise)."""
+    await session.execute(
+        update(SearchIndexState)
+        .where(SearchIndexState.key == STATE_KEY)
+        .values(fill_requested=SearchIndexState.fill_requested + 1)
+    )
+
+
 async def _store_embeddings(
     session: AsyncSession,
     chunk_ids: Sequence[uuid.UUID],
@@ -286,6 +296,8 @@ async def index_message(
 
     result.chunks = len(rows)
     result.embedded = current in vectors
+    if rows and not result.embedded:
+        await _request_fill(session)
     return result
 
 
@@ -363,6 +375,8 @@ async def ocr_attachment(
         for offset, chunk in enumerate(chunks)
     )
     await session.flush()
+    if chunks:
+        await _request_fill(session)
     return OcrResult(extraction.status, len(chunks))
 
 
@@ -384,10 +398,25 @@ async def fill_embeddings(
     """Embed up to ``reembed_batch_size`` chunks lacking a vector of the current model,
     newest first; switch the active model once none is left. Does not commit.
 
+    Without a model switch, the chunks are only scanned if some were stored without a
+    vector since the last scan found none (``SearchIndexState.fill_requested``):
+    indexing normally embeds right away, and the scan reads every chunk.
+
     Raises ``LLMError`` / ``EmbeddingDimensionError`` when embedding fails.
     """
     current = await embedder.current_model()
     active = await _ensure_active_model(session, current)
+    # Read before the scan: chunks committed later raise it again, so a scan that
+    # misses them does not mark them as checked.
+    requested, checked = (
+        await session.execute(
+            select(SearchIndexState.fill_requested, SearchIndexState.fill_checked).where(
+                SearchIndexState.key == STATE_KEY
+            )
+        )
+    ).one()
+    if active == current and requested == checked:
+        return FillResult(embedded=0, remaining=False, switched=False)
     has_current = exists().where(
         SearchEmbedding.chunk_id == SearchChunk.id, SearchEmbedding.model == current
     )
@@ -417,6 +446,11 @@ async def fill_embeddings(
     if not remaining and (switched or active == current):
         # Vectors of earlier models (finished or abandoned switches).
         await session.execute(delete(SearchEmbedding).where(SearchEmbedding.model != current))
+        await session.execute(
+            update(SearchIndexState)
+            .where(SearchIndexState.key == STATE_KEY)
+            .values(fill_checked=requested)
+        )
     return FillResult(embedded=len(batch), remaining=remaining, switched=switched)
 
 
@@ -577,6 +611,23 @@ async def _text_candidates(
     return list((await session.scalars(_ranked(inner))).all())
 
 
+# Whether pgvector supports iterative index scans (>= 0.8); looked up once per process,
+# not on every search. After ``ALTER EXTENSION vector UPDATE`` it takes effect with the
+# next restart of api and worker (docs/OPERATIONS.md).
+_iterative_scan: bool | None = None
+
+
+async def _supports_iterative_scan(session: AsyncSession) -> bool:
+    global _iterative_scan
+    if _iterative_scan is None:
+        version = await session.scalar(
+            text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
+        )
+        parts = tuple(int(p) for p in str(version or "0").split(".")[:2] if p.isdigit())
+        _iterative_scan = parts >= (0, 8)
+    return _iterative_scan
+
+
 async def _configure_vector_scan(session: AsyncSession, limit: int) -> None:
     # The HNSW index returns ``ef_search`` candidates before the access filter applies;
     # pgvector >= 0.8 keeps scanning until enough rows pass the filter.
@@ -584,11 +635,7 @@ async def _configure_vector_scan(session: AsyncSession, limit: int) -> None:
         text("SELECT set_config('hnsw.ef_search', :value, true)"),
         {"value": str(min(1000, max(40, limit * 2)))},
     )
-    version = await session.scalar(
-        text("SELECT extversion FROM pg_extension WHERE extname = 'vector'")
-    )
-    parts = tuple(int(p) for p in str(version or "0").split(".")[:2] if p.isdigit())
-    if parts >= (0, 8):
+    if await _supports_iterative_scan(session):
         await session.execute(
             text("SELECT set_config('hnsw.iterative_scan', 'strict_order', true)")
         )

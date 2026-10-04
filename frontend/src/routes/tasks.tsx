@@ -18,6 +18,7 @@ import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { useListNavigation } from "@/hooks/use-list-navigation";
 import type { Command } from "@/lib/commands";
+import { retryFailed } from "@/lib/retry-failed";
 import { groupTasks, todayIn } from "@/lib/task-dates";
 
 export const Route = createFileRoute("/tasks")({
@@ -166,7 +167,9 @@ function TasksPage() {
   if (open.isPending || done.isPending) {
     content = <ListSkeleton rows={10} />;
   } else if (open.isError || done.isError) {
-    content = <InlineError error={open.error ?? done.error} className="m-4" />;
+    content = (
+      <InlineError error={open.error ?? done.error} {...retryFailed(open, done)} className="m-4" />
+    );
   } else if (items.length === 0) {
     content = (
       <EmptyState

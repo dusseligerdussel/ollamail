@@ -187,7 +187,7 @@ anbinden.
 
 Jeder Pod hat einen gemeinsamen SQLAlchemy-Pool (`OLLAMAIL_DATABASE_POOL_SIZE +
 OLLAMAIL_DATABASE_MAX_OVERFLOW`, Standard 5 + 10) plus Job-Queue und `LISTEN`-Verbindungen: mit
-Standardwerten höchstens **21 je API-Pod** und **33 je Worker-Pod** mit allen Queues. Die
+Standardwerten höchstens **21 je API-Pod** und **37 je Worker-Pod** mit allen Queues. Die
 Formel je Worker-Gruppe steht in [`OPERATIONS.md` §8.2](../OPERATIONS.md#82-datenbankverbindungen).
 `max_connections` der Datenbank muss die Summe über alle Replikate plus Reserve abdecken
 (PostgreSQL-Standard: 100; das CloudNativePG-Beispiel setzt 200). Alternativ einen Pooler
@@ -309,7 +309,9 @@ Regeln:
 Jede Gruppe unter `worker.groups` wird ein eigenes Deployment `<release>-worker-<name>` mit
 eigenen Queues, Replikaten, Ressourcen und Scheduling. Queues: `sync` (Mail-Sync, IMAP IDLE),
 `llm` (LLM-Aufrufe), `tts` (Sprachsynthese), `ocr` (Texterkennung gescannter Anhänge,
-eigene Job-Slots `OLLAMAIL_SEARCH_OCR_CONCURRENCY`), `default` (alles andere, periodische Jobs). Jede
+eigene Job-Slots `OLLAMAIL_SEARCH_OCR_CONCURRENCY`), `default` (alles andere, periodische Jobs),
+`push` (Web Push, eigene Job-Slots `OLLAMAIL_NOTIFICATIONS_WEB_PUSH_CONCURRENCY`; eine Gruppe mit
+`default` arbeitet `push` mit ab, eine eigene Gruppe mit nur `push` ist möglich). Jede
 Queue muss von mindestens einer Gruppe abgearbeitet werden, sonst bricht die Installation ab.
 
 Standard ist eine Gruppe `all` mit allen Queues. Beispiel mit getrennten LLM-Workern auf

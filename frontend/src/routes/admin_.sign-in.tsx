@@ -43,6 +43,7 @@ import { ListSkeleton } from "@/components/list-skeleton";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
+import { retryFailed } from "@/lib/retry-failed";
 
 export const Route = createFileRoute("/admin_/sign-in")({
   component: SignInAdminPage,
@@ -122,7 +123,7 @@ function SignInMethods({
   }
   const error = settings.error ?? oidc.error ?? github.error ?? ldap.error ?? saml.error;
   if (error || !settings.data || !oidc.data || !github.data || !ldap.data || !saml.data) {
-    return <InlineError error={error} />;
+    return <InlineError error={error} {...retryFailed(settings, oidc, github, ldap, saml)} />;
   }
 
   const items: ProviderItem[] = [

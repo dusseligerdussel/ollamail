@@ -12,10 +12,12 @@ only ever read filtered by ``user_id`` (``app.triage.feedback``).
 
 import enum
 import uuid
+from datetime import datetime
 
 from sqlalchemy import (
     CheckConstraint,
     Enum,
+    FetchedValue,
     Float,
     ForeignKey,
     Index,
@@ -107,15 +109,34 @@ class TriageResult(Base):
     __table_args__ = (
         CheckConstraint("priority BETWEEN 1 AND 3", name="priority"),
         Index(None, "category_id"),
+        # Segments of the triaged inbox (``app.triage.service.inbox_page``) in list order.
+        Index(
+            "ix_triage_results_segment",
+            "mailbox_id",
+            "category_id",
+            "priority",
+            text("sort_date DESC"),
+            text("message_id DESC"),
+        ),
         Index(
             "ix_triage_results_write_back_pending",
             "updated_at",
             postgresql_where=text("write_back_pending"),
         ),
     )
+    # Read ``mailbox_id`` and ``sort_date`` back on insert (they are set by a trigger).
+    __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012
 
     message_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("mail_messages.id", ondelete="CASCADE"), unique=True
+    )
+    # Copies of the message's ``mailbox_id`` and ``sort_date`` for ``ix_triage_results_segment``
+    # (#186). Set and kept up to date by the triggers ``triage_results_message_columns`` and
+    # ``mail_messages_triage_sort_date`` (migration ``denormalise_triage_list_columns``),
+    # never written by the application. No foreign key: the row goes with its message.
+    mailbox_id: Mapped[uuid.UUID] = mapped_column(server_default=FetchedValue())
+    sort_date: Mapped[datetime] = mapped_column(
+        server_default=FetchedValue(), server_onupdate=FetchedValue()
     )
     # ``NULL`` once the category was deleted; the message then counts as uncategorised.
     category_id: Mapped[uuid.UUID | None] = mapped_column(

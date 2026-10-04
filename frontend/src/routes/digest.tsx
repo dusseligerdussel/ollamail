@@ -133,7 +133,14 @@ function DigestPage() {
   if (digests.isPending) {
     listContent = <ListSkeleton rows={8} />;
   } else if (digests.isError) {
-    listContent = <InlineError error={digests.error} className="m-4" />;
+    listContent = (
+      <InlineError
+        error={digests.error}
+        onRetry={digests.refetch}
+        retrying={digests.isFetching}
+        className="m-4"
+      />
+    );
   } else if (items.length === 0) {
     listContent = <NoDigests onGenerate={generate} busy={busy} />;
   } else {
@@ -446,7 +453,12 @@ function DigestDetail({
     return (
       <>
         <PageHeader title={t("nav.digest")} leading={back} headingLevel={headingLevel} />
-        <InlineError error={digest.error} className="m-4" />
+        <InlineError
+          error={digest.error}
+          onRetry={digest.refetch}
+          retrying={digest.isFetching}
+          className="m-4"
+        />
       </>
     );
   }

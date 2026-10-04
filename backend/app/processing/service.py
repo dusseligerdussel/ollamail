@@ -7,18 +7,24 @@ they are inspected, so concurrent steps of the same message see each other's res
 
 import uuid
 from collections.abc import Collection, Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
 
-from sqlalchemy import ColumnElement, distinct, func, select, tuple_, update
+from sqlalchemy import ColumnElement, exists, func, select, text, tuple_, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.events import Event, publish
-from app.core.ids import uuid7
+from app.core.ids import uuid7, uuid7_floor, uuid7_time
 from app.mail.access import publish_to_readers
 from app.mail.models import Mailbox, Message
-from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
+from app.processing.models import (
+    OPEN_STEPS,
+    MailboxProcessingSettings,
+    MessageProcessing,
+    ProcessingScanState,
+    StepStatus,
+)
 from app.processing.steps import ProcessingStep, registry
 
 PROCESSED_EVENT = "message.processed"
@@ -63,6 +69,14 @@ async def set_mailbox_enabled(session: AsyncSession, mailbox_id: uuid.UUID, enab
             set_={"enabled": enabled, "updated_at": func.now()},
         )
     )
+    if enabled:
+        # Its mails were left out while disabled: the next ``requeue_outdated`` checks
+        # all messages again and queues the ones missed meanwhile.
+        await session.execute(
+            update(ProcessingScanState)
+            .where(ProcessingScanState.key == SCAN_STATE_KEY)
+            .values(step_versions=None)
+        )
 
 
 async def _lock_rows(session: AsyncSession, message_id: uuid.UUID) -> dict[str, MessageProcessing]:
@@ -336,35 +350,61 @@ class StepCounts:
 
 
 async def count_steps_by_mailbox(
-    session: AsyncSession, mailbox_ids: Collection[uuid.UUID] | None = None
+    session: AsyncSession,
+    mailbox_ids: Collection[uuid.UUID] | None = None,
+    *,
+    skipped: bool = True,
 ) -> dict[uuid.UUID, StepCounts]:
     """Pending, running and failed steps and messages with skipped steps per mailbox
     (default: all mailboxes).
 
     Mailboxes without such steps are missing from the result; use ``StepCounts()`` as
-    the default. Done steps are not counted.
+    the default. Done steps are not counted. Open steps are few and read through a
+    partial index; skipped ones exist for every mail outside the backfill window, so
+    counting them reads all of those (``skipped=False`` leaves them out, e.g. metrics).
     """
-    status = MessageProcessing.status
+    if mailbox_ids is not None and not mailbox_ids:
+        return {}
+    open_steps = (
+        select(MessageProcessing.message_id, MessageProcessing.status, MessageProcessing.retry_at)
+        .where(text(OPEN_STEPS))
+        .subquery()
+    )
+    status = open_steps.c.status
     query = (
         select(
             Message.mailbox_id,
             func.count().filter(status == StepStatus.PENDING),
             func.count().filter(status == StepStatus.RUNNING),
             func.count().filter(status == StepStatus.FAILED),
-            func.count().filter(
-                status == StepStatus.FAILED, MessageProcessing.retry_at.is_not(None)
-            ),
-            func.count(distinct(MessageProcessing.message_id)).filter(status == StepStatus.SKIPPED),
+            func.count().filter(status == StepStatus.FAILED, open_steps.c.retry_at.is_not(None)),
         )
-        .join(Message, Message.id == MessageProcessing.message_id)
-        .where(status != StepStatus.DONE)
+        .join(open_steps, open_steps.c.message_id == Message.id)
         .group_by(Message.mailbox_id)
     )
     if mailbox_ids is not None:
-        if not mailbox_ids:
-            return {}
         query = query.where(Message.mailbox_id.in_(mailbox_ids))
-    return {mailbox_id: StepCounts(*counts) for mailbox_id, *counts in await session.execute(query)}
+    result = {
+        mailbox_id: StepCounts(*counts) for mailbox_id, *counts in await session.execute(query)
+    }
+    if not skipped:
+        return result
+    skipped_query = (
+        select(Message.mailbox_id, func.count())
+        .where(
+            Message.id.in_(
+                select(MessageProcessing.message_id).where(
+                    MessageProcessing.status == StepStatus.SKIPPED
+                )
+            )
+        )
+        .group_by(Message.mailbox_id)
+    )
+    if mailbox_ids is not None:
+        skipped_query = skipped_query.where(Message.mailbox_id.in_(mailbox_ids))
+    for mailbox_id, count in await session.execute(skipped_query):
+        result[mailbox_id] = replace(result.get(mailbox_id, StepCounts()), skipped_messages=count)
+    return result
 
 
 async def reset_failed_steps(
@@ -521,7 +561,8 @@ async def outdated_messages(
     session: AsyncSession, steps: Sequence[ProcessingStep], *, limit: int
 ) -> list[uuid.UUID]:
     """Messages (newest first) that lack a row for a registered step or have one for an
-    older version: never planned, or a step's version was bumped."""
+    older version: never planned, or a step's version was bumped. Reads every message;
+    ``messages_to_requeue`` runs it only when needed."""
     if not steps:
         return []
     current = select(func.count()).where(
@@ -537,3 +578,70 @@ async def outdated_messages(
         .limit(limit)
     )
     return list(await session.scalars(query))
+
+
+SCAN_STATE_KEY = "requeue"
+# Messages stored this long before the last check are checked again: their IDs are
+# taken before the insert, and the transaction may commit after a later one.
+PLANNED_MARGIN = timedelta(hours=1)
+
+
+async def messages_to_requeue(
+    session: AsyncSession, steps: Sequence[ProcessingStep], *, limit: int
+) -> list[uuid.UUID]:
+    """Messages (newest first, at most ``limit``) that ``processing.requeue_outdated``
+    queues again: never planned, or planned with other steps or versions. Does not
+    commit; the caller commits the updated ``ProcessingScanState``.
+
+    Usually nothing is outdated, so this avoids reading all messages: after a check of
+    all messages found none (``outdated_messages``), it remembers the step versions and
+    from then on only checks the messages stored since (by their UUIDv7 IDs) for
+    missing rows. Steps or versions that differ from the remembered ones (an update,
+    a new feature, a mailbox enabled again) lead to a check of all messages again.
+    Relies on ``plan`` creating the rows of all steps of a message at once.
+    """
+    if not steps:
+        return []
+    current = {step.name: step.version for step in steps}
+    await session.execute(
+        insert(ProcessingScanState)
+        .values(id=uuid7(), key=SCAN_STATE_KEY)
+        .on_conflict_do_nothing(index_elements=[ProcessingScanState.key])
+    )
+    state = await session.scalar(
+        select(ProcessingScanState)
+        .where(ProcessingScanState.key == SCAN_STATE_KEY)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    assert state is not None
+    # Transaction start: everything committed before is visible to the checks below.
+    started = await session.scalar(select(func.now()))
+    assert started is not None
+    if state.step_versions != current or state.planned_before is None:
+        message_ids = await outdated_messages(session, steps, limit=limit)
+        if not message_ids:
+            state.step_versions = current
+            state.planned_before = started
+        await session.flush()
+        return message_ids
+
+    unplanned = (
+        select(Message.id)
+        .where(
+            Message.id >= uuid7_floor(state.planned_before - PLANNED_MARGIN),
+            ~exists().where(MessageProcessing.message_id == Message.id),
+            _enabled_mailbox(),
+        )
+        .order_by(Message.id.desc())
+        .limit(limit)
+    )
+    message_ids = list(await session.scalars(unplanned))
+    if not message_ids:
+        state.planned_before = started
+    elif len(message_ids) < limit:
+        # Keep checking from the oldest message still unplanned (its plan job is queued
+        # or failed); everything before it is planned.
+        state.planned_before = max(state.planned_before, uuid7_time(message_ids[-1]))
+    await session.flush()
+    return message_ids

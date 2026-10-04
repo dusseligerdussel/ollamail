@@ -402,9 +402,18 @@ Seite liest den Index in Listenreihenfolge und hört nach `limit` Zeilen auf, eg
 der Liste liegt; bei mehreren Postfächern wird jedes einzeln gelesen und zusammengeführt (ein
 `mailbox_id IN (…)` müsste alle Mails sortieren). Ordnerfilter laufen über Ordner-IDs statt über einen
 Join auf `mail_folders`: Die kleine Tabelle hat oft keine Statistik, und eine Fehlschätzung lässt den
-Planer sonst alle Mails sortieren. Gezählt wird nur für die erste Seite. Nachweis mit 100k
-synthetischen Mails: `backend/tests/perf/` (`OLLAMAIL_TEST_PERF=1`, in der CI aktiv) prüft per
-`EXPLAIN (ANALYZE)`, dass jede Seite den Index nutzt und nicht sortiert.
+Planer sonst alle Mails sortieren. `unread=true` liest den partiellen Index
+`ix_mail_messages_unread` (gleiche Spalten, `WHERE NOT (flags @> ARRAY['seen']::text[])`, #186):
+Bei wenigen Ungelesenen in einem großen Postfach liest eine Seite nur die Ungelesenen statt alle
+gelesenen zu überspringen. Der Filter muss genau dieses Prädikat mit dem Array als Literal
+verwenden (`listing.UNREAD`), sonst kann der Planer den Index nicht nehmen. Gezählt wird nur für
+die erste Seite, und zwar ab der Ordnerzuordnung (`mail_message_folders`, Index-only über den
+Ordner): Die Zählung kostet die Größe des Ordners, nicht die des Postfachs; nur mit `unread` wird
+`mail_messages` gelesen. Listenzeilen laden statt `body_main` nur dessen Anfang für das Snippet
+(`left(body_main, 200)`, `Message.snippet`). Nachweis mit 100k synthetischen Mails:
+`backend/tests/perf/` (`OLLAMAIL_TEST_PERF=1`, in der CI aktiv) prüft per `EXPLAIN (ANALYZE)`, dass
+jede Seite ihre Zeilen aus einem Listenindex liest und höchstens wenige Seiten Zeilen anfasst –
+auch für ein archivlastiges Postfach mit wenigen Ungelesenen und kleinen Triage-Segmenten.
 
 | Endpunkt | Zweck |
 |---|---|
@@ -568,7 +577,9 @@ sechsmal im Abstand von 10 s erneut.
   Fortschritt sowie die Verarbeitung je Postfach. Die App-Shell zeigt unter dem Cloud-Hinweis
   dezente Hinweisleisten (`components/system-notices.tsx`): Admins sehen „Modell fehlt“ bzw.
   „Sprachmodell nicht erreichbar“ (Link zur Admin-Seite), alle Nutzer ein eigenes Postfach im
-  Fehlerzustand (Link „Neu verbinden“ zu Einstellungen → Postfächer). Keine Modals.
+  Fehlerzustand (Link „Neu verbinden“ zu Einstellungen → Postfächer). Keine Modals. Auf Mobil
+  fasst eine einzeilige, aufklappbare Leiste alle Hinweise zusammen; der Cloud-Hinweis lässt sich
+  pro Sitzung ausblenden.
 
 #### KI-Einstellungen im Admin-Bereich (`backend/app/ai/settings/`)
 
@@ -642,11 +653,14 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
 - **Procrastinate** mit Postgres als Queue. Das Schema ist eine Alembic-Migration (vendored SQL in
   `backend/migrations/sql/`); Autogenerate ignoriert die `procrastinate_*`-Tabellen.
   Ein Procrastinate-Update mit Schemaänderung braucht eine neue Migration – ein Test schlägt sonst an.
-- **Queues** `sync`, `llm`, `tts`, `default`. `OLLAMAIL_WORKER_QUEUES` wählt die Queues eines
-  Worker-Prozesses; `llm` hat eigene Job-Slots (`OLLAMAIL_LLM_MAX_CONCURRENCY`), von denen das
-  LLM-Gateway höchstens die im Admin-Bereich eingestellte Parallelität (Standard
-  `OLLAMAIL_LLM_CONCURRENCY`) gleichzeitig an das Modell lässt; alle anderen Queues teilen sich
-  `OLLAMAIL_WORKER_CONCURRENCY`.
+- **Queues** `sync`, `llm`, `tts`, `ocr`, `default`, `push`. `OLLAMAIL_WORKER_QUEUES` wählt die
+  Queues eines Worker-Prozesses; `llm` hat eigene Job-Slots (`OLLAMAIL_LLM_MAX_CONCURRENCY`), von
+  denen das LLM-Gateway höchstens die im Admin-Bereich eingestellte Parallelität (Standard
+  `OLLAMAIL_LLM_CONCURRENCY`) gleichzeitig an das Modell lässt; `ocr`
+  (`OLLAMAIL_SEARCH_OCR_CONCURRENCY`) und `push` (`OLLAMAIL_NOTIFICATIONS_WEB_PUSH_CONCURRENCY`)
+  haben ebenfalls eigene Slots, damit lange OCR-Jobs oder ein hängender Push-Dienst den Mail-Sync
+  nicht blockieren; alle anderen Queues teilen sich `OLLAMAIL_WORKER_CONCURRENCY`. Ein Worker mit
+  `default` arbeitet auch `push` ab (dort liefen Push-Jobs vor #185).
 - **Task-Konventionen:** idempotent; Argumente nur IDs; Retry mit exponentiellem Backoff
   (`DEFAULT_RETRY`; Verarbeitungsschritte, deren LLM-Aufruf mit `LLMTimeoutError` endet, nur
   `OLLAMAIL_PROCESSING_LLM_TIMEOUT_ATTEMPTS` Versuche, Standard 2, danach `failed` mit Code
@@ -656,7 +670,11 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   erneut ein, deren Worker seit `OLLAMAIL_WORKER_STALLED_AFTER_SECONDS` keinen Heartbeat
   gesendet hat (Procrastinate `get_stalled_jobs`/`retry_job`); so gibt ein abgestürzter Worker
   auch die Locks seiner Jobs frei.
-- **Housekeeping:** täglicher Job `worker.remove_old_jobs` löscht abgeschlossene Jobs nach 7 Tagen.
+- **Housekeeping:** stündlicher Job `worker.remove_old_jobs` löscht erfolgreiche Jobs nach
+  `OLLAMAIL_WORKER_JOB_RETENTION_HOURS` (Standard 24) und fehlgeschlagene, abgebrochene oder
+  abgewiesene nach `OLLAMAIL_WORKER_FAILED_JOB_RETENTION_HOURS` (Standard 168). Jede Mail erzeugt
+  rund sieben Jobs (ein `plan_message`, je Schritt ein `run_step`); ein Import von 100k Mails
+  hinterlässt also ~700k Zeilen, die so nach einem Tag statt nach einer Woche verschwinden (#187).
   `mail.resume_deletions` (alle 15 Minuten) reiht das Entfernen markierter Postfächer erneut ein,
   falls dessen Job verloren ging (`mail.delete_mailbox`, siehe Postfach-API);
   `privacy.resume_user_deletions` (alle 15 Minuten) ebenso das Löschen markierter Nutzer
@@ -757,11 +775,23 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   Job nach Ablauf der Pause. Nach der Pause prüft ein einzelner Aufruf den Endpunkt.
 - **Zählen:** `count_steps_by_mailbox` liefert `StepCounts(pending, running, failed,
   retry_scheduled, skipped_messages)` je Postfach (Systemstatus; `skipped_messages` zählt Mails), `reset_failed_steps` setzt fehlgeschlagene
-  Schritte eines Postfachs zurück.
+  Schritte eines Postfachs zurück. Offene Schritte (`pending`, `running`, `failed`) liest sie über
+  den Teilindex `ix_message_processing_open` (Bedingung `OPEN_STEPS` wörtlich im SQL, nicht als
+  Parameter); `skipped` gibt es für jede Mail außerhalb des Backfill-Fensters, das Zählen liest
+  sie alle (bei 500k Mails ~0,5 s) und entfällt mit `skipped=False` (Metriken, #187).
 - **Versionen:** Erhöht ein Schritt seine `version` (z. B. neuer Prompt), reiht der periodische Job
   `processing.requeue_outdated` (alle 10 Minuten, `OLLAMAIL_PROCESSING_REQUEUE_BATCH_SIZE` Mails,
   neueste zuerst) die betroffenen Mails ein; nur dieser Schritt läuft erneut. Derselbe Job holt Mails
-  nach, die nie verarbeitet wurden.
+  nach, die nie verarbeitet wurden. Damit er nicht alle 10 Minuten alle Mails liest (#187), merkt
+  sich `processing_scan_state` die Schrittversionen, bei denen zuletzt keine Mail veraltet war, und
+  den Zeitpunkt dieser Prüfung (`planned_before`). Solange die registrierten Schritte gleich bleiben,
+  prüft `messages_to_requeue` nur Mails ab `planned_before − 1 h` (UUIDv7-IDs, Bereichsscan über den
+  Primärschlüssel; die Stunde deckt Transaktionen ab, die nach einer späteren committen) per
+  `NOT EXISTS` auf fehlende Zeilen. Eine noch ungeplante Mail hält `planned_before` fest, bis sie
+  geplant ist. Neue oder geänderte Schritte und das Wiedereinschalten eines Postfachs
+  (`set_mailbox_enabled`) setzen die Versionen zurück; dann prüft der Job wieder alle Mails.
+  Mehrere Mails reiht `requeue_messages` in Batches ein (ein `INSERT` je 200 Jobs; ist eine
+  davon schon eingereiht, wird dieser Batch einzeln eingereiht).
 - **Priorität:** Alle Jobs einer Mail erben die Priorität. Worker nehmen immer den Job mit der
   höchsten Priorität: `NEW` (10) vor `BACKFILL` (0) vor `REPROCESS` (−10). Ein Erstimport blockiert
   neue Mails also höchstens für die Dauer eines laufenden Jobs.
@@ -838,9 +868,21 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   die Inbox als eine Liste sortiert nach Kategorie (Reihenfolge des Nutzers, ohne Kategorie zuletzt),
   Priorität und Datum, mit Filter auf eine Kategorie (`category=<id>|none`), Keyset-Seiten per
   `cursor` und – nur auf der ersten Seite – der Anzahl je Kategorie (`groups`) und `total`. Die Liste
-  besteht aus Segmenten (Kategorie × Priorität), die nacheinander über den Listenindex gelesen werden
-  (siehe Mail-Lese-API); die erste Seite zählt die Segmente in einer Query, der Cursor merkt sich die
-  nicht leeren, damit leere Segmente (z. B. ausgeblendete Kategorien) keinen vollen Indexlauf kosten.
+  besteht aus Segmenten (Kategorie × Priorität), die nacheinander gelesen werden. Ein Segment
+  triagierter Mails ist ein Bereich des Index `ix_triage_results_segment` (`mailbox_id`,
+  `category_id`, `priority`, `sort_date DESC`, `message_id DESC`, #186); `mailbox_id` und
+  `sort_date` sind Kopien aus `mail_messages`, gefüllt vom Trigger `triage_results_message_columns`
+  und nachgeführt von `mail_messages_triage_sort_date`. Ein Segment mit zehn Mails kostet damit
+  zehn Indexeinträge statt eines Laufs über das ganze Postfach. Die Unkategorisierten mit Priorität
+  sind ein Bereich je Postfach und je Kategorie, die der Nutzer nicht sieht (gelöscht = `NULL`,
+  ausgeblendet, Kategorie eines anderen Nutzers im Shared Mailbox), zusammengeführt wie mehrere
+  Postfächer; welche Kategorien vorkommen, ermittelt ein Skip-Scan über denselben Index. Mit
+  `unread` kann der Planer stattdessen bei `ix_mail_messages_unread` beginnen. Nur das Segment
+  der noch nicht triagierten Mails läuft weiter über den Listenindex des Postfachs (es gibt keine
+  Ergebniszeile, an der ein Index hängen könnte); bei wenigen untriagierten Mails unter vielen
+  triagierten liest es entsprechend viel. Die erste Seite zählt die Segmente in einer Query ab den
+  Posteingangsordnern (Kosten: Größe der Inbox, nicht des Postfachs), der Cursor merkt sich die
+  nicht leeren, damit leere Segmente (z. B. ausgeblendete Kategorien) übersprungen werden.
   `GET /triage/inbox` braucht zwei Queries, unabhängig von der Zahl der Kategorien.
 - **Events:** `message.triaged` (`message_id`, `mailbox_id`) an alle, die das Postfach lesen (Besitzer bzw. Nutzer eines Shared Mailbox), sobald der
   Schritt `triage` eine Kategorie gespeichert hat oder der Nutzer sie korrigiert. Die UI lädt daraufhin
@@ -870,10 +912,23 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   selben Browser an, gehört das Abo danach ihm; Browser, System und „mobil“ aus dem User-Agent als
   Bezeichnung; höchstens 20 Geräte je Nutzer). `GET /notifications/push` liefert Verfügbarkeit,
   Public Key und die eigenen Geräte, `DELETE /notifications/push/devices/{id}` entfernt eines
-  (fremde: 404). Beim Abmelden entfernt das Frontend das Gerät und beendet das Abo.
+  (fremde: 404). Jedes Gerät gehört zur Sitzung, in der es registriert wurde (`session_id`,
+  FK auf `auth_sessions` mit `ON DELETE CASCADE`, #185): Abmelden, Widerruf der Sitzung (auch
+  durch den Admin) und Ablauf/Leerlauf (stündliches `auth.cleanup`) löschen es; bis dahin lässt
+  der Job Geräte abgelaufener Sitzungen aus. Ein abonnierter Browser registriert sich beim
+  nächsten Öffnen der App neu, gebunden an die dann aktive Sitzung. Beim Abmelden entfernt
+  zusätzlich das Frontend das Gerät und beendet das Abo.
   Ablauf: Hat `notify_triaged` Empfänger, hängt der Triage-Schritt `enqueue_web_push` an
-  `StepContext.after_commit` (läuft erst nach dem Commit des Schritts) – je Empfänger ein Job
-  `notifications.web_push` (Queue `default`, nur IDs). Der Job verschlüsselt die Payload
+  `StepContext.after_commit` (läuft erst nach dem Commit des Schritts) – **ein** Job
+  `notifications.web_push` je Mail für alle Empfänger (Queue `push` mit eigenen Slots,
+  `OLLAMAIL_NOTIFICATIONS_WEB_PUSH_CONCURRENCY`, Standard 2; nur IDs; `queueing_lock` je Mail).
+  Der Job liest die Geräte in einer kurzen DB-Sitzung, sendet ohne offene Sitzung parallel
+  (höchstens 10 Geräte gleichzeitig) über einen gemeinsamen HTTP-Client je Worker-Prozess
+  (Timeout: Verbindungsaufbau 3 s, Antwort 10 s) und schreibt das Ergebnis in einer zweiten kurzen
+  Sitzung (`last_sent_at`, 404/410 löschen). Ein Circuit-Breaker je Push-Dienst
+  (`PushServiceBreaker`) überspringt einen Dienst nach 5 Fehlversuchen in Folge 60 s lang (die
+  Geräte kommen in den Folgejob) – ein gesperrter Egress kostet so nur wenige Timeouts statt
+  einem je Gerät. Der Job verschlüsselt die Payload
   (`{"type":"notification.message","message_id","mailbox_id"}`) nach RFC 8291 (`aes128gcm`),
   signiert ein VAPID-JWT (RFC 8292, ES256) und sendet per HTTPS an den Endpoint. Erlaubt sind nur
   Hosts aus `OLLAMAIL_NOTIFICATIONS_WEB_PUSH_ALLOWED_HOSTS` (Standard: FCM, Mozilla, Apple, WNS),
@@ -1158,7 +1213,11 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Embeddings** über `LLMGateway.embed` (Aufgabe `embeddings`) in Batches
   (`OLLAMAIL_SEARCH_EMBED_BATCH_SIZE`, optional Pause), auf der Queue `llm` mit deren
   Parallelität. Schlägt das Einbetten fehl, werden die Chunks ohne Vektor gespeichert; der Job
-  `search.fill_embeddings` ergänzt sie.
+  `search.fill_embeddings` ergänzt sie. Damit er nicht alle 5 Minuten alle Chunks liest (#187),
+  erhöht jedes Speichern von Chunks ohne Vektor des aktuellen Modells (Einbetten fehlgeschlagen,
+  OCR) `search_index_state.fill_requested`; der Job sucht nur, wenn dieser Zähler von
+  `fill_checked` abweicht (Wert, bei dem zuletzt nichts fehlte) oder ein Modellwechsel läuft, und
+  dann über den Index `ix_search_chunks_created_at_id` (neueste zuerst, `NOT EXISTS`, `LIMIT`).
 - **Modellwechsel:** Vektoren tragen ihr Modell. Weicht das konfigurierte vom aktiven Modell ab,
   rechnet `search.fill_embeddings` alle Chunks batchweise neu; Anfragen nutzen bis zum Abschluss
   das alte Modell (`LLMGateway.embed(model=...)`), dann wird umgeschaltet und aufgeräumt.
