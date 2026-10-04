@@ -14,6 +14,8 @@ Contents (``manifest.json`` lists them):
   feed token), digests with scripts, and their audio files
 * ``conversations.json``: "ask your inbox" conversations with answers and citations
 * ``reply_drafts.json``: drafting settings (signature, style examples) and own reply drafts
+* ``notifications.json``: notification settings (on/off, categories, subject, sound),
+  ``null`` if never set
 
 Every query is filtered by the exporting user (``user_id`` or the owner of the mailbox),
 so an export never contains data of other users. Mails themselves are not part of the
@@ -43,6 +45,7 @@ from app.digest.models import Digest, DigestUserSettings
 from app.digest.storage import DigestStorage
 from app.drafts.models import DraftSettings, ReplyDraft
 from app.mail.models import Mailbox, Message
+from app.notifications.models import NotificationSettings
 from app.rag.models import RagConversation, RagMessage
 from app.todos.export.models import TodoExportTarget
 from app.todos.models import Todo
@@ -397,6 +400,18 @@ async def _reply_drafts(session: AsyncSession, user_id: uuid.UUID) -> dict[str, 
     }
 
 
+async def _notifications(session: AsyncSession, user_id: uuid.UUID) -> dict[str, Any] | None:
+    settings = await session.scalar(
+        select(NotificationSettings).where(NotificationSettings.user_id == user_id)
+    )
+    if settings is None:
+        return None
+    return {
+        **_row(settings, ("enabled", "show_subject", "sound", "updated_at")),
+        "category_ids": [str(category_id) for category_id in settings.category_ids],
+    }
+
+
 async def collect(
     session: AsyncSession, user_id: uuid.UUID, digest_storage: DigestStorage
 ) -> ExportContent:
@@ -416,6 +431,7 @@ async def collect(
     content.documents["digests.json"] = await _digests(session, user_id, digest_storage, content)
     content.documents["conversations.json"] = await _conversations(session, user_id)
     content.documents["reply_drafts.json"] = await _reply_drafts(session, user_id)
+    content.documents["notifications.json"] = await _notifications(session, user_id)
     return content
 
 

@@ -67,6 +67,7 @@ backend/app/
     embeddings/  Chunking, Embedding-Jobs
     prompts/     versionierte Prompt-Templates
   triage/        Kategorien, Klassifikation, Feedback/Few-Shot
+  notifications/ Benachrichtigungen bei wichtigen Mails: Opt-in je Nutzer, Event nach der Triage
   todos/         Extraktion, CRUD; export/: Export nach CalDAV und Microsoft To Do (TodoSink-Interface)
   digest/        Tageszusammenfassung, TTS, Podcast-Feed
   search/        Suchindex: Chunking, Anhangstexte, Embeddings, Hybrid-Suche (RRF)
@@ -819,6 +820,20 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Events:** `message.triaged` (`message_id`, `mailbox_id`) an alle, die das Postfach lesen (Besitzer bzw. Nutzer eines Shared Mailbox), sobald der
   Schritt `triage` eine Kategorie gespeichert hat oder der Nutzer sie korrigiert. Die UI lädt daraufhin
   nur Labels und die Inbox nach Kategorie neu.
+- **Benachrichtigungen** (#149, `backend/app/notifications/`): Opt-in je Nutzer unter
+  Einstellungen → Benachrichtigungen (`GET/PUT /notifications/settings`, Tabelle
+  `notification_settings`: `enabled`, `category_ids`, `show_subject`, `sound`; ohne Zeile alles
+  aus). Nach dem Schritt `triage` prüft `notify_triaged`, ob die Mail neu ist – empfangen vor
+  höchstens `OLLAMAIL_NOTIFICATIONS_MAX_AGE_MINUTES` (Standard 60, damit Initialimport, Rückstau
+  und Neuverarbeitung niemanden fluten), ungelesen, im Posteingang, vom Vorfilter oder Modell
+  klassifiziert (keine Korrektur) – und sendet dann `notification.message` (`message_id`,
+  `mailbox_id`) an jeden Leser des Postfachs, der die Kategorie gewählt hat. Jede Mail höchstens
+  einmal (`mail_notifications`, Unique auf `message_id`). Das Frontend (`MailNotifier`) holt über
+  `GET /notifications/messages/{id}` nur Absender, Kategorie und – falls eingeschaltet – den
+  Betreff und zeigt eine Browser-Notification (`tag` je Mail, `silent` außer mit `sound`), wenn
+  ollamail offen, aber nicht im Vordergrund ist. Klick öffnet die Mail. Stufe 1 braucht einen
+  offenen Tab; Web Push (VAPID, selbst gehostet) ist ein eigenes Folge-Issue. Admin-Schalter:
+  `OLLAMAIL_NOTIFICATIONS_ENABLED`.
 - **UI** (#21, `frontend/src/components/triage/`): Label in der Listenzeile, Begründungszeile über dem
   Thread, Korrektur per Klick, Command Palette oder `c` + Ziffer, Inbox-Ansicht nach Kategorie
   (`/inbox?category=all|<id>|none`), Einstellungen → Kategorien, Verwaltung → Kategorien der

@@ -1908,5 +1908,41 @@
       "failed": "Google Tasks wurde nicht verbunden"
     },
     "listChanged": "Liste geändert"
+  },
+  "notifications": {
+    "title": "Benachrichtigungen",
+    "back": "Zurück zu den Einstellungen",
+    "manage": "Benachrichtigungen einrichten",
+    "linkDescription": "Im Browser Bescheid bekommen, wenn eine wichtige Mail eintrifft.",
+    "intro": "ollamail meldet sich, wenn eine neue Mail in einer der gewählten Kategorien eintrifft – solange ollamail in einem Tab geöffnet ist, du aber gerade woanders arbeitest.",
+    "loading": "Einstellungen werden geladen",
+    "disabledTitle": "Benachrichtigungen nicht freigegeben",
+    "disabledDescription": "Auf diesem Server sind Benachrichtigungen ausgeschaltet. Die Administration kann sie freigeben.",
+    "browser": "Browser",
+    "enabled": "Benachrichtigungen bei neuen Mails",
+    "enabledDescription": "Standardmäßig aus. Beim Einschalten fragt der Browser nach der Erlaubnis.",
+    "saveFailed": "Die Einstellung konnte nicht gespeichert werden.",
+    "access": {
+      "label": "Dieser Browser",
+      "granted": "Benachrichtigungen sind erlaubt.",
+      "default": "Noch nicht erlaubt. Die Erlaubnis gilt je Browser und Gerät.",
+      "denied": "Der Browser blockiert Benachrichtigungen für ollamail. Erlaube sie in den Website-Einstellungen des Browsers.",
+      "unsupported": "Dieser Browser unterstützt keine Benachrichtigungen.",
+      "allow": "Erlauben"
+    },
+    "test": {
+      "send": "Test senden",
+      "sender": "Erika Musterfrau",
+      "subject": "Beispielbetreff"
+    },
+    "categories": "Kategorien",
+    "categoriesDescription": "Benachrichtigt wird nur bei neuen, ungelesenen Mails im Posteingang dieser Kategorien.",
+    "content": "Inhalt",
+    "showSubject": "Betreff anzeigen",
+    "showSubjectDescription": "Standardmäßig zeigt die Benachrichtigung nur Absender und Kategorie. Benachrichtigungen können auf dem Sperrbildschirm sichtbar sein.",
+    "sound": "Ton",
+    "soundDescription": "Standardmäßig lautlos. Eingeschaltet spielt der Browser seinen Benachrichtigungston.",
+    "privacy": "Benachrichtigungen entstehen in diesem Browser; es wird kein externer Dienst genutzt. Der Inhalt bleibt im Benachrichtigungsbereich des Geräts, bis du ihn schließt.",
+    "unknownSender": "Neue Mail"
   }
 }

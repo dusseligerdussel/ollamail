@@ -21,6 +21,7 @@ from app.drafts.models import DraftSettings, ReplyDraft
 from app.mail.deletion import purge_mailbox
 from app.mail.models import Attachment, Mailbox, MailboxAssignment, MailboxType, Message
 from app.mail.storage import AttachmentStorage
+from app.notifications.models import MailNotification, NotificationSettings
 from app.privacy.deletion import FileStores, purge_user
 from app.privacy.storage import ExportStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
@@ -242,6 +243,8 @@ async def seed_user_data(
                 body=f"Draft {marker}",
             ),
             DraftSettings(user_id=user_id, signature=f"Signature {marker}"),
+            NotificationSettings(user_id=user_id, enabled=True, category_ids=[category.id]),
+            MailNotification(message_id=message.id),
             Invitation(
                 user_id=user_id, token_hash=os.urandom(32), expires_at=NOW + timedelta(days=1)
             ),

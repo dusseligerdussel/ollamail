@@ -8,6 +8,7 @@ import {
   INVALIDATION_MAX_WAIT_MS,
   type InvalidationRule,
   parseServerEvent,
+  subscribeServerEvents,
   useEvents,
 } from "./use-events";
 
@@ -189,6 +190,24 @@ describe("useEvents", () => {
     unmount();
     vi.advanceTimersByTime(INVALIDATION_MAX_WAIT_MS);
 
+    expect(invalidate).not.toHaveBeenCalled();
+  });
+
+  it("passes notification events to subscribers without reloading anything", () => {
+    const received: unknown[] = [];
+    const unsubscribe = subscribeServerEvents((event) => received.push(event));
+    renderHook(() => useEvents(), { wrapper });
+
+    MockEventSource.last.emit("notification.message", {
+      type: "notification.message",
+      ids: { message_id: "m1", mailbox_id: "b1" },
+    });
+    unsubscribe();
+    MockEventSource.last.emit("message", { type: "notification.message" });
+
+    expect(received).toEqual([
+      { type: "notification.message", ids: { message_id: "m1", mailbox_id: "b1" } },
+    ]);
     expect(invalidate).not.toHaveBeenCalled();
   });
 

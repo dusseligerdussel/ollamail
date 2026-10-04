@@ -189,6 +189,10 @@ data: {"type":"message.synced","message_id":"…","mailbox_id":"…"}
   aber nur für Typen, die in `invalidationRules` eingetragen sind. Unbenannte Events bevorzugen.
 - Standard: `message.synced` invalidiert alle Queries mit Schlüssel `["message", …]`. Abweichende
   Regeln in `invalidationRules` (`src/hooks/use-events.ts`) nach Event-Typ eintragen.
+- Wer Events selbst auswerten muss (nicht nur neu laden), meldet sich mit `subscribeServerEvents`
+  an. So zeigt `MailNotifier` (`src/components/notifications/`, #149) bei `notification.message`
+  eine Browser-Notification – nur nach Opt-in (Einstellungen → Benachrichtigungen), mit Erlaubnis
+  des Browsers und wenn ollamail nicht im Vordergrund ist.
 - Invalidierungen werden gebündelt (#140, `createInvalidationBatcher`): Ein Event nach einer
   Ruhepause wirkt sofort; folgende Events werden gesammelt und gemeinsam angewendet, sobald 2 s lang
   keins kam, spätestens nach 5 s. Jeder Schlüssel wird je Bündel einmal invalidiert. Bei einem Import

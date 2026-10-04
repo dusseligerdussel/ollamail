@@ -4565,6 +4565,67 @@
         "title": "LogoutResult",
         "type": "object"
       },
+      "MailNotificationRead": {
+        "description": "What a notification about a message shows.",
+        "properties": {
+          "category": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NotificationCategory"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "mailbox_id": {
+            "format": "uuid",
+            "title": "Mailbox Id",
+            "type": "string"
+          },
+          "message_id": {
+            "format": "uuid",
+            "title": "Message Id",
+            "type": "string"
+          },
+          "sender": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sender"
+          },
+          "sound": {
+            "title": "Sound",
+            "type": "boolean"
+          },
+          "subject": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Subject"
+          }
+        },
+        "required": [
+          "message_id",
+          "mailbox_id",
+          "sender",
+          "category",
+          "subject",
+          "sound"
+        ],
+        "title": "MailNotificationRead",
+        "type": "object"
+      },
       "MailboxAssignmentRead": {
         "properties": {
           "group": {
@@ -5903,6 +5964,130 @@
           "list_id"
         ],
         "title": "MsTodoTargetSave",
+        "type": "object"
+      },
+      "NotificationCategory": {
+        "properties": {
+          "builtin_key": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Builtin Key"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name",
+          "builtin_key"
+        ],
+        "title": "NotificationCategory",
+        "type": "object"
+      },
+      "NotificationSettingsRead": {
+        "properties": {
+          "available": {
+            "title": "Available",
+            "type": "boolean"
+          },
+          "category_ids": {
+            "items": {
+              "format": "uuid",
+              "type": "string"
+            },
+            "title": "Category Ids",
+            "type": "array"
+          },
+          "enabled": {
+            "title": "Enabled",
+            "type": "boolean"
+          },
+          "show_subject": {
+            "title": "Show Subject",
+            "type": "boolean"
+          },
+          "sound": {
+            "title": "Sound",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "available",
+          "enabled",
+          "category_ids",
+          "show_subject",
+          "sound"
+        ],
+        "title": "NotificationSettingsRead",
+        "type": "object"
+      },
+      "NotificationSettingsUpdate": {
+        "description": "Fields left out stay unchanged.",
+        "properties": {
+          "category_ids": {
+            "anyOf": [
+              {
+                "items": {
+                  "format": "uuid",
+                  "type": "string"
+                },
+                "maxItems": 100,
+                "type": "array"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Category Ids"
+          },
+          "enabled": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Enabled"
+          },
+          "show_subject": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Show Subject"
+          },
+          "sound": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Sound"
+          }
+        },
+        "title": "NotificationSettingsUpdate",
         "type": "object"
       },
       "OIDCConnectionTest": {
@@ -17413,6 +17598,116 @@
         "summary": "Get Thread",
         "tags": [
           "messages"
+        ]
+      }
+    },
+    "/notifications/messages/{message_id}": {
+      "get": {
+        "description": "Content of the notification about a message: sender and category, the subject only\nif the user turned it on.",
+        "operationId": "notifications_get_mail_notification",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "message_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Message Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MailNotificationRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such message"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Get Mail Notification",
+        "tags": [
+          "notifications"
+        ]
+      }
+    },
+    "/notifications/settings": {
+      "get": {
+        "description": "Own notification settings. Off until the user opts in.",
+        "operationId": "notifications_get_notification_settings",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "Get Notification Settings",
+        "tags": [
+          "notifications"
+        ]
+      },
+      "put": {
+        "operationId": "notifications_update_notification_settings",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NotificationSettingsUpdate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NotificationSettingsRead"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "422": {
+            "description": "Unknown category (`unknown_category`)"
+          }
+        },
+        "summary": "Update Notification Settings",
+        "tags": [
+          "notifications"
         ]
       }
     },

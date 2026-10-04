@@ -48,6 +48,7 @@ from app.mail.api.shared import router as shared_mailboxes_router
 from app.mail.providers.gmail_connect import router as gmail_connect_router
 from app.mail.providers.graph_router import NOTIFICATIONS_PATH
 from app.mail.providers.graph_router import router as graph_router
+from app.notifications.router import router as notifications_router
 from app.privacy.router import admin_router as privacy_admin_router
 from app.privacy.router import router as privacy_router
 from app.rag.router import router as rag_router
@@ -146,6 +147,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(mstodo_router)
     app.include_router(gtasks_connect_router)
     app.include_router(triage_router)
+    app.include_router(notifications_router)
     app.include_router(audit_router)
     app.include_router(ai_settings_router)
     app.include_router(ai_status_router)
