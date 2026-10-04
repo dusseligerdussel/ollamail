@@ -133,7 +133,8 @@ const linkClass =
 /**
  * A sign-in was linked to the account by e-mail address (#208). The server only shows it to
  * sessions of other sign-in methods, so whoever uses the new link cannot hide it. Dismissing
- * confirms the link; otherwise the sessions list shows and ends the session it created.
+ * confirms the link; otherwise the sessions list shows and ends the session it created, and the
+ * sign-in methods unlink it for good (#216).
  */
 function useLinkNotice(): Notice | null {
   const { t } = useTranslation();
@@ -162,6 +163,10 @@ function useLinkNotice(): Notice | null {
         })}{" "}
         <Link to="/settings" hash="settings-sessions" className={linkClass}>
           {t("shell.linkNotice.action")}
+        </Link>
+        {" · "}
+        <Link to="/settings" hash="settings-sign-in-methods" className={linkClass}>
+          {t("shell.linkNotice.unlink")}
         </Link>
       </>
     ),

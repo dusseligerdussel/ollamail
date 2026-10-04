@@ -1370,7 +1370,7 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
 **Datenmodell:** `users` (E-Mail normalisiert und eindeutig, Anzeigename, Rolle `admin|user`,
 Sprache, Zeitzone, aktiv), `auth_identities` (`provider`, `subject`, `user_id`; ein Nutzer kann
 mehrere Identitäten haben; lokal: `provider=local`, `subject` = Nutzer-ID, Argon2id-Hash),
-`auth_sessions`, `auth_rate_limits`, `auth_identity_link_notices` (#208). Alles hängt per `ON DELETE CASCADE` am Nutzer.
+`auth_sessions`, `auth_rate_limits`, `auth_identity_link_notices` (#208), `auth_identity_link_blocks` (#216). Alles hängt per `ON DELETE CASCADE` am Nutzer.
 
 **Provider-Interface** (`app/auth/providers/base.py`): Ein Provider beweist nur, wer jemand ist,
 und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups,
@@ -1389,7 +1389,9 @@ LDAP-Verzeichnisse aus der Datenbank.
 ersten Login aus E-Mail-Adresse und Anzeigename an. Ein vorhandenes Konto mit derselben Adresse
 wird nur verknüpft, wenn der Provider es erlaubt (`link_by_email`) **und** die Adresse als
 verifiziert meldet; sonst 409 (`account-exists`), denn wer ein E-Mail-Attribut im externen
-Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Dazu kommen
+Verzeichnis setzen darf, könnte sonst ein lokales (Admin-)Konto übernehmen. Hat die Person
+diesen Provider selbst getrennt (#216, `auth_identity_link_blocks`), wird ebenfalls nicht
+verknüpft (`email_conflict`) – auch nicht per SCIM-Linking –, bis sie die Sperre aufhebt. Dazu kommen
 Domain-Allowlist und Abschalten der Kontoanlage je Provider. `role` kommt aus dem Gruppen-Mapping
 des Providers; `None` heißt, der Provider verwaltet keine Rollen. Ist die zentrale
 Rollen-Zuordnung (#33) aktiv, bestimmt sie die Rolle für alle Provider gleich
@@ -1513,8 +1515,25 @@ bestätigt einen. Beides gilt nur für Sitzungen eines *anderen* Anmeldeverfahre
 verknüpften Providers (fremde oder unsichtbare Hinweise: 404) – wer sich über die neue Verknüpfung
 anmeldet, kann den Hinweis also weder sehen noch wegklicken. Die UI zeigt ihn als Hinweisleiste
 (`SystemNotices`) mit Link zu Einstellungen → Sitzungen, wo sich die neue Sitzung beenden lässt.
-Eine Verknüpfung selbst zu trennen ist bewusst nicht vorgesehen: Mit `link_by_email` würde der
-Provider beim nächsten Login einfach neu verknüpfen; dafür ist der Admin zuständig.
+Der Hinweis verlinkt außerdem auf Einstellungen → Anmeldeverfahren (#216).
+
+**Anmeldeverfahren selbst trennen (#216, `app/auth/identities.py`):** `GET /api/auth/identities`
+liefert die eigenen Identitäten ohne SCIM (lokal nur mit Passwort oder Passkey; eine lokale
+Identität ohne beides ist eine offene Einladung) mit Provider, Anzeigename, Verknüpfungszeitpunkt,
+letzter Nutzung, `current` und `unlink_refusal`. `DELETE /api/auth/identities/{id}` (mit
+`RecentAuthDep`) trennt eine externe Identität; 409 mit `reason` (`local`, `current_session`,
+`last_sign_in`), wenn es die lokale Anmeldung, das Verfahren der aktuellen Sitzung oder die
+letzte Anmeldemöglichkeit ist (Passwort und Passkeys zählen als lokal). Das Trennen beendet alle
+Sitzungen dieses Providers für das Konto, löscht dessen offene Verknüpfungshinweise, protokolliert
+`user.identity_unlinked` (Akteur = Nutzer) und legt eine Sperrzeile in `auth_identity_link_blocks`
+an (Nutzer-ID, Provider-Key, Zeitpunkt; eindeutig je Nutzer und Provider; `ON DELETE CASCADE`).
+`provision_user` prüft sie, bevor es per E-Mail-Adresse verknüpft. Ohne Sperre würde der
+Provider bei `link_by_email` beim nächsten Login sofort neu verknüpfen.
+`GET /api/auth/link-blocks` listet die Sperren, `DELETE /api/auth/link-blocks/{id}` (mit
+`RecentAuthDep`, `user.identity_link_unblocked`) hebt eine auf. Beides gilt wie bei den Hinweisen
+nur für Sitzungen eines anderen Anmeldeverfahrens. Einen Admin-Endpunkt dafür gibt es bewusst
+nicht: Die Sperre schützt gerade gegen einen böswilligen oder übernommenen Admin-Account
+(docs/PRIVACY.md, „Admin ≠ Leser“).
 
 **CSRF:** Signiertes Double-Submit-Cookie (`CSRFMiddleware`, gilt für die ganze App). Jede
 Anfrage außer `GET`/`HEAD`/`OPTIONS`/`TRACE` muss den Wert des Cookies `ollamail_csrf` im Header

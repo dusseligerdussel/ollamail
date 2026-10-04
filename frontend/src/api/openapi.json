@@ -949,6 +949,8 @@
           "user.deleted",
           "user.updated",
           "user.identity_linked",
+          "user.identity_unlinked",
+          "user.identity_link_unblocked",
           "group.created",
           "group.updated",
           "group.deleted",
@@ -3826,6 +3828,78 @@
         "title": "Hint",
         "type": "string"
       },
+      "IdentityRead": {
+        "description": "One of the own ways to sign in (#216); SCIM is not one.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          },
+          "unlink_refusal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "local",
+                  "current_session",
+                  "last_sign_in"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlink Refusal"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "created_at",
+          "last_used_at",
+          "current",
+          "unlink_refusal"
+        ],
+        "title": "IdentityRead",
+        "type": "object"
+      },
       "InboxGroup": {
         "properties": {
           "category": {
@@ -4522,6 +4596,43 @@
           "login"
         ],
         "title": "LdapUserLookupRequest",
+        "type": "object"
+      },
+      "LinkBlockRead": {
+        "description": "A provider the user unlinked; it may not link to the account by e-mail address until\nthe user lifts the block (#216).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "created_at"
+        ],
+        "title": "LinkBlockRead",
         "type": "object"
       },
       "LinkNoticeRead": {
@@ -13510,6 +13621,84 @@
         ]
       }
     },
+    "/auth/identities": {
+      "get": {
+        "description": "The own ways to sign in (without SCIM), oldest first, with whether each can be\nunlinked (#216).",
+        "operationId": "auth_list_identities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityRead"
+                  },
+                  "title": "Response Auth List Identities",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Identities",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/identities/{identity_id}": {
+      "delete": {
+        "description": "Unlink an external sign-in (#216): ends its sessions, drops the notices about it and\nblocks the provider from linking to the account by e-mail address again.",
+        "operationId": "auth_unlink_identity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Identity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
+          },
+          "404": {
+            "description": "No such sign-in method"
+          },
+          "409": {
+            "description": "Local sign-in, the current session's method or the last one"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unlink Identity",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/invitations/accept": {
       "post": {
         "description": "Set the password of the invited account and sign in. Like ``POST /auth/login``,\naccounts with a second factor or under enforced 2FA get 202 and no session yet.",
@@ -13958,6 +14147,81 @@
           }
         },
         "summary": "Test User",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/link-blocks": {
+      "get": {
+        "description": "Providers blocked from linking to the own account by e-mail address because the user\nunlinked them (#216), newest first.",
+        "operationId": "auth_list_link_blocks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LinkBlockRead"
+                  },
+                  "title": "Response Auth List Link Blocks",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Link Blocks",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/link-blocks/{block_id}": {
+      "delete": {
+        "description": "Lift a block: the provider links to the account by e-mail address again at its next\nsign-in. Only the user can do this, not from a session of the blocked provider.",
+        "operationId": "auth_lift_link_block",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "block_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Block Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
+          },
+          "404": {
+            "description": "No such block"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lift Link Block",
         "tags": [
           "auth"
         ]
