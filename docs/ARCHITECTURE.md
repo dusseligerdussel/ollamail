@@ -352,10 +352,12 @@ und den Lösch-Job (`app/mail/deletion.py`); sie baut nichts davon nach.
   Postfach fehlgeschlagen) | `syncing` (Sync-Job wartet oder läuft, aus `procrastinate_jobs`) |
   `pending` (nie synchronisiert) | `importing` (Initialimport eines Ordners offen) | `idle`, dazu
   letzte Synchronisierung, Fehlercode, Ordner gesamt/importiert/fehlgeschlagen und Anzahl Mails.
-  Die Anzahl wird für Postfächer in `syncing`/`importing`/`pending` je API-Prozess bis zu 15 s
-  wiederverwendet (#188, `service.message_counts`): Während eines Imports lädt jeder Tab den Status
-  nach jedem Batch neu, und `count(*)` über 100k Mails ist dafür zu teuer. Ruhende Postfächer
-  werden bei jedem Request gezählt.
+  Die Anzahl wird je API-Prozess wiederverwendet (`service.message_counts`): Während eines Imports
+  lädt jeder Tab den Status nach jedem Batch neu, und `count(*)` über 100k Mails ist dafür zu teuer.
+  Postfächer, die sich gerade ändern (`syncing`/`importing`/`pending`/`error`/`deleting`), werden
+  höchstens alle 15 s neu gezählt (#188). Ruhende (`idle`/`paused`) bis zum Ende des nächsten Syncs
+  (anderes `last_synced_at`) oder einem Phasenwechsel, spätestens nach 5 Minuten (Löschungen durch
+  die Aufbewahrungsfristen ändern den Sync-Status nicht, #226).
   „Import offen“ heißt: kein Cursor oder der Cursor enthält den Schlüssel `import`
   (Konvention für Provider, die in Batches importieren, siehe `SyncCursor`).
 - **Ordnerauswahl** setzt `Folder.sync_enabled` und hält `SyncSettings.excluded_folders`
@@ -792,6 +794,14 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   `NOT EXISTS` auf fehlende Zeilen. Eine noch ungeplante Mail hält `planned_before` fest, bis sie
   geplant ist. Neue oder geänderte Schritte und das Wiedereinschalten eines Postfachs
   (`set_mailbox_enabled`) setzen die Versionen zurück; dann prüft der Job wieder alle Mails.
+  Diese Prüfung läuft mit einem Keyset-Cursor (`processing_scan_state.cursor`, #226): Jeder Lauf
+  liest unterhalb der zuletzt eingereihten Mail weiter, statt wieder bei der neuesten zu beginnen,
+  so liest ein Versionssprung jede Mail einmal und nicht einmal je Batch. An der ältesten Mail
+  beginnt der Job oben neu; erst ein Lauf ohne Treffer gilt als abgeschlossen. Gibt der Plan-Job
+  einer Mail endgültig auf (alle Retries verbraucht), setzt `fail_plan` ihre fehlenden bzw.
+  veralteten Schritte auf `failed` mit Fehlercode. Sie wird dann nicht mehr alle 10 Minuten neu
+  eingereiht, hält `planned_before` nicht mehr fest, erscheint in der Admin-Übersicht als
+  fehlgeschlagen und läuft per Reprocessing erneut.
   Mehrere Mails reiht `requeue_messages` in Batches ein (ein `INSERT` je 200 Jobs; ist eine
   davon schon eingereiht, wird dieser Batch einzeln eingereiht).
 - **Priorität:** Alle Jobs einer Mail erben die Priorität. Worker nehmen immer den Job mit der
