@@ -8,6 +8,7 @@ import { healthQueryOptions } from "@/api/health";
 import { DataExportSection } from "@/components/account/data-export";
 import { DeleteAccountSection } from "@/components/account/delete-account";
 import { SessionsList } from "@/components/account/sessions-list";
+import { SignInMethods } from "@/components/account/sign-in-methods";
 import { InlineError } from "@/components/inline-error";
 import { PageHeader } from "@/components/page-header";
 import { LanguageToggleGroup, ThemeToggleGroup } from "@/components/preference-controls";
@@ -262,6 +263,13 @@ function SettingsPage() {
             >
               <LanguageToggleGroup className={toggleGroupClass} onChange={changeLanguage} />
             </SettingRow>
+          </SettingsSection>
+          <SettingsSection
+            id="settings-sign-in-methods"
+            title={t("account.signIn.title")}
+            className="mt-8"
+          >
+            <SignInMethods />
           </SettingsSection>
           <SettingsSection
             id="settings-sessions"

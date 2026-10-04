@@ -100,6 +100,7 @@ Admin-Prüfung, dann Bestätigung):
 | LDAP-Verzeichnis anlegen/ändern | `POST /api/auth/ldap/directories`, `PUT …/{name}` |
 | Anmelde-Einstellungen (lokale Anmeldung, 2FA-Pflicht) | `PATCH /api/admin/auth/settings` |
 | KI-Provider anlegen/ändern | `POST /api/admin/ai/providers`, `PATCH /api/admin/ai/providers/{name}` |
+| Verbindungstest mit gespeichertem API-Key an eine andere URL oder einen anderen Typ (#219) | `POST /api/admin/ai/providers/test` (ohne `api_key`, mit `name`) |
 | Rollen-Zuordnung (Gruppe → Rolle) speichern (#206) | `PUT /api/admin/auth/role-mapping` |
 | SCIM-Einstellungen (Schalter, verknüpfende Provider) (#206) | `PATCH /api/admin/scim` |
 | KI-Einstellungen: Cloud-Provider einschalten oder Aufgaben zuordnen (#206) | `PATCH /api/admin/ai/settings` |
@@ -109,9 +110,9 @@ Admin-Prüfung, dann Bestätigung):
 | Shared Mailbox entfernen (#218) | `DELETE /api/admin/shared-mailboxes/{id}` |
 | OIDC-, GitHub-, SAML-Provider und LDAP-Verzeichnis entfernen (#218) | `DELETE /api/admin/auth/{oidc,github,saml}/providers/{name}`, `DELETE /api/auth/ldap/directories/{name}` |
 
-Lesen, Verbindungstests, „Überall abmelden“, SCIM-Tokens widerrufen und das Entfernen von
-KI-Providern brauchen keine Bestätigung: Sie geben niemandem Zugang zu fremden Konten oder Mails
-und löschen keine Daten. Bei den KI-Einstellungen
+Lesen, Verbindungstests (außer dem gespeicherten Key an einem neuen Ziel), „Überall abmelden“,
+SCIM-Tokens widerrufen und das Entfernen von KI-Providern brauchen keine Bestätigung: Sie geben
+niemandem Zugang zu fremden Konten oder Mails und löschen keine Daten. Bei den KI-Einstellungen
 gilt das auch für das Ausschalten der Cloud-Provider, das Profil und die Parallelität: Damit
 gehen keine Mail-Inhalte an einen anderen Endpunkt. Wer sich selbst ein Shared Mailbox zuweist,
 kann es lesen – deshalb hängen die Zuweisungen ebenfalls an der Bestätigung (zusätzlich zum

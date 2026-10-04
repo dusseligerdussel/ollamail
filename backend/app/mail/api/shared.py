@@ -33,6 +33,7 @@ from app.mail import access, deletion
 from app.mail.api import service
 from app.mail.api.router import (
     CONNECTION_FAILED,
+    THROTTLED,
     DeletionRequesterDep,
     RegistryDep,
     SyncRequesterDep,
@@ -305,21 +306,25 @@ async def get_shared_mailbox(
     return (await _reads(db, [await _shared(db, mailbox_id)]))[0]
 
 
-@router.patch("/{mailbox_id}", responses={**NOT_FOUND, **CONNECTION_FAILED})
+@router.patch("/{mailbox_id}", responses={**NOT_FOUND, **CONNECTION_FAILED, **THROTTLED})
 async def update_shared_mailbox(
     mailbox_id: uuid.UUID,
     body: MailboxUpdate,
     admin: AdminSessionDep,
     db: DbDep,
+    settings: SettingsDep,
     providers: RegistryDep,
     requester: SyncRequesterDep,
 ) -> SharedMailboxRead:
-    """Rename, change connection settings or credentials (tested before saving), change
-    sync settings, pause or resume syncing."""
+    """Rename, change connection settings or credentials (tested before saving, rate-limited
+    like ``POST /mailboxes/test``), change sync settings, pause or resume syncing. Settings
+    that send the credentials to another server need the credentials again (422
+    ``credentials_required``)."""
     mailbox = await _shared(db, mailbox_id)
-    config = service.updated_config(mailbox, body)
+    config = service.updated_config(providers, mailbox, body)
     if config is not None:
         _require_type(providers, mailbox.type)
+        await service.throttle_connection_tests(db, settings, admin.user_id)
         result = await service.check_connection(providers.create, config)
         if not result.ok:
             raise _connection_failed(result)

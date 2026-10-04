@@ -118,6 +118,12 @@ die API liefert nur Kontodaten (docs/PRIVACY.md, „Admin ≠ Leser“).
 | Lokalen Nutzer einladen | `POST /api/users/invitations` | `user.created` (`via: invitation`), `user.invited` |
 | Neuer Einladungslink | `POST /api/users/{id}/invitation` | `user.invited` (`renewed`) |
 
+**Verknüpfte Anmeldungen trennen:** Das kann nur die betroffene Person selbst (Einstellungen →
+Anmeldeverfahren, #216). Danach verknüpft der Provider das Konto nicht mehr automatisch per
+E-Mail-Adresse – auch nicht bei `link_by_email` oder SCIM-Linking; ein Login darüber endet mit
+`email_conflict`. Admins können diese Sperre nicht aufheben; sie erscheint nur im Audit-Log
+(`user.identity_unlinked`, `user.identity_link_unblocked`).
+
 Rolle ändern, Deaktivieren und Löschen sowie Anlegen/Ändern von Anmelde-Providern,
 Anmelde-Einstellungen und SCIM-Tokens verlangen eine aktuelle Bestätigung des Admin-Kontos
 (403 `reauth-required`, [`mfa.md`](mfa.md#bestätigung-vor-sensiblen-aktionen-144), #190).

@@ -642,4 +642,6 @@ class _Loader:
         return await self.provider.load_message(self.folder_id, self.item)
 
 
-registry.register(MailboxType.GRAPH, GraphProvider)
+# The tenant decides the token endpoint; the Graph and login hosts come from the
+# instance settings.
+registry.register(MailboxType.GRAPH, GraphProvider, destination=("tenant_id",))
