@@ -648,17 +648,22 @@ async def _text_candidates(
     window: int,
 ) -> list[uuid.UUID]:
     tsquery = _tsquery(query)
-    # Only the ``window`` most recent matches are ranked (``text_rank_window``).
     matches = (
-        select(SearchChunk.id, SearchChunk.tsv)
+        select(SearchChunk.id.label("chunk_id"), SearchChunk.tsv)
         .join(Message, Message.id == SearchChunk.message_id)
         .where(SearchChunk.tsv.op("@@")(tsquery), *conditions)
-        .order_by(Message.sort_date.desc(), SearchChunk.id)
-        .limit(window)
-        .subquery()
     )
-    score = (-func.ts_rank_cd(matches.c.tsv, tsquery)).label("order_key")
-    inner = select(matches.c.id.label("chunk_id"), score).order_by(score, matches.c.id).limit(limit)
+    # Ranking reads the text vector of every match: with more than ``window`` matches
+    # (a frequent word), only the most recent ones are ranked (``text_rank_window``).
+    # The count stops at ``window + 1``; fewer matches keep the plan without ``sort_date``.
+    probe = select(func.count()).select_from(
+        matches.with_only_columns(SearchChunk.id).limit(window + 1).subquery()
+    )
+    if int(await session.scalar(probe) or 0) > window:
+        matches = matches.order_by(Message.sort_date.desc(), SearchChunk.id).limit(window)
+    ranked = matches.subquery()
+    score = (-func.ts_rank_cd(ranked.c.tsv, tsquery)).label("order_key")
+    inner = select(ranked.c.chunk_id, score).order_by(score, ranked.c.chunk_id).limit(limit)
     return list((await session.scalars(_ranked(inner))).all())
 
 

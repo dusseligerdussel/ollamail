@@ -28,7 +28,7 @@ from app.privacy.storage import ExportStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
 from app.rag.models import RagCitation, RagConversation, RagMessage, RagRole
 from app.scim.models import ScimGroup, ScimUser, scim_group_members
-from app.search.models import ChunkSource, SearchChunk, SearchEmbedding
+from app.search.models import ChunkSource, SearchChunk, SearchEmbedding, embedding_backlog
 from app.todos.export.models import TodoExportTarget
 from app.todos.models import Todo
 from app.triage.models import (
@@ -268,6 +268,8 @@ async def seed_user_data(
             IdentityLinkNotice(user_id=user_id, provider="oidc:corp"),
         ]
     )
+    # A chunk still waiting for its vector (#224).
+    await session.execute(insert(embedding_backlog).values(chunk_id=chunk.id))
     # Like the shared mailbox, the SCIM group stays when a member is deleted.
     group = await session.scalar(select(ScimGroup))
     if group is None:
