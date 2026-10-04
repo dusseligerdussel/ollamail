@@ -122,7 +122,8 @@ die API liefert nur Kontodaten (docs/PRIVACY.md, „Admin ≠ Leser“).
 Anmeldeverfahren, #216). Danach verknüpft der Provider das Konto nicht mehr automatisch per
 E-Mail-Adresse – auch nicht bei `link_by_email` oder SCIM-Linking; ein Login darüber endet mit
 `email_conflict`. Admins können diese Sperre nicht aufheben; sie erscheint nur im Audit-Log
-(`user.identity_unlinked`, `user.identity_link_unblocked`).
+(`user.identity_unlinked`, `user.identity_link_unblocked`). Bestätigt die Person eine
+Verknüpfung im Hinweis („Das war ich“), steht dort `user.identity_link_confirmed`.
 
 Rolle ändern, Deaktivieren und Löschen sowie Anlegen/Ändern von Anmelde-Providern,
 Anmelde-Einstellungen und SCIM-Tokens verlangen eine aktuelle Bestätigung des Admin-Kontos

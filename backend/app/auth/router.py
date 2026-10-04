@@ -308,7 +308,8 @@ async def list_link_notices(
     request: Request, current: CurrentSessionDep, db: DbDep
 ) -> list[LinkNoticeRead]:
     """Sign-ins linked to the own account by e-mail address that are not acknowledged yet
-    (#208), newest first. Sessions of the linked provider itself do not see them."""
+    (#208), newest first. Only sessions of a sign-in method that was linked before and has no
+    open notice itself see them (#220)."""
     rows = await link_notices.list_link_notices(db, current.user_id, current.session_id)
     names = await _provider_names(request, db) if rows else {}
     return [
@@ -330,12 +331,20 @@ async def list_link_notices(
 async def dismiss_link_notice(
     notice_id: uuid.UUID, current: CurrentSessionDep, db: DbDep
 ) -> Response:
-    """Acknowledge a link notice. Not possible from a session of the linked provider."""
+    """Confirm a link ("that was me"). Only sessions that may see the notice can (#220): not
+    from a sign-in method with an open notice of its own or linked after the notice."""
     provider = await link_notices.dismiss_link_notice(
         db, current.user_id, current.session_id, notice_id
     )
     if provider is None:
         raise ProblemError(404, detail="Notice not found.")
+    await audit.record(
+        db,
+        audit.Actor.user(current.user_id),
+        audit.AuditAction.USER_IDENTITY_LINK_CONFIRMED,
+        audit.Target.of(audit.TargetType.USER, current.user_id),
+        {"provider": provider},
+    )
     await db.commit()
     log.info("identity_link_notice_dismissed", user_id=current.user_id, provider=provider)
     return Response(status_code=status.HTTP_204_NO_CONTENT)

@@ -30,6 +30,7 @@ const actionGroups = {
   "user.identity_linked": "users",
   "user.identity_unlinked": "users",
   "user.identity_link_unblocked": "users",
+  "user.identity_link_confirmed": "users",
   "group.created": "users",
   "group.updated": "users",
   "group.deleted": "users",

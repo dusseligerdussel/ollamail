@@ -1087,7 +1087,8 @@ export interface paths {
         /**
          * List Link Notices
          * @description Sign-ins linked to the own account by e-mail address that are not acknowledged yet
-         *     (#208), newest first. Sessions of the linked provider itself do not see them.
+         *     (#208), newest first. Only sessions of a sign-in method that was linked before and has no
+         *     open notice itself see them (#220).
          */
         get: operations["auth_list_link_notices"];
         put?: never;
@@ -1110,7 +1111,8 @@ export interface paths {
         post?: never;
         /**
          * Dismiss Link Notice
-         * @description Acknowledge a link notice. Not possible from a session of the linked provider.
+         * @description Confirm a link ("that was me"). Only sessions that may see the notice can (#220): not
+         *     from a sign-in method with an open notice of its own or linked after the notice.
          */
         delete: operations["auth_dismiss_link_notice"];
         options?: never;
@@ -3785,7 +3787,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "user.identity_linked" | "user.identity_unlinked" | "user.identity_link_unblocked" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "user.identity_linked" | "user.identity_unlinked" | "user.identity_link_unblocked" | "user.identity_link_confirmed" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */

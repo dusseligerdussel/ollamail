@@ -113,12 +113,15 @@ test("unlinks a sign-in linked by e-mail address and blocks relinking", async ({
   await page.goto("/inbox");
 
   const bar = page.getByRole("complementary", { name: "New sign-in linked" });
-  await bar.getByRole("link", { name: "Unlink sign-in" }).click();
+  await bar.getByRole("link", { name: "That wasn't me" }).click();
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();
   const section = page.getByRole("region", { name: "Sign-in methods" });
   await expect(section.getByRole("listitem").filter({ hasText: "Local account" })).toContainText(
     "This session",
   );
+  await expect(
+    section.getByRole("listitem").filter({ hasText: "Corporate SSO" }).first(),
+  ).toContainText("Newly linked");
 
   await section.getByRole("button", { name: "Unlink Corporate SSO" }).click();
   const dialog = page.getByRole("dialog", { name: "Unlink Corporate SSO?" });

@@ -39,11 +39,11 @@
     },
     "linkNotice": {
       "label": "Neue Anmeldung verknüpft",
-      "text_one": "Am {{date}} wurde eine Anmeldung über {{providers}} mit deinem Konto verknüpft. Warst du das nicht?",
-      "text_other": "Seit {{date}} wurden Anmeldungen über {{providers}} mit deinem Konto verknüpft. Warst du das nicht?",
-      "action": "Sitzungen prüfen",
-      "unlink": "Verknüpfung trennen",
-      "dismiss": "Das war ich – Hinweis ausblenden"
+      "text_one": "Am {{date}} wurde eine Anmeldung über {{providers}} mit deinem Konto verknüpft.",
+      "text_other": "Seit {{date}} wurden Anmeldungen über {{providers}} mit deinem Konto verknüpft.",
+      "confirm": "Das war ich",
+      "report": "Das war ich nicht",
+      "confirmFailed": "Hinweis konnte nicht bestätigt werden"
     }
   },
   "nav": {
@@ -293,7 +293,8 @@
           "updated": "Nutzer geändert",
           "identity_linked": "Anmeldung per E-Mail-Adresse verknüpft",
           "identity_unlinked": "Anmeldung von der Person getrennt",
-          "identity_link_unblocked": "Sperre für Verknüpfung aufgehoben"
+          "identity_link_unblocked": "Sperre für Verknüpfung aufgehoben",
+          "identity_link_confirmed": "Verknüpfung von der Person bestätigt"
         },
         "group": {
           "created": "Gruppe angelegt",
@@ -1178,6 +1179,8 @@
       "revokeLabel": "{{device}} abmelden",
       "revokeOthers": "Alle anderen Sitzungen abmelden",
       "localMethod": "Lokales Konto",
+      "otherMethod": "Externer Anbieter",
+      "newlyLinked": "Neu verknüpft",
       "method": "Anmeldung: {{method}}",
       "lastActive": "Zuletzt aktiv: {{date}}"
     },

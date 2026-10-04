@@ -39,11 +39,11 @@
     },
     "linkNotice": {
       "label": "New sign-in linked",
-      "text_one": "On {{date}}, a sign-in through {{providers}} was linked to your account. Not you?",
-      "text_other": "Since {{date}}, sign-ins through {{providers}} were linked to your account. Not you?",
-      "action": "Review sessions",
-      "unlink": "Unlink sign-in",
-      "dismiss": "That was me – dismiss notice"
+      "text_one": "On {{date}}, a sign-in through {{providers}} was linked to your account.",
+      "text_other": "Since {{date}}, sign-ins through {{providers}} were linked to your account.",
+      "confirm": "That was me",
+      "report": "That wasn't me",
+      "confirmFailed": "Could not confirm the notice"
     }
   },
   "nav": {
@@ -293,7 +293,8 @@
           "updated": "User updated",
           "identity_linked": "Sign-in linked by e-mail address",
           "identity_unlinked": "Sign-in unlinked by the user",
-          "identity_link_unblocked": "Sign-in link block lifted"
+          "identity_link_unblocked": "Sign-in link block lifted",
+          "identity_link_confirmed": "Sign-in link confirmed by the user"
         },
         "group": {
           "created": "Group created",
@@ -1178,6 +1179,8 @@
       "revokeLabel": "Sign out {{device}}",
       "revokeOthers": "Sign out all other sessions",
       "localMethod": "Local account",
+      "otherMethod": "External provider",
+      "newlyLinked": "Newly linked",
       "method": "Sign-in: {{method}}",
       "lastActive": "Last active: {{date}}"
     },
