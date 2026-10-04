@@ -1234,8 +1234,9 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **Suche:** `search(session, user_id, query, filters, embedder=..., settings=...)` in
   `app.search.service` liefert Chunks (für #25) oder mit `per_message=True` die beste Stelle je
   Mail (klassische Suche). Volltext: `websearch_to_tsquery` in allen drei Konfigurationen,
-  ODER-verknüpft, Rang `ts_rank_cd` – nur über die `OLLAMAIL_SEARCH_TEXT_RANK_WINDOW` neuesten
-  Treffer (`sort_date`), weil das Ranking den `tsvector` jedes Treffers liest und häufige Wörter
+  ODER-verknüpft, Rang `ts_rank_cd`. Gibt es mehr als `OLLAMAIL_SEARCH_TEXT_RANK_WINDOW` Treffer
+  (eine auf `WINDOW + 1` begrenzte Zählung prüft das), werden nur die neuesten so vielen
+  (`sort_date`) gerankt, weil das Ranking den `tsvector` jedes Treffers liest und häufige Wörter
   Hunderttausende Chunks treffen (#224); ältere Treffer findet weiterhin die Vektorsuche. Vektor: Kosinus-Distanz über den HNSW-Index. Je Index
   `OLLAMAIL_SEARCH_CANDIDATES` Kandidaten, Fusion per Reciprocal Rank Fusion
   (`Σ 1/(k + rang)`, `OLLAMAIL_SEARCH_RRF_K`). Ist kein Embedding möglich, nur Volltext.
