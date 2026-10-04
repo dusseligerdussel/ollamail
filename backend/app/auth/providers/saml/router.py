@@ -485,15 +485,17 @@ async def refresh_saml_metadata(
     "/providers/{name}",
     status_code=status.HTTP_204_NO_CONTENT,
     responses={
+        **ADMIN_REAUTH_RESPONSES,
         404: {"description": "Unknown provider"},
         409: {"description": "No administrator could sign in afterwards (admin-lockout)"},
     },
 )
 async def delete_saml_provider(
-    name: str, admin: AdminSessionDep, request: Request, db: DbDep
+    name: str, admin: RecentAdminDep, request: Request, db: DbDep
 ) -> None:
     """Remove a SAML provider. Users and their linked identities are kept; sessions
-    started with the provider stay valid until they expire or are revoked."""
+    started with the provider stay valid until they expire or are revoked. Needs a recent
+    confirmation (#218): removing a provider can lock its users out."""
     guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
     record = await _record(db, name)
     record_id = record.id

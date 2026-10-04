@@ -1,5 +1,6 @@
 """CalDAV sink against a real CalDAV server (Radicale) plus recorded edge cases (respx)."""
 
+import gzip
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, date, datetime
@@ -8,6 +9,7 @@ import httpx
 import pytest
 import respx
 
+from app.todos.export import caldav
 from app.todos.export.base import (
     SinkAuthError,
     SinkConflictError,
@@ -319,6 +321,53 @@ async def test_entity_declarations_are_rejected() -> None:
     finally:
         await sink.aclose()
     assert raised.value.code == "not_caldav"
+
+
+@respx.mock
+async def test_oversized_responses_are_cut_off_while_streaming(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    monkeypatch.setattr(caldav, "MAX_RESPONSE_BYTES", 4096)
+    sent: list[int] = []
+
+    async def endless() -> AsyncIterator[bytes]:
+        for _ in range(1000):
+            sent.append(1024)
+            yield b"<" * 1024
+
+    respx.route(method="PROPFIND").mock(return_value=httpx.Response(207, content=endless()))
+    sink = CalDAVSink("https://dav.example.org/", "erika", "x")
+    try:
+        with pytest.raises(SinkError) as raised:
+            await sink.list_task_lists()
+    finally:
+        await sink.aclose()
+    assert raised.value.code == "not_caldav"
+    # Reading stopped at the limit instead of buffering the whole answer first.
+    assert sum(sent) <= 4096 + 1024
+
+
+@respx.mock
+async def test_compressed_responses_are_read_once_decoded() -> None:
+    body = (
+        '<?xml version="1.0"?><d:multistatus xmlns:d="DAV:" '
+        'xmlns:c="urn:ietf:params:xml:ns:caldav"><d:response><d:href>/dav/cal/</d:href>'
+        "<d:propstat><d:prop><d:resourcetype><d:collection/><c:calendar/></d:resourcetype>"
+        "<d:displayname>Aufgaben</d:displayname><c:supported-calendar-component-set>"
+        '<c:comp name="VTODO"/></c:supported-calendar-component-set></d:prop>'
+        "<d:status>HTTP/1.1 200 OK</d:status></d:propstat></d:response></d:multistatus>"
+    )
+    respx.route(method="PROPFIND", url="https://dav.example.org/dav/cal/").mock(
+        return_value=httpx.Response(
+            207, content=gzip.compress(body.encode()), headers={"Content-Encoding": "gzip"}
+        )
+    )
+    sink = CalDAVSink("https://dav.example.org/dav/cal/", "erika", "x")
+    try:
+        lists = await sink.list_task_lists()
+    finally:
+        await sink.aclose()
+    assert [(item.id, item.name) for item in lists] == [("/dav/cal/", "Aufgaben")]
 
 
 @pytest.mark.parametrize(

@@ -41,10 +41,11 @@
     },
     "linkNotice": {
       "label": "New sign-in linked",
-      "text_one": "On {{date}}, a sign-in through {{providers}} was linked to your account. Not you?",
-      "text_other": "Since {{date}}, sign-ins through {{providers}} were linked to your account. Not you?",
-      "action": "Review sessions",
-      "dismiss": "That was me – dismiss notice"
+      "text_one": "On {{date}}, a sign-in through {{providers}} was linked to your account.",
+      "text_other": "Since {{date}}, sign-ins through {{providers}} were linked to your account.",
+      "confirm": "That was me",
+      "report": "That wasn't me",
+      "confirmFailed": "Could not confirm the notice"
     }
   },
   "nav": {
@@ -292,7 +293,10 @@
           "invited": "User invited",
           "password_set": "Password set",
           "updated": "User updated",
-          "identity_linked": "Sign-in linked by e-mail address"
+          "identity_linked": "Sign-in linked by e-mail address",
+          "identity_unlinked": "Sign-in unlinked by the user",
+          "identity_link_unblocked": "Sign-in link block lifted",
+          "identity_link_confirmed": "Sign-in link confirmed by the user"
         },
         "group": {
           "created": "Group created",
@@ -413,6 +417,7 @@
         "apiKey": "API key",
         "apiKeyHint": "Stored encrypted and never shown again.",
         "apiKeyKeep": "Set. Leave empty to keep it.",
+        "apiKeyNewTarget": "URL or type changed: enter the API key again. Without a new key, the test sends the stored one to the new address only after you confirm it's you.",
         "removeApiKey": "Remove API key",
         "isCloud": "Cloud provider",
         "isCloudHint": "Mail content leaves the instance. Only usable while cloud LLMs are allowed.",
@@ -1186,8 +1191,35 @@
       "revokeLabel": "Sign out {{device}}",
       "revokeOthers": "Sign out all other sessions",
       "localMethod": "Local account",
+      "otherMethod": "External provider",
+      "newlyLinked": "Newly linked",
       "method": "Sign-in: {{method}}",
       "lastActive": "Last active: {{date}}"
+    },
+    "signIn": {
+      "title": "Sign-in methods",
+      "current": "This session",
+      "localDescription": "Password and passkeys",
+      "linked": "Linked: {{date}}",
+      "lastUsed": "Last used: {{date}}",
+      "refusal": {
+        "local": "Local sign-in cannot be unlinked.",
+        "currentSession": "This session signed in with it. To unlink it, sign in another way.",
+        "lastSignIn": "Your only way to sign in, so it cannot be unlinked."
+      },
+      "unlink": "Unlink",
+      "unlinkLabel": "Unlink {{method}}",
+      "blocked": "Blocked",
+      "blockedDescription": "Unlinked on {{date}}. Not linked to your account again automatically.",
+      "unblock": "Lift block",
+      "unblockLabel": "Lift block for {{method}}",
+      "confirmTitle": "Unlink {{method}}?",
+      "confirmDescription": "Whoever signs in through {{method}} with your e-mail address can then no longer use your account.",
+      "consequenceSessions": "All sessions that signed in with {{method}} end immediately.",
+      "consequenceBlock": "{{method}} is no longer linked to your account automatically by e-mail address, even if an administrator allows it.",
+      "consequenceUndo": "Only you can lift this block, here in the settings.",
+      "cancel": "Cancel",
+      "confirm": "Unlink"
     },
     "security": {
       "title": "Security",
@@ -1529,6 +1561,7 @@
       "insecure_connection_refused": "Unencrypted connections are not allowed on this server.",
       "invalid_configuration": "The connection settings are incomplete or invalid.",
       "credentials_missing": "The credentials are missing. Add the mailbox again.",
+      "credentials_required": "Enter the password again to connect to another server.",
       "protocol_error": "The server sent an unexpected answer.",
       "server_error": "The mail server reported an error.",
       "type_unavailable": "This mailbox type is not available on this server.",

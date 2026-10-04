@@ -489,8 +489,10 @@ function RemoveSection({ mailbox }: { mailbox: SharedMailbox }) {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [open, setOpen] = useState(false);
+  const withReauth = useReauth();
   const remove = useMutation({
-    mutationFn: () => deleteSharedMailbox(mailbox.id),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: () => withReauth(() => deleteSharedMailbox(mailbox.id)),
     onSuccess: () => {
       void queryClient.invalidateQueries({ queryKey: ["mailbox"] });
       void queryClient.invalidateQueries({ queryKey: ["message"] });

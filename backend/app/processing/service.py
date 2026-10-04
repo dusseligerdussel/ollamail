@@ -206,6 +206,53 @@ async def plan(
     return _ready(rows, steps)
 
 
+async def fail_plan(
+    session: AsyncSession,
+    message_id: uuid.UUID,
+    steps: Sequence[ProcessingStep],
+    error_code: str,
+) -> bool:
+    """Record that planning a message failed for good (its plan job gave up): missing
+    steps and steps with an outdated version become ``failed`` at the current version
+    with ``error_code``. Otherwise ``processing.requeue_outdated`` would find the message
+    again every 10 minutes. Like other failed steps, they are shown in the admin
+    overview and run again by reprocessing. ``False`` if the message is gone."""
+    found = await session.scalar(
+        select(Message.id).where(Message.id == message_id).with_for_update(key_share=True)
+    )
+    if found is None or not steps:
+        return False
+    now = datetime.now(UTC)
+    await session.execute(
+        insert(MessageProcessing)
+        .values(
+            [
+                {
+                    "id": uuid7(),
+                    "message_id": message_id,
+                    "step": step.name,
+                    "version": step.version,
+                    "status": StepStatus.FAILED,
+                    "error_code": error_code,
+                    "finished_at": now,
+                }
+                for step in steps
+            ]
+        )
+        .on_conflict_do_nothing(index_elements=["message_id", "step"])
+    )
+    rows = await _lock_rows(session, message_id)
+    for step in steps:
+        row = rows[step.name]
+        if row.version != step.version:
+            _reset(row, step.version)
+            row.status = StepStatus.FAILED
+            row.error_code = error_code
+            row.finished_at = now
+    await session.flush()
+    return True
+
+
 async def start_step(
     session: AsyncSession, message_id: uuid.UUID, step: ProcessingStep
 ) -> uuid.UUID | None:
@@ -558,11 +605,16 @@ async def reset_steps(
 
 
 async def outdated_messages(
-    session: AsyncSession, steps: Sequence[ProcessingStep], *, limit: int
+    session: AsyncSession,
+    steps: Sequence[ProcessingStep],
+    *,
+    limit: int,
+    before: uuid.UUID | None = None,
 ) -> list[uuid.UUID]:
-    """Messages (newest first) that lack a row for a registered step or have one for an
-    older version: never planned, or a step's version was bumped. Reads every message;
-    ``messages_to_requeue`` runs it only when needed."""
+    """Messages (newest first, only IDs below ``before`` if given) that lack a row for a
+    registered step or have one for an older version: never planned, or a step's
+    version was bumped. Reads every message up to ``limit`` hits; ``messages_to_requeue``
+    runs it only when needed."""
     if not steps:
         return []
     current = select(func.count()).where(
@@ -571,13 +623,10 @@ async def outdated_messages(
             [(step.name, step.version) for step in steps]
         ),
     )
-    query = (
-        select(Message.id)
-        .where(_enabled_mailbox(), current.scalar_subquery() < len(steps))
-        .order_by(Message.id.desc())
-        .limit(limit)
-    )
-    return list(await session.scalars(query))
+    query = select(Message.id).where(_enabled_mailbox(), current.scalar_subquery() < len(steps))
+    if before is not None:
+        query = query.where(Message.id < before)
+    return list(await session.scalars(query.order_by(Message.id.desc()).limit(limit)))
 
 
 SCAN_STATE_KEY = "requeue"
@@ -599,6 +648,14 @@ async def messages_to_requeue(
     missing rows. Steps or versions that differ from the remembered ones (an update,
     a new feature, a mailbox enabled again) lead to a check of all messages again.
     Relies on ``plan`` creating the rows of all steps of a message at once.
+
+    The check of all messages walks down the IDs with a keyset cursor
+    (``ProcessingScanState.cursor``): after a version bump each run queues the next
+    ``limit`` outdated messages below the previous ones instead of reading again from
+    the newest, so all messages are read once and not once per batch. At the oldest
+    message it starts over from the newest; only a check that finds nothing marks the
+    versions as done. Messages whose plan job failed for good are marked ``failed``
+    (``fail_plan``) and are not queued again.
     """
     if not steps:
         return []
@@ -619,8 +676,15 @@ async def messages_to_requeue(
     started = await session.scalar(select(func.now()))
     assert started is not None
     if state.step_versions != current or state.planned_before is None:
-        message_ids = await outdated_messages(session, steps, limit=limit)
-        if not message_ids:
+        message_ids = await outdated_messages(session, steps, limit=limit, before=state.cursor)
+        if len(message_ids) == limit:
+            # More may follow: the next run continues below the last one.
+            state.cursor = message_ids[-1]
+        elif state.cursor is not None:
+            # Reached the oldest message. The next run checks from the newest again and
+            # only finds what the queued plan jobs have not brought up to date yet.
+            state.cursor = None
+        elif not message_ids:
             state.step_versions = current
             state.planned_before = started
         await session.flush()

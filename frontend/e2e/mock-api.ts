@@ -39,6 +39,18 @@ export async function mockApi(page: Page, { initialized = true, role = "admin" }
       },
     ],
     "GET /api/auth/link-notices": user && [],
+    "GET /api/auth/identities": user && [
+      {
+        id: "00000000-0000-4000-8000-0000000000d1",
+        provider: "local",
+        provider_name: null,
+        created_at: "2026-01-01T08:00:00Z",
+        last_used_at: "2026-01-02T09:30:00Z",
+        current: true,
+        unlink_refusal: "local",
+      },
+    ],
+    "GET /api/auth/link-blocks": user && [],
     "GET /api/privacy/account": user && { self_delete_enabled: true, export_expiry_hours: 24 },
     "GET /api/privacy/exports": user && [],
     "GET /api/auth/mfa": user && {

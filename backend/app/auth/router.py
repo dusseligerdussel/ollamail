@@ -8,7 +8,7 @@ from fastapi.responses import JSONResponse
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
-from app.auth import link_notices, service
+from app.auth import identities, link_notices, service
 from app.auth import sessions as session_store
 from app.auth.dependencies import CurrentSessionDep, CurrentUserDep, SettingsDep
 from app.auth.mfa import service as mfa_service
@@ -25,9 +25,12 @@ from app.auth.providers import (
     RedirectAuthProvider,
 )
 from app.auth.providers.ldap.service import list_directories
+from app.auth.reauth import REAUTH_RESPONSES, RecentAuthDep
 from app.auth.schemas import (
     AuthProviderInfo,
     AuthProviders,
+    IdentityRead,
+    LinkBlockRead,
     LinkNoticeRead,
     LoginRequest,
     RegisterRequest,
@@ -305,7 +308,8 @@ async def list_link_notices(
     request: Request, current: CurrentSessionDep, db: DbDep
 ) -> list[LinkNoticeRead]:
     """Sign-ins linked to the own account by e-mail address that are not acknowledged yet
-    (#208), newest first. Sessions of the linked provider itself do not see them."""
+    (#208), newest first. Only sessions of a sign-in method that was linked before and has no
+    open notice itself see them (#220)."""
     rows = await link_notices.list_link_notices(db, current.user_id, current.session_id)
     names = await _provider_names(request, db) if rows else {}
     return [
@@ -327,14 +331,138 @@ async def list_link_notices(
 async def dismiss_link_notice(
     notice_id: uuid.UUID, current: CurrentSessionDep, db: DbDep
 ) -> Response:
-    """Acknowledge a link notice. Not possible from a session of the linked provider."""
+    """Confirm a link ("that was me"). Only sessions that may see the notice can (#220): not
+    from a sign-in method with an open notice of its own or linked after the notice."""
     provider = await link_notices.dismiss_link_notice(
         db, current.user_id, current.session_id, notice_id
     )
     if provider is None:
         raise ProblemError(404, detail="Notice not found.")
+    await audit.record(
+        db,
+        audit.Actor.user(current.user_id),
+        audit.AuditAction.USER_IDENTITY_LINK_CONFIRMED,
+        audit.Target.of(audit.TargetType.USER, current.user_id),
+        {"provider": provider},
+    )
     await db.commit()
     log.info("identity_link_notice_dismissed", user_id=current.user_id, provider=provider)
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+_UNLINK_REFUSALS = {
+    identities.UnlinkRefusal.LOCAL: "Local sign-in cannot be unlinked.",
+    identities.UnlinkRefusal.CURRENT_SESSION: (
+        "This session signed in with this method. Sign in another way to unlink it."
+    ),
+    identities.UnlinkRefusal.LAST_SIGN_IN: "This is the last way to sign in to the account.",
+}
+
+
+@router.get("/identities", responses=_UNAUTHORIZED)
+async def list_identities(
+    request: Request, current: CurrentSessionDep, db: DbDep
+) -> list[IdentityRead]:
+    """The own ways to sign in (without SCIM), oldest first, with whether each can be
+    unlinked (#216)."""
+    methods = await identities.list_sign_in_methods(db, current.user_id, current.session_id)
+    names = await _provider_names(request, db) if methods else {}
+    return [
+        IdentityRead(
+            id=method.identity.id,
+            provider=method.identity.provider,
+            provider_name=names.get(method.identity.provider),
+            created_at=method.identity.created_at,
+            last_used_at=method.identity.last_used_at,
+            current=method.current,
+            unlink_refusal=method.refusal,
+        )
+        for method in methods
+    ]
+
+
+@router.delete(
+    "/identities/{identity_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={
+        **_UNAUTHORIZED,
+        **REAUTH_RESPONSES,
+        404: {"description": "No such sign-in method"},
+        409: {"description": "Local sign-in, the current session's method or the last one"},
+    },
+)
+async def unlink_identity(identity_id: uuid.UUID, current: RecentAuthDep, db: DbDep) -> Response:
+    """Unlink an external sign-in (#216): ends its sessions, drops the notices about it and
+    blocks the provider from linking to the account by e-mail address again."""
+    method = await identities.find_sign_in_method(
+        db, current.user_id, current.session_id, identity_id
+    )
+    if method is None:
+        raise ProblemError(404, detail="Sign-in method not found.")
+    if method.refusal is not None:
+        raise ProblemError(
+            409,
+            detail=_UNLINK_REFUSALS[method.refusal],
+            type=f"urn:ollamail:problem:unlink-{method.refusal.value.replace('_', '-')}",
+            reason=method.refusal.value,
+        )
+    unlinked = await identities.unlink(db, current.user_id, method.identity)
+    await audit.record(
+        db,
+        audit.Actor.user(current.user_id),
+        audit.AuditAction.USER_IDENTITY_UNLINKED,
+        audit.Target.of(audit.TargetType.USER, current.user_id),
+        {"provider": unlinked.provider, "sessions": unlinked.sessions},
+    )
+    await db.commit()
+    log.info(
+        "identity_unlinked",
+        user_id=current.user_id,
+        provider=unlinked.provider,
+        sessions=unlinked.sessions,
+    )
+    return Response(status_code=status.HTTP_204_NO_CONTENT)
+
+
+@router.get("/link-blocks", responses=_UNAUTHORIZED)
+async def list_link_blocks(
+    request: Request, current: CurrentSessionDep, db: DbDep
+) -> list[LinkBlockRead]:
+    """Providers blocked from linking to the own account by e-mail address because the user
+    unlinked them (#216), newest first."""
+    rows = await identities.list_link_blocks(db, current.user_id, current.session_id)
+    names = await _provider_names(request, db) if rows else {}
+    return [
+        LinkBlockRead(
+            id=row.id,
+            provider=row.provider,
+            provider_name=names.get(row.provider),
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]
+
+
+@router.delete(
+    "/link-blocks/{block_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**_UNAUTHORIZED, **REAUTH_RESPONSES, 404: {"description": "No such block"}},
+)
+async def lift_link_block(block_id: uuid.UUID, current: RecentAuthDep, db: DbDep) -> Response:
+    """Lift a block: the provider links to the account by e-mail address again at its next
+    sign-in. Only the user can do this, not from a session of the blocked provider."""
+    provider = await identities.lift_link_block(db, current.user_id, current.session_id, block_id)
+    if provider is None:
+        raise ProblemError(404, detail="Block not found.")
+    await audit.record(
+        db,
+        audit.Actor.user(current.user_id),
+        audit.AuditAction.USER_IDENTITY_LINK_UNBLOCKED,
+        audit.Target.of(audit.TargetType.USER, current.user_id),
+        {"provider": provider},
+    )
+    await db.commit()
+    log.info("identity_link_unblocked", user_id=current.user_id, provider=provider)
     return Response(status_code=status.HTTP_204_NO_CONTENT)
 
 
