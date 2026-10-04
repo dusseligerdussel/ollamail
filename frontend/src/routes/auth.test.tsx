@@ -5,7 +5,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { pageNavigation, safeRedirect, type User } from "@/api/auth";
 import { CSRF_HEADER } from "@/api/client";
 import i18n from "@/i18n";
-import { backend, json, mockFetch, problem, testAdmin, testSession, testUser } from "@/test/fetch";
+import {
+  backend,
+  json,
+  mockFetch,
+  problem,
+  testAdmin,
+  testIdentity,
+  testSession,
+  testUser,
+} from "@/test/fetch";
 import { renderApp } from "@/test/render-app";
 
 beforeEach(async () => {
@@ -509,6 +518,12 @@ describe("link notice", () => {
       "On Jan 2, 2026, 9:30 AM, a sign-in through Corporate SSO was linked to your account. Not you?",
     );
 
+    // ... and to unlinking it for good (#216).
+    expect(within(bar).getByRole("link", { name: "Unlink sign-in" })).toHaveAttribute(
+      "href",
+      "/settings#settings-sign-in-methods",
+    );
+
     await user.click(within(bar).getByRole("link", { name: "Review sessions" }));
     await waitFor(() => expect(router.state.location.pathname).toBe("/settings"));
     expect(router.state.location.hash).toBe("settings-sessions");
@@ -528,5 +543,126 @@ describe("link notice", () => {
       ).not.toBeInTheDocument(),
     );
     expect(sent(fetchMock)).toContain(`DELETE /api/auth/link-notices/${notice.id}`);
+  });
+});
+
+describe("sign-in methods", () => {
+  const linked = {
+    id: "00000000-0000-4000-8000-0000000000d2",
+    provider: "oidc:corp",
+    provider_name: "Corporate SSO",
+    created_at: "2026-01-02T09:30:00Z",
+    last_used_at: "2026-01-02T10:00:00Z",
+    current: false,
+    unlink_refusal: null,
+  };
+  const block = {
+    id: "00000000-0000-4000-8000-0000000000e1",
+    provider: "github:corp",
+    provider_name: "GitHub",
+    created_at: "2026-01-01T12:00:00Z",
+  };
+
+  function methodsBackend({ unlink = () => new Response(null, { status: 204 }) } = {}) {
+    let identities = [testIdentity, linked];
+    let blocks = [block];
+    return mockFetch((request) => {
+      const { pathname } = new URL(request.url);
+      const route = `${request.method} ${pathname}`;
+      if (route === "GET /api/auth/identities") return json(identities);
+      if (route === "GET /api/auth/link-blocks") return json(blocks);
+      if (route === `DELETE /api/auth/identities/${linked.id}`) {
+        const response = unlink();
+        if (response.ok) {
+          identities = [testIdentity];
+          blocks = [
+            { ...block, id: "new-block", provider: "oidc:corp", provider_name: "Corporate SSO" },
+            block,
+          ];
+        }
+        return response;
+      }
+      if (route === `DELETE /api/auth/link-blocks/${block.id}`) {
+        blocks = blocks.filter((b) => b.id !== block.id);
+        return new Response(null, { status: 204 });
+      }
+      return backend()(request);
+    });
+  }
+
+  it("lists the sign-in methods and blocked providers", async () => {
+    methodsBackend();
+    await renderApp("/settings");
+
+    const section = screen.getByRole("region", { name: "Sign-in methods" });
+    const [local, sso, blocked] = await within(section).findAllByRole("listitem");
+    if (!local || !sso || !blocked) throw new Error("expected three rows");
+    expect(local).toHaveTextContent("Local account");
+    expect(local).toHaveTextContent("This session");
+    expect(local).toHaveTextContent("Password and passkeys");
+    expect(within(local).queryByRole("button")).not.toBeInTheDocument();
+    expect(sso).toHaveTextContent("Corporate SSOLinked: Jan 2, 2026, 9:30 AM");
+    expect(within(sso).getByRole("button", { name: "Unlink Corporate SSO" })).toBeInTheDocument();
+    expect(blocked).toHaveTextContent("GitHubBlocked");
+    expect(blocked).toHaveTextContent("Not linked to your account again automatically.");
+  });
+
+  it("unlinks a sign-in after confirming the consequences", async () => {
+    const fetchMock = methodsBackend();
+    const user = userEvent.setup();
+    await renderApp("/settings");
+
+    const section = screen.getByRole("region", { name: "Sign-in methods" });
+    await user.click(await within(section).findByRole("button", { name: "Unlink Corporate SSO" }));
+    const dialog = await screen.findByRole("dialog", { name: "Unlink Corporate SSO?" });
+    expect(dialog).toHaveTextContent(
+      "All sessions that signed in with Corporate SSO end immediately.",
+    );
+    expect(dialog).toHaveTextContent("Only you can lift this block");
+    await user.click(within(dialog).getByRole("button", { name: "Unlink" }));
+
+    await waitFor(() => expect(screen.queryByRole("dialog")).not.toBeInTheDocument());
+    expect(sent(fetchMock)).toContain(`DELETE /api/auth/identities/${linked.id}`);
+    await waitFor(() =>
+      expect(
+        within(section).getByRole("button", { name: "Lift block for Corporate SSO" }),
+      ).toBeInTheDocument(),
+    );
+    expect(
+      within(section).queryByRole("button", { name: "Unlink Corporate SSO" }),
+    ).not.toBeInTheDocument();
+  });
+
+  it("explains why the server refused to unlink", async () => {
+    methodsBackend({
+      unlink: () =>
+        problem(409, {
+          type: "urn:ollamail:problem:unlink-current-session",
+          reason: "current_session",
+        }),
+    });
+    const user = userEvent.setup();
+    await renderApp("/settings");
+
+    const section = screen.getByRole("region", { name: "Sign-in methods" });
+    await user.click(await within(section).findByRole("button", { name: "Unlink Corporate SSO" }));
+    const dialog = await screen.findByRole("dialog");
+    await user.click(within(dialog).getByRole("button", { name: "Unlink" }));
+
+    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
+      "This session signed in with it. To unlink it, sign in another way.",
+    );
+  });
+
+  it("lifts a block", async () => {
+    const fetchMock = methodsBackend();
+    const user = userEvent.setup();
+    await renderApp("/settings");
+
+    const section = screen.getByRole("region", { name: "Sign-in methods" });
+    await user.click(await within(section).findByRole("button", { name: "Lift block for GitHub" }));
+
+    await waitFor(() => expect(within(section).queryByText("GitHub")).not.toBeInTheDocument());
+    expect(sent(fetchMock)).toContain(`DELETE /api/auth/link-blocks/${block.id}`);
   });
 });

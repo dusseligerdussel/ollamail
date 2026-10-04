@@ -857,6 +857,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Identities
+         * @description The own ways to sign in (without SCIM), oldest first, with whether each can be
+         *     unlinked (#216).
+         */
+        get: operations["auth_list_identities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/identities/{identity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unlink Identity
+         * @description Unlink an external sign-in (#216): ends its sessions, drops the notices about it and
+         *     blocks the provider from linking to the account by e-mail address again.
+         */
+        delete: operations["auth_unlink_identity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/invitations/accept": {
         parameters: {
             query?: never;
@@ -983,6 +1025,48 @@ export interface paths {
          */
         post: operations["auth_test_user"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/link-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Link Blocks
+         * @description Providers blocked from linking to the own account by e-mail address because the user
+         *     unlinked them (#216), newest first.
+         */
+        get: operations["auth_list_link_blocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/link-blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Lift Link Block
+         * @description Lift a block: the provider links to the account by e-mail address again at its next
+         *     sign-in. Only the user can do this, not from a session of the blocked provider.
+         */
+        delete: operations["auth_lift_link_block"];
         options?: never;
         head?: never;
         patch?: never;
@@ -3694,7 +3778,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "user.identity_linked" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "user.identity_linked" | "user.identity_unlinked" | "user.identity_link_unblocked" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -4729,6 +4813,32 @@ export interface components {
          * @enum {string}
          */
         Hint: "app_password" | "enable_imap" | "oauth_required" | "mail_password" | "guessed";
+        /**
+         * IdentityRead
+         * @description One of the own ways to sign in (#216); SCIM is not one.
+         */
+        IdentityRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Current */
+            current: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Provider */
+            provider: string;
+            /** Provider Name */
+            provider_name?: string | null;
+            /** Unlink Refusal */
+            unlink_refusal: ("local" | "current_session" | "last_sign_in") | null;
+        };
         /** InboxGroup */
         InboxGroup: {
             category: components["schemas"]["CategoryRead"] | null;
@@ -4980,6 +5090,27 @@ export interface components {
         LdapUserLookupRequest: {
             /** Login */
             login: string;
+        };
+        /**
+         * LinkBlockRead
+         * @description A provider the user unlinked; it may not link to the account by e-mail address until
+         *     the user lifts the block (#216).
+         */
+        LinkBlockRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Provider Name */
+            provider_name?: string | null;
         };
         /**
          * LinkNoticeRead
@@ -9934,6 +10065,90 @@ export interface operations {
             };
         };
     };
+    auth_list_identities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_unlink_identity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Confirm the account first (reauth-required, see /auth/reauth) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such sign-in method */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Local sign-in, the current session's method or the last one */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     auth_accept_invitation: {
         parameters: {
             query?: never;
@@ -10398,6 +10613,83 @@ export interface operations {
                 content?: never;
             };
             /** @description No such directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_list_link_blocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkBlockRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_lift_link_block: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Confirm the account first (reauth-required, see /auth/reauth) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such block */
             404: {
                 headers: {
                     [name: string]: unknown;

@@ -8,6 +8,8 @@ import type { components } from "./schema.gen";
 export type User = components["schemas"]["UserRead"];
 export type AuthSession = components["schemas"]["SessionRead"];
 export type LinkNotice = components["schemas"]["LinkNoticeRead"];
+export type SignInIdentity = components["schemas"]["IdentityRead"];
+export type LinkBlock = components["schemas"]["LinkBlockRead"];
 export type AuthProviders = components["schemas"]["AuthProviders"];
 export type AuthProviderInfo = components["schemas"]["AuthProviderInfo"];
 
@@ -61,6 +63,20 @@ export const linkNoticesQueryOptions = queryOptions({
   meta: { errorToast: false },
 });
 
+/** The own ways to sign in, with whether each can be unlinked (#216). */
+export const identitiesQueryOptions = queryOptions({
+  queryKey: ["auth", "identities"],
+  queryFn: ({ signal }) => unwrap(api.GET("/auth/identities", { signal })),
+  meta: { errorToast: false },
+});
+
+/** Providers blocked from linking to the own account by e-mail address again (#216). */
+export const linkBlocksQueryOptions = queryOptions({
+  queryKey: ["auth", "link-blocks"],
+  queryFn: ({ signal }) => unwrap(api.GET("/auth/link-blocks", { signal })),
+  meta: { errorToast: false },
+});
+
 export type SetupInput = components["schemas"]["SetupRequest"];
 export type LoginInput = components["schemas"]["LoginRequest"];
 export type ProfileUpdate = components["schemas"]["ProfileUpdate"];
@@ -86,6 +102,22 @@ export function revokeSession(sessionId: string) {
 export function dismissLinkNotice(noticeId: string) {
   return unwrap(
     api.DELETE("/auth/link-notices/{notice_id}", { params: { path: { notice_id: noticeId } } }),
+  );
+}
+
+/** Needs a recent confirmation (`useReauth`). */
+export function unlinkIdentity(identityId: string) {
+  return unwrap(
+    api.DELETE("/auth/identities/{identity_id}", {
+      params: { path: { identity_id: identityId } },
+    }),
+  );
+}
+
+/** Needs a recent confirmation (`useReauth`). */
+export function liftLinkBlock(blockId: string) {
+  return unwrap(
+    api.DELETE("/auth/link-blocks/{block_id}", { params: { path: { block_id: blockId } } }),
   );
 }
 
