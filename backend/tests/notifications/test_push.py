@@ -1,7 +1,11 @@
-"""Web Push devices and sending with PostgreSQL (#181). Push services are mocked (respx)."""
+"""Web Push devices and sending with PostgreSQL (#181, #185). Push services are mocked
+(respx)."""
 
+import asyncio
 import json
+import time
 import uuid
+from datetime import UTC, datetime, timedelta
 
 import httpx
 import pytest
@@ -9,12 +13,20 @@ import respx
 from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.config import NotificationsSettings
+from app.auth.sessions import purge_expired_sessions, revoke_session, revoke_user_sessions
+from app.core.config import AuthSettings, NotificationsSettings
 from app.notifications import push, service
 from app.notifications.models import PushSubscription
+from app.notifications.webpush import PushServiceBreaker
 from app.users.models import User
 from tests.factories import make_user
-from tests.notifications.webpush import FCM, MOZILLA, Browser, push_settings
+from tests.notifications.webpush import (
+    FCM,
+    MOZILLA,
+    Browser,
+    make_auth_session,
+    push_settings,
+)
 
 pytestmark = pytest.mark.db
 
@@ -32,10 +44,12 @@ async def _register(
     browser: Browser,
     push_config: NotificationsSettings,
     user_agent: str | None = FIREFOX,
+    session_id: uuid.UUID | None = None,
 ) -> PushSubscription:
     return await push.register_device(
         session,
         user_id,
+        session_id or await make_auth_session(session, user_id),
         endpoint=browser.endpoint,
         p256dh=browser.p256dh,
         auth=browser.auth,
@@ -139,6 +153,79 @@ async def test_devices_are_deleted_with_the_user(
     assert count == 0
 
 
+async def _devices(session: AsyncSession, user_id: uuid.UUID) -> list[uuid.UUID]:
+    return [d.id for d in await push.list_devices(session, user_id)]
+
+
+async def test_a_device_is_deleted_with_its_session(
+    db_session: AsyncSession, push_config: NotificationsSettings
+) -> None:
+    user = await make_user(db_session)
+    signed_in, other = [await make_auth_session(db_session, user.id) for _ in range(2)]
+    await _register(
+        db_session, user.id, Browser(FCM + uuid.uuid4().hex), push_config, None, signed_in
+    )
+    kept = await _register(
+        db_session, user.id, Browser(FCM + uuid.uuid4().hex), push_config, None, other
+    )
+
+    # Signing out or revoking the session on another device (also by an admin).
+    assert await revoke_session(db_session, user.id, signed_in)
+    await db_session.flush()
+    assert await _devices(db_session, user.id) == [kept.id]
+
+    await revoke_user_sessions(db_session, user.id)
+    await db_session.flush()
+    assert await _devices(db_session, user.id) == []
+
+
+async def test_a_device_is_deleted_when_its_session_expires(
+    db_session: AsyncSession, push_config: NotificationsSettings
+) -> None:
+    user = await make_user(db_session)
+    idle = await make_auth_session(
+        db_session, user.id, last_seen_at=datetime.now(UTC) - timedelta(days=30)
+    )
+    await _register(db_session, user.id, Browser(FCM + uuid.uuid4().hex), push_config, None, idle)
+    await purge_expired_sessions(db_session, AuthSettings())
+    await db_session.flush()
+    assert await _devices(db_session, user.id) == []
+
+
+async def test_registering_again_binds_the_device_to_the_new_session(
+    db_session: AsyncSession, push_config: NotificationsSettings
+) -> None:
+    user = await make_user(db_session)
+    browser = Browser(FCM + uuid.uuid4().hex)
+    first, second = [await make_auth_session(db_session, user.id) for _ in range(2)]
+    device = await _register(db_session, user.id, browser, push_config, None, first)
+    again = await _register(db_session, user.id, browser, push_config, None, second)
+    assert (again.id, again.session_id) == (device.id, second)
+
+    await revoke_session(db_session, user.id, first)
+    await db_session.flush()
+    assert await _devices(db_session, user.id) == [device.id]
+
+
+async def test_devices_of_expired_or_idle_sessions_get_nothing(
+    db_session: AsyncSession, push_config: NotificationsSettings
+) -> None:
+    """Until housekeeping deletes the session, the job leaves its device out."""
+    user_id = await _opted_in(db_session)
+    now = datetime.now(UTC)
+    sessions = [
+        await make_auth_session(db_session, user_id),
+        await make_auth_session(db_session, user_id, expires_at=now - timedelta(minutes=1)),
+        await make_auth_session(db_session, user_id, last_seen_at=now - timedelta(days=30)),
+    ]
+    devices = [
+        await _register(db_session, user_id, Browser(FCM + uuid.uuid4().hex), push_config, None, s)
+        for s in sessions
+    ]
+    targets = await push.load_targets(db_session, [user_id], AuthSettings())
+    assert [t.id for t in targets] == [devices[0].id]
+
+
 @respx.mock
 async def test_push_carries_ids_only_and_cleans_up_gone_devices(
     db_session: AsyncSession, push_config: NotificationsSettings
@@ -156,13 +243,14 @@ async def test_push_carries_ids_only_and_cleans_up_gone_devices(
             return_value=httpx.Response(status)
         )
     message_id, mailbox_id = uuid.uuid4(), uuid.uuid4()
+    vapid = push.vapid_of(push_config)
 
+    targets = await push.load_targets(db_session, [user_id], AuthSettings())
     async with httpx.AsyncClient() as http:
-        retry = await push.send_to_user(
-            db_session, http, user_id, message_id, mailbox_id, push_config
-        )
+        results = await push.deliver(http, vapid, targets, message_id, mailbox_id, push_config)
+    await push.record_results(db_session, results)
 
-    assert retry == [devices[busy.endpoint].id]
+    assert results.retry == [devices[busy.endpoint].id]
     payload = sent.payload(routes[sent.endpoint].calls.last.request.content)
     assert payload == {
         "type": "notification.message",
@@ -175,28 +263,72 @@ async def test_push_carries_ids_only_and_cleans_up_gone_devices(
     assert remaining[devices[busy.endpoint].id].last_sent_at is None
 
     # A follow-up only reaches the devices that failed.
+    targets = await push.load_targets(db_session, [user_id], AuthSettings(), only=results.retry)
     async with httpx.AsyncClient() as http:
-        await push.send_to_user(
-            db_session, http, user_id, message_id, mailbox_id, push_config, only=retry
-        )
+        await push.deliver(http, vapid, targets, message_id, mailbox_id, push_config)
     assert [route.call_count for route in routes.values()] == [1, 1, 2]
 
 
-@respx.mock
-async def test_nothing_is_pushed_without_opt_in_or_web_push(
+async def test_nothing_is_pushed_without_opt_in(
     db_session: AsyncSession, push_config: NotificationsSettings
 ) -> None:
     user_id = await _opted_in(db_session)
-    browser = Browser(FCM + uuid.uuid4().hex)
-    await _register(db_session, user_id, browser, push_config)
-    route = respx.post(browser.endpoint).mock(return_value=httpx.Response(201))
+    await _register(db_session, user_id, Browser(FCM + uuid.uuid4().hex), push_config)
+    others = await make_user(db_session)
+    await _register(db_session, others.id, Browser(FCM + uuid.uuid4().hex), push_config)
+    assert len(await push.load_targets(db_session, [user_id, others.id], AuthSettings())) == 1
+    await service.save_settings(db_session, user_id, enabled=False)
+    assert await push.load_targets(db_session, [user_id, others.id], AuthSettings()) == []
+
+
+@respx.mock
+async def test_devices_are_sent_to_in_parallel(push_config: NotificationsSettings) -> None:
+    """A slow push service costs one round trip per batch, not one per device."""
+    delay = 0.3
+
+    async def slow(request: httpx.Request) -> httpx.Response:
+        await asyncio.sleep(delay)
+        return httpx.Response(201)
+
+    respx.route(host="fcm.googleapis.com").mock(side_effect=slow)
+    targets = [
+        push.PushTarget(uuid.uuid4(), {"endpoint": b.endpoint, "p256dh": b.p256dh, "auth": b.auth})
+        for b in (Browser(FCM + uuid.uuid4().hex) for _ in range(push.PARALLEL_SENDS))
+    ]
+    started = time.monotonic()
     async with httpx.AsyncClient() as http:
-        await push.send_to_user(
-            db_session, http, user_id, uuid.uuid4(), uuid.uuid4(), NotificationsSettings()
+        results = await push.deliver(
+            http, push.vapid_of(push_config), targets, uuid.uuid4(), uuid.uuid4(), push_config
         )
-        await service.save_settings(db_session, user_id, enabled=False)
-        await push.send_to_user(db_session, http, user_id, uuid.uuid4(), uuid.uuid4(), push_config)
-    assert not route.called
+    assert sorted(results.sent) == sorted(t.id for t in targets)
+    assert time.monotonic() - started < delay * 3
+
+
+@respx.mock
+async def test_an_unreachable_push_service_is_skipped_after_a_few_attempts(
+    push_config: NotificationsSettings,
+) -> None:
+    route = respx.route(host="fcm.googleapis.com").mock(side_effect=httpx.ConnectTimeout("x"))
+    targets = [
+        push.PushTarget(uuid.uuid4(), {"endpoint": b.endpoint, "p256dh": b.p256dh, "auth": b.auth})
+        for b in (Browser(FCM + uuid.uuid4().hex) for _ in range(40))
+    ]
+    breaker = PushServiceBreaker(threshold=3)
+    async with httpx.AsyncClient() as http:
+        results = await push.deliver(
+            http,
+            push.vapid_of(push_config),
+            targets,
+            uuid.uuid4(),
+            uuid.uuid4(),
+            push_config,
+            breaker=breaker,
+        )
+    # All devices are tried again later, but only the first batch reached the network.
+    assert len(results.retry) == 40
+    assert route.call_count <= push.PARALLEL_SENDS
+    assert not breaker.allows("fcm.googleapis.com")
+    assert breaker.allows("updates.push.services.mozilla.com")
 
 
 def test_payload_holds_ids_only() -> None:

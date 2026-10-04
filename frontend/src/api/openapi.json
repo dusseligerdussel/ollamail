@@ -17828,7 +17828,7 @@
     },
     "/notifications/push/devices": {
       "post": {
-        "description": "Register this browser for Web Push, or refresh its registration (same endpoint).",
+        "description": "Register this browser for Web Push, or refresh its registration (same endpoint).\n\nThe device is bound to the current session: signing out, revoking the session or its\nexpiry stop the pushes.",
         "operationId": "notifications_register_push_device",
         "requestBody": {
           "content": {

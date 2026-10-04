@@ -25,7 +25,7 @@ from tests.factories import make_user
 
 # Retries without waiting, so tests stay fast.
 FAST_RETRY = RetryStrategy(max_attempts=2)
-QUEUES = ["default", "llm", "sync"]
+QUEUES = ["default", "llm", "sync", "push"]
 
 # Feature modules register their steps on import. Import them now: the worker imports
 # them lazily, which would register them in a test's isolated registry instead.
