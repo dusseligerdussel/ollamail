@@ -78,10 +78,12 @@ updates:
         patterns: ["*"]
 
   # Third-party images of deploy/compose.yaml (pgvector, Ollama): the pinned default after
-  # `${POSTGRES_IMAGE:-…}` / `${OLLAMA_IMAGE:-…}`. Dependabot keeps a tag's suffix, so
-  # 0.8.7-pg16-bookworm only moves to newer pgvector releases for PostgreSQL 16 on bookworm
-  # (docs/OPERATIONS.md, section 6.5). Ollama updates also change the tag in
-  # deploy/helm/ollamail/values.yaml and deploy/.env.example by hand.
+  # `${POSTGRES_IMAGE:-…}` / `${OLLAMA_IMAGE:-…}`, which Dependabot reads and rewrites like a
+  # literal tag (#207). Dependabot keeps a tag's suffix, so 0.8.7-pg16-bookworm only moves to
+  # newer pgvector releases for PostgreSQL 16 on bookworm (docs/OPERATIONS.md, section 6.5).
+  # The copies of the tags (Helm values, .env.example, Helm CI manifest, model evals) are not
+  # updated by Dependabot: the compose smoke test fails until `scripts/check-image-pins.sh --fix`
+  # has been run on the PR branch.
   - package-ecosystem: docker-compose
     directory: /deploy
     schedule:
