@@ -17,6 +17,8 @@ from urllib.parse import unquote, urlsplit
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from app.core.network import parse_allowed_hosts
+
 ENV_PREFIX = "OLLAMAIL_"
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -320,18 +322,7 @@ class MailSettings(BaseSettings):
     @field_validator("allowed_internal_hosts")
     @classmethod
     def _check_hosts(cls, value: list[str]) -> list[str]:
-        entries = []
-        for entry in value:
-            entry = entry.strip().rstrip(".").lower()
-            try:
-                ipaddress.ip_network(entry, strict=False)
-            except ValueError:
-                if not entry or "/" in entry or any(c.isspace() for c in entry):
-                    raise ValueError(
-                        f"not a host name, IP address or CIDR range: {entry!r}"
-                    ) from None
-            entries.append(entry)
-        return entries
+        return parse_allowed_hosts(value)
 
 
 class GraphSettings(BaseSettings):
@@ -829,6 +820,10 @@ class TodosSettings(BaseSettings):
     # Allow http:// CalDAV servers. Credentials then travel in clear text; only for test
     # setups or networks that are encrypted otherwise.
     export_allow_http: bool = False
+    # CalDAV servers users may reach on internal addresses (loopback, RFC 1918, link-local,
+    # ULA, ...), comma-separated: host names (any address they resolve to) or IP
+    # addresses/CIDR ranges. Empty: only public addresses (app/core/network.py).
+    export_allowed_internal_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
     # Minutes between two status checks of exported todos ("done" set in the target system).
     export_poll_minutes: int = Field(default=15, ge=1, le=24 * 60)
     # Seconds per request to an export target.
@@ -838,12 +833,19 @@ class TodosSettings(BaseSettings):
     # from ``OLLAMAIL_GMAIL_REDIRECT_URI`` (same origin).
     export_gtasks_redirect_uri: str | None = None
 
-    @field_validator("skip_categories", "export_sinks", mode="before")
+    @field_validator(
+        "skip_categories", "export_sinks", "export_allowed_internal_hosts", mode="before"
+    )
     @classmethod
     def _split(cls, value: object) -> object:
         if isinstance(value, str):
             return [part.strip().lower() for part in value.split(",") if part.strip()]
         return value
+
+    @field_validator("export_allowed_internal_hosts")
+    @classmethod
+    def _check_hosts(cls, value: list[str]) -> list[str]:
+        return parse_allowed_hosts(value)
 
 
 class DigestSettings(BaseSettings):

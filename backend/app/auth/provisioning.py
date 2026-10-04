@@ -20,7 +20,8 @@ providers alike; a role the provider derives itself (``role``, LDAP ``admin_grou
 as a matching rule. With the mapping off, ``role`` is applied as is; without one new users
 get ``user`` and existing users keep their role. The last active admin is never demoted at
 login (the change is skipped and logged), so a wrong rule cannot lock the instance out.
-Creating a user and changing a role are recorded in the audit log (actor ``system``).
+Creating a user, linking a login to an existing account by e-mail address and changing a
+role are recorded in the audit log (actor ``system``).
 
 Users created by SCIM (#95): the groups SCIM keeps for them count for the role mapping
 like the groups of the login, and providers the admin lists in the SCIM settings may link
@@ -227,6 +228,15 @@ async def provision_user(
         role = await _resolve_role(db, identity, provider_role, existing)
         await _sync_role(db, existing, identity, role)
         await _add_identity(db, existing, identity, policy)
+        # Linking hands the account to whoever controls the provider (#190): keep it visible
+        # in the audit log.
+        await audit.record(
+            db,
+            audit.SYSTEM,
+            audit.AuditAction.USER_IDENTITY_LINKED,
+            audit.Target.of(audit.TargetType.USER, existing.id),
+            {"provider": identity.provider, "via": "email" if policy.link_by_email else "scim"},
+        )
         log.info("identity_linked", user_id=existing.id, provider=identity.provider)
         return ProvisioningResult(user=existing, linked=True)
 

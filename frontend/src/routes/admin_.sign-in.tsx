@@ -24,6 +24,7 @@ import {
   updateAuthSettings,
 } from "@/api/admin-auth";
 import { describeApiError } from "@/api/errors";
+import { isReauthCancelled } from "@/api/reauth";
 import { AddProviderSheet } from "@/components/admin/add-provider-sheet";
 import { AdminSection, AdminSubPage } from "@/components/admin/admin-page";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
@@ -35,6 +36,7 @@ import {
   providerEnabled,
   providerLabel,
 } from "@/components/admin/provider-sheet";
+import { useReauth } from "@/components/auth/reauth";
 import { Forbidden } from "@/components/forbidden";
 import { InlineError } from "@/components/inline-error";
 import { ListSkeleton } from "@/components/list-skeleton";
@@ -227,8 +229,11 @@ function LocalLoginRow({ enabled, ownProviders }: { enabled: boolean; ownProvide
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const [confirming, setConfirming] = useState(false);
+  const withReauth = useReauth();
   const change = useMutation({
-    mutationFn: (value: boolean) => updateAuthSettings({ local_login_enabled: value }),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: (value: boolean) =>
+      withReauth(() => updateAuthSettings({ local_login_enabled: value })),
     meta: { errorToast: false },
     onSuccess: async () => {
       setConfirming(false);
@@ -241,7 +246,7 @@ function LocalLoginRow({ enabled, ownProviders }: { enabled: boolean; ownProvide
   const onlyLocal = !ownProviders.some((provider) => provider !== "local");
 
   let error: string | undefined;
-  if (change.isError) {
+  if (change.isError && !isReauthCancelled(change.error)) {
     error = isAdminLockout(change.error)
       ? t("pages.signIn.disableLocal.lockout")
       : describeApiError(change.error, t).title;

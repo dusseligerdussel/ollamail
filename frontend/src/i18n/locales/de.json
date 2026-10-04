@@ -275,7 +275,8 @@
           "reactivated": "Benutzer reaktiviert",
           "invited": "Benutzer eingeladen",
           "password_set": "Passwort gesetzt",
-          "updated": "Nutzer geändert"
+          "updated": "Nutzer geändert",
+          "identity_linked": "Anmeldung per E-Mail-Adresse verknüpft"
         },
         "group": {
           "created": "Gruppe angelegt",

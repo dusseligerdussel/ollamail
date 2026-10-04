@@ -4,6 +4,7 @@ import { useTranslation } from "react-i18next";
 import { type AdminUser, isAdminLockout } from "@/api/admin-auth";
 import { describeApiError } from "@/api/errors";
 import { isLastAdmin, type UserDeletionResult, useDeleteUser } from "@/api/privacy";
+import { isReauthCancelled } from "@/api/reauth";
 import { Notice } from "@/components/admin/notice";
 import { Button } from "@/components/ui/button";
 import {
@@ -51,7 +52,7 @@ export function DeleteUserDialog({
   };
 
   let error: string | undefined;
-  if (remove.isError) {
+  if (remove.isError && !isReauthCancelled(remove.error)) {
     if (isLastAdmin(remove.error)) error = t("pages.users.delete.lastAdmin");
     else if (isAdminLockout(remove.error)) error = t("pages.users.delete.lockout");
     else error = describeApiError(remove.error, t).title;

@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { createFileRoute, Link, useNavigate } from "@tanstack/react-router";
-import { FilePen, Trash2 } from "lucide-react";
+import { FilePen, Trash2, TriangleAlert } from "lucide-react";
 import { type ReactNode, useCallback, useEffect, useMemo, useRef } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -159,8 +159,10 @@ function DraftRow({
         {preview}
       </span>
       {!draft.message_id && (
-        <span className="block text-xs text-muted-foreground">
-          {t("drafts.overview.messageDeleted")}
+        // Same warning look as the notice bars above the content.
+        <span className="mt-0.5 flex items-start gap-1.5 text-xs text-muted-foreground">
+          <TriangleAlert aria-hidden className="mt-px size-3.5 shrink-0 text-destructive" />
+          <span className="font-medium text-foreground">{t("drafts.overview.messageDeleted")}</span>
         </span>
       )}
     </>

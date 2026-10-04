@@ -42,7 +42,7 @@ test("setup: a CSRF rejection is explained instead of blaming the setup code", a
   await expect(page.getByRole("alert")).toHaveCount(0);
 
   await page.getByLabel("Name").fill("Test Admin");
-  await page.getByLabel("E-mail address").fill("admin@example.org");
+  await page.getByLabel("Email address").fill("admin@example.org");
   await page.getByLabel("Password").fill("correct horse battery");
   await page.getByLabel("Setup code").fill("SETUPCODE");
   await page.getByRole("button", { name: "Create administrator" }).click();
@@ -60,7 +60,7 @@ test("login: a CSRF rejection is explained", async ({ page }) => {
   await rejectPostsAsCsrf(page, "/api/auth/login");
   await page.goto("/login");
 
-  await page.getByLabel("E-mail address").fill("admin@example.org");
+  await page.getByLabel("Email address").fill("admin@example.org");
   await page.getByLabel("Password").fill("correct horse battery");
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 

@@ -948,6 +948,7 @@
           "user.password_set",
           "user.deleted",
           "user.updated",
+          "user.identity_linked",
           "group.created",
           "group.updated",
           "group.deleted",
@@ -10728,7 +10729,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -10877,7 +10878,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such provider"
@@ -11080,7 +11081,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -11230,7 +11231,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -11339,7 +11340,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -11489,7 +11490,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -11733,7 +11734,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -11883,7 +11884,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -12004,7 +12005,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "No administrator could sign in afterwards (admin-lockout)"
@@ -12131,7 +12132,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such user"
@@ -12259,7 +12260,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Too many tokens"
@@ -13622,7 +13623,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Name taken"
@@ -13772,7 +13773,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such directory"
@@ -20899,7 +20900,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such user"
