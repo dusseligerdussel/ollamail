@@ -1,0 +1,45 @@
+resources:
+  limits:
+    cpus: 2.0
+    memory: 4096
+
+ollamail:
+  secret_key: dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdC0xMjM=
+  db_password: 0123456789abcdef0123456789abcdef
+  llm_mode: bundled
+  llm_base_url: ""
+  llm_profile: cpu
+  public_url: ""
+  cookie_secure: true
+  hsts: ""
+  additional_envs:
+    - name: OLLAMAIL_TTS_DOWNLOAD_VOICES
+      value: "false"
+
+network:
+  web_port:
+    bind_mode: published
+    port_number: 8080
+  networks: []
+
+ix_volumes:
+  data: /opt/tests/mnt/data
+  postgres_data: /opt/tests/mnt/postgres_data
+  ollama_data: /opt/tests/mnt/ollama_data
+
+storage:
+  data:
+    type: ix_volume
+    ix_volume_config:
+      dataset_name: data
+      create_host_path: true
+  postgres_data:
+    type: ix_volume
+    ix_volume_config:
+      dataset_name: postgres_data
+      create_host_path: true
+  ollama_data:
+    type: ix_volume
+    ix_volume_config:
+      dataset_name: ollama_data
+      create_host_path: true

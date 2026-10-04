@@ -8,6 +8,7 @@ Backup/Restore, Updates, Datenschutz und Fehlersuche.
 
 Referenz für Dienste, Profile, Volumes und Entwicklungsmodus: [`deploy/README.md`](../deploy/README.md).
 Betrieb auf Kubernetes mit dem Helm-Chart: [`operations/kubernetes.md`](operations/kubernetes.md).
+Betrieb auf TrueNAS SCALE als App: [`operations/truenas.md`](operations/truenas.md).
 Modelle auswählen und messen: [`operations/model-evals.md`](operations/model-evals.md).
 Alle Einstellungen: [`deploy/.env.example`](../deploy/.env.example).
 

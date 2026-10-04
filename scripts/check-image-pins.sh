@@ -5,8 +5,8 @@
 #
 # Dependabot (docker-compose ecosystem) updates only the defaults in deploy/compose.yaml
 # (`${POSTGRES_IMAGE:-…}`, `${OLLAMA_IMAGE:-…}`). The same tags are repeated in files it does
-# not touch; this script fails if one of them differs and, with --fix, rewrites them to the
-# compose value. Runs in the compose smoke test of .github/workflows/ci.yml.
+# not touch (Helm chart, .env.example, CI workflows, TrueNAS app files); this script fails if
+# one of them differs and, with --fix, rewrites them to the compose value. Runs in the compose smoke test of .github/workflows/ci.yml.
 set -euo pipefail
 
 cd "$(dirname "$0")/.."
@@ -62,19 +62,21 @@ check_ref() {
   done <<<"$found"
 }
 
-# The Helm chart splits the Ollama image into repository and tag (ollama.image).
-check_helm_ollama() {
-  local file=deploy/helm/ollamail/values.yaml expected_tag="${OLLAMA##*:}" found
-  found="$(awk '/repository: ollama\/ollama$/ { getline; gsub(/[ "]|tag:/, ""); print; exit }' "$file")"
+# check_split <file> <expected image:tag>: files that split an image into `repository:` and a
+# `tag:` on the next line (Helm values.yaml, TrueNAS ix_values.yaml). Quotes around the tag
+# are kept by --fix.
+check_split() {
+  local file="$1" expected="$2" repo="${2%:*}" expected_tag="${2##*:}" found
+  found="$(awk -v repo="repository: $repo" '$0 ~ repo"$" { getline; gsub(/[ "]|tag:/, ""); print; exit }' "$file")"
   if [ -z "$found" ]; then
-    echo "error: $file: no tag after 'repository: ollama/ollama'" >&2
+    echo "error: $file: no tag after 'repository: $repo'" >&2
     failed=true
   elif [ "$found" != "$expected_tag" ]; then
     if $FIX; then
-      sed -i "/repository: ollama\/ollama$/{n;s|tag: \"[^\"]*\"|tag: \"${expected_tag}\"|}" "$file"
-      echo "fixed: $file: ollama.image.tag $found -> $expected_tag"
+      sed -i "\|repository: ${repo}\$|{n;s|\(tag: \"\{0,1\}\)[${TAG_CHARS}]*|\1${expected_tag}|}" "$file"
+      echo "fixed: $file: $repo tag $found -> $expected_tag"
     else
-      echo "error: $file: ollama.image.tag is $found, expected $expected_tag (from $COMPOSE)" >&2
+      echo "error: $file: $repo tag is $found, expected $expected_tag (from $COMPOSE)" >&2
       failed=true
     fi
   fi
@@ -84,7 +86,11 @@ check_ref deploy/.env.example "$POSTGRES"
 check_ref deploy/.env.example "$OLLAMA"
 check_ref deploy/helm/ci/postgres.yaml "$POSTGRES"
 check_ref .github/workflows/model-evals.yml "$OLLAMA"
-check_helm_ollama
+check_ref deploy/truenas/compose.yaml "$POSTGRES"
+check_ref deploy/truenas/compose.yaml "$OLLAMA"
+check_split deploy/helm/ollamail/values.yaml "$OLLAMA"
+check_split deploy/truenas/app/ix_values.yaml "$POSTGRES"
+check_split deploy/truenas/app/ix_values.yaml "$OLLAMA"
 
 if $failed; then
   echo "Run scripts/check-image-pins.sh --fix and commit the result." >&2

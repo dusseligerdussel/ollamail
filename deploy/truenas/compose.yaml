@@ -1,0 +1,245 @@
+# ollamail – TrueNAS SCALE Custom App (24.10 "Electric Eel" or newer).
+#
+# Paste this file unchanged into Apps → Discover Apps → ⋮ → Install via YAML (name: ollamail)
+# after replacing every CHANGEME value. Step by step: docs/operations/truenas.md
+#
+#   CHANGEME_POOL         your pool, e.g. tank: the datasets /mnt/<pool>/ollamail/{postgres,data,ollama}
+#                         must exist (dataset preset "Apps" or "Generic")
+#   CHANGEME_SECRET_KEY   output of `openssl rand -base64 32` – keep a copy outside TrueNAS
+#   CHANGEME_DB_PASSWORD  output of `openssl rand -hex 24` – appears THREE times
+#
+# TrueNAS runs `docker compose` without an .env file and without variables: everything is
+# inline, `$$` is a literal `$`. The `permissions` one-shot refuses to start while a CHANGEME
+# placeholder is left and gives /data to the app user (UID 10001) before anything else starts.
+#
+# Images: ghcr.io/dusseligerdussel/ollamail-{api,frontend} must be pullable without a login
+# (public GHCR packages). Update: change the tag in both `ghcr.io/…:edge` lines (x-app and
+# frontend; `edge` until the first release, then e.g. 0.1.0) and save. migrate runs before
+# api and worker start again.
+#
+# Same services, networks and hardening as deploy/compose.yaml (deploy/README.md):
+# `edge` connects the published frontend with the api only, `backend` (internal) carries
+# postgres and ollama, `egress` gives api, worker and ollama outbound access.
+
+x-app-environment: &app-environment
+  OLLAMAIL_SECRET_KEY: CHANGEME_SECRET_KEY
+  OLLAMAIL_DATABASE_URL: postgresql+asyncpg://ollamail:CHANGEME_DB_PASSWORD@postgres:5432/ollamail
+  # Bundled Ollama (service `ollama` below). Option B, an existing Ollama (e.g. the TrueNAS
+  # Ollama app): http://<truenas-ip>:30068 and delete the service `ollama`.
+  OLLAMAIL_LLM_BASE_URL: http://ollama:11434
+  # cpu, consumer-gpu or server-gpu (docs/OPERATIONS.md, section 3).
+  OLLAMAIL_LLM_PROFILE: cpu
+  # Session cookies are Secure: log in through HTTPS (reverse proxy, docs/operations/truenas.md).
+  OLLAMAIL_AUTH_COOKIE_SECURE: "true"
+  # Further settings from deploy/.env.example go here, e.g. OLLAMAIL_AUTH_PUBLIC_URL.
+
+x-app: &app
+  image: &api-image ghcr.io/dusseligerdussel/ollamail-api:edge
+  restart: unless-stopped
+  environment: *app-environment
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  volumes:
+    # Attachments, audio digests, TTS voices (owner UID 10001, set by `permissions`).
+    - /mnt/CHANGEME_POOL/ollamail/data:/data
+  networks:
+    - backend
+    - egress
+  depends_on:
+    postgres:
+      condition: service_healthy
+    migrate:
+      condition: service_completed_successfully
+
+services:
+  # One-shot: checks the placeholders and the owners of the datasets, then exits.
+  permissions:
+    image: *api-image
+    restart: "no"
+    user: "0:0"
+    read_only: true
+    network_mode: none
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    cap_add:
+      - CHOWN
+      - DAC_OVERRIDE
+      - FOWNER
+    environment:
+      <<: *app-environment
+      POSTGRES_PASSWORD: CHANGEME_DB_PASSWORD
+    volumes:
+      - /mnt/CHANGEME_POOL/ollamail/data:/mnt/data
+      - /mnt/CHANGEME_POOL/ollamail/ollama:/mnt/ollama
+    entrypoint: ["/bin/sh", "-c"]
+    command:
+      - |
+        set -eu
+        for value in "$$OLLAMAIL_SECRET_KEY" "$$OLLAMAIL_DATABASE_URL" "$$POSTGRES_PASSWORD"; do
+          case "$$value" in
+            *CHANGEME*) echo "ollamail: replace every CHANGEME value in the app YAML" >&2; exit 1 ;;
+          esac
+        done
+        # Only when the owner differs, so a full dataset is not walked on every start.
+        own() {
+          if [ "$$(stat -c %u:%g "$$1")" != "$$2" ]; then
+            echo "ollamail: chown -R $$2 $$1"
+            chown -R "$$2" "$$1"
+          fi
+        }
+        own /mnt/data 10001:10001
+        own /mnt/ollama 0:0
+
+  postgres:
+    # Pinned like deploy/compose.yaml (pgvector version, PostgreSQL major, Debian release).
+    image: pgvector/pgvector:0.8.7-pg16-bookworm
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ollamail
+      POSTGRES_PASSWORD: CHANGEME_DB_PASSWORD
+      POSTGRES_DB: ollamail
+      # Subdirectory: initdb needs an empty directory, the dataset root may hold .zfs.
+      PGDATA: /var/lib/postgresql/data/pgdata
+    # pgvector tuning, see docs/OPERATIONS.md section 8.4.
+    command:
+      - postgres
+      - -c
+      - max_connections=200
+      - -c
+      - shared_buffers=512MB
+      - -c
+      - effective_cache_size=2GB
+      - -c
+      - maintenance_work_mem=512MB
+      - -c
+      - work_mem=16MB
+    shm_size: 1g
+    volumes:
+      - /mnt/CHANGEME_POOL/ollamail/postgres:/var/lib/postgresql/data
+    networks:
+      - backend
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+  # One-shot: applies database migrations before api/worker start, then exits.
+  migrate:
+    <<: *app
+    restart: "no"
+    command: ["alembic", "upgrade", "head"]
+    networks:
+      - backend
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  api:
+    <<: *app
+    networks:
+      - edge
+      - backend
+      - egress
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/healthz', timeout=3)
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+
+  worker:
+    <<: *app
+    command: ["python", "-m", "app.worker"]
+    stop_grace_period: 45s
+    healthcheck:
+      test: ["CMD", "python", "-m", "app.core.heartbeat"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 30s
+
+  frontend:
+    image: ghcr.io/dusseligerdussel/ollamail-frontend:edge
+    restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # The only published port: plain HTTP on all interfaces of the NAS. Put a reverse proxy
+    # with TLS in front (docs/operations/truenas.md); it must send Strict-Transport-Security.
+    ports:
+      - "30580:8080"
+    networks:
+      - edge
+    depends_on:
+      api:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-q", "-O", "/dev/null", "http://127.0.0.1:8080/"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 5s
+
+  # Option A: bundled Ollama on the CPU. Option B (existing Ollama server): delete this
+  # service and set OLLAMAIL_LLM_BASE_URL above. Only api and worker reach it.
+  ollama:
+    image: ollama/ollama:0.35.0
+    restart: unless-stopped
+    environment:
+      OLLAMA_HOST: 0.0.0.0:11434
+    read_only: true
+    tmpfs:
+      - /tmp
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - /mnt/CHANGEME_POOL/ollamail/ollama:/root/.ollama
+    networks:
+      - backend
+      - egress
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+      start_period: 10s
+    # NVIDIA GPU: install the driver (System → Advanced Settings → NVIDIA Drivers), uncomment,
+    # and set OLLAMAIL_LLM_PROFILE to consumer-gpu.
+    # deploy:
+    #   resources:
+    #     reservations:
+    #       devices:
+    #         - driver: nvidia
+    #           count: all
+    #           capabilities: [gpu]
+
+networks:
+  edge: {}
+  backend:
+    internal: true
+  egress: {}
