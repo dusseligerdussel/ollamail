@@ -14,6 +14,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.auth.dependencies import AdminSessionDep
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep
 from app.core.db import get_db
 from app.core.errors import ProblemError
 from app.core.logging import get_logger
@@ -111,10 +112,10 @@ async def update_scim_settings(
 @router.post(
     "/tokens",
     status_code=status.HTTP_201_CREATED,
-    responses={409: {"description": "Too many tokens"}},
+    responses={**ADMIN_REAUTH_RESPONSES, 409: {"description": "Too many tokens"}},
 )
 async def create_scim_token(
-    body: ScimTokenCreate, admin: AdminSessionDep, db: DbDep
+    body: ScimTokenCreate, admin: RecentAdminDep, db: DbDep
 ) -> ScimTokenIssued:
     """Create a bearer token for an IdP. The secret is only in this response."""
     count = await db.scalar(select(func.count()).select_from(ScimToken)) or 0

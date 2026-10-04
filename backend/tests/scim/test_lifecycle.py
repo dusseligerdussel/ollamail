@@ -301,3 +301,9 @@ async def test_login_links_to_scim_user_only_for_listed_providers(
         await db_session.scalars(select(Identity.provider).where(Identity.user_id == user_id))
     )
     assert providers == {"scim", "oidc:entra"}
+    linked = (
+        await db_session.execute(
+            select(audit_events.c.details).where(audit_events.c.action == "user.identity_linked")
+        )
+    ).scalar_one()
+    assert linked == {"provider": "oidc:entra", "via": "scim"}

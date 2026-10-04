@@ -32,7 +32,7 @@ Images und Einstellungen sind identisch.
 | PersistentVolumeClaim | `<release>-data` | `/data` in `api` und allen Workern (Anhänge, Audio, TTS-Stimmen, Exporte) |
 | Ingress (optional) | `<release>` | Leitet alles an das Frontend, optional mit cert-manager |
 | Deployment + Service + PVC (optional) | `<release>-ollama` | Ollama auf CPU oder GPU |
-| NetworkPolicies (optional) | `<release>-*` | Eingehend nur, was nötig ist; ausgehend optional eingeschränkt |
+| NetworkPolicies (Standard: an) | `<release>-*` | Eingehend nur, was nötig ist; Datenbank (CloudNativePG) und ausgehend optional eingeschränkt |
 | Pod (Helm-Test) | `<release>-test-readyz` | `helm test`: `/api/readyz` über das Frontend muss `200` liefern |
 
 Wie im Compose-Stack ist das Frontend der einzige Einstiegspunkt; die API ist nur
@@ -290,6 +290,8 @@ Regeln:
   Cluster oder im internen Netz muss in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` stehen (Hostnamen
   oder CIDR-Bereiche, kommagetrennt), siehe
   [`OPERATIONS.md`](../OPERATIONS.md#66-upgrade-hinweise-sichere-standardwerte-143).
+  Dasselbe gilt für CalDAV-Server des Aufgaben-Exports:
+  `OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS`.
 - Die Worker-Variablen `OLLAMAIL_WORKER_QUEUES`, `OLLAMAIL_WORKER_CONCURRENCY` und
   `OLLAMAIL_WORKER_SHUTDOWN_TIMEOUT` kommen aus `worker.*` ([Abschnitt 7](#7-worker-und-queues)).
 - Mit `OLLAMAIL_AUTH_COOKIE_SECURE=true` (Standard) funktioniert die Anmeldung nur über HTTPS
@@ -443,6 +445,13 @@ HAProxy oder Gateway-API-Controller entsprechend Buffering und Timeouts anpassen
 Ingress kann der Service `<release>-frontend` auch als `LoadBalancer` laufen
 (`frontend.service.type`).
 
+**HSTS** (`Strict-Transport-Security`) gehört an die Stelle, an der TLS endet – hier der
+Ingress-Controller. ingress-nginx sendet ihn bei TLS-Hosts standardmäßig (ConfigMap-Option
+`hsts`), bei Traefik über eine `headers`-Middleware (`stsSeconds`, `stsIncludeSubdomains`).
+Kann der Controller das nicht, setzt `frontend.hsts` den Header im Frontend, z. B.
+`frontend.hsts: "max-age=31536000; includeSubDomains"` – nur bei Zugriff ausschließlich über
+HTTPS. Beispiele und Hinweise: [`OPERATIONS.md` §4.4](../OPERATIONS.md#44-sicherheits-header).
+
 ## 11. Sicherheit und NetworkPolicies
 
 Standardmäßig gilt für `api`, Worker, Frontend, Migrations-Job und Test:
@@ -455,7 +464,9 @@ Standardmäßig gilt für `api`, Worker, Frontend, Migrations-Job und Test:
 Damit erfüllen die Pods den Pod Security Standard **restricted**
 (`pod-security.kubernetes.io/enforce: restricted` am Namespace).
 
-`networkPolicy.enabled: true` (CNI mit NetworkPolicy-Unterstützung nötig) erlaubt eingehend:
+`networkPolicy.enabled` ist standardmäßig `true` (wirksam nur mit einem CNI, das NetworkPolicies
+durchsetzt, z. B. Calico, Cilium, kindnet ab kind 0.24; ohne ein solches haben die Objekte keine
+Wirkung – dann den Schutz auf andere Weise herstellen). Erlaubt ist eingehend:
 
 | Ziel | Erlaubt von |
 |---|---|
@@ -463,6 +474,23 @@ Damit erfüllen die Pods den Pod Security Standard **restricted**
 | `api` :8000 | `frontend`; mit `metrics.enabled` zusätzlich `metrics.from` |
 | `worker` | niemand; mit `metrics.enabled` `metrics.from` auf Port `metrics` (9464) |
 | `ollama` :11434 | `api` und Worker |
+| Datenbank :5432 (nur mit `networkPolicy.database.enabled`) | `api`, Worker, Migrations-Job, die Instanzen des Clusters; der Operator zusätzlich auf :8000 |
+
+Der Helm-Test (`helm test`) geht über das Frontend und ist davon nicht betroffen. Wer bisher
+(mit dem alten Standard `false`) Prometheus ohne `metrics.from` oder eigene Clients direkt auf
+`<release>-api` zugreifen ließ, gibt sie jetzt frei (`metrics.from`) oder setzt
+`networkPolicy.enabled: false` – das wird ausdrücklich **nicht** empfohlen.
+
+**Datenbank (CloudNativePG):** Liegt der Cluster aus `database.cloudnativepg.cluster` im selben
+Namespace, beschränkt `networkPolicy.database.enabled: true` den Zugriff auf seine Pods. Der
+Operator wird über `networkPolicy.database.operatorFrom` freigegeben (Standard: Namespace
+`cnpg-system`, Label `app.kubernetes.io/name: cloudnative-pg`; bei anderer Installation
+anpassen). Weitere Clients, etwa Prometheus für den Exporter auf Port 9187 oder Backup-Werkzeuge
+mit direkter Verbindung, kommen unter `networkPolicy.database.extraIngress` dazu. Standardmäßig
+aus, weil das Chart nicht wissen kann, wer sonst noch auf den Cluster zugreift; empfohlen, wenn
+nur ollamail ihn nutzt. Für eine externe Datenbank (`database.external`, eigene URL) gehört die
+entsprechende Regel in deren Namespace bzw. Firewall: nur `api`, Worker und Migrations-Job
+(Label `app.kubernetes.io/component` = `api`, `worker`, `migrate`) brauchen Zugriff.
 
 `networkPolicy.egress.enabled: true` schränkt zusätzlich den ausgehenden Verkehr von `api`,
 Workern und Migrations-Job auf DNS und die Pods des Releases ein. Alles andere muss unter

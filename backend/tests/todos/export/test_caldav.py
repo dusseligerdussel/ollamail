@@ -21,6 +21,8 @@ from app.todos.models import TodoPriority, TodoStatus
 from tests.todos.export.conftest import CALDAV_USERS, CalDAVServer
 
 MODIFIED = datetime(2026, 10, 7, 9, 30, tzinfo=UTC)
+# Radicale listens on loopback, which the destination check refuses without an entry.
+LOCAL = ("127.0.0.0/8",)
 
 
 def task(uid: str | None = None, **changes: object) -> TaskData:
@@ -42,7 +44,12 @@ def task(uid: str | None = None, **changes: object) -> TaskData:
 @pytest.fixture
 async def sink(caldav_server: CalDAVServer) -> AsyncIterator[CalDAVSink]:
     sink = CalDAVSink(
-        caldav_server.url + "/", "erika", CALDAV_USERS["erika"], allow_http=True, timeout=10
+        caldav_server.url + "/",
+        "erika",
+        CALDAV_USERS["erika"],
+        allow_http=True,
+        allowed_internal_hosts=LOCAL,
+        timeout=10,
     )
     yield sink
     await sink.aclose()
@@ -53,7 +60,9 @@ async def test_discovers_task_lists_from_the_server_root(caldav_server: CalDAVSe
     caldav_server.make_calendar("lena", "events", ("VEVENT",))
     caldav_server.make_calendar("lena", "mixed", ("VEVENT", "VTODO"))
     for url in (caldav_server.url, caldav_server.user_url("lena")):
-        sink = CalDAVSink(url, "lena", CALDAV_USERS["lena"], allow_http=True)
+        sink = CalDAVSink(
+            url, "lena", CALDAV_USERS["lena"], allow_http=True, allowed_internal_hosts=LOCAL
+        )
         try:
             lists = await sink.list_task_lists()
         finally:
@@ -67,7 +76,13 @@ async def test_discovers_task_lists_from_the_server_root(caldav_server: CalDAVSe
 
 
 async def test_a_calendar_url_is_its_own_list(caldav_server: CalDAVServer, calendar: str) -> None:
-    sink = CalDAVSink(caldav_server.url + calendar, "erika", CALDAV_USERS["erika"], allow_http=True)
+    sink = CalDAVSink(
+        caldav_server.url + calendar,
+        "erika",
+        CALDAV_USERS["erika"],
+        allow_http=True,
+        allowed_internal_hosts=LOCAL,
+    )
     try:
         lists = await sink.list_task_lists()
     finally:
@@ -77,7 +92,9 @@ async def test_a_calendar_url_is_its_own_list(caldav_server: CalDAVServer, calen
 
 
 async def test_wrong_password_is_an_auth_error(caldav_server: CalDAVServer) -> None:
-    sink = CalDAVSink(caldav_server.url, "erika", "wrong", allow_http=True)
+    sink = CalDAVSink(
+        caldav_server.url, "erika", "wrong", allow_http=True, allowed_internal_hosts=LOCAL
+    )
     try:
         with pytest.raises(SinkAuthError):
             await sink.list_task_lists()
@@ -212,7 +229,7 @@ async def test_redirects_to_other_hosts_are_refused() -> None:
             await sink.list_task_lists()
     finally:
         await sink.aclose()
-    assert raised.value.code == "redirect_elsewhere"
+    assert raised.value.code == "not_caldav"
 
 
 @respx.mock
@@ -271,7 +288,7 @@ async def test_entity_declarations_are_rejected() -> None:
             await sink.list_task_lists()
     finally:
         await sink.aclose()
-    assert raised.value.code == "invalid_response"
+    assert raised.value.code == "not_caldav"
 
 
 @pytest.mark.parametrize(

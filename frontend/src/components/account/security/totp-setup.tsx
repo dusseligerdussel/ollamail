@@ -60,7 +60,11 @@ export function TotpSetup({
     else error = describeApiError(confirm.error, t).title;
   }
 
-  if (setup.isError) return <InlineError error={setup.error} />;
+  if (setup.isError) {
+    return (
+      <InlineError error={setup.error} onRetry={() => setup.mutate()} retrying={setup.isPending} />
+    );
+  }
 
   return (
     <form noValidate onSubmit={submit} className="flex flex-col gap-5">

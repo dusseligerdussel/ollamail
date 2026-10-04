@@ -59,7 +59,15 @@ export function HistoryList({ activeId, onDeleted, empty }: HistoryListProps) {
   const [confirmAll, setConfirmAll] = useState(false);
 
   if (conversations.isPending) return <ListSkeleton rows={5} />;
-  if (conversations.isError) return <InlineError error={conversations.error} className="m-4" />;
+  if (conversations.isError)
+    return (
+      <InlineError
+        error={conversations.error}
+        onRetry={conversations.refetch}
+        retrying={conversations.isFetching}
+        className="m-4"
+      />
+    );
   if (conversations.data.length === 0) {
     if (empty) return empty;
     return (

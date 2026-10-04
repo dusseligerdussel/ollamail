@@ -1,11 +1,13 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
 
 import { expectNoA11yViolations } from "./a11y";
+import { adminUserId, mockAdmin } from "./mock-admin";
 import { mockApi } from "./mock-api";
 
 /**
- * Confirmation before sensitive actions (#144): the server answers 403 `reauth-required`,
- * the re-auth sheet confirms and the action runs again. Runs without a backend (mocked API).
+ * Confirmation before sensitive actions (#144) and critical admin actions (#190): the
+ * server answers 403 `reauth-required`, the re-auth sheet confirms and the action runs
+ * again. Runs without a backend (mocked API).
  */
 
 const REAUTH_REQUIRED = {
@@ -138,4 +140,73 @@ test("deleting the account confirms on top of the dialog", async ({ page }) => {
 
   await expect(page).toHaveURL(/\/login$/);
   expect(seen.filter((key) => key === "DELETE /api/privacy/account")).toHaveLength(2);
+});
+
+test("making a user an administrator asks for a confirmation first", async ({ page }) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const path = `PATCH /api/users/${adminUserId(1)}`;
+  const seen = await mockReauth(page, path, (route) =>
+    route.fulfill({ json: { id: adminUserId(1), role: "admin" } }),
+  );
+  await page.goto("/admin/users");
+
+  await page.getByRole("button", { name: "Actions for Jonas Beispiel" }).click();
+  await page.getByRole("menuitem", { name: "Make administrator" }).click();
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await expect(sheet).toBeVisible();
+  await expect(sheet.getByLabel("Password")).toBeFocused();
+  await expectNoA11yViolations(page);
+  await sheet.getByLabel("Password").fill("correct horse battery");
+  await sheet.getByRole("button", { name: "Confirm" }).click();
+
+  await expect(sheet).toBeHidden();
+  await expect(page.getByText("User updated")).toBeVisible();
+  expect(seen).toEqual([path, "POST /api/auth/reauth", path]);
+});
+
+test("cancelling the confirmation creates no SCIM token and shows no error", async ({ page }) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const seen = await mockReauth(page, "POST /api/admin/scim/tokens", (route) =>
+    route.fulfill({ status: 201, json: {} }),
+  );
+  await page.goto("/admin/scim");
+
+  await page.getByLabel("Name").fill("Entra ID");
+  await page.getByRole("button", { name: "Create token" }).click();
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByLabel("Name")).toHaveValue("Entra ID");
+  expect(seen).toEqual(["POST /api/admin/scim/tokens"]);
+});
+
+test("adding an AI provider confirms and then saves", async ({ page }) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const seen = await mockReauth(page, "POST /api/admin/ai/providers", (route) =>
+    route.fulfill({ status: 201, json: {} }),
+  );
+  await page.goto("/admin/ai");
+
+  await page.getByRole("button", { name: "Add provider" }).click();
+  const form = page.getByRole("dialog", { name: "Add provider" });
+  await form.getByLabel("Name", { exact: true }).fill("relay");
+  await form.getByLabel("Display name").fill("Relay");
+  await form.getByLabel("URL", { exact: true }).fill("https://llm.example.org/v1");
+  await form.getByRole("button", { name: "Save" }).click();
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await sheet.getByLabel("Password").fill("correct horse battery");
+  await sheet.getByRole("button", { name: "Confirm" }).click();
+
+  await expect(sheet).toBeHidden();
+  expect(seen).toEqual([
+    "POST /api/admin/ai/providers",
+    "POST /api/auth/reauth",
+    "POST /api/admin/ai/providers",
+  ]);
 });

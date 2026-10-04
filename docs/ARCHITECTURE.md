@@ -185,10 +185,11 @@ entfernt sie der nächste Sync; „Rückgängig“ wirkt dort nur bis zu diesem 
   `password` bzw. `access_token`; für XOAUTH2 kann ein `token_provider` (Token-Refresh, #37/#38)
   übergeben werden. Unverschlüsselte Verbindungen und ungeprüfte Zertifikate lehnt der Provider
   ab, solange der Admin `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS` nicht setzt.
-- **Zielprüfung** (`network.py`, gilt für IMAP und SMTP): Der Host wird einmal aufgelöst; nur
-  global erreichbare Adressen sind erlaubt. Loopback, RFC 1918, Link-Local (inkl.
-  `169.254.169.254`), ULA, CGNAT, Multicast und reservierte Bereiche nur, wenn der Hostname oder
-  ein passender Bereich in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` steht. Verbunden wird mit der
+- **Zielprüfung** (`app/core/network.py`, gilt für IMAP, SMTP und den CalDAV-Export): Der Host
+  wird einmal aufgelöst; nur global erreichbare Adressen sind erlaubt. Loopback, RFC 1918,
+  Link-Local (inkl. `169.254.169.254`), ULA, CGNAT, Multicast und reservierte Bereiche nur, wenn
+  der Hostname oder ein passender Bereich in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` (CalDAV:
+  `OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS`) steht. Verbunden wird mit der
   geprüften Adresse (TLS prüft weiter den Hostnamen), damit DNS-Rebinding nicht greift. Ein
   abgelehntes Ziel liefert denselben Fehler wie ein geschlossenes (`connection_failed`); so taugen
   Verbindungstests nicht als Portscanner für interne Dienste (`postgres:5432`, `ollama:11434`).
@@ -563,7 +564,9 @@ sechsmal im Abstand von 10 s erneut.
   Fortschritt sowie die Verarbeitung je Postfach. Die App-Shell zeigt unter dem Cloud-Hinweis
   dezente Hinweisleisten (`components/system-notices.tsx`): Admins sehen „Modell fehlt“ bzw.
   „Sprachmodell nicht erreichbar“ (Link zur Admin-Seite), alle Nutzer ein eigenes Postfach im
-  Fehlerzustand (Link „Neu verbinden“ zu Einstellungen → Postfächer). Keine Modals.
+  Fehlerzustand (Link „Neu verbinden“ zu Einstellungen → Postfächer). Keine Modals. Auf Mobil
+  fasst eine einzeilige, aufklappbare Leiste alle Hinweise zusammen; der Cloud-Hinweis lässt sich
+  pro Sitzung ausblenden.
 
 #### KI-Einstellungen im Admin-Bereich (`backend/app/ai/settings/`)
 
@@ -604,7 +607,8 @@ Umgesetzt in `backend/app/ai/tts/`.
 
 - Einstieg für Features: `TTSService.synthesize(text, lang=..., voice=..., target=..., formats=...)
   -> list[AudioFile]` (`get_tts()`), aufgerufen aus Jobs der Queue `tts`, nie im Request.
-  Der Service wählt die Stimme (Nutzerwahl, falls sie zur Sprache passt, sonst Standard je Sprache),
+  Der Service wählt die Stimme (Nutzerwahl, falls sie zur Sprache passt und angeboten wird, sonst
+  Standard je Sprache),
   normalisiert und segmentiert den Text, lässt ihn stückweise sprechen, fügt Pausen ein und streamt
   das PCM in ffmpeg.
 - Interface `TTSEngine.synthesize(text, voice, lang) -> PCMAudio` für **ein** kurzes, bereits
@@ -618,7 +622,9 @@ Umgesetzt in `backend/app/ai/tts/`.
   nicht threadsicher, ONNX Runtime nutzt ohnehin alle Kerne).
 - **Stimmen** liegen im Daten-Volume (`<data_dir>/tts/voices/piper/`), nicht im Image. Fehlende werden
   von `OLLAMAIL_TTS_VOICE_BASE_URL` geladen (abschaltbar, dann manuell kopieren). Stimmen-IDs werden
-  per Muster validiert (`de_DE-thorsten-medium`), die Sprache ist Teil der ID.
+  per Muster validiert (`de_DE-thorsten-medium`), die Sprache ist Teil der ID. Wählbar sind nur
+  Standard-, installierte und Allowlist-Stimmen (`OLLAMAIL_TTS_VOICE_ALLOWLIST`); geladen werden
+  nur Standard- und Allowlist-Stimmen, nie auf Wahl eines Nutzers (#191).
 - **Text-Normalisierung** (`normalize.py`, DE/EN): Datumsangaben, Uhrzeiten, Beträge, Prozente,
   Zahlen (Jahre, Dezimal-/Tausendertrennzeichen je Sprache, Telefonnummern ziffernweise),
   Abkürzungen, Links, E-Mail-Adressen, Markdown und Emojis; danach Satz- und Absatzsegmentierung und
@@ -664,7 +670,15 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
 - **Events:** `publish(session, user_id, Event(...))` sendet per `pg_notify` beim Commit. Jeder
   API-Prozess hält eine `LISTEN`-Verbindung und verteilt an `GET /api/events` (SSE), gefiltert auf den
   angemeldeten Nutzer. Ein `Event` besteht nur aus `type`, `ids` und `status` (per Pattern validiert).
-  Zustellung ist best effort: Nach einem Reconnect lädt der Client seine Daten neu.
+  Zustellung ist best effort: Nach einem Reconnect lädt der Client seine Daten neu. Pro Nutzer und
+  Prozess sind höchstens `OLLAMAIL_EVENTS_MAX_STREAMS_PER_USER` Streams offen (darüber 429); alle
+  `OLLAMAIL_EVENTS_SESSION_CHECK_INTERVAL` Sekunden prüft der Stream die Sitzung erneut (ohne sie zu
+  verlängern) und endet nach Logout, Widerruf, Ablauf oder Deaktivierung (#191).
+- **LLM-Last der API (#191):** Das Gateway der API begrenzt parallele Aufrufe auf
+  `OLLAMAIL_LLM_API_CONCURRENCY` (weitere warten). `POST /rag/ask` und `POST /drafts/generate`
+  belegen zusätzlich einen Platz des Nutzers (`app/ai/llm/user_limits.py`,
+  `OLLAMAIL_LLM_API_USER_CONCURRENCY`) bis zum Ende des Streams; ohne freien Platz 429 mit
+  `Retry-After` und `error_code` `llm_busy`. Die Suche fragt dann ohne Embedding (nur Volltext).
 - **Aktueller Nutzer:** Dependency `app.core.current_user.get_current_user_id` (Session-Cookie,
   siehe §5); ohne gültige Session 401. Tests überschreiben sie.
 
@@ -972,6 +986,14 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
     den Link zur Mail (`<OLLAMAIL_AUTH_PUBLIC_URL bzw. Origin beim Verbinden>/inbox?message=<id>`,
     auch als `URL`). Anfragen gehen nur an den eingetragenen Server; `https` ist Pflicht
     (`OLLAMAIL_TODOS_EXPORT_ALLOW_HTTP` nur für Tests), keine DTDs in Antworten.
+    **Zielprüfung** (#189): dieselbe wie bei IMAP/SMTP (`app/core/network.py`), über einen
+    eigenen `httpx`-Transport (`app/core/http_guard.py`) für jede Verbindung, auch nach einer
+    Weiterleitung. Interne Adressen nur mit Eintrag in
+    `OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS`; verbunden wird mit der geprüften Adresse,
+    `Host`, SNI und Zertifikatsprüfung behalten den Namen (kein DNS-Rebinding). Proxy-Variablen
+    aus der Umgebung gelten für diese Verbindungen nicht. Nach außen gehen nur grobe Fehlercodes
+    (`unavailable` – auch für abgelehnte Ziele und Timeouts –, `auth_failed`, `not_found`,
+    `not_caldav`), keine HTTP-Statuscodes; so taugt das Verbinden nicht als Portscanner.
   - **Microsoft To Do** (`mstodo.py`, `mstodo_router.py`, Details:
     [`providers/microsoft365.md`](providers/microsoft365.md) §11): eigener OAuth-Flow mit
     `Tasks.ReadWrite` (Entra-App und Token-Erneuerung der Graph-Postfächer), Tokens verschlüsselt
@@ -1077,8 +1099,9 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
 - **API** (angemeldet, nur eigene Digests, fremde = 404): `GET /api/digests`,
   `POST /api/digests` (jetzt erzeugen, 202; 409 wenn schon einer läuft), `GET/DELETE
   /api/digests/{id}`, `GET /api/digests/{id}/audio.{mp3|opus}` (Range-Requests, Web-Player).
-  `GET /api/digests/voices` listet die wählbaren Stimmen (installierte plus Standardstimme je
-  Sprache, mit `default`/`installed`).
+  `GET /api/digests/voices` listet die wählbaren Stimmen (installierte, Standardstimme je
+  Sprache und `OLLAMAIL_TTS_VOICE_ALLOWLIST`, mit `default`/`installed`); eine andere Stimme lehnt
+  `PATCH /api/digests/settings` mit 422 (`unknown_voice`) ab.
 - **Web-UI** (#29, `frontend/README.md`): Seite `/digest` mit Player (Media Session API,
   Tastatur), Transkript mit Links auf die Mails und Archiv; Einstellungen und Feed-URL (einmalig
   angezeigt, mit QR-Code) unter `/digest/settings`.
@@ -1408,7 +1431,8 @@ in der DB steht nur der SHA-256. Gültig bis `expires_at` (Lebensdauer) und sola
 Anfrage weniger als das Idle-Timeout zurückliegt (`last_seen_at`, höchstens minütlich
 geschrieben). `authenticated_at` hält fest, wann sich der Nutzer in dieser Session zuletzt
 ausgewiesen hat (Login oder Bestätigung); sensible Endpunkte (Faktor entfernen, neue
-Wiederherstellungscodes, Datenexport, Konto löschen) verlangen über `RecentAuthDep`
+Wiederherstellungscodes, Datenexport, Konto löschen; kritische Admin-Aktionen wie Nutzer
+löschen, Rollen, SCIM-Tokens, Anmelde- und KI-Provider über `RecentAdminDep`, #190) verlangen über `RecentAuthDep`
 (`app/auth/reauth.py`) eine Bestätigung innerhalb von `OLLAMAIL_AUTH_REAUTH_MINUTES` per
 Passwort, TOTP, Passkey oder erneuter (SSO-)Anmeldung, sonst 403 `reauth-required`
 (Details: [`auth/mfa.md`](auth/mfa.md#bestätigung-vor-sensiblen-aktionen-144)). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort

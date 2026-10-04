@@ -41,14 +41,67 @@ Alle Variablen sind in [`.env.example`](.env.example) beschrieben.
 | `api` | `ollamail-api` (`backend/Dockerfile`) | FastAPI (uvicorn) |
 | `worker` | `ollamail-api` | Hintergrundjobs (`python -m app.worker`, Procrastinate), Queues `sync`, `llm`, `tts`, `ocr`, `default`, `push`; Healthcheck über eine Heartbeat-Datei (`python -m app.core.heartbeat`) |
 | `migrate` | `ollamail-api` | One-Shot `alembic upgrade head` vor jedem Start von `api`/`worker` |
-| `postgres` | `pgvector/pgvector:pg16` | Datenbank, Volume `postgres-data`; Tuning für pgvector über `POSTGRES_*` ([`OPERATIONS.md` §8.4](../docs/OPERATIONS.md#84-postgresql-tuning-pgvector)) |
-| `ollama-cpu` / `ollama-gpu` | `ollama/ollama` | Optionaler LLM-Server, im Netz als `ollama` erreichbar |
+| `postgres` | `pgvector/pgvector:0.8.7-pg16-bookworm` | Datenbank, Volume `postgres-data`; Tuning für pgvector über `POSTGRES_*` ([`OPERATIONS.md` §8.4](../docs/OPERATIONS.md#84-postgresql-tuning-pgvector)) |
+| `ollama-cpu` / `ollama-gpu` | `ollama/ollama:0.35.0` | Optionaler LLM-Server, im Netz `backend` als `ollama` erreichbar |
 
 Volumes: `postgres-data` (Datenbank), `ollamail-data` (Anhänge, Audio; `/data` in `api`/`worker`),
 `ollama-models` (Modelle).
 
 `api`, `worker` und `frontend` laufen als unprivilegierter Nutzer (UID 10001), mit schreibgeschütztem
 Dateisystem (nur `/tmp` und `/data` beschreibbar), ohne Linux-Capabilities und mit `no-new-privileges`.
+Ollama läuft im Upstream-Image als root, aber ebenfalls mit schreibgeschütztem Dateisystem (nur
+`/tmp` und das Modell-Volume), ohne Capabilities und mit `no-new-privileges`; ohne Capabilities darf
+dieser root nur eigene Dateien schreiben und keine fremden Rechte übernehmen.
+
+Die Drittanbieter-Images sind auf feste Versionen gepinnt (PostgreSQL inkl. Debian-Release, damit
+sich die Collations einer bestehenden Datenbank nicht unbemerkt ändern). Updates schlägt Dependabot
+vor; Wechsel siehe [`OPERATIONS.md` §6.5](../docs/OPERATIONS.md#65-drittanbieter-images).
+
+## Netze
+
+Der Stack nutzt drei Netze statt eines gemeinsamen:
+
+| Netz | Mitglieder | Zweck |
+|---|---|---|
+| `edge` | `frontend`, `api` | Einziger Weg vom veröffentlichten Port nach innen: Caddy erreicht nur die API |
+| `backend` (`internal: true`) | `api`, `worker`, `migrate`, `postgres`, Ollama | Datenbank und LLM; ohne Route nach außen |
+| `egress` | `api`, `worker`, Ollama | Ausgehender Verkehr: Mailserver, Identity-Provider, LLM-Endpunkte, TTS-Stimmen, Modell-Downloads |
+
+Damit gilt:
+
+- `frontend` kann `postgres` und `ollama` weder auflösen noch erreichen.
+- `postgres` und `migrate` haben keinen Zugang nach außen und sind von außen nicht erreichbar.
+- Ollama (ohne eigene Authentifizierung) ist nur für `api` und `worker` erreichbar.
+
+**Ollama ohne Internet:** `egress` braucht Ollama nur für Modell-Downloads (`ollama pull`, der Button
+auf der Admin-Seite, `OLLAMAIL_LLM_PULL_MISSING_MODELS`). Sind alle Modelle geladen, lässt sich der
+Zugang mit einer eigenen Override-Datei (z. B. `deploy/compose.override.yaml`, nicht im Repository)
+entfernen:
+
+```yaml
+services:
+  ollama-cpu:          # bzw. ollama-gpu
+    networks: !override
+      backend:
+        aliases: [ollama]
+```
+
+```sh
+docker compose -f deploy/compose.yaml -f deploy/compose.override.yaml --profile ollama-cpu up -d
+```
+
+Neue Modelle dann vorübergehend ohne diese Datei laden; dazu
+`OLLAMAIL_LLM_PULL_MISSING_MODELS=false` setzen (sonst schlägt der automatische Download fehl).
+
+**Eigene Container anbinden:** Prometheus (Scrape von `api:8000` und `worker:9464`) oder ein
+externer Ollama-Container hängen sich an das Netz `ollamail_backend` (Compose-Projektname
+`ollamail` + Netzname), ein Reverse Proxy als Container an `ollamail_edge` – nie an beide, wenn er
+von außen erreichbar ist.
+
+Upgrade bestehender Installationen: `docker compose -f deploy/compose.yaml up -d` legt die neuen
+Netze an und verbindet die Container neu; das alte Netz `ollamail_default` bleibt ungenutzt übrig
+und lässt sich mit `docker network rm ollamail_default` entfernen. Wer eigene Container an
+`ollamail_default` gehängt hatte, verbindet sie wie oben beschrieben neu.
 
 ## Images
 
@@ -177,11 +230,19 @@ Konfigurationsbeispiele: [`docs/OPERATIONS.md`](../docs/OPERATIONS.md#4-reverse-
 `X-Forwarded-*`-Header werden nur von privaten Netzen akzeptiert; der äußere Proxy muss
 `X-Forwarded-For` auf die echte Client-IP setzen statt anzuhängen (Rate-Limits).
 
+**HSTS ist Pflicht im äußeren Proxy.** Weil TLS dort endet, setzt der interne Caddy standardmäßig
+keinen `Strict-Transport-Security`-Header. Der äußere Proxy muss ihn senden, z. B.
+`max-age=31536000; includeSubDomains` (Beispiele für Caddy, nginx und Traefik:
+[`OPERATIONS.md` §4.4](../docs/OPERATIONS.md#44-sicherheits-header)). Kann der Proxy keine Header
+setzen, sendet der `frontend`-Container den Header mit `OLLAMAIL_HSTS` in `deploy/.env`
+(z. B. `OLLAMAIL_HSTS=max-age=31536000; includeSubDomains`) – nur bei Zugriff ausschließlich über
+HTTPS, sonst sperren Browser den Host für die angegebene Dauer.
+
 ## Sicherheits-Header
 
 Caddy setzt u. a. eine strikte Content-Security-Policy (`default-src 'self'`, keine externen
 Quellen), `X-Content-Type-Options`, `X-Frame-Options: DENY`, `Referrer-Policy: no-referrer` und
-`Permissions-Policy`. Für SSE ist Buffering deaktiviert (`flush_interval -1`), Timeouts betragen 1 h.
+`Permissions-Policy`; `Strict-Transport-Security` nur mit `OLLAMAIL_HSTS` (siehe oben). Für SSE ist Buffering deaktiviert (`flush_interval -1`), Timeouts betragen 1 h.
 
 ## Smoke-Test in der CI
 
@@ -189,7 +250,8 @@ Der Job „Compose smoke test“ (`.github/workflows/ci.yml`) baut beide Images,
 aus `.env.example` mit frisch generierten Secrets und startet den Stack wie oben (ohne Ollama). Er
 prüft `/api/readyz`, `/api/healthz`, die Auslieferung der UI, die Migrationen und den Worker
 (Heartbeat, Healthcheck, keine Neustarts), dass `/metrics` nur im Compose-Netz und nur mit Token
-erreichbar ist, sowie, dass `api` ohne `OLLAMAIL_SECRET_KEY` nicht startet. Er läuft auf
+erreichbar ist, die Netztrennung (`frontend` erreicht nur `api`, `postgres` ist von `api` aus
+erreichbar, aber ohne Zugang nach außen), sowie, dass `api` ohne `OLLAMAIL_SECRET_KEY` nicht startet. Er läuft auf
 `main`, bei Änderungen an `deploy/`, den Dockerfiles oder der Caddy-Konfiguration und auf PRs mit dem
 Label `ci:compose`. Bei Fehlern werden die Container-Logs (ohne Umgebungsvariablen, Secrets geschwärzt)
 als Artifact hochgeladen.

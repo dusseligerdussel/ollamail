@@ -34,10 +34,6 @@ export const Route = createFileRoute("/digest_/settings")({
 });
 
 const controlClass = "w-full sm:w-72";
-// Segmented control as in the account settings.
-const groupClass = "h-8 rounded-md bg-muted p-0.5";
-const itemClass =
-  "h-7 flex-1 rounded-[calc(var(--radius)-3px)] px-2 text-ui font-normal text-muted-foreground hover:bg-transparent hover:text-foreground data-[state=on]:bg-background data-[state=on]:text-foreground data-[state=on]:shadow-xs dark:data-[state=on]:bg-input/30";
 
 function SettingRow({
   label,
@@ -134,7 +130,11 @@ function DigestSettingsPage() {
           {settings.isPending ? (
             <SettingsSkeleton />
           ) : settings.isError ? (
-            <InlineError error={settings.error} />
+            <InlineError
+              error={settings.error}
+              onRetry={settings.refetch}
+              retrying={settings.isFetching}
+            />
           ) : (
             <SettingsForm settings={settings.data} />
           )}
@@ -252,21 +252,17 @@ function SettingsForm({ settings }: { settings: DigestSettings }) {
         <SettingRow label={t("digest.settings.weekdays")}>
           <ToggleGroup
             type="multiple"
+            variant="segmented"
             spacing={0.5}
             value={current.weekdays.map(String)}
             onValueChange={(value) => {
               if (value.length > 0) save({ weekdays: value.map(Number) });
             }}
             aria-label={t("digest.settings.weekdays")}
-            className={cn(groupClass, controlClass)}
+            className={controlClass}
           >
             {weekdays.map(({ day, short, long }) => (
-              <ToggleGroupItem
-                key={day}
-                value={String(day)}
-                aria-label={long}
-                className={itemClass}
-              >
+              <ToggleGroupItem key={day} value={String(day)} aria-label={long} className="px-2">
                 {short}
               </ToggleGroupItem>
             ))}
@@ -303,20 +299,17 @@ function SettingsForm({ settings }: { settings: DigestSettings }) {
         >
           <ToggleGroup
             type="single"
+            variant="segmented"
             spacing={0.5}
             value={current.length}
             onValueChange={(value) => {
               if (value === "short" || value === "normal") save({ length: value });
             }}
             aria-label={t("digest.settings.length")}
-            className={cn(groupClass, controlClass)}
+            className={controlClass}
           >
-            <ToggleGroupItem value="short" className={itemClass}>
-              {t("digest.settings.lengths.short")}
-            </ToggleGroupItem>
-            <ToggleGroupItem value="normal" className={itemClass}>
-              {t("digest.settings.lengths.normal")}
-            </ToggleGroupItem>
+            <ToggleGroupItem value="short">{t("digest.settings.lengths.short")}</ToggleGroupItem>
+            <ToggleGroupItem value="normal">{t("digest.settings.lengths.normal")}</ToggleGroupItem>
           </ToggleGroup>
         </SettingRow>
         <SettingRow
@@ -387,7 +380,11 @@ function SettingsForm({ settings }: { settings: DigestSettings }) {
           {mailboxes.isPending ? (
             <Skeleton className="h-4 w-40" />
           ) : mailboxes.isError ? (
-            <InlineError error={mailboxes.error} />
+            <InlineError
+              error={mailboxes.error}
+              onRetry={mailboxes.refetch}
+              retrying={mailboxes.isFetching}
+            />
           ) : mailboxes.data.length === 0 ? (
             <p className="text-ui text-muted-foreground">
               {t("digest.settings.noMailboxes")}{" "}

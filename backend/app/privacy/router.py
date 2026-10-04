@@ -13,7 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app import audit
 from app.auth.admin_access import AdminAccessGuard
 from app.auth.dependencies import AdminSessionDep, CurrentSessionDep, CurrentUserDep, SettingsDep
-from app.auth.reauth import REAUTH_RESPONSES, RecentAuthDep
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, REAUTH_RESPONSES, RecentAdminDep, RecentAuthDep
 from app.auth.sessions import clear_session_cookie
 from app.core.config import Settings
 from app.core.db import get_db
@@ -304,6 +304,7 @@ async def update_retention(
 @admin_router.delete(
     "/users/{user_id}",
     responses={
+        **ADMIN_REAUTH_RESPONSES,
         404: {"description": "No such user"},
         409: {"description": "Last active administrator"},
     },
@@ -311,7 +312,7 @@ async def update_retention(
 async def delete_user(
     request: Request,
     user_id: uuid.UUID,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     db: DbDep,
     stores: FileStoresDep,
     finisher: UserDeletionRequesterDep,

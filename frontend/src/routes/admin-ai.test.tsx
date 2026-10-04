@@ -107,6 +107,7 @@ interface Captured {
 function mockAiApi({
   status = { cloud: [] } as AIStatus,
   user = undefined as typeof testUser | undefined,
+  providerList = providers,
 } = {}) {
   const requests: Captured[] = [];
   const api = backend(user ? { user } : {});
@@ -125,7 +126,7 @@ function mockAiApi({
       case "GET /api/admin/ai/settings":
         return json(settings);
       case "GET /api/admin/ai/providers":
-        return json(providers);
+        return json(providerList);
       case "POST /api/admin/ai/providers/default/test":
         return json(ok);
       case "POST /api/admin/ai/providers/cloud/test":
@@ -267,6 +268,18 @@ describe("AI settings", () => {
         tasks: { triage: { provider: null, model: "llama3.2:3b" } },
       }),
     );
+  });
+
+  it("names the default provider by its display name", async () => {
+    mockAiApi({
+      providerList: [{ ...(providers[0] as AIProvider), display_name: "Local Ollama" }],
+    });
+    await renderApp("/admin/ai");
+
+    const triageProvider = (await screen.findAllByLabelText("Provider"))[0] as HTMLSelectElement;
+    expect(
+      within(triageProvider).getByRole("option", { name: "Default (Local Ollama)" }),
+    ).toHaveValue("");
   });
 
   it("requires a model when a provider is chosen", async () => {

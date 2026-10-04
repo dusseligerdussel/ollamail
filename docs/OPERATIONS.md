@@ -262,8 +262,11 @@ docker compose -f deploy/compose.yaml exec ollama-cpu ollama pull bge-m3
 
 Mit `OLLAMAIL_LLM_READINESS_CHECK=true` meldet `/api/readyz` fehlende Modelle als `"llm":"failed"`.
 
-Ollama ist nur im internen Compose-Netz unter `http://ollama:11434` erreichbar, der Port wird nicht
-veröffentlicht. Modelle liegen im Volume `ollama-models`.
+Ollama ist nur für `api` und `worker` im internen Compose-Netz `backend` unter
+`http://ollama:11434` erreichbar, der Port wird nicht veröffentlicht; `frontend` erreicht Ollama
+nicht. Für Modell-Downloads hängt Ollama zusätzlich am Netz `egress`; wie man das nach dem Laden
+der Modelle abschaltet, steht in [`deploy/README.md`](../deploy/README.md#netze). Modelle liegen
+im Volume `ollama-models`.
 
 Das Profil muss bei `up` und `down` mit angegeben werden, sonst wird der Dienst nicht gestartet
 bzw. nicht gestoppt (`exec` und `logs` auf einen laufenden Dienst gehen auch ohne). Alternativ
@@ -363,6 +366,13 @@ täglich per Job `tts.ensure_voices` (Queue `tts`) ins Daten-Volume nach
 Andere Stimmen aus [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-voices) lassen
 sich über die Variablen einstellen. Vorher die Lizenz im `MODEL_CARD` der Stimme prüfen: Einige
 Trainingsdatensätze haben Nutzungsbeschränkungen (z. B. nur nicht-kommerziell).
+
+**Welche Stimmen Nutzer wählen können (#191):** die Standardstimmen, alle bereits installierten
+Stimmen und die in `OLLAMAIL_TTS_VOICE_ALLOWLIST` (kommagetrennte Voice-IDs, nur DE/EN) freigegebenen.
+Heruntergeladen werden ausschließlich Standard- und Allowlist-Stimmen – vom Worker, nie auf
+Wunsch eines Nutzers; eine andere Stimme lehnt die API ab (422), so kann niemand über die
+Stimmenwahl das Daten-Volume füllen. Eine Stimme ohne Internetzugang bereitstellen: Dateien wie
+unten ins Volume kopieren, sie ist dann installiert und wählbar.
 
 **Ohne Internetzugang:** `OLLAMAIL_TTS_DOWNLOAD_VOICES=false` setzen und beide Dateien je Stimme
 manuell ins Volume kopieren:
@@ -601,14 +611,52 @@ vorgeschalteten Proxys (z. B. Load Balancer) füllen.
 
 Läuft Traefik selbst als Container, ist `127.0.0.1` dort der Traefik-Container. Dann die
 IP-Adresse des Docker-Hosts eintragen und `OLLAMAIL_HTTP_BIND` auf diese Adresse setzen – oder
-Traefik und ollamail in ein gemeinsames Docker-Netz hängen.
+Traefik an das Netz `ollamail_edge` hängen und `http://frontend:8080` eintragen (nie
+`api:8000` direkt, sonst fehlen Header, Metrik-Sperre und Client-IP-Ermittlung des internen Caddy;
+siehe [Netze](../deploy/README.md#netze)).
 
 ### 4.4 Sicherheits-Header
 
 Der interne Caddy setzt bereits CSP, `X-Frame-Options`, `Referrer-Policy` u. a.
 (Details: [`deploy/README.md`](../deploy/README.md#sicherheits-header)). Der äußere Proxy sollte diese
-nicht überschreiben. HSTS (`Strict-Transport-Security`) setzt ollamail nicht, da es TLS nicht
-selbst terminiert – bei Bedarf im äußeren Proxy ergänzen.
+nicht überschreiben.
+
+**HSTS (`Strict-Transport-Security`) muss der äußere Proxy setzen.** ollamail terminiert TLS nicht
+selbst und sendet den Header deshalb standardmäßig nicht. Ohne HSTS kann ein Angreifer im Netz den
+ersten Aufruf auf HTTP herabstufen und Sitzungs-Cookies abgreifen. Die Beispiele aus 4.1–4.3, ergänzt:
+
+```caddyfile
+mail.example.org {
+	header Strict-Transport-Security "max-age=31536000; includeSubDomains"
+	reverse_proxy 127.0.0.1:8080 {
+		flush_interval -1
+	}
+}
+```
+
+```nginx
+# im server-Block mit listen 443; "always" auch für Fehlerantworten
+add_header Strict-Transport-Security "max-age=31536000; includeSubDomains" always;
+```
+
+```yaml
+# Traefik (File-Provider): Middleware definieren und am Router eintragen
+http:
+  middlewares:
+    hsts:
+      headers:
+        stsSeconds: 31536000
+        stsIncludeSubdomains: true
+  routers:
+    ollamail:
+      middlewares: [hsts]
+```
+
+`includeSubDomains` nur, wenn alle Subdomains per HTTPS erreichbar sind; mit kurzem `max-age`
+(z. B. 300) beginnen und erst nach einem Test erhöhen. Kann der äußere Proxy keine Header setzen,
+sendet der `frontend`-Container den Header selbst: `OLLAMAIL_HSTS=max-age=31536000; includeSubDomains`
+in `deploy/.env`, danach `docker compose -f deploy/compose.yaml up -d`. Nur bei Zugriff
+ausschließlich über HTTPS setzen; im Testbetrieb über HTTP (2.6) leer lassen.
 
 ## 5. Backup und Restore
 
@@ -795,8 +843,16 @@ holt der Sync beim nächsten Start erneut vom Mailserver.
 
 ### 6.5 Drittanbieter-Images
 
-PostgreSQL (`POSTGRES_IMAGE`, Standard `pgvector/pgvector:pg16`) und Ollama (`OLLAMA_IMAGE`) sind
-über Variablen in `deploy/.env` festgelegt. Ein Wechsel der **PostgreSQL-Hauptversion** (z. B. 16 → 17)
+PostgreSQL (`POSTGRES_IMAGE`, Standard `pgvector/pgvector:0.8.7-pg16-bookworm`) und Ollama
+(`OLLAMA_IMAGE`, Standard `ollama/ollama:0.35.0`) sind auf feste Versionen gepinnt und über
+Variablen in `deploy/.env` änderbar. Neue Versionen kommen mit einem ollamail-Update (Dependabot
+schlägt sie im Repository vor); wer `POSTGRES_IMAGE` oder `OLLAMA_IMAGE` selbst setzt, pflegt die
+Version selbst. Beim PostgreSQL-Image Hauptversion **und** Debian-Release (`bookworm`) beibehalten:
+ein anderes Debian-Release bringt eine andere glibc und damit andere Sortierregeln
+(Collations); PostgreSQL warnt dann bei jeder Verbindung, Indizes auf Textspalten müssen mit
+`REINDEX DATABASE` neu aufgebaut werden. Bisher lief der gleitende Tag `pg16`, der derzeit auf
+`bookworm` zeigt – der Wechsel auf den gepinnten Tag ist für bestehende Installationen daher ohne
+Weiteres möglich. Ein Wechsel der **PostgreSQL-Hauptversion** (z. B. 16 → 17)
 ist mit dem bestehenden Volume nicht möglich: Backup ziehen, neue Version mit leerem Volume
 starten, Backup einspielen (Abschnitt 5).
 
@@ -846,6 +902,17 @@ Update:
    und laufen nach dem Neustart von `api` und `worker` ohne weiteres Zutun weiter.
 5. **Verbindungstests begrenzt.** Pro Nutzer sind 20 Verbindungstests in 10 Minuten möglich
    (Testen, Anlegen, Verbindung ändern; `OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS`).
+6. **CalDAV-Export auf internen Adressen (#189).** Dieselbe Prüfung gilt für CalDAV-Server des
+   Aufgaben-Exports (`OLLAMAIL_TODOS_EXPORT_SINKS=caldav`). Ein Nextcloud oder Radicale im LAN,
+   auf dem Docker-Host oder im Cluster muss erlaubt werden:
+
+   ```sh
+   OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS=nextcloud.lan,192.168.10.0/24
+   ```
+
+   Bis dahin meldet der Export `unavailable` (Log `todo_export_destination_refused`) und läuft
+   nach dem Neustart von `api` und `worker` weiter. Verbindungen zum CalDAV-Server nutzen keine
+   Proxy-Variablen (`HTTPS_PROXY`) mehr, sondern gehen direkt zur geprüften Adresse.
 
 ### 6.7 Upgrade-Hinweis: Embeddings als `halfvec` (#164)
 
@@ -899,6 +966,24 @@ Vektorsuche und HNSW).
 (`docker compose -f deploy/compose.yaml run --rm --no-deps migrate alembic downgrade 5c672b257a5b`);
 das wandelt die Spalte zurück in `vector(n)` und baut den Index neu (Dauer siehe Tabelle). Die
 Werte behalten dabei die 16-Bit-Genauigkeit. Der sichere Weg bleibt das Backup ([6.4](#64-rollback-auf-die-vorherige-version)).
+
+### 6.8 Upgrade-Hinweis: getrennte Netze und gepinnte Images (#192)
+
+- **Compose-Netze.** Statt eines gemeinsamen Netzes gibt es `edge`, `backend` (intern) und
+  `egress` ([`deploy/README.md`](../deploy/README.md#netze)). `docker compose -f deploy/compose.yaml up -d`
+  legt sie an; Daten und Volumes bleiben unverändert. Das alte Netz bleibt übrig:
+  `docker network rm ollamail_default`. Eigene Container, die an `ollamail_default` hingen
+  (Prometheus, Reverse Proxy, externer Ollama-Container), an `ollamail_backend` bzw.
+  `ollamail_edge` hängen. Wer mit `compose.dev.yaml` arbeitet, braucht nichts zu tun.
+- **Ollama gehärtet.** Schreibgeschütztes Dateisystem, keine Capabilities, `no-new-privileges`.
+  Bestehende Modelle im Volume `ollama-models` bleiben nutzbar.
+- **PostgreSQL-Image gepinnt** auf `pgvector/pgvector:0.8.7-pg16-bookworm` – derzeit derselbe
+  Stand wie der bisherige Tag `pg16` (PostgreSQL 16, Debian bookworm); ein älteres, lokal
+  gezogenes `pg16` bringt höchstens ein älteres pgvector mit. Die Datenbank bleibt unverändert
+  ([6.5](#65-drittanbieter-images)).
+- **HSTS** im äußeren Proxy setzen, falls noch nicht geschehen ([4.4](#44-sicherheits-header)).
+- **Helm:** `networkPolicy.enabled` ist jetzt standardmäßig `true`
+  ([`kubernetes.md` §11](operations/kubernetes.md#11-sicherheit-und-networkpolicies)).
 
 ## 7. Schlüsselverwaltung
 
@@ -1056,7 +1141,8 @@ Mit `OLLAMAIL_METRICS_ENABLED=true` liefern API und Worker Metriken im Prometheu
 
 - **Nur intern.** Das Frontend leitet `/api/metrics` nicht weiter (`404`); erreichbar sind die
   Endpunkte nur im Compose-Netz bzw. Cluster. In Compose wird kein Port veröffentlicht: Prometheus
-  im selben Docker-Netz scrapt `api:8000` und die Worker-Container. Mit
+  im Docker-Netz `ollamail_backend` scrapt `api:8000` und die Worker-Container
+  ([Netze](../deploy/README.md#netze)). Mit
   `OLLAMAIL_METRICS_TOKEN` verlangen beide Endpunkte zusätzlich
   `Authorization: Bearer <token>` (Prometheus: `authorization: {credentials: …}`).
 - **Keine Inhalte.** Labels enthalten nur IDs, Codes und Konfigurationswerte: Postfach-ID (nie
@@ -1112,6 +1198,23 @@ Parameter; bei verwalteten Datenbanken setzt man sie in der Parametergruppe des 
 Die Embeddings sind als `halfvec` gespeichert (16 Bit je Dimension, ab pgvector 0.7), das
 halbiert Tabelle und Index gegenüber `vector`. Messung und Upgrade-Hinweise:
 [6.7](#67-upgrade-hinweis-embeddings-als-halfvec-164).
+
+### 8.5 Ressourcen-Limits pro Nutzer
+
+Damit ein einzelner Nutzer (oder ein gekapertes Konto) die Instanz nicht lahmlegen kann, begrenzt
+die API einige Ressourcen pro Nutzer (#191). Die Zähler gelten **pro API-Prozess**: Mit mehreren
+API-Replicas (Helm) kann ein Nutzer jedes Limit einmal je Pod ausschöpfen.
+
+| Variable | Standard | Wirkung |
+|---|---|---|
+| `OLLAMAIL_LLM_API_USER_CONCURRENCY` | 2 | Gleichzeitige LLM-Anfragen eines Nutzers („Frag dein Postfach“, Antwortentwürfe, Suche). Weitere lehnt die API mit 429 und `Retry-After` ab (`error_code` `llm_busy`); die Oberfläche zeigt eine verständliche Meldung. Die Suche weicht stattdessen auf reine Volltextsuche aus. |
+| `OLLAMAIL_LLM_API_CONCURRENCY` | 4 | Gleichzeitige LLM-Anfragen der API insgesamt; weitere warten auf einen freien Platz (wie die Jobs im Worker mit `OLLAMAIL_LLM_CONCURRENCY`). |
+| `OLLAMAIL_EVENTS_MAX_STREAMS_PER_USER` | 10 | Offene Live-Update-Streams (`GET /api/events`, einer pro Browser-Tab). Weitere Verbindungen bekommen 429; der Tab funktioniert, aktualisiert sich aber nicht live. |
+| `OLLAMAIL_EVENTS_SESSION_CHECK_INTERVAL` | 60 | Sekunden zwischen den Prüfungen, ob die Sitzung eines offenen Streams noch gilt. Nach Abmeldung, Widerruf der Sitzung, Ablauf oder Deaktivierung des Nutzers endet der Stream spätestens nach diesem Intervall (plus Heartbeat von 15 s), statt bis zum Proxy-Timeout weiterzulaufen. Die Prüfung verlängert die Sitzung nicht. |
+
+Auf CPU-only-Hosts mit vielen Nutzern `OLLAMAIL_LLM_API_USER_CONCURRENCY=1` setzen; auf
+GPU-Servern dürfen beide LLM-Werte höher sein. Welche TTS-Stimmen Nutzer wählen dürfen, steht in
+[3.6](#36-sprachausgabe-tts).
 
 ## 9. Datenschutz-Hinweise für Betreiber
 
@@ -1251,6 +1354,7 @@ curl http://localhost:8080/api/readyz
 | `uses the placeholder password 'change-me'` (api/migrate starten nicht) | Datenbank-Passwort ändern, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
 | UI aus dem LAN nicht mehr erreichbar | Port ist standardmäßig nur an `127.0.0.1` gebunden; `OLLAMAIL_HTTP_BIND` setzen, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
 | Postfach im LAN meldet `connection_failed`, Log `mail_destination_refused` | Interne Adresse ohne Freigabe: Host in `OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS` eintragen, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
+| CalDAV-Export im LAN meldet `unavailable`, Log `todo_export_destination_refused` | Interne Adresse ohne Freigabe: Host in `OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS` eintragen, [6.6](#66-upgrade-hinweise-sichere-standardwerte-143). |
 | `worker` startet ständig neu | `docker compose -f deploy/compose.yaml logs worker`; häufig ein ungültiger Wert in `OLLAMAIL_WORKER_QUEUES`. |
 | `toomanyrequests` / `429 Too Many Requests` beim Build oder Pull | Rate-Limit von Docker Hub. Mit `docker login` anmelden oder später erneut versuchen. |
 | `failed to bind host port … address already in use` oder `port is already allocated` | Port 8080 ist belegt. `OLLAMAIL_HTTP_PORT` in `deploy/.env` ändern. |

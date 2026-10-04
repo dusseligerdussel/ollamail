@@ -204,7 +204,13 @@ export function ReauthSheet({
               <Skeleton className="h-9 w-full" />
             </div>
           )}
-          {options.isError && <InlineError error={options.error} />}
+          {options.isError && (
+            <InlineError
+              error={options.error}
+              onRetry={options.refetch}
+              retrying={options.isFetching}
+            />
+          )}
           {method && (
             <form id={`${id}-form`} noValidate onSubmit={submit} className="flex flex-col gap-4">
               {method === "password" && (

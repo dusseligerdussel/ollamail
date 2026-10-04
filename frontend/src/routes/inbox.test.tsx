@@ -68,6 +68,14 @@ describe("inbox", () => {
       "href",
       "/settings/mailboxes/new",
     );
+    // Nothing to select, so the detail pane stays empty instead of explaining j/k.
+    expect(screen.queryByText("No message selected")).not.toBeInTheDocument();
+  });
+
+  it("explains the keyboard navigation while nothing is selected", async () => {
+    mockMailApi({ messages: [testMessage(1)] });
+    await renderApp("/inbox");
+    expect(await screen.findByText("No message selected")).toBeInTheDocument();
   });
 
   it("lists messages with sender, subject and unread state", async () => {

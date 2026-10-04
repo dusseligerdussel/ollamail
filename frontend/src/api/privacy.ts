@@ -85,12 +85,16 @@ export function useDeleteAccount() {
 
 /** Admin: delete another user (or the own account) with all their data. */
 export function useDeleteUser() {
+  const withReauth = useReauth();
   return useMutation({
     // Shown inline in the confirmation dialog.
     meta: { errorToast: false },
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: (userId: string) =>
-      unwrap(
-        api.DELETE("/admin/privacy/users/{user_id}", { params: { path: { user_id: userId } } }),
+      withReauth(() =>
+        unwrap(
+          api.DELETE("/admin/privacy/users/{user_id}", { params: { path: { user_id: userId } } }),
+        ),
       ),
   });
 }
