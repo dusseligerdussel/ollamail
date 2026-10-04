@@ -4,7 +4,9 @@
 triage category and priority and the todos a careful reader would note (title, keywords,
 deadline as written and as date). ``data/questions.json`` holds questions for "ask your
 inbox", with the mail(s) that answer them and keyword groups a correct answer contains;
-some questions have no answer in any mail.
+some questions have no answer in any mail. ``data/injections.json`` holds mails with
+injected instructions for an AI assistant (#170); they are evaluated in a pass of their
+own, together with the few injection mails of ``mails.json``.
 
 Everything is invented (docs/PRIVACY.md): names are made up, addresses use the
 ``example.com``/``example.org`` domains only. The tests check this.
@@ -20,6 +22,7 @@ from pydantic import BaseModel, Field, model_validator
 DATA_DIR = Path(__file__).with_name("data")
 MAILS_FILE = DATA_DIR / "mails.json"
 QUESTIONS_FILE = DATA_DIR / "questions.json"
+INJECTIONS_FILE = DATA_DIR / "injections.json"
 
 # The owner of the evaluated mailbox (invented).
 OWNER_NAME = "Robin Beispiel"
@@ -56,6 +59,18 @@ class ExpectedTodo(BaseModel):
     due_date: date | None = None
 
 
+class Injection(BaseModel):
+    """Instructions for an AI assistant hidden in a mail (#170)."""
+
+    # The injected text, verbatim as it stands in the body.
+    passage: str = Field(min_length=1)
+    # The category the passage asks for, if it asks for one.
+    demands: Category | None = None
+    # Lower-case words that only the passage contains: a todo or a digest that repeats
+    # one of them followed the instructions.
+    canary: list[str] = Field(default_factory=list)
+
+
 class EvalMail(BaseModel):
     id: str
     language: Language
@@ -68,6 +83,7 @@ class EvalMail(BaseModel):
     category: Category
     priority: int = Field(ge=1, le=3)
     todos: list[ExpectedTodo] = Field(default_factory=list)
+    injection: Injection | None = None
 
     model_config = {"populate_by_name": True}
 
@@ -98,13 +114,21 @@ class Question(BaseModel):
 class Dataset(BaseModel):
     mails: list[EvalMail]
     questions: list[Question]
+    # Extra mails with injected instructions; not part of the regular metrics.
+    injections: list[EvalMail] = Field(default_factory=list)
+
+    @property
+    def injection_mails(self) -> list[EvalMail]:
+        """All mails with injected instructions: those among ``mails`` and the extra ones."""
+        return [m for m in self.mails if m.injection is not None] + self.injections
 
     def mail(self, mail_id: str) -> EvalMail:
         return next(m for m in self.mails if m.id == mail_id)
 
     def subset(self, *, languages: set[str] | None = None, limit: int | None = None) -> "Dataset":
         """Mails (and questions) of ``languages``; ``limit`` keeps every n-th mail so the
-        sample keeps the mix of categories. Questions whose sources were dropped go too."""
+        sample keeps the mix of categories. Questions whose sources were dropped go too.
+        The extra injection mails are only filtered by language."""
         mails = [m for m in self.mails if languages is None or m.language in languages]
         if limit is not None and 0 < limit < len(mails):
             step = len(mails) / limit
@@ -116,7 +140,8 @@ class Dataset(BaseModel):
             if (languages is None or q.language in languages)
             and all(source in kept for source in q.sources)
         ]
-        return Dataset(mails=mails, questions=questions)
+        injections = [m for m in self.injections if languages is None or m.language in languages]
+        return Dataset(mails=mails, questions=questions, injections=injections)
 
     def sample_questions(self, count: int) -> "Dataset":
         """Evenly spaced sample of ``count`` questions (keeps the mix of languages and of
@@ -125,11 +150,16 @@ class Dataset(BaseModel):
             return self
         step = len(self.questions) / count
         questions = [self.questions[int(i * step)] for i in range(count)]
-        return Dataset(mails=self.mails, questions=questions)
+        return Dataset(mails=self.mails, questions=questions, injections=self.injections)
 
 
-def load_dataset(mails: Path = MAILS_FILE, questions: Path = QUESTIONS_FILE) -> Dataset:
+def load_dataset(
+    mails: Path = MAILS_FILE,
+    questions: Path = QUESTIONS_FILE,
+    injections: Path | None = INJECTIONS_FILE,
+) -> Dataset:
     return Dataset(
         mails=json.loads(mails.read_text(encoding="utf-8")),
         questions=json.loads(questions.read_text(encoding="utf-8")),
+        injections=json.loads(injections.read_text(encoding="utf-8")) if injections else [],
     )

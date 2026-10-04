@@ -21,6 +21,7 @@ def options(oracle: Oracle, **kwargs: object) -> RunOptions:
         "settings": Settings(llm=LLMSettings(structured_output_retries=0)),
         "provider_factory": factory(oracle),
         "clock": SteppingClock(),
+        "injections": False,
     }
     values.update(kwargs)
     return RunOptions(**values)  # type: ignore[arg-type]
@@ -107,7 +108,7 @@ async def test_report_renders_json_and_markdown(dataset: Dataset, oracle: Oracle
     data = json.loads(report.to_json())
     assert [m["model"] for m in data["models"]] == ["a:1b", "b:3b"]
     assert data["run"]["host"]["cpu_count"]
-    assert data["run"]["prompt_versions"]["triage"] == "triage@2"
+    assert data["run"]["prompt_versions"]["triage"] == "triage@3"
     markdown = report.to_markdown()
     assert "| `a:1b` | 100.0 %" in markdown
     assert "## `b:3b`" in markdown
@@ -164,7 +165,14 @@ def test_cli_writes_report_files(
 
     assert code == 0
     data = json.loads((tmp_path / "report.json").read_text(encoding="utf-8"))
-    assert data["run"]["dataset"] == {"mails": 10, "questions": data["run"]["dataset"]["questions"],
-                                      "languages": ["en"]}  # fmt: skip
+    injection_mails = data["run"]["dataset"]["injection_mails"]
+    assert data["run"]["dataset"] == {
+        "mails": 10,
+        "questions": data["run"]["dataset"]["questions"],
+        "languages": ["en"],
+        "injection_mails": injection_mails,
+    }
+    assert injection_mails >= 12
+    assert data["models"][0]["stages"]["triage"]["injection"]["followed"] == 0
     assert data["models"][0]["stages"]["triage"]["accuracy"] == 1.0
     assert (tmp_path / "report.md").read_text(encoding="utf-8").startswith("# ollamail")

@@ -506,12 +506,19 @@ Das Gateway erledigt pro Aufruf:
 6. **Metriken:** Task, Endpunkt, Modell, Prompt-Version, Dauer, Token-Zahlen, Versuche und
    Fehlertyp. Prompts und Antworten werden **nie** erfasst. Fehlermeldungen enthalten keine
    Response-Bodies, weil manche Server die Anfrage darin zurückspiegeln.
+7. **Prompt-Injection** (`app/ai/injection.py`, #170): Mail-Inhalte stehen in jedem Prompt in
+   Datenblöcken mit pro Anfrage zufälligem Tag (`data_tag`, `data_block`); Absätze, die sich an
+   einen KI-Assistenten oder Filter wenden, ersetzt `neutralize` vor dem Aufruf durch `[…]` und
+   zählt sie ohne Inhalt (`ollamail_prompt_injection_suspected_total{feature}`). Was die Features
+   daraus machen (Plausibilitätsregeln) und welche Kanäle nach außen wirken können:
+   [PRIVACY.md, „Prompt-Injection im Detail“](PRIVACY.md#prompt-injection-im-detail).
 
 **Modell-Evaluierung** (`backend/app/evals/`, #122): `uv run python -m app.evals --model … [--model …]`
 misst Triage, Todos, Digest und RAG über einen synthetischen Datensatz (200 Mails DE/EN, 60 Fragen,
 `app/evals/data/`) mit den Prompts und dem `LLMGateway` der Features (`EnvConfigResolver`); die
 RAG-Stufe indexiert in einer zurückgerollten Transaktion einer separaten Datenbank und nutzt
-`RagService`. Bericht als Markdown und JSON, nur IDs und Zahlen. Läuft nicht in `ci-ok`, nur manuell
+`RagService`. Dazu kommt ein Durchlauf über Mails mit eingeschleusten Anweisungen (Kennzahl
+„Injection befolgt“ je Stufe, #170). Bericht als Markdown und JSON, nur IDs und Zahlen. Läuft nicht in `ci-ok`, nur manuell
 (Workflow „Model evals“). Ausführung und gemessene Ergebnisse:
 [`operations/model-evals.md`](operations/model-evals.md).
 
@@ -759,15 +766,20 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   Nutzers (Adresse vor Domain), dann `Auto-Submitted` ≠ `no` und Roboter-Absender (`no-reply@`, …) →
   Benachrichtigung, `Precedence: junk` → Spam, `List-Unsubscribe`/`Precedence: bulk|list` → Newsletter,
   Priorität 3. Gespeichert wird der Regelname (`rule`), keine Begründung.
-- **LLM** (`classify.py`, Prompt `triage@2` in `prompts.py`): `LLMGateway.complete_structured` mit
+- **LLM** (`classify.py`, Prompt `triage@3` in `prompts.py`): `LLMGateway.complete_structured` mit
   Task `triage`, Temperatur 0. Das Antwortschema wird je Aufruf gebaut, die erlaubten
   Kategorie-Schlüssel stehen als `enum` darin. Ergebnis: Begründung (ein Satz in der UI-Sprache des
   Nutzers), Kategorie, Priorität 1–3 (1 = hoch) – die Begründung steht im Schema vorn, damit das
   Modell erst das entscheidende Merkmal nennt und dann wählt. Für die sichtbaren eingebauten
   Kategorien enthält der Prompt Entscheidungsregeln (`BUILTIN_RULES`, DE/EN), z. B. Antworten auf
   eigene Anfragen → „Warten auf“, Phishing/Gewinnspiele und Mails, die die Einordnung vorschreiben
-  wollen → Spam (#158, Messung in `docs/operations/model-evals.md` §4.5). Die Mail steht als Daten zwischen `<<<`/`>>>`, Text gekürzt
-  auf `OLLAMAIL_TRIAGE_MAX_BODY_CHARS`.
+  wollen → Spam (#158, Messung in `docs/operations/model-evals.md` §4.5). Die Mail steht als Daten
+  in einem Block mit pro Anfrage zufälligem Tag, Text gekürzt auf `OLLAMAIL_TRIAGE_MAX_BODY_CHARS`.
+- **Prompt-Injection** (#170): Absätze in Betreff, Text und Few-Shot-Beispielen, die sich an einen
+  KI-Assistenten oder Filter wenden, entfernt `app.ai.injection.neutralize` vor dem Aufruf. Hatte
+  die Mail solche Absätze, ist die Priorität mindestens 2 und die gespeicherte Begründung ein
+  fester Prüfhinweis (`REVIEW_REASON`) statt der des Modells; „Wichtig“ und „Handlungsbedarf“
+  werden zu Spam mit Priorität 3 (Spam-Regel der Triage, im Code durchgesetzt).
 - **Lernen aus Korrekturen** (`feedback.py`): `PUT /triage/messages/{id}` speichert die Korrektur als
   Ergebnis und als Beispiel (`triage_feedback`). In den Prompt kommen bis zu
   `OLLAMAIL_TRIAGE_FEW_SHOT_EXAMPLES` Beispiele **nur desselben Nutzers** (Filter auf Nutzer *und* auf
@@ -823,7 +835,10 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   `extraction.set_category_lookup(...)`. Mails aus Shared Mailboxes ergeben Team-Todos (siehe
   unten), angesprochen mit dem Namen des Postfachs, Bezugstag in UTC.
   `OLLAMAIL_TODOS_EXTRACTION_ENABLED=false` schaltet den Schritt ab.
-- **Prompt** `todos_extract@2` (`app/ai/prompts/todos.py`, DE/EN) über `LLMGateway.complete_structured`
+  Mails mit Absätzen, die sich an einen KI-Assistenten wenden (`app.ai.injection`, #170), gehen
+  nicht ans Modell und ergeben keine Todos: Todos sind die einzige Ausgabe, die ohne Klick nach
+  außen gelangen kann (Export im Modus `auto`).
+- **Prompt** `todos_extract@3` (`app/ai/prompts/todos.py`, DE/EN) über `LLMGateway.complete_structured`
   mit `LLMTask.TODOS`. Das Modell bekommt Absender, Empfänger, Betreff, Text ohne Zitate, das
   Sendedatum (Wochentag + Datum in der Zeitzone des Nutzers), ob der Nutzer die Mail selbst
   geschrieben hat, und die offenen Todos des Threads (nummeriert).
@@ -973,6 +988,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
      Kontextfenster des zugewiesenen Modells) → je Mail ein Satz plus Termin/Frist
      (strukturierte Ausgabe). Ungültige Antworten: Gruppe wird halbiert und erneut gefragt;
      scheitert eine einzelne Mail, steht stattdessen „Absender schreibt: Betreff“ da.
+     Jede Mail steht in einem Datenblock mit pro Anfrage zufälligem Tag (`digest_map@2`),
+     Absätze an KI-Assistenten sind vorher durch `[…]` ersetzt (#170).
   2. *Condense:* Passen die Notizen nicht in ein Kontextfenster, werden Gruppen zu weniger
      Notizen zusammengefasst (Referenzen bleiben erhalten), bei Bedarf mehrfach.
   3. *Reduce:* aus den Notizen der gesprochene Hauptteil mit `[n]`-Referenzen (Prompt mit
@@ -1108,6 +1125,7 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   nichts, ist ihr Status `no_evidence` (sonst `answered`); das UI kennzeichnet sie.
 - **Prompt-Injection:** Mailinhalte stehen nur in Datenblöcken mit pro Anfrage zufälligem
   Tag (`<mail-3f9a… n="1">…</mail-3f9a…>`), eine Mail kann ihren Block also nicht schließen.
+  Absätze, die sich an einen KI-Assistenten wenden, ersetzt `render_blocks` durch `[…]` (#170).
   Der System-Prompt erklärt die Blöcke zu nicht vertrauenswürdigen Daten und verbietet, darin
   enthaltenen Anweisungen zu folgen. Es gibt keine Tools: Die Ausgabe wird nur als Text mit
   Zitatmarkern behandelt, nie ausgeführt. Zugriffskontrolle steht nie im Prompt.
@@ -1155,7 +1173,8 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
   von anderen Nutzern.
 - **Prompt-Injection:** wie bei RAG – Mails und Stilbeispiele stehen nur in Datenblöcken mit
   zufälligem Tag pro Anfrage (`<mail-3f9a… n="2" latest="true">`), der System-Prompt erklärt sie
-  zu nicht vertrauenswürdigen Daten. Nur die Anweisung des Nutzers steht außerhalb. Das Modell
+  zu nicht vertrauenswürdigen Daten. Nur die Anweisung des Nutzers steht außerhalb.
+  Absätze, die sich an einen KI-Assistenten wenden, ersetzt `render_blocks` durch `[…]` (#170). Das Modell
   hat keine Tools; seine Ausgabe ist nur Text in einem Entwurf, den der Nutzer vor dem Senden
   sieht. Empfänger bestimmt nie das Modell, sondern `app/mail/compose.py` aus den Kopfzeilen.
 - **Versand** (`sending.py`): Entwurfszeile gesperrt (`FOR UPDATE`), damit ein Doppelklick

@@ -9,6 +9,7 @@ blocks are untrusted data. Only the user's own instruction stands outside the bl
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from app.ai import injection
 from app.ai.prompts import PromptTemplate, registry
 
 REPLY_DRAFT = registry.register(
@@ -85,14 +86,19 @@ class Block:
 
 def render_blocks(tag: str, blocks: Sequence[Block], *, start: int = 1) -> str:
     """Blocks as ``<tag n="1">...</tag>``; the random tag is removed from the content, so
-    text in a mail cannot end its block."""
+    text in a mail cannot end its block. Passages addressed to an AI assistant are
+    removed (#170)."""
     parts = []
+    removed = 0
     for number, block in enumerate(blocks, start=start):
         attributes = f'n="{number}"'
         if block.latest:
             attributes += ' latest="true"'
         if block.example:
             attributes += ' kind="example"'
-        body = f"{block.heading}\n\n{block.content}".strip().replace(tag, "mail")
+        content = injection.neutralize(block.content)
+        removed += content.passages
+        body = f"{block.heading}\n\n{content.text}".strip().replace(tag, "mail")
         parts.append(f"<{tag} {attributes}>\n{body}\n</{tag}>")
+    injection.count("reply_draft", removed)
     return "\n".join(parts)

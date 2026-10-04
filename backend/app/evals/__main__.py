@@ -60,6 +60,17 @@ def parse_args(argv: Sequence[str] | None) -> argparse.Namespace:
     parser.add_argument(
         "--no-prefilter", action="store_true", help="send every mail to the triage model"
     )
+    injections = parser.add_mutually_exclusive_group()
+    injections.add_argument(
+        "--no-injections",
+        action="store_true",
+        help="skip the pass over the mails with injected instructions",
+    )
+    injections.add_argument(
+        "--injections-only",
+        action="store_true",
+        help="only the pass over the mails with injected instructions (triage, todos, digest)",
+    )
     parser.add_argument(
         "--timeout",
         type=float,
@@ -88,6 +99,8 @@ def main(argv: Sequence[str] | None = None) -> int:
         judge_model=args.judge_model,
         database_url=args.database_url,
         use_prefilter=not args.no_prefilter,
+        injections=not args.no_injections,
+        injections_only=args.injections_only,
         timeout=args.timeout,
         settings=Settings(),
     )
