@@ -1708,7 +1708,8 @@ export interface paths {
         };
         /**
          * List Digest Voices
-         * @description Voices for the digest: installed ones plus the default voice of each language.
+         * @description Voices for the digest: installed ones plus the default voice of each language and
+         *     the voices the admin allows (``OLLAMAIL_TTS_VOICE_ALLOWLIST``).
          */
         get: operations["digests_list_digest_voices"];
         put?: never;
@@ -1909,7 +1910,7 @@ export interface paths {
         /**
          * Stream Events
          * @description Stream the current user's events. Each SSE ``event`` is the event type, ``data``
-         *     the JSON-encoded event.
+         *     the JSON-encoded event. The stream ends when the session is no longer valid.
          */
         get: operations["events_stream_events"];
         put?: never;
@@ -11942,7 +11943,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Invalid value or mailbox */
+            /** @description Invalid value, mailbox or voice */
             422: {
                 headers: {
                     [name: string]: unknown;
@@ -12355,6 +12356,13 @@ export interface operations {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
             };
+            /** @description Too many parallel AI requests of the user (`error_code` `llm_busy`) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
         };
     };
     drafts_get_draft_settings: {
@@ -12717,6 +12725,13 @@ export interface operations {
                         type: string;
                     };
                 };
+            };
+            /** @description Too many open streams of the user */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description The event listener is unavailable */
             503: {
@@ -14357,6 +14372,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+            /** @description Too many parallel AI requests of the user (`error_code` `llm_busy`) */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };

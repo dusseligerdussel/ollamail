@@ -1001,6 +1001,7 @@
     "tooLarge": "The upload is too large.",
     "validation": "Some entries are invalid.",
     "rateLimited": "Too many requests. Please wait a moment.",
+    "llmBusy": "You already have several answers or drafts in progress. Wait for one to finish, then try again.",
     "server": "A server error occurred. Please try again later.",
     "unavailable": "The service is temporarily unavailable.",
     "unknown": "Something went wrong.",

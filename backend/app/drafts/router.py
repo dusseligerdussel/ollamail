@@ -18,6 +18,7 @@ from pydantic import TypeAdapter
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import LLMGateway, get_llm
+from app.ai.llm.user_limits import LLM_BUSY, user_llm_slot
 from app.auth.dependencies import CurrentSessionDep
 from app.core.config import Settings
 from app.core.db import Database, get_db
@@ -198,7 +199,9 @@ async def create_draft(body: DraftCreate, current: CurrentSessionDep, db: DbDep)
             "content": {"text/event-stream": {"schema": STREAM_SCHEMA}},
         },
         404: {"description": "No such message or draft"},
+        **LLM_BUSY,
     },
+    dependencies=[Depends(user_llm_slot)],
 )
 async def generate_draft(
     body: DraftGenerate,

@@ -1,7 +1,7 @@
 """Application entry point."""
 
 import asyncio
-from collections.abc import AsyncIterator
+from collections.abc import AsyncIterator, Awaitable, Callable
 from contextlib import asynccontextmanager, suppress
 
 from fastapi import FastAPI
@@ -10,6 +10,7 @@ from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
 from app.admin.metrics import router as metrics_router
 from app.admin.system import router as admin_system_router
 from app.ai.llm import LLMGateway
+from app.ai.llm.user_limits import UserLLMLimiter
 from app.ai.settings.router import router as ai_settings_router
 from app.ai.settings.router import status_router as ai_status_router
 from app.ai.settings.runtime import build_resolver
@@ -64,6 +65,13 @@ from app.triage.router import router as triage_router
 from app.users.router import router as users_router
 
 
+def _fixed(value: int) -> Callable[[], Awaitable[int]]:
+    async def limit() -> int:
+        return value
+
+    return limit
+
+
 def create_app(settings: Settings | None = None) -> FastAPI:
     """Build and configure the FastAPI application."""
     settings = settings or get_settings()
@@ -71,7 +79,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     database = Database(settings.database)
     # AI settings from the database (admin page), refreshed on change (app/ai/settings).
     ai_resolver = build_resolver(settings, database)
-    llm = LLMGateway(ai_resolver)
+    llm = LLMGateway(ai_resolver, concurrency=_fixed(settings.llm.api_concurrency))
     events = EventBroker(settings.database)
     job_queue = JobQueue()
 
@@ -109,6 +117,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.readiness = ReadinessRegistry()
     register_readiness_check(app, "database", database.ping)
     app.state.llm = llm
+    app.state.user_llm_limiter = UserLLMLimiter(settings.llm.api_user_concurrency)
     app.state.ai_resolver = ai_resolver
     if settings.llm.readiness_check:
         register_readiness_check(app, "llm", llm.check_ready)

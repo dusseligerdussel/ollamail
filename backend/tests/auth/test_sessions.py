@@ -10,7 +10,7 @@ from sqlalchemy.pool import NullPool
 
 from app.auth import rate_limit
 from app.auth.models import AuthSession, rate_limits
-from app.auth.sessions import SESSION_COOKIE, purge_expired_sessions
+from app.auth.sessions import SESSION_COOKIE, purge_expired_sessions, session_active
 from app.core.config import Settings
 from app.core.db import get_db
 from app.main import create_app
@@ -151,6 +151,41 @@ async def test_purge_removes_expired_and_idle_sessions(
 
     assert await purge_expired_sessions(db_session, settings.auth) == 1
     assert await db_session.scalar(select(func.count()).select_from(AuthSession)) == 1
+
+
+async def test_session_active_does_not_refresh_the_session(
+    db_client: AsyncClient, db_session: AsyncSession, settings: Settings
+) -> None:
+    user = await make_local_user(db_session)
+    assert (await login(db_client, "erika@example.org")).status_code == 200
+    session = await db_session.scalar(select(AuthSession))
+    assert session is not None
+    seen = datetime.now(UTC) - timedelta(minutes=5)
+    await db_session.execute(
+        update(AuthSession).where(AuthSession.id == session.id).values(last_seen_at=seen)
+    )
+
+    assert await session_active(db_session, settings.auth, session.id)
+    db_session.expire_all()
+    assert (await db_session.get(AuthSession, session.id)).last_seen_at == seen  # type: ignore[union-attr]
+
+    # Idle, deactivated and ended sessions are no longer active.
+    idle = datetime.now(UTC) - timedelta(minutes=settings.auth.session_idle_timeout_minutes + 1)
+    await db_session.execute(
+        update(AuthSession).where(AuthSession.id == session.id).values(last_seen_at=idle)
+    )
+    assert not await session_active(db_session, settings.auth, session.id)
+    await db_session.execute(
+        update(AuthSession).where(AuthSession.id == session.id).values(last_seen_at=seen)
+    )
+    user.is_active = False
+    await db_session.flush()
+    assert not await session_active(db_session, settings.auth, session.id)
+    user.is_active = True
+    await db_session.flush()
+    assert await session_active(db_session, settings.auth, session.id)
+    assert (await db_client.post("/auth/logout")).status_code == 204
+    assert not await session_active(db_session, settings.auth, session.id)
 
 
 async def test_rate_limit_purge_keeps_current_windows(db_session: AsyncSession) -> None:
