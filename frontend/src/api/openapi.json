@@ -216,7 +216,7 @@
       },
       "AIProviderTest": {
         "additionalProperties": false,
-        "description": "Unsaved settings to test. Without ``api_key``, the stored key of ``name`` is used\n(so an edit form can be tested without typing the key again).",
+        "description": "Unsaved settings to test. Without ``api_key``, the stored key of ``name`` is used\n(so an edit form can be tested without typing the key again); with another ``kind`` or\n``base_url`` than stored, only after a recent confirmation (403 ``reauth-required``).",
         "properties": {
           "api_key": {
             "anyOf": [
@@ -10912,7 +10912,7 @@
     },
     "/admin/ai/providers/test": {
       "post": {
-        "description": "Test unsaved settings (e.g. in the form before saving).",
+        "description": "Test unsaved settings (e.g. in the form before saving). The stored key of ``name``\ngoes only to the stored ``kind`` and ``base_url``; sending it elsewhere needs a recent\nconfirmation, like saving the change does (#219).",
         "operationId": "ai_check_ai_provider_settings",
         "requestBody": {
           "content": {
@@ -10939,7 +10939,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "422": {
             "content": {
@@ -12671,7 +12671,7 @@
         ]
       },
       "patch": {
-        "description": "Rename, change connection settings or credentials (tested before saving), change\nsync settings, pause or resume syncing.",
+        "description": "Rename, change connection settings or credentials (tested before saving, rate-limited\nlike ``POST /mailboxes/test``), change sync settings, pause or resume syncing. Settings\nthat send the credentials to another server need the credentials again (422\n``credentials_required``).",
         "operationId": "admin_update_shared_mailbox",
         "parameters": [
           {
@@ -12717,6 +12717,9 @@
           },
           "422": {
             "description": "Invalid request, unavailable mailbox type or failed connection test"
+          },
+          "429": {
+            "description": "Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS)"
           }
         },
         "summary": "Update Shared Mailbox",
@@ -17398,7 +17401,7 @@
         ]
       },
       "patch": {
-        "description": "Rename, change connection settings or credentials (tested before saving), change\nthe import period or excluded folder roles, pause (``sync_enabled: false``) or resume\nsyncing.",
+        "description": "Rename, change connection settings or credentials (tested before saving), change\nthe import period or excluded folder roles, pause (``sync_enabled: false``) or resume\nsyncing. Settings that send the credentials to another server (host, port, transport\nsecurity, token endpoint) need the credentials again (422 ``credentials_required``).",
         "operationId": "mailboxes_update_mailbox",
         "parameters": [
           {

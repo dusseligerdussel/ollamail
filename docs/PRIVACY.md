@@ -112,6 +112,14 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
 - **Startprüfung:** Ohne oder mit zu schwachem Master-Key (kein Base64, < 32 Bytes, offensichtlich
   nicht zufällig) startet die API nicht. Keys und Klartexte erscheinen nie in Logs oder
   Fehlermeldungen; geloggt wird nur eine nicht umkehrbare Key-ID.
+- **Kein neues Ziel für gespeicherte Secrets (#219):** Ein gespeichertes Postfach-Passwort bzw.
+  -Token geht nur an den Server, für den es eingegeben wurde. Wer Host, Port oder
+  Transportsicherheit (IMAP/SMTP) bzw. den Token-Endpunkt (Graph-Tenant) ändert, muss die
+  Zugangsdaten neu angeben (422 `credentials_required`); welche Einstellungen das Ziel bestimmen,
+  meldet jeder Provider bei der Registry an (ohne Angabe: alle). Der gespeicherte API-Key eines
+  KI-Providers geht beim Verbindungstest nur an die gespeicherte URL und den gespeicherten Typ,
+  sonst erst nach erneuter Bestätigung des Admin-Kontos. Eine gestohlene Sitzung reicht so nicht,
+  um Zugangsdaten an einen eigenen Server zu schicken.
 
 ### Cloud-LLMs im Detail
 

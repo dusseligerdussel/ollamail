@@ -73,7 +73,8 @@ class MailboxUpdate(BaseModel):
     are tested before they are saved. ``sync_enabled`` pauses or resumes syncing."""
 
     display_name: DisplayName | None = None
-    # Replaces the provider settings as a whole.
+    # Replaces the provider settings as a whole. Changing where the credentials go (host,
+    # port, transport security, token endpoint) needs ``credentials`` as well (#219).
     provider_settings: dict[str, Any] | None = None
     # Replaces the stored credentials as a whole.
     credentials: Credentials | None = None

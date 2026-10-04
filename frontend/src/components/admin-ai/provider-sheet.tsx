@@ -12,6 +12,8 @@ import {
   useUpdateProvider,
 } from "@/api/ai";
 import { describeApiError, isApiError } from "@/api/errors";
+import { isReauthCancelled } from "@/api/reauth";
+import { useReauth } from "@/components/auth/reauth";
 import { FormError, FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -85,7 +87,12 @@ export function ProviderSheet({
   const [submitted, setSubmitted] = useState(false);
   const create = useCreateProvider();
   const update = useUpdateProvider();
-  const test = useMutation({ mutationFn: testProviderSettings, meta: { errorToast: false } });
+  const withReauth = useReauth();
+  const test = useMutation({
+    // The stored key goes to another URL or type only after a recent confirmation (#219).
+    mutationFn: (body: AIProviderTest) => withReauth(() => testProviderSettings(body)),
+    meta: { errorToast: false },
+  });
   const { reset: resetTest } = test;
 
   useEffect(() => {
@@ -111,6 +118,15 @@ export function ProviderSheet({
   const save = editing ? update : create;
   const saveError = save.error;
   const nameTaken = isApiError(saveError) && saveError.status === 409;
+
+  // Keeping the stored key while the destination changes: the test asks for a confirmation.
+  const keyToNewTarget =
+    editing &&
+    provider.api_key_set &&
+    !form.apiKey &&
+    !form.removeApiKey &&
+    (form.kind !== provider.kind || form.baseUrl.trim().replace(/\/+$/, "") !== provider.base_url);
+  const testError = test.error && !isReauthCancelled(test.error) ? test.error : null;
 
   const testBody = (): AIProviderTest => ({
     kind: form.kind,
@@ -242,9 +258,11 @@ export function ProviderSheet({
               value={form.apiKey}
               onChange={(event) => set("apiKey", event.target.value)}
               description={t(
-                editing && provider.api_key_set && !form.removeApiKey
-                  ? "pages.ai.form.apiKeyKeep"
-                  : "pages.ai.form.apiKeyHint",
+                keyToNewTarget
+                  ? "pages.ai.form.apiKeyNewTarget"
+                  : editing && provider.api_key_set && !form.removeApiKey
+                    ? "pages.ai.form.apiKeyKeep"
+                    : "pages.ai.form.apiKeyHint",
               )}
             />
             {editing && provider.api_key_set && !form.apiKey && (
@@ -315,6 +333,7 @@ export function ProviderSheet({
                 {t(test.isPending ? "pages.ai.providers.testing" : "pages.ai.providers.test")}
               </Button>
               {test.data && <TestResult result={test.data} />}
+              {testError && <FormError>{describeApiError(testError, t).title}</FormError>}
             </div>
             {saveError && !nameTaken && (
               <FormError>{describeApiError(saveError, t).title}</FormError>
