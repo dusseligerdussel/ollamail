@@ -275,7 +275,8 @@
           "reactivated": "User reactivated",
           "invited": "User invited",
           "password_set": "Password set",
-          "updated": "User updated"
+          "updated": "User updated",
+          "identity_linked": "Sign-in linked by e-mail address"
         },
         "group": {
           "created": "Group created",
