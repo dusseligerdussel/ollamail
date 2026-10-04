@@ -223,7 +223,7 @@ function DeviceRow({
             </Badge>
           )}
         </div>
-        <div className="truncate text-ui text-muted-foreground">
+        <div className="text-ui break-words text-muted-foreground">
           {t("notifications.push.since", {
             date: formatDate(device.created_at),
             service: device.push_service,
