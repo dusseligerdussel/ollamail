@@ -1,23 +1,26 @@
 """Triage API: integration tests with real sessions and PostgreSQL."""
 
+import dataclasses
 import uuid
 from datetime import timedelta
 
 import pytest
 from httpx import AsyncClient
-from sqlalchemy import event, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.core.events import Event
 from app.mail import access as mail_access
+from app.mail.models import Folder, FolderRole
 from app.mail.providers.base import Flag
+from app.triage import service as triage_service
 from app.triage.models import (
     TriageCategory,
     TriageFeedback,
     TriageMailboxSettings,
     TriageSource,
 )
-from app.triage.service import Decision, save_result
+from app.triage.service import Decision, InboxCursor, save_result
 from app.users.models import UserRole
 from tests.auth.conftest import _cheap_hashing, login, make_local_user  # noqa: F401
 from tests.triage.conftest import NOW, Account, account_for, make_account
@@ -40,7 +43,7 @@ async def _categories(client: AsyncClient) -> dict[str, dict[str, object]]:
 
 
 async def test_requires_authentication(db_client: AsyncClient) -> None:
-    for path in ("/triage/categories", "/triage/inbox", "/triage/sender-rules"):
+    for path in ("/triage/categories", "/triage/inbox/messages", "/triage/sender-rules"):
         assert (await db_client.get(path)).status_code == 401
 
 
@@ -221,69 +224,6 @@ async def test_messages_of_other_users_are_not_found(
     assert response.status_code == 404
     settings = await db_client.get(f"/triage/mailboxes/{other.mailbox.id}/settings")
     assert settings.status_code == 404
-
-
-async def test_inbox_grouped_by_category(db_client: AsyncClient, db_session: AsyncSession) -> None:
-    account = await _signed_in(db_client, db_session)
-    other = await make_account(db_session)
-    categories = await _categories(db_client)
-    info = uuid.UUID(str(categories["info"]["id"]))
-    spam = uuid.UUID(str(categories["spam"]["id"]))
-
-    low = await account.message("Low info")
-    high = await account.message("High info")
-    hidden = await account.message("Hidden spam")
-    untriaged = await account.message("New mail")
-    await account.message("Archived", in_inbox=False)
-    foreign = await other.message("Foreign")
-    for message, category, priority in [
-        (low, info, 3),
-        (high, info, 1),
-        (hidden, spam, 3),
-        (foreign, info, 1),
-    ]:
-        await save_result(db_session, message.id, Decision(category, priority, TriageSource.LLM))
-    await db_client.patch(f"/triage/categories/{spam}", json={"hidden": True})
-
-    statements: list[str] = []
-
-    def record(_conn: object, _cursor: object, statement: str, *_: object) -> None:
-        # The counts start from the folder membership (#186).
-        if "FROM mail_messages" in statement or "FROM mail_message_folders" in statement:
-            statements.append(statement)
-
-    engine = db_session.bind.engine.sync_engine  # type: ignore[union-attr]
-    event.listen(engine, "before_cursor_execute", record)
-    try:
-        response = await db_client.get("/triage/inbox")
-    finally:
-        event.remove(engine, "before_cursor_execute", record)
-
-    assert response.status_code == 200
-    # Counts and messages of all groups: two queries, not two per category (#140).
-    assert len(statements) == 2
-    groups = {(g["category"]["builtin_key"] if g["category"] else None): g for g in response.json()}
-    assert "spam" not in groups
-    assert [m["subject"] for m in groups["info"]["messages"]] == ["High info", "Low info"]
-    assert groups["info"]["total"] == 2
-    # Hidden-category and untriaged messages; messages without priority come last.
-    assert [m["subject"] for m in groups[None]["messages"]] == ["Hidden spam", "New mail"]
-    assert groups[None]["messages"][1]["priority"] is None
-    assert response.json()[-1]["category"] is None
-    assert groups["important"]["messages"] == [] and groups["important"]["total"] == 0
-
-    limited = await db_client.get(
-        "/triage/inbox", params={"limit": 1, "mailbox_id": str(account.mailbox.id)}
-    )
-    info_group = next(
-        g for g in limited.json() if g["category"] and g["category"]["builtin_key"] == "info"
-    )
-    assert (len(info_group["messages"]), info_group["total"]) == (1, 2)
-    other_mailbox = await db_client.get(
-        "/triage/inbox", params={"mailbox_id": str(other.mailbox.id)}
-    )
-    assert all(g["total"] == 0 for g in other_mailbox.json())
-    assert str(untriaged.id) in response.text
 
 
 async def test_sender_rules_and_suggestions(
@@ -473,6 +413,49 @@ async def test_inbox_messages_ordered_by_category(
     assert foreign_mailbox["total"] == 0
 
 
+@pytest.mark.parametrize("by_id", [1_000, 2])
+async def test_untriaged_messages_page_from_ids_or_the_list(
+    db_client: AsyncClient,
+    db_session: AsyncSession,
+    monkeypatch: pytest.MonkeyPatch,
+    by_id: int,
+) -> None:
+    """Few untriaged inbox messages are sorted from their IDs, many are read along the list
+    (#225); both page the same way, also with an unread filter."""
+    monkeypatch.setattr(triage_service, "UNTRIAGED_BY_ID", by_id)
+    account = await _signed_in(db_client, db_session)
+    other = await make_account(db_session)
+    info = (await _categories(db_client))["info"]["id"]
+    triaged = await account.message("Triaged")
+    await save_result(db_session, triaged.id, Decision(uuid.UUID(str(info)), 2, TriageSource.LLM))
+    new = [await account.message(f"New {i}") for i in range(4)]
+    await account.message("Archived", in_inbox=False)
+    await other.message("Foreign")
+    new[1].flags = [Flag.SEEN.value]
+    await db_session.flush()
+
+    async def walk(**params: str | int | bool) -> list[str]:
+        subjects: list[str] = []
+        query: dict[str, str | int | bool] = {"limit": 1, "category": "none", **params}
+        while True:
+            page = (await db_client.get("/triage/inbox/messages", params=query)).json()
+            subjects += [m["subject"] for m in page["items"]]
+            if page["next_cursor"] is None:
+                return subjects
+            query["cursor"] = page["next_cursor"]
+
+    assert await walk() == ["New 3", "New 2", "New 1", "New 0"]
+    assert await walk(unread=True) == ["New 3", "New 2", "New 0"]
+
+    # A cursor from before #225 (without the count) reads along the list.
+    first = (await db_client.get("/triage/inbox/messages", params={"limit": 2})).json()
+    cursor = InboxCursor.decode(first["next_cursor"])
+    assert cursor.untriaged == 4
+    legacy = dataclasses.replace(cursor, untriaged=None).encode()
+    rest = await db_client.get("/triage/inbox/messages", params={"limit": 5, "cursor": legacy})
+    assert [m["subject"] for m in rest.json()["items"]] == ["New 2", "New 1", "New 0"]
+
+
 async def test_uncategorised_segments_merge_categories_and_mailboxes(
     db_client: AsyncClient, db_session: AsyncSession
 ) -> None:
@@ -556,6 +539,59 @@ async def test_results_copy_mailbox_and_sort_date_of_their_message(
     await db_session.flush()
     await db_session.refresh(result)
     assert result.sort_date == NOW - timedelta(days=3)
+
+
+async def test_results_follow_their_message_into_and_out_of_the_inbox(
+    db_session: AsyncSession,
+) -> None:
+    """``in_inbox`` (#225) is set on insert and follows the folders of the message and the
+    role of the folders; the application cannot set it."""
+    account = await make_account(db_session)
+    archive = Folder(
+        mailbox_id=account.mailbox.id, remote_id="Archive", name="Archive", role=FolderRole.ARCHIVE
+    )
+    db_session.add(archive)
+    category = await db_session.scalar(
+        select(TriageCategory.id).where(TriageCategory.builtin_key == "info")
+    )
+    inbox_message = await account.message()
+    archived = await account.message(in_inbox=False)
+    archived.folders = [archive]
+    await db_session.flush()
+    decision = Decision(category, 2, TriageSource.LLM)
+    in_inbox = await save_result(db_session, inbox_message.id, decision)
+    in_archive = await save_result(db_session, archived.id, decision)
+    assert (in_inbox.in_inbox, in_archive.in_inbox) == (True, False)
+
+    async def flags() -> tuple[bool, bool]:
+        for result in (in_inbox, in_archive):
+            await db_session.refresh(result)
+        return in_inbox.in_inbox, in_archive.in_inbox
+
+    # Moved: the inbox message to the archive, the archived one into the inbox as well.
+    await db_session.refresh(inbox_message, ["folders"])
+    await db_session.refresh(archived, ["folders"])
+    inbox_message.folders = [archive]
+    archived.folders = [archive, account.inbox]
+    await db_session.flush()
+    assert await flags() == (False, True)
+
+    # The archive becomes the inbox (and back), e.g. after a change on the server.
+    archive.role = FolderRole.INBOX
+    await db_session.flush()
+    assert await flags() == (True, True)
+    archive.role = None
+    await db_session.flush()
+    assert await flags() == (False, True)
+
+    # A deleted inbox folder takes its messages out of the inbox.
+    await db_session.delete(account.inbox)
+    await db_session.flush()
+    assert await flags() == (False, False)
+
+    in_inbox.in_inbox = True
+    await db_session.flush()
+    assert await flags() == (False, False)
 
 
 async def test_correction_notifies_the_ui(

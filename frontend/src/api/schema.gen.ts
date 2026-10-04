@@ -3158,27 +3158,6 @@ export interface paths {
         patch: operations["triage_update_category"];
         trace?: never;
     };
-    "/triage/inbox": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /**
-         * Get Inbox
-         * @description Inbox of the user's mailboxes grouped by visible category, in the user's order;
-         *     the last group (``category: null``) holds messages without a visible category.
-         */
-        get: operations["triage_get_inbox"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/triage/inbox/messages": {
         parameters: {
             query?: never;
@@ -4847,40 +4826,6 @@ export interface components {
             provider_name?: string | null;
             /** Unlink Refusal */
             unlink_refusal: ("local" | "current_session" | "last_sign_in") | null;
-        };
-        /** InboxGroup */
-        InboxGroup: {
-            category: components["schemas"]["CategoryRead"] | null;
-            /** Messages */
-            messages: components["schemas"]["InboxMessage"][];
-            /** Total */
-            total: number;
-        };
-        /** InboxMessage */
-        InboxMessage: {
-            /**
-             * Mailbox Id
-             * Format: uuid
-             */
-            mailbox_id: string;
-            /**
-             * Message Id
-             * Format: uuid
-             */
-            message_id: string;
-            /** Priority */
-            priority: number | null;
-            /** Reason */
-            reason: string | null;
-            /** Received At */
-            received_at: string | null;
-            /** Sender Address */
-            sender_address: string | null;
-            /** Sender Name */
-            sender_name: string | null;
-            source: components["schemas"]["TriageSource"] | null;
-            /** Subject */
-            subject: string;
         };
         /** IncludeOlderRead */
         IncludeOlderRead: {
@@ -16095,46 +16040,6 @@ export interface operations {
             };
             /** @description Not found or not yours */
             404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content?: never;
-            };
-            /** @description Validation Error */
-            422: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["HTTPValidationError"];
-                };
-            };
-        };
-    };
-    triage_get_inbox: {
-        parameters: {
-            query?: {
-                mailbox_id?: string | null;
-                /** @description Messages per group */
-                limit?: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /** @description Successful Response */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["InboxGroup"][];
-                };
-            };
-            /** @description Not signed in */
-            401: {
                 headers: {
                     [name: string]: unknown;
                 };

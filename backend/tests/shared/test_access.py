@@ -188,7 +188,7 @@ async def visible_contents(
     """What ``client`` sees of the shared mailbox, feature by feature."""
     session = inbox.mail.session
     message = f"/messages/{team.message_id}"
-    triage_inbox = (await client.get("/triage/inbox")).json()
+    triage_inbox = (await client.get("/triage/inbox/messages")).json()
     hits = await search(session, user_id, "hotline office", embedder=None, settings=inbox.settings)
     fake_llm.model.analysis = {"search_query": "hotline office"}
     fake_llm.model.answer = "On Friday [1]."
@@ -210,7 +210,7 @@ async def visible_contents(
         "body": (await client.get(f"{message}/body")).status_code,
         "attachment": (await client.get(f"{message}/attachments/{team.attachment_id}")).status_code,
         "triage": (await client.get(f"/triage/messages/{team.message_id}")).status_code,
-        "triage_inbox": sum(len(group["messages"]) for group in triage_inbox),
+        "triage_inbox": len(triage_inbox["items"]),
         "todos": [t["id"] for t in (await client.get("/todos")).json()],
         "todo": (await client.get(f"/todos/{team.todo_id}")).status_code,
         "search": len(hits),

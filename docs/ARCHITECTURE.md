@@ -412,7 +412,11 @@ Planer sonst alle Mails sortieren. `unread=true` liest den partiellen Index
 `ix_mail_messages_unread` (gleiche Spalten, `WHERE NOT (flags @> ARRAY['seen']::text[])`, #186):
 Bei wenigen Ungelesenen in einem großen Postfach liest eine Seite nur die Ungelesenen statt alle
 gelesenen zu überspringen. Der Filter muss genau dieses Prädikat mit dem Array als Literal
-verwenden (`listing.UNREAD`), sonst kann der Planer den Index nicht nehmen. Gezählt wird nur für
+verwenden (`listing.UNREAD`), sonst kann der Planer den Index nicht nehmen. Bewusst in Kauf
+genommen (#225): Weil der Index `flags` im Prädikat hat, ist eine Änderung der Flags kein
+HOT-Update mehr – jede legt neue Einträge in allen Indizes von `mail_messages` an (20k
+Flag-Updates dauern etwa 1,5- bis 2-mal so lang wie ohne den Index). Flags ändern sich einzeln (Nutzer, Sync), das Lesen der
+Ungelesenen auf jeder Listenseite überwiegt; `VACUUM` räumt die alten Einträge ab. Gezählt wird nur für
 die erste Seite, und zwar ab der Ordnerzuordnung (`mail_message_folders`, Index-only über den
 Ordner): Die Zählung kostet die Größe des Ordners, nicht die des Postfachs; nur mit `unread` wird
 `mail_messages` gelesen. Listenzeilen laden statt `body_main` nur dessen Anfang für das Snippet
@@ -879,28 +883,37 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   das nachträgliche Aktivieren arbeitet der minütliche Job `triage.write_back` ab
   (`write_back_pending`).
 - **API** (`/triage`): Kategorien (CRUD, Reihenfolge, Ausblenden), Triage einer Mail lesen/korrigieren,
-  Inbox nach Kategorie gruppiert (`GET /triage/inbox`, Posteingangsordner der lesbaren Postfächer),
   Absenderregeln, Write-back-Einstellung je Postfach. Für die UI (#21): `GET /triage/messages?ids=…`
   liefert die Triage vieler Mails auf einmal (sichtbare Listenzeilen), `GET /triage/inbox/messages`
   die Inbox als eine Liste sortiert nach Kategorie (Reihenfolge des Nutzers, ohne Kategorie zuletzt),
   Priorität und Datum, mit Filter auf eine Kategorie (`category=<id>|none`), Keyset-Seiten per
   `cursor` und – nur auf der ersten Seite – der Anzahl je Kategorie (`groups`) und `total`. Die Liste
   besteht aus Segmenten (Kategorie × Priorität), die nacheinander gelesen werden. Ein Segment
-  triagierter Mails ist ein Bereich des Index `ix_triage_results_segment` (`mailbox_id`,
-  `category_id`, `priority`, `sort_date DESC`, `message_id DESC`, #186); `mailbox_id` und
-  `sort_date` sind Kopien aus `mail_messages`, gefüllt vom Trigger `triage_results_message_columns`
-  und nachgeführt von `mail_messages_triage_sort_date`. Ein Segment mit zehn Mails kostet damit
-  zehn Indexeinträge statt eines Laufs über das ganze Postfach. Die Unkategorisierten mit Priorität
-  sind ein Bereich je Postfach und je Kategorie, die der Nutzer nicht sieht (gelöscht = `NULL`,
-  ausgeblendet, Kategorie eines anderen Nutzers im Shared Mailbox), zusammengeführt wie mehrere
-  Postfächer; welche Kategorien vorkommen, ermittelt ein Skip-Scan über denselben Index. Mit
-  `unread` kann der Planer stattdessen bei `ix_mail_messages_unread` beginnen. Nur das Segment
-  der noch nicht triagierten Mails läuft weiter über den Listenindex des Postfachs (es gibt keine
-  Ergebniszeile, an der ein Index hängen könnte); bei wenigen untriagierten Mails unter vielen
-  triagierten liest es entsprechend viel. Die erste Seite zählt die Segmente in einer Query ab den
-  Posteingangsordnern (Kosten: Größe der Inbox, nicht des Postfachs), der Cursor merkt sich die
-  nicht leeren, damit leere Segmente (z. B. ausgeblendete Kategorien) übersprungen werden.
-  `GET /triage/inbox` braucht zwei Queries, unabhängig von der Zahl der Kategorien.
+  triagierter Mails ist ein Bereich des partiellen Index `ix_triage_results_inbox_segment`
+  (`mailbox_id`, `category_id`, `priority`, `sort_date DESC`, `message_id DESC`,
+  `WHERE in_inbox`; #186, #225). `mailbox_id` und `sort_date` sind Kopien aus `mail_messages`,
+  gefüllt vom Trigger `triage_results_message_columns` und nachgeführt von
+  `mail_messages_triage_sort_date`. `in_inbox` sagt, ob die Mail in einem Ordner mit der Rolle
+  `inbox` liegt; gesetzt von `triage_results_message_columns`, nachgeführt von
+  `mail_message_folders_triage_inbox` (Mail kommt in den/aus dem Posteingang) und
+  `mail_folders_triage_inbox` (Ordner bekommt/verliert die Rolle). Gleichzeitige Änderungen treffen
+  sich an einer Zeilensperre auf der Mail bzw. dem Ordner (Details im Docstring der Migration
+  `triage_results_in_inbox`). Der Index enthält damit nur die Ergebnisse des Posteingangs, nicht
+  die des Archivs: Ein Segment mit zehn Mails kostet zehn Indexeinträge, ohne die Ordner zu prüfen.
+  Preis: Eine triagierte Mail, die in den oder aus dem Posteingang wandert, aktualisiert ihre
+  Ergebniszeile (gemessen ~80 µs je Mail; Mails ohne Ergebnis und andere Ordner ~25 µs).
+  Die Unkategorisierten mit Priorität sind ein Bereich je Postfach und je Kategorie, die der Nutzer
+  nicht sieht (gelöscht = `NULL`, ausgeblendet, Kategorie eines anderen Nutzers im Shared
+  Mailbox), zusammengeführt wie mehrere Postfächer; welche Kategorien vorkommen, ermittelt ein
+  Skip-Scan über denselben Index. Mit `unread` kann der Planer stattdessen bei
+  `ix_mail_messages_unread` beginnen. Die noch nicht triagierten Mails haben keine Ergebniszeile:
+  Sind es höchstens `UNTRIAGED_BY_ID` (1000), holt eine Query ihre IDs (Posteingang ohne Ergebnis
+  im Posteingangsindex, Kosten: Größe der Inbox) und eine zweite sortiert nur diese; sonst läuft das
+  Segment über den Listenindex des Postfachs, wo sie dann dicht genug liegen. Die erste Seite
+  zählt die Segmente in einer Query ab den Posteingangsordnern, verbunden mit dem
+  Posteingangsindex (Kosten: Größe der Inbox, nicht des Postfachs oder aller Ergebnisse); der
+  Cursor merkt sich die nicht leeren Segmente, damit leere (z. B. ausgeblendete Kategorien)
+  übersprungen werden, und die Zahl der untriagierten Mails.
 - **Events:** `message.triaged` (`message_id`, `mailbox_id`) an alle, die das Postfach lesen (Besitzer bzw. Nutzer eines Shared Mailbox), sobald der
   Schritt `triage` eine Kategorie gespeichert hat oder der Nutzer sie korrigiert. Die UI lädt daraufhin
   nur Labels und die Inbox nach Kategorie neu.

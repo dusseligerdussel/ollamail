@@ -37,8 +37,6 @@ from app.triage.schemas import (
     CategoryOrder,
     CategoryRead,
     CategoryUpdate,
-    InboxGroup,
-    InboxMessage,
     MailboxTriageSettings,
     OrganizationCategoryCreate,
     OrganizationCategoryRead,
@@ -323,50 +321,6 @@ async def correct_triage(
     await db.refresh(result)
     log.info("triage_corrected", message_id=message_id, user_id=current.user_id)
     return _triage_read(result)
-
-
-@router.get("/inbox")
-async def get_inbox(
-    current: CurrentSessionDep,
-    db: DbDep,
-    mailbox_id: uuid.UUID | None = None,
-    limit: Annotated[int, Query(ge=1, le=200, description="Messages per group")] = 50,
-) -> list[InboxGroup]:
-    """Inbox of the user's mailboxes grouped by visible category, in the user's order;
-    the last group (``category: null``) holds messages without a visible category."""
-    categories = await effective_categories(db, current.user_id)
-    groups, totals = await service.inbox(
-        db,
-        current.user_id,
-        [c.id for c in categories],
-        mailbox_id=mailbox_id,
-        per_group=limit,
-    )
-    by_id = {c.id: c for c in categories}
-    response = []
-    for category_id, entries in groups.items():
-        category = by_id.get(category_id) if category_id is not None else None
-        response.append(
-            InboxGroup(
-                category=_read(category) if category is not None else None,
-                total=totals[category_id],
-                messages=[
-                    InboxMessage(
-                        message_id=e.message_id,
-                        mailbox_id=e.mailbox_id,
-                        subject=e.subject,
-                        sender_name=e.sender_name,
-                        sender_address=e.sender_address,
-                        received_at=e.received_at,
-                        priority=e.priority,
-                        source=e.source,
-                        reason=e.reason,
-                    )
-                    for e in entries
-                ],
-            )
-        )
-    return response
 
 
 @router.get(
