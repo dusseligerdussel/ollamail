@@ -20,7 +20,7 @@ from typing import Annotated, Any
 
 from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse
-from sqlalchemy import ColumnElement, select
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -55,7 +55,7 @@ log = get_logger(__name__)
 
 # Path prefix of the API as seen by the browser (Caddy and the Vite proxy strip it).
 API_PREFIX = "/api"
-SNIPPET_LENGTH = 200
+SNIPPET_LENGTH = listing.SNIPPET_LENGTH
 # Newest messages of a thread that are returned.
 MAX_THREAD_MESSAGES = 100
 # Served inline (for ``cid:`` images in the mail HTML); everything else is a download.
@@ -170,13 +170,15 @@ def _body(message: Message, *, external_images: bool) -> MessageBody:
 
 def _summary_fields(message: Message) -> dict[str, Any]:
     flags = set(message.flags or [])
+    # List rows carry only the start of the body (``listing.without_bodies``).
+    source = message.snippet if message.snippet is not None else message.body_main
     return {
         "id": message.id,
         "mailbox_id": message.mailbox_id,
         "thread_id": message.thread_id,
         "subject": message.subject,
         "sender": _address(message.sender),
-        "snippet": " ".join(message.body_main[:SNIPPET_LENGTH].split()),
+        "snippet": " ".join(source[:SNIPPET_LENGTH].split()),
         "date": _date_of(message),
         "unread": Flag.SEEN not in flags,
         "flagged": Flag.FLAGGED in flags,
@@ -225,19 +227,12 @@ async def list_messages(
     ``cursor``; ``total`` counts all matching messages and comes only with the first page
     (without ``cursor``)."""
     mailbox_ids = await listing.readable_mailbox_ids(db, current.user_id, mailbox_id)
-    folders = (
-        [folder_id]
-        if folder_id is not None
-        else await listing.folder_ids(db, mailbox_ids, FolderRole.INBOX)
-    )
-    conditions: list[ColumnElement[bool]] = [listing.in_folders(folders)]
-    if unread is True:
-        conditions.append(~Message.flags.contains([Flag.SEEN.value]))
-    elif unread is False:
-        conditions.append(Message.flags.contains([Flag.SEEN.value]))
+    folders = await listing.folder_ids(db, mailbox_ids, folder_id or FolderRole.INBOX)
+    read_state = listing.read_state(unread)
+    conditions = [listing.in_folders(folders), *read_state]
 
     before = _decode_cursor(cursor) if cursor is not None else None
-    total = await listing.count(db, mailbox_ids, conditions) if before is None else None
+    total = await listing.count(db, folders, read_state) if before is None else None
     query = listing.newest_first(mailbox_ids, conditions, before=before, limit=limit + 1)
     rows = list(await db.scalars(query))
     items = rows[:limit]

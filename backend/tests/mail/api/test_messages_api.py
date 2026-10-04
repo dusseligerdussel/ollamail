@@ -128,6 +128,11 @@ async def test_other_users_messages_are_not_found(
     attachment_id = detail["messages"][-1]["attachments"][0]["id"]
 
     assert (await inbox(bob))["total"] == 0
+    # The count reads the folder alone (#186): a foreign folder counts as empty.
+    for folder_id in await db_session.scalars(select(Folder.id)):
+        page = await inbox(bob, folder_id=str(folder_id))
+        assert (page["total"], page["items"]) == (0, [])
+        assert (await inbox(bob, folder_id=str(folder_id), unread=True))["total"] == 0
     assert (await bob.get(f"/messages/{message_id}/thread")).status_code == 404
     assert (await bob.get(f"/messages/{message_id}/body")).status_code == 404
     response = await bob.patch(f"/messages/{message_id}", json={"seen": True})

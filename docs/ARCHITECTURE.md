@@ -398,9 +398,18 @@ Seite liest den Index in Listenreihenfolge und hört nach `limit` Zeilen auf, eg
 der Liste liegt; bei mehreren Postfächern wird jedes einzeln gelesen und zusammengeführt (ein
 `mailbox_id IN (…)` müsste alle Mails sortieren). Ordnerfilter laufen über Ordner-IDs statt über einen
 Join auf `mail_folders`: Die kleine Tabelle hat oft keine Statistik, und eine Fehlschätzung lässt den
-Planer sonst alle Mails sortieren. Gezählt wird nur für die erste Seite. Nachweis mit 100k
-synthetischen Mails: `backend/tests/perf/` (`OLLAMAIL_TEST_PERF=1`, in der CI aktiv) prüft per
-`EXPLAIN (ANALYZE)`, dass jede Seite den Index nutzt und nicht sortiert.
+Planer sonst alle Mails sortieren. `unread=true` liest den partiellen Index
+`ix_mail_messages_unread` (gleiche Spalten, `WHERE NOT (flags @> ARRAY['seen']::text[])`, #186):
+Bei wenigen Ungelesenen in einem großen Postfach liest eine Seite nur die Ungelesenen statt alle
+gelesenen zu überspringen. Der Filter muss genau dieses Prädikat mit dem Array als Literal
+verwenden (`listing.UNREAD`), sonst kann der Planer den Index nicht nehmen. Gezählt wird nur für
+die erste Seite, und zwar ab der Ordnerzuordnung (`mail_message_folders`, Index-only über den
+Ordner): Die Zählung kostet die Größe des Ordners, nicht die des Postfachs; nur mit `unread` wird
+`mail_messages` gelesen. Listenzeilen laden statt `body_main` nur dessen Anfang für das Snippet
+(`left(body_main, 200)`, `Message.snippet`). Nachweis mit 100k synthetischen Mails:
+`backend/tests/perf/` (`OLLAMAIL_TEST_PERF=1`, in der CI aktiv) prüft per `EXPLAIN (ANALYZE)`, dass
+jede Seite ihre Zeilen aus einem Listenindex liest und höchstens wenige Seiten Zeilen anfasst –
+auch für ein archivlastiges Postfach mit wenigen Ungelesenen und kleinen Triage-Segmenten.
 
 | Endpunkt | Zweck |
 |---|---|
@@ -830,9 +839,21 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   die Inbox als eine Liste sortiert nach Kategorie (Reihenfolge des Nutzers, ohne Kategorie zuletzt),
   Priorität und Datum, mit Filter auf eine Kategorie (`category=<id>|none`), Keyset-Seiten per
   `cursor` und – nur auf der ersten Seite – der Anzahl je Kategorie (`groups`) und `total`. Die Liste
-  besteht aus Segmenten (Kategorie × Priorität), die nacheinander über den Listenindex gelesen werden
-  (siehe Mail-Lese-API); die erste Seite zählt die Segmente in einer Query, der Cursor merkt sich die
-  nicht leeren, damit leere Segmente (z. B. ausgeblendete Kategorien) keinen vollen Indexlauf kosten.
+  besteht aus Segmenten (Kategorie × Priorität), die nacheinander gelesen werden. Ein Segment
+  triagierter Mails ist ein Bereich des Index `ix_triage_results_segment` (`mailbox_id`,
+  `category_id`, `priority`, `sort_date DESC`, `message_id DESC`, #186); `mailbox_id` und
+  `sort_date` sind Kopien aus `mail_messages`, gefüllt vom Trigger `triage_results_message_columns`
+  und nachgeführt von `mail_messages_triage_sort_date`. Ein Segment mit zehn Mails kostet damit
+  zehn Indexeinträge statt eines Laufs über das ganze Postfach. Die Unkategorisierten mit Priorität
+  sind ein Bereich je Postfach und je Kategorie, die der Nutzer nicht sieht (gelöscht = `NULL`,
+  ausgeblendet, Kategorie eines anderen Nutzers im Shared Mailbox), zusammengeführt wie mehrere
+  Postfächer; welche Kategorien vorkommen, ermittelt ein Skip-Scan über denselben Index. Mit
+  `unread` kann der Planer stattdessen bei `ix_mail_messages_unread` beginnen. Nur das Segment
+  der noch nicht triagierten Mails läuft weiter über den Listenindex des Postfachs (es gibt keine
+  Ergebniszeile, an der ein Index hängen könnte); bei wenigen untriagierten Mails unter vielen
+  triagierten liest es entsprechend viel. Die erste Seite zählt die Segmente in einer Query ab den
+  Posteingangsordnern (Kosten: Größe der Inbox, nicht des Postfachs), der Cursor merkt sich die
+  nicht leeren, damit leere Segmente (z. B. ausgeblendete Kategorien) übersprungen werden.
   `GET /triage/inbox` braucht zwei Queries, unabhängig von der Zahl der Kategorien.
 - **Events:** `message.triaged` (`message_id`, `mailbox_id`) an alle, die das Postfach lesen (Besitzer bzw. Nutzer eines Shared Mailbox), sobald der
   Schritt `triage` eine Kategorie gespeichert hat oder der Nutzer sie korrigiert. Die UI lädt daraufhin
