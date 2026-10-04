@@ -11,6 +11,7 @@ import {
   oidcProvidersQueryOptions,
 } from "@/api/admin-auth";
 import { describeApiError } from "@/api/errors";
+import { isReauthCancelled } from "@/api/reauth";
 import {
   createScimToken,
   revokeScimToken,
@@ -24,6 +25,7 @@ import {
 import { AdminSection, AdminSubPage } from "@/components/admin/admin-page";
 import { ConfirmDialog } from "@/components/admin/confirm-dialog";
 import { Notice } from "@/components/admin/notice";
+import { useReauth } from "@/components/auth/reauth";
 import { CopyField } from "@/components/copy-field";
 import { Forbidden } from "@/components/forbidden";
 import { InlineError } from "@/components/inline-error";
@@ -260,8 +262,11 @@ function CreateTokenForm({ onCreated }: { onCreated: (issued: ScimTokenIssued) =
   const queryClient = useQueryClient();
   const [name, setName] = useState("");
   const [expiry, setExpiry] = useState("");
+  const withReauth = useReauth();
   const create = useMutation({
-    mutationFn: () => createScimToken(name.trim(), expiry ? Number(expiry) : null),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: () =>
+      withReauth(() => createScimToken(name.trim(), expiry ? Number(expiry) : null)),
     meta: { errorToast: false },
     onSuccess: async (issued) => {
       setName("");
@@ -314,7 +319,9 @@ function CreateTokenForm({ onCreated }: { onCreated: (issued: ScimTokenIssued) =
           {t("pages.scim.createToken")}
         </Button>
       </div>
-      {create.isError && <Notice tone="error">{describeApiError(create.error, t).title}</Notice>}
+      {create.isError && !isReauthCancelled(create.error) && (
+        <Notice tone="error">{describeApiError(create.error, t).title}</Notice>
+      )}
     </form>
   );
 }

@@ -17,6 +17,7 @@ from app.auth.admin_access import AdminAccessGuard, admin_access
 from app.auth.dependencies import AdminSessionDep, SettingsDep
 from app.auth.models import RoleMappingRule
 from app.auth.providers import AuthProviderRegistry
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep
 from app.auth.schemas import (
     AdminAccess,
     AuthSettingsRead,
@@ -88,10 +89,10 @@ async def get_auth_settings(
     return await _settings_read(db, registry, request, settings, admin)
 
 
-@router.patch("/settings", responses=_LOCKOUT)
+@router.patch("/settings", responses={**_LOCKOUT, **ADMIN_REAUTH_RESPONSES})
 async def update_auth_settings(
     body: AuthSettingsUpdate,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
     registry: RegistryDep,

@@ -108,6 +108,26 @@ async def resolve_session(
     )
 
 
+async def session_active(db: AsyncSession, settings: AuthSettings, session_id: uuid.UUID) -> bool:
+    """Whether the session is still valid (not ended, expired, idle or of a deactivated
+    user). Unlike ``resolve_session`` it does not refresh ``last_seen_at``: long-lived
+    responses such as the event stream re-check with it (#191) without keeping the
+    session alive."""
+    now = datetime.now(UTC)
+    idle_cutoff = now - timedelta(minutes=settings.session_idle_timeout_minutes)
+    found = await db.scalar(
+        select(AuthSession.id)
+        .join(User, User.id == AuthSession.user_id)
+        .where(
+            AuthSession.id == session_id,
+            AuthSession.expires_at > now,
+            AuthSession.last_seen_at > idle_cutoff,
+            User.is_active,
+        )
+    )
+    return found is not None
+
+
 async def mark_authenticated(db: AsyncSession, session_id: uuid.UUID) -> datetime:
     """Record that the user just confirmed who they are in this session (caller commits)."""
     now = datetime.now(UTC)

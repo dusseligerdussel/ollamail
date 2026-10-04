@@ -206,6 +206,12 @@ class LLMSettings(BaseSettings):
     concurrency: int = Field(default=1, ge=1)
     # Job slots of the ``llm`` queue per worker process: upper bound for ``concurrency``.
     max_concurrency: int = Field(default=4, ge=1)
+    # Parallel LLM requests per API process ("ask your inbox", reply drafts, search
+    # embeddings). Further requests wait for a free slot, like jobs in the worker.
+    api_concurrency: int = Field(default=4, ge=1)
+    # Parallel LLM requests per user and API process; more are refused with 429 and
+    # ``Retry-After`` (search then falls back to full text only).
+    api_user_concurrency: int = Field(default=2, ge=1)
 
     provider: LLMProviderKind = "ollama"
     base_url: str = "http://ollama:11434"
@@ -400,6 +406,10 @@ class TTSSettings(BaseSettings):
     # voice of the same language; see app/ai/tts/voices.py.
     voice_de: str = "de_DE-thorsten-medium"
     voice_en: str = "en_US-ljspeech-medium"
+    # Further voices users may pick besides the defaults and the installed voices
+    # (engine-specific IDs, comma-separated). Only defaults and these are downloaded, by
+    # the worker; a voice chosen by a user never triggers a download.
+    voice_allowlist: Annotated[list[str], NoDecode] = Field(default_factory=list)
     # Download missing voices into <data_dir>/tts/voices/<engine>/. Disable on hosts
     # without internet access and copy the voice files there manually.
     download_voices: bool = True
@@ -419,6 +429,13 @@ class TTSSettings(BaseSettings):
     paragraph_pause: float = Field(default=0.8, ge=0, le=5)
     # Speaking rate: values above 1 speak slower (Piper ``length_scale``); unset = voice default.
     length_scale: float | None = Field(default=None, gt=0.25, le=4)
+
+    @field_validator("voice_allowlist", mode="before")
+    @classmethod
+    def _split_voices(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
 
 
 OIDCPresetName = Literal["generic", "entra", "google", "keycloak", "authentik"]
@@ -950,6 +967,19 @@ class PrivacySettings(BaseSettings):
     self_delete_enabled: bool = True
 
 
+class EventsSettings(BaseSettings):
+    """``OLLAMAIL_EVENTS_*`` (live updates via ``GET /events``, app/core/events.py)"""
+
+    model_config = _config("EVENTS_")
+
+    # Open event streams per user and API process (one per browser tab); further
+    # connection attempts get 429.
+    max_streams_per_user: int = Field(default=10, ge=1, le=1000)
+    # Seconds between checks that the session of an open stream is still valid; the
+    # stream ends after logout, revocation, expiry or deactivation of the user.
+    session_check_interval: float = Field(default=60.0, ge=5, le=3600)
+
+
 class ScimSettings(BaseSettings):
     """``OLLAMAIL_SCIM_*`` (SCIM 2.0 provisioning, app/scim/)"""
 
@@ -990,6 +1020,7 @@ class Settings(BaseModel):
     audit: AuditSettings = Field(default_factory=AuditSettings)
     privacy: PrivacySettings = Field(default_factory=PrivacySettings)
     scim: ScimSettings = Field(default_factory=ScimSettings)
+    events: EventsSettings = Field(default_factory=EventsSettings)
 
 
 @lru_cache

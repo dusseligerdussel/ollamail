@@ -20,9 +20,11 @@ import {
   updateSamlProvider,
 } from "@/api/admin-auth";
 import { describeApiError } from "@/api/errors";
+import { isReauthCancelled } from "@/api/reauth";
 import { Notice } from "@/components/admin/notice";
 import { LdapTestPanel, OidcTestPanel } from "@/components/admin/provider-tests";
 import { SamlEndpoints, SamlMetadataRefresh } from "@/components/admin/saml-endpoints";
+import { useReauth } from "@/components/auth/reauth";
 import { CopyField } from "@/components/copy-field";
 import { Button } from "@/components/ui/button";
 import {
@@ -99,14 +101,17 @@ function ProviderDetails({
   const enabled = providerEnabled(item);
   const readOnly = item.kind === "oidc" && item.provider.source === "env";
 
+  const withReauth = useReauth();
   const toggle = useMutation({
-    mutationFn: async () => {
-      const change = { enabled: !enabled };
-      if (item.kind === "oidc") await updateOidcProvider(item.provider.name, change);
-      else if (item.kind === "github") await updateGitHubProvider(item.provider.name, change);
-      else if (item.kind === "saml") await updateSamlProvider(item.provider.name, change);
-      else await updateLdapDirectory(item.directory, change);
-    },
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: () =>
+      withReauth(async () => {
+        const change = { enabled: !enabled };
+        if (item.kind === "oidc") await updateOidcProvider(item.provider.name, change);
+        else if (item.kind === "github") await updateGitHubProvider(item.provider.name, change);
+        else if (item.kind === "saml") await updateSamlProvider(item.provider.name, change);
+        else await updateLdapDirectory(item.directory, change);
+      }),
     meta: { errorToast: false },
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
@@ -127,7 +132,7 @@ function ProviderDetails({
       onClose();
     },
   });
-  const failed = toggle.error ?? remove.error;
+  const failed = isReauthCancelled(toggle.error) ? remove.error : (toggle.error ?? remove.error);
 
   return (
     <>

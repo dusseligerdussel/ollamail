@@ -20,6 +20,18 @@ Feature, sondern eine Randbedingung für jede Änderung.
    das steht im Audit-Log. Der Systemstatus auf der Admin-Seite (#139) zeigt je Postfach nur
    Anzeigename, Besitzername, Sync-Status mit Fehlercode und die Zahl ausstehender bzw.
    fehlgeschlagener Verarbeitungsschritte – keine Adressen, Betreffzeilen oder Inhalte.
+   **Restrisiko böswilliger Admin (#190):** „Admin ≠ Leser“ schützt vor Einsicht über die
+   Oberfläche, nicht vor einem Admin, der es darauf anlegt. Wer die Instanz konfiguriert, kann
+   einen eigenen Identity-Provider mit `link_by_email` anlegen und sich so als ein anderer
+   Nutzer anmelden, einen KI-Endpunkt auf einen eigenen Server umleiten (Mail-Inhalte gehen
+   dann dorthin) oder mit Datenbank- bzw. Server-Zugriff alles lesen. ollamail verhindert das
+   nicht, macht es aber sichtbar und erschwert es mit gestohlenen Sitzungen: Diese Aktionen
+   verlangen eine erneute Bestätigung des Admin-Kontos ([`auth/mfa.md`](auth/mfa.md#bestätigung-vor-sensiblen-aktionen-144)),
+   jede Provider- und KI-Änderung steht im Audit-Log (`idp.config_changed`,
+   `ai.settings_changed`), eine Verknüpfung per E-Mail-Adresse als `user.identity_linked`, und
+   die neue Sitzung erscheint in der Sitzungsliste des betroffenen Kontos (Einstellungen), wo sie
+   sich beenden lässt. Betreiber vergeben die Admin-Rolle deshalb sparsam, prüfen das
+   Audit-Log regelmäßig und halten `link_by_email` aus, wo es nicht gebraucht wird.
 5. **Transparenz** – Jede KI-Bewertung (Triage, Todo) ist für den Nutzer erklärbar und korrigierbar.
 
 ## Technische Maßnahmen
@@ -33,7 +45,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
 | Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
 | Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
-| Audit-Log | Append-only und hash-verkettet: Login (Erfolg/Fehlschlag), Logout, Setup, Session-Widerruf, zweiter Faktor, Nutzer angelegt/geändert (SCIM), Rollenänderung, SCIM-Gruppen und -Mitgliedschaften, IdP- und KI-Einstellungen, Postfach angelegt/entfernt/freigegeben, Mail gesendet, Export, Löschung, Key-Rotation. Nur IDs und Codes, keine Inhalte (siehe unten) |
+| Audit-Log | Append-only und hash-verkettet: Login (Erfolg/Fehlschlag), Logout, Setup, Session-Widerruf, zweiter Faktor, Nutzer angelegt/geändert (SCIM), Anmeldung per E-Mail-Adresse verknüpft, Rollenänderung, SCIM-Gruppen und -Mitgliedschaften, IdP- und KI-Einstellungen, Postfach angelegt/entfernt/freigegeben, Mail gesendet, Export, Löschung, Key-Rotation. Nur IDs und Codes, keine Inhalte (siehe unten) |
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
 | Passwörter | Argon2id (RFC 9106); Rate-Limit und Kontosperre in Postgres. Die Zähler speichern nur HMACs von IP-Adresse bzw. E-Mail-Adresse und werden stündlich bereinigt |
 | Zweiter Faktor | TOTP-Secret verschlüsselt (`EncryptedStr`), Wiederherstellungscodes nur als HMAC, Passkeys nur mit öffentlichem Schlüssel und Credential-ID (keine biometrischen Daten, keine Attestation). Der Zwischenzustand nach dem Passwort speichert nur den SHA-256 seines Cookies und wird nach wenigen Minuten bzw. stündlich gelöscht. Rate-Limit und Sperre auch für den zweiten Schritt ([`auth/mfa.md`](auth/mfa.md)) |
@@ -187,6 +199,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `auth.mfa_enabled`, `auth.mfa_disabled`, `auth.mfa_recovery_codes_generated` | Passkey bzw. Authenticator-App hinzugefügt/entfernt (`method`, ggf. `passkey_id`, `via: self`), Wiederherstellungscodes erzeugt (`count`); `app.cli reset-password --reset-2fa` (Akteur `system`, `via: cli`, nur Anzahlen) | aktiv |
 | `auth.reauthenticated`, `auth.reauth_failed` | Bestätigung vor sensiblen Aktionen (#144; Ziel = Session, `method`; Fehlschlag mit `reason`: `invalid_credentials`, `invalid_passkey`). Nie Passwort oder Code | aktiv |
 | `user.created` | Admin legt Nutzer an oder lädt ein (`via: invitation`), Selbstregistrierung, `app.cli create-admin`, JIT-Provisioning beim ersten externen Login | aktiv |
+| `user.identity_linked` | Externe Anmeldung (OIDC, GitHub, SAML, LDAP) mit einem bestehenden Konto über die verifizierte E-Mail-Adresse verknüpft (#190; Akteur `system`, Ziel = Nutzer-ID, `provider`, `via`: `email` bei `link_by_email`, `scim` bei SCIM-Linking) | aktiv |
 | `user.role_changed` | Nutzerverwaltung (`via: admin`), Rollen-Zuordnung bzw. LDAP-`admin_groups` beim Login (Akteur `system`, `provider`) | aktiv |
 | `user.deactivated`, `user.reactivated` | Nutzerverwaltung (Deaktivieren beendet alle Sitzungen, `details.sessions`); `app.cli reset-password --activate` | aktiv |
 | `user.invited` | Einladung bzw. neuer Einladungslink (`renewed`) | aktiv |

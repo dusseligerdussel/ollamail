@@ -35,6 +35,21 @@ describe("describeApiError", () => {
     });
   });
 
+  it("explains a refusal because of too many parallel AI requests", () => {
+    const busy = new ApiError(429, {
+      title: "Too Many Requests",
+      status: 429,
+      error_code: "llm_busy",
+    });
+
+    expect(describeApiError(busy, i18n.t).title).toBe(
+      "You already have several answers or drafts in progress. Wait for one to finish, then try again.",
+    );
+    expect(describeApiError(new ApiError(429), i18n.t).title).toBe(
+      "Too many requests. Please wait a moment.",
+    );
+  });
+
   it("handles errors that are not API errors", () => {
     expect(describeApiError(new Error("boom"), i18n.t)).toEqual({
       title: "Something went wrong.",
