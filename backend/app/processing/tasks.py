@@ -196,7 +196,8 @@ async def run_step(context: JobContext, message_id: str, step: str) -> None:
 
     try:
         async with database.sessionmaker() as session:
-            await definition.handler(StepContext(session, message_uuid, mailbox_id))
+            ctx = StepContext(session, message_uuid, mailbox_id)
+            await definition.handler(ctx)
             ready = await service.finish_step(session, message_uuid, mailbox_id, definition, steps)
             await session.commit()
     except LLMCircuitOpenError as exc:
@@ -208,7 +209,22 @@ async def run_step(context: JobContext, message_id: str, step: str) -> None:
             return
         raise
     log.info("processing_step_done", message_id=message_id, step=step)
+    await _run_after_commit(ctx, step)
     await _defer_steps(message_id, ready, _priority(context))
+
+
+async def _run_after_commit(ctx: StepContext, step: str) -> None:
+    for callback in ctx.after_commit:
+        try:
+            await callback()
+        except Exception as exc:
+            # The step's result is committed; a lost follow-up must not fail it.
+            log.warning(
+                "processing_after_commit_failed",
+                message_id=str(ctx.message_id),
+                step=step,
+                error_type=type(exc).__name__,
+            )
 
 
 # Wake postponed steps just after the pause has ended, not just before it.

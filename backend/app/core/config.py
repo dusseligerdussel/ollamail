@@ -603,16 +603,81 @@ class TriageSettings(BaseSettings):
     label_prefix: str = Field(default="ollamail/", pattern=r"^[A-Za-z0-9_./-]{0,32}$")
 
 
+# Push services of the common browsers: Chrome (Google FCM), Firefox (Mozilla autopush),
+# Safari (Apple), Edge (Windows Push Notification Services).
+DEFAULT_WEB_PUSH_HOSTS = (
+    "fcm.googleapis.com",
+    "push.services.mozilla.com",
+    "push.apple.com",
+    "notify.windows.com",
+)
+
+
 class NotificationsSettings(BaseSettings):
     """``OLLAMAIL_NOTIFICATIONS_*`` (notifications about important mails, app/notifications/)"""
 
-    model_config = _config("NOTIFICATIONS_")
+    model_config = _config("NOTIFICATIONS_", secret=True)
 
     # Lets users opt in to browser notifications; ``false`` switches them off for everybody.
     enabled: bool = True
     # Only mails received at most this long ago are announced: an initial import, a backlog
     # or reprocessing does not flood the user with notifications about older mail.
     max_age_minutes: int = Field(default=60, ge=1, le=1440)
+
+    # Web Push (#181): notifications without an open tab, through the push service of the
+    # browser vendor (Google, Mozilla, Apple, Microsoft). Off by default: that service sees
+    # endpoint, time and device (the payload holds only IDs, docs/PRIVACY.md). Needs the
+    # VAPID key pair (``python -m app.cli notifications vapid-keys``) and a subject;
+    # without them Web Push stays off and notifications in an open tab keep working.
+    web_push_enabled: bool = False
+    # Uncompressed P-256 public key and raw private key, URL-safe base64 (as the CLI prints).
+    vapid_public_key: str = ""
+    vapid_private_key: SecretStr | None = None
+    # Contact for the push services: ``mailto:admin@example.org`` or an ``https://`` URL.
+    vapid_subject: str = ""
+    # How long a push service keeps a message for a device that is offline.
+    web_push_ttl_seconds: int = Field(default=3600, ge=0, le=86400)
+    # Host names of the push services subscriptions may point to (suffix match, comma-
+    # separated). The worker only sends to these, over HTTPS (no requests to other hosts).
+    web_push_allowed_hosts: Annotated[list[str], NoDecode] = Field(
+        default_factory=lambda: list(DEFAULT_WEB_PUSH_HOSTS)
+    )
+
+    @field_validator("web_push_allowed_hosts", mode="before")
+    @classmethod
+    def _split_push_hosts(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip().lower().rstrip(".") for part in value.split(",") if part.strip()]
+        return value
+
+    @model_validator(mode="after")
+    def _check_vapid(self) -> "NotificationsSettings":
+        public = self.vapid_public_key.strip()
+        private = self.vapid_private_key.get_secret_value() if self.vapid_private_key else ""
+        if not public and not private:
+            return self
+        if not public or not private:
+            raise ValueError(
+                "set both OLLAMAIL_NOTIFICATIONS_VAPID_PUBLIC_KEY and _VAPID_PRIVATE_KEY"
+            )
+        from app.notifications.vapid import VapidKeyError, check_key_pair
+
+        try:
+            check_key_pair(public, private)
+        except VapidKeyError as exc:
+            raise ValueError(str(exc)) from None
+        if self.vapid_subject and not self.vapid_subject.startswith(("mailto:", "https://")):
+            raise ValueError("OLLAMAIL_NOTIFICATIONS_VAPID_SUBJECT must be mailto: or https://")
+        return self
+
+    @property
+    def web_push_available(self) -> bool:
+        """Web Push is switched on and fully configured."""
+        return (
+            self.enabled
+            and self.web_push_enabled
+            and bool(self.vapid_public_key and self.vapid_private_key and self.vapid_subject)
+        )
 
 
 class SearchSettings(BaseSettings):

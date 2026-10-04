@@ -14,8 +14,8 @@ Contents (``manifest.json`` lists them):
   feed token), digests with scripts, and their audio files
 * ``conversations.json``: "ask your inbox" conversations with answers and citations
 * ``reply_drafts.json``: drafting settings (signature, style examples) and own reply drafts
-* ``notifications.json``: notification settings (on/off, categories, subject, sound),
-  ``null`` if never set
+* ``notifications.json``: notification settings (on/off, categories, subject, sound) and
+  the devices registered for Web Push (browser, system, push service), ``null`` if never set
 
 Every query is filtered by the exporting user (``user_id`` or the owner of the mailbox),
 so an export never contains data of other users. Mails themselves are not part of the
@@ -45,7 +45,8 @@ from app.digest.models import Digest, DigestUserSettings
 from app.digest.storage import DigestStorage
 from app.drafts.models import DraftSettings, ReplyDraft
 from app.mail.models import Mailbox, Message
-from app.notifications.models import NotificationSettings
+from app.notifications.models import NotificationSettings, PushSubscription
+from app.notifications.webpush import push_service
 from app.rag.models import RagConversation, RagMessage
 from app.todos.export.models import TodoExportTarget
 from app.todos.models import Todo
@@ -404,11 +405,34 @@ async def _notifications(session: AsyncSession, user_id: uuid.UUID) -> dict[str,
     settings = await session.scalar(
         select(NotificationSettings).where(NotificationSettings.user_id == user_id)
     )
-    if settings is None:
+    devices = list(
+        await session.scalars(
+            select(PushSubscription)
+            .where(PushSubscription.user_id == user_id)
+            .order_by(PushSubscription.created_at, PushSubscription.id)
+        )
+    )
+    if settings is None and not devices:
         return None
+    stored = (
+        {
+            **_row(settings, ("enabled", "show_subject", "sound", "updated_at")),
+            "category_ids": [str(category_id) for category_id in settings.category_ids],
+        }
+        if settings is not None
+        else {}
+    )
     return {
-        **_row(settings, ("enabled", "show_subject", "sound", "updated_at")),
-        "category_ids": [str(category_id) for category_id in settings.category_ids],
+        **stored,
+        # Devices for Web Push: labels and the push service, not the endpoint and keys
+        # (they only let a server send to the device).
+        "push_devices": [
+            {
+                **_row(device, ("id", "browser", "os", "mobile", "created_at", "last_sent_at")),
+                "push_service": push_service(device.subscription["endpoint"]),
+            }
+            for device in devices
+        ],
     }
 
 

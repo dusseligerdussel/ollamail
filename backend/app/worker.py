@@ -76,6 +76,7 @@ TASK_MODULES: list[str] = [
     "app.drafts.tasks",
     "app.privacy.tasks",
     "app.mail.deletion",
+    "app.notifications.tasks",
 ]
 
 # Waits 2, 4, 8, ... 128 seconds between attempts (8 attempts, ~4 minutes in total).

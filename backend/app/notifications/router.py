@@ -1,4 +1,5 @@
-"""Notification API: the user's opt-in and the content of one notification.
+"""Notification API: the user's opt-in, the devices for Web Push and the content of one
+notification.
 
 ``GET /notifications/messages/{id}`` answers only for messages the user may read
 (``app.mail.access``), 404 otherwise, so IDs of others are not confirmed.
@@ -7,21 +8,25 @@
 import uuid
 from typing import Annotated, Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Request, Response, status
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.dependencies import CurrentSessionDep, SettingsDep
 from app.core.config import Settings
 from app.core.db import get_db
 from app.core.errors import ProblemError
-from app.notifications import service
-from app.notifications.models import NotificationSettings
+from app.notifications import push, service
+from app.notifications.models import NotificationSettings, PushSubscription
 from app.notifications.schemas import (
     MailNotificationRead,
     NotificationCategory,
     NotificationSettingsRead,
     NotificationSettingsUpdate,
+    PushDeviceRead,
+    PushSubscriptionCreate,
+    WebPushRead,
 )
+from app.notifications.webpush import push_service
 
 router = APIRouter(
     prefix="/notifications",
@@ -104,3 +109,82 @@ async def get_mail_notification(
         subject=content.subject,
         sound=content.sound,
     )
+
+
+def _device_read(device: PushSubscription) -> PushDeviceRead:
+    return PushDeviceRead(
+        id=device.id,
+        browser=device.browser,
+        os=device.os,
+        mobile=device.mobile,
+        push_service=push_service(device.subscription["endpoint"]),
+        created_at=device.created_at,
+        last_sent_at=device.last_sent_at,
+    )
+
+
+@router.get("/push")
+async def get_web_push(current: CurrentSessionDep, db: DbDep, settings: SettingsDep) -> WebPushRead:
+    """Whether Web Push is available, the key browsers subscribe with, and the user's devices
+    (listed also while Web Push is off, so they can be removed)."""
+    config = settings.notifications
+    available = config.web_push_available
+    devices = await push.list_devices(db, current.user_id)
+    return WebPushRead(
+        available=available,
+        public_key=config.vapid_public_key if available else None,
+        devices=[_device_read(device) for device in devices],
+    )
+
+
+@router.post(
+    "/push/devices",
+    status_code=status.HTTP_201_CREATED,
+    responses={
+        409: {"description": "Web Push is off on this server (`web_push_unavailable`)"},
+        422: {"description": "Push service not allowed or malformed keys (`invalid_subscription`)"},
+    },
+)
+async def register_push_device(
+    body: PushSubscriptionCreate,
+    request: Request,
+    current: CurrentSessionDep,
+    db: DbDep,
+    settings: SettingsDep,
+) -> PushDeviceRead:
+    """Register this browser for Web Push, or refresh its registration (same endpoint)."""
+    try:
+        device = await push.register_device(
+            db,
+            current.user_id,
+            endpoint=body.endpoint,
+            p256dh=body.keys.p256dh,
+            auth=body.keys.auth,
+            user_agent=request.headers.get("user-agent"),
+            settings=settings.notifications,
+        )
+    except push.PushUnavailableError:
+        raise ProblemError(
+            409, detail="Web Push is not available.", error_code="web_push_unavailable"
+        ) from None
+    except push.InvalidSubscriptionError:
+        raise ProblemError(
+            422, detail="Invalid push subscription.", error_code="invalid_subscription"
+        ) from None
+    await db.commit()
+    return _device_read(device)
+
+
+@router.delete(
+    "/push/devices/{device_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={404: {"description": "No such device"}},
+)
+async def remove_push_device(
+    device_id: uuid.UUID, current: CurrentSessionDep, db: DbDep
+) -> Response:
+    """Stop Web Push to one of the user's devices."""
+    if not await push.remove_device(db, current.user_id, device_id):
+        raise ProblemError(404, detail="Device not found.")
+    await db.commit()
+    return Response(status_code=status.HTTP_204_NO_CONTENT)

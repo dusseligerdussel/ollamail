@@ -2360,6 +2360,67 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Web Push
+         * @description Whether Web Push is available, the key browsers subscribe with, and the user's devices
+         *     (listed also while Web Push is off, so they can be removed).
+         */
+        get: operations["notifications_get_web_push"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/push/devices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Register Push Device
+         * @description Register this browser for Web Push, or refresh its registration (same endpoint).
+         */
+        post: operations["notifications_register_push_device"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/push/devices/{device_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Remove Push Device
+         * @description Stop Web Push to one of the user's devices.
+         */
+        delete: operations["notifications_remove_push_device"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/notifications/settings": {
         parameters: {
             query?: never;
@@ -5770,6 +5831,48 @@ export interface components {
          */
         PullStatus: "queued" | "running" | "done" | "failed";
         /**
+         * PushDeviceRead
+         * @description A device that receives notifications through Web Push.
+         */
+        PushDeviceRead: {
+            /** Browser */
+            browser: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Sent At */
+            last_sent_at: string | null;
+            /** Mobile */
+            mobile: boolean;
+            /** Os */
+            os: string | null;
+            /** Push Service */
+            push_service: string;
+        };
+        /**
+         * PushSubscriptionCreate
+         * @description The browser's ``PushSubscription.toJSON()`` (``expirationTime`` is ignored).
+         */
+        PushSubscriptionCreate: {
+            /** Endpoint */
+            endpoint: string;
+            keys: components["schemas"]["PushSubscriptionKeys"];
+        };
+        /** PushSubscriptionKeys */
+        PushSubscriptionKeys: {
+            /** Auth */
+            auth: string;
+            /** P256Dh */
+            p256dh: string;
+        };
+        /**
          * RagFilters
          * @description Filters set in the UI; each one narrows the mailboxes the user may read.
          */
@@ -6979,6 +7082,15 @@ export interface components {
             msg: string;
             /** Error Type */
             type: string;
+        };
+        /** WebPushRead */
+        WebPushRead: {
+            /** Available */
+            available: boolean;
+            /** Devices */
+            devices: components["schemas"]["PushDeviceRead"][];
+            /** Public Key */
+            public_key: string | null;
         };
         /**
          * WriteBackMode
@@ -13665,6 +13777,121 @@ export interface operations {
                 content?: never;
             };
             /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notifications_get_web_push: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WebPushRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    notifications_register_push_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PushSubscriptionCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PushDeviceRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Web Push is off on this server (`web_push_unavailable`) */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Push service not allowed or malformed keys (`invalid_subscription`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    notifications_remove_push_device: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                device_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such device */
             404: {
                 headers: {
                     [name: string]: unknown;

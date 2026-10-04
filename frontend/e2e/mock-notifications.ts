@@ -21,12 +21,38 @@ export const notificationCategories = [
   position: index,
 }));
 
+export interface PushDeviceMock {
+  id: string;
+  browser: string | null;
+  os: string | null;
+  mobile: boolean;
+  push_service: string;
+  created_at: string;
+  last_sent_at: string | null;
+}
+
+/** A VAPID public key in the format the server sends (65 bytes, synthetic). */
+export const VAPID_KEY = `B${"A".repeat(86)}`;
+export const THIS_DEVICE_ID = "0199e000-0000-7000-8000-00000000d0ff";
+
+export const otherDevice: PushDeviceMock = {
+  id: "0199e000-0000-7000-8000-00000000d001",
+  browser: "Chrome",
+  os: "Android",
+  mobile: true,
+  push_service: "fcm.googleapis.com",
+  created_at: "2026-10-01T08:00:00Z",
+  last_sent_at: null,
+};
+
 export interface MockNotifications {
   enabled?: boolean;
   available?: boolean;
   showSubject?: boolean;
   /** Category IDs the user opted in to. */
   categoryIds?: string[];
+  /** Web Push switched on by the administrator, with these devices. */
+  webPush?: { devices: PushDeviceMock[] };
 }
 
 function json(route: Route, body: unknown, status = 200) {
@@ -40,8 +66,16 @@ export async function mockNotifications(
     available = true,
     showSubject = false,
     categoryIds = [],
+    webPush,
   }: MockNotifications = {},
 ) {
+  let push = {
+    available: !!webPush,
+    public_key: webPush ? VAPID_KEY : null,
+    devices: webPush?.devices ?? [],
+  };
+  const registered: unknown[] = [];
+  const removed: string[] = [];
   let settings = {
     available,
     enabled,
@@ -64,6 +98,31 @@ export async function mockNotifications(
         settings = { ...settings, ...body };
         return json(route, settings);
       }
+      if (key === "GET /api/notifications/push") return json(route, push);
+      if (key === "POST /api/notifications/push/devices") {
+        registered.push(request.postDataJSON());
+        const device: PushDeviceMock = {
+          id: THIS_DEVICE_ID,
+          browser: "Chrome",
+          os: "Linux",
+          mobile: false,
+          push_service: "fcm.googleapis.com",
+          created_at: "2026-10-04T09:00:00Z",
+          last_sent_at: null,
+        };
+        push = {
+          ...push,
+          devices: [...push.devices.filter((d) => d.id !== device.id), device],
+        };
+        return json(route, device, 201);
+      }
+      const remove = /^DELETE \/api\/notifications\/push\/devices\/(.+)$/.exec(key);
+      if (remove?.[1]) {
+        const id = remove[1];
+        removed.push(id);
+        push = { ...push, devices: push.devices.filter((d) => d.id !== id) };
+        return route.fulfill({ status: 204 });
+      }
       if (key === `GET /api/notifications/messages/${NOTIFIED_MESSAGE_ID}`) {
         return json(route, {
           message_id: NOTIFIED_MESSAGE_ID,
@@ -81,7 +140,36 @@ export async function mockNotifications(
       return json(route, { status: 404 }, 404);
     },
   );
-  return { updates };
+  return { updates, registered, removed };
+}
+
+/**
+ * Stand-in for the service worker registration and its push subscription: a real one
+ * needs the browser vendor's push service. Call before `page.goto`.
+ */
+export async function mockPushManager(page: Page) {
+  await page.addInitScript(() => {
+    let subscription: PushSubscription | null = null;
+    const pushManager = {
+      getSubscription: async () => subscription,
+      subscribe: async (options: PushSubscriptionOptionsInit) => {
+        subscription = {
+          endpoint: "https://fcm.googleapis.com/fcm/send/e2e-device",
+          options: { applicationServerKey: options.applicationServerKey },
+          toJSON: () => ({ keys: { p256dh: "BE2eP256dh", auth: "E2eAuth" } }),
+          unsubscribe: async () => {
+            subscription = null;
+            return true;
+          },
+        } as unknown as PushSubscription;
+        return subscription;
+      },
+    };
+    const registration = { pushManager, active: { postMessage: () => {} } };
+    Object.assign(window, { PushManager: class {} });
+    navigator.serviceWorker.getRegistration = async () =>
+      registration as unknown as ServiceWorkerRegistration;
+  });
 }
 
 /** Server events: one `notification.message` for `NOTIFIED_MESSAGE_ID`, then the stream ends. */

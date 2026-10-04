@@ -15,6 +15,8 @@ Contract for handlers
       job, reprocessing). Replace previous results instead of appending to them.
     * Write only through ``ctx.session`` and do not commit: the pipeline commits the
       handler's writes together with the step status, so both succeed or neither does.
+    * Work that must only start once the writes are committed (e.g. queueing a job that
+      reads them) goes into ``ctx.after_commit``; it runs after the commit, best effort.
     * Fail with ``StepError("<code>")`` (retried) or ``StepError("<code>", permanent=True)``
       (not retried). Any other exception is retried as well; only its class name is
       stored. Exception texts are never stored or logged (docs/PRIVACY.md).
@@ -44,6 +46,8 @@ class StepContext:
     session: AsyncSession
     message_id: UUID
     mailbox_id: UUID
+    # Callbacks run after the step's writes were committed (not after a failed step).
+    after_commit: list[Callable[[], Awaitable[None]]] = field(default_factory=list)
 
 
 StepHandler = Callable[[StepContext], Awaitable[None]]

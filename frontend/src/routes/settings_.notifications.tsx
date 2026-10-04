@@ -1,7 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
 import { ArrowLeft, BellOff } from "lucide-react";
-import { type ReactNode, useState } from "react";
+import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
 
@@ -13,11 +13,12 @@ import {
 import { EmptyState } from "@/components/empty-state";
 import { InlineError } from "@/components/inline-error";
 import { ListSkeleton } from "@/components/list-skeleton";
+import { Section, SwitchRow } from "@/components/notifications/settings-rows";
+import { WebPushSection } from "@/components/notifications/web-push-section";
 import { PageHeader } from "@/components/page-header";
 import { useCategories, useCategoryName } from "@/components/triage/use-triage";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Switch } from "@/components/ui/switch";
 import {
   mailNotificationText,
   type NotificationAccess,
@@ -32,64 +33,6 @@ export const Route = createFileRoute("/settings_/notifications")({
 
 /** Categories offered when notifications are switched on for the first time. */
 const DEFAULT_NOTIFICATION_CATEGORIES = ["important", "action_required"];
-
-function Section({
-  id,
-  title,
-  className,
-  children,
-}: {
-  id: string;
-  title: string;
-  className?: string;
-  children: ReactNode;
-}) {
-  return (
-    <section aria-labelledby={id} className={className}>
-      <h2 id={id} className="mb-2 text-xs font-medium text-muted-foreground">
-        {title}
-      </h2>
-      <div className="divide-y rounded-lg border">{children}</div>
-    </section>
-  );
-}
-
-function SwitchRow({
-  id,
-  label,
-  description,
-  checked,
-  disabled,
-  onCheckedChange,
-}: {
-  id: string;
-  label: string;
-  description: string;
-  checked: boolean;
-  disabled?: boolean;
-  onCheckedChange: (checked: boolean) => void;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-6 px-4 py-3.5">
-      <div className="min-w-0">
-        <label htmlFor={id} className="text-ui font-medium">
-          {label}
-        </label>
-        <div id={`${id}-description`} className="text-ui text-muted-foreground">
-          {description}
-        </div>
-      </div>
-      <Switch
-        id={id}
-        className="shrink-0"
-        checked={checked}
-        disabled={disabled}
-        aria-describedby={`${id}-description`}
-        onCheckedChange={onCheckedChange}
-      />
-    </div>
-  );
-}
 
 function NotificationsPage() {
   const { t } = useTranslation();
@@ -208,6 +151,8 @@ function NotificationsForm({ settings }: { settings: NotificationSettings }) {
           onTest={sendTest}
         />
       </Section>
+
+      <WebPushSection enabled={settings.enabled} />
 
       <Section id="notifications-categories" title={t("notifications.categories")} className="mt-8">
         <div className="flex flex-col gap-3 px-4 py-3.5">

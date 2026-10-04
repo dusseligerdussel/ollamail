@@ -15,7 +15,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { useCurrentUser } from "@/hooks/use-current-user";
 import { parseUserAgent } from "@/lib/user-agent";
 
-function useDateFormat() {
+export function useDateFormat() {
   const { i18n } = useTranslation();
   const { timezone } = useCurrentUser();
   return (value: string) => {

@@ -4,6 +4,7 @@ import { useEffect } from "react";
 import { useTranslation } from "react-i18next";
 
 import { fetchMailNotification, notificationSettingsQueryOptions } from "@/api/notifications";
+import { builtinCategoryKeys } from "@/api/triage";
 import { useCategoryName } from "@/components/triage/use-triage";
 import { type ServerEvent, subscribeServerEvents } from "@/hooks/use-events";
 import {
@@ -12,6 +13,7 @@ import {
   pageIsInUse,
   showNotification,
 } from "@/lib/browser-notifications";
+import { sendServiceWorkerStrings } from "@/lib/web-push";
 
 export const NOTIFICATION_EVENT = "notification.message";
 
@@ -26,12 +28,26 @@ function messageIdOf(event: ServerEvent): string | undefined {
  * Shows a browser notification for each `notification.message` event (#149) while the app
  * is open but not in use. The server only sends the event to users who opted in; this
  * device additionally needs the browser's permission. Mount once inside the app shell.
+ * Without an open tab, the service worker shows them (Web Push, #181).
  */
 export function MailNotifier() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
   const navigate = useNavigate();
   const categoryName = useCategoryName();
+
+  // Notifications from Web Push are shown by the service worker (#181): it gets the texts in
+  // the user's language from here (`t` changes with the language).
+  useEffect(() => {
+    void sendServiceWorkerStrings({
+      unknownSender: t("notifications.unknownSender"),
+      fallbackTitle: t("notifications.push.fallbackTitle"),
+      fallbackBody: t("notifications.push.fallbackBody"),
+      categories: Object.fromEntries(
+        builtinCategoryKeys.map((key) => [key, t(`triage.builtin.${key}`)]),
+      ),
+    }).catch(() => undefined);
+  }, [t]);
 
   useEffect(
     () =>

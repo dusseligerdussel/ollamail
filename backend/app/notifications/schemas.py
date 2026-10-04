@@ -1,4 +1,5 @@
 import uuid
+from datetime import datetime
 
 from pydantic import BaseModel, Field
 
@@ -40,3 +41,37 @@ class MailNotificationRead(BaseModel):
     subject: str | None
     # Let the browser play its notification sound.
     sound: bool
+
+
+class PushDeviceRead(BaseModel):
+    """A device that receives notifications through Web Push."""
+
+    id: uuid.UUID
+    # Browser and system as recognised from the user agent, ``null`` if unknown.
+    browser: str | None
+    os: str | None
+    mobile: bool
+    # Host of the browser vendor's push service, e.g. ``fcm.googleapis.com``.
+    push_service: str
+    created_at: datetime
+    last_sent_at: datetime | None
+
+
+class WebPushRead(BaseModel):
+    # ``false`` unless the admin switched Web Push on and configured the VAPID keys.
+    available: bool
+    # VAPID public key for ``PushManager.subscribe`` (``applicationServerKey``).
+    public_key: str | None
+    devices: list[PushDeviceRead]
+
+
+class PushSubscriptionKeys(BaseModel):
+    p256dh: str = Field(min_length=1, max_length=200)
+    auth: str = Field(min_length=1, max_length=100)
+
+
+class PushSubscriptionCreate(BaseModel):
+    """The browser's ``PushSubscription.toJSON()`` (``expirationTime`` is ignored)."""
+
+    endpoint: str = Field(min_length=1, max_length=2048)
+    keys: PushSubscriptionKeys

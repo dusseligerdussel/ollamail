@@ -67,7 +67,7 @@ backend/app/
     embeddings/  Chunking, Embedding-Jobs
     prompts/     versionierte Prompt-Templates
   triage/        Kategorien, Klassifikation, Feedback/Few-Shot
-  notifications/ Benachrichtigungen bei wichtigen Mails: Opt-in je Nutzer, Event nach der Triage
+  notifications/ Benachrichtigungen bei wichtigen Mails: Opt-in je Nutzer, Event nach der Triage, Web Push
   todos/         Extraktion, CRUD; export/: Export nach CalDAV und Microsoft To Do (TodoSink-Interface)
   digest/        Tageszusammenfassung, TTS, Podcast-Feed
   search/        Suchindex: Chunking, Anhangstexte, Embeddings, Hybrid-Suche (RRF)
@@ -831,9 +831,37 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   einmal (`mail_notifications`, Unique auf `message_id`). Das Frontend (`MailNotifier`) holt über
   `GET /notifications/messages/{id}` nur Absender, Kategorie und – falls eingeschaltet – den
   Betreff und zeigt eine Browser-Notification (`tag` je Mail, `silent` außer mit `sound`), wenn
-  ollamail offen, aber nicht im Vordergrund ist. Klick öffnet die Mail. Stufe 1 braucht einen
-  offenen Tab; Web Push (VAPID, selbst gehostet) ist ein eigenes Folge-Issue. Admin-Schalter:
+  ollamail offen, aber nicht im Vordergrund ist. Klick öffnet die Mail. Admin-Schalter:
   `OLLAMAIL_NOTIFICATIONS_ENABLED`.
+- **Web Push** (#181, `backend/app/notifications/push.py`, `vapid.py`, `webpush.py`):
+  Benachrichtigungen auch ohne offenen Tab. Eigener Admin-Schalter
+  `OLLAMAIL_NOTIFICATIONS_WEB_PUSH_ENABLED` (Standard aus), dazu das VAPID-Schlüsselpaar
+  (`…_VAPID_PUBLIC_KEY`, `…_VAPID_PRIVATE_KEY`, `…_VAPID_SUBJECT`; erzeugt mit
+  `python -m app.cli notifications vapid-keys`); ohne sie bleibt Web Push aus und Stufe 1
+  funktioniert weiter. Der Nutzer schaltet es je Gerät ein (Einstellungen → Benachrichtigungen):
+  Der Browser abonniert beim Push-Dienst seines Herstellers, `POST /notifications/push/devices`
+  speichert das Abo in `push_subscriptions` (Endpoint und Schlüssel als `EncryptedJSON`,
+  `endpoint_hash` = SHA-256 für „ein Browser, ein Eintrag“ – meldet sich ein anderer Nutzer im
+  selben Browser an, gehört das Abo danach ihm; Browser, System und „mobil“ aus dem User-Agent als
+  Bezeichnung; höchstens 20 Geräte je Nutzer). `GET /notifications/push` liefert Verfügbarkeit,
+  Public Key und die eigenen Geräte, `DELETE /notifications/push/devices/{id}` entfernt eines
+  (fremde: 404). Beim Abmelden entfernt das Frontend das Gerät und beendet das Abo.
+  Ablauf: Hat `notify_triaged` Empfänger, hängt der Triage-Schritt `enqueue_web_push` an
+  `StepContext.after_commit` (läuft erst nach dem Commit des Schritts) – je Empfänger ein Job
+  `notifications.web_push` (Queue `default`, nur IDs). Der Job verschlüsselt die Payload
+  (`{"type":"notification.message","message_id","mailbox_id"}`) nach RFC 8291 (`aes128gcm`),
+  signiert ein VAPID-JWT (RFC 8292, ES256) und sendet per HTTPS an den Endpoint. Erlaubt sind nur
+  Hosts aus `OLLAMAIL_NOTIFICATIONS_WEB_PUSH_ALLOWED_HOSTS` (Standard: FCM, Mozilla, Apple, WNS),
+  keine Weiterleitungen – ein Endpoint kann den Worker also nicht auf interne Dienste lenken.
+  404/410 löscht das Abo, 429/5xx/Verbindungsfehler wiederholt ein Folgejob nur für diese Geräte
+  (höchstens 4 Versuche, 30/60/120 s), andere Fehler (z. B. 403 nach Schlüsselwechsel) werden nur
+  mit Status geloggt. Der Service-Worker (`frontend/public/sw.js`) zeigt nichts, wenn ein Tab
+  sichtbar und fokussiert ist; sonst holt er `GET /notifications/messages/{id}` (Cookie der
+  Sitzung) und zeigt die Notification mit demselben `tag` wie der `MailNotifier` – ein Tab im
+  Hintergrund ersetzt sie nur, es erscheint keine zweite. Ohne Sitzung oder bei Fehlern zeigt er
+  einen neutralen Text ohne Details. Texte in der Sprache des Nutzers übergibt die App per
+  `postMessage` (Cache `ollamail-strings-v1`, keine Maildaten). Klick fokussiert bzw. öffnet
+  `/inbox?message=<id>`.
 - **UI** (#21, `frontend/src/components/triage/`): Label in der Listenzeile, Begründungszeile über dem
   Thread, Korrektur per Klick, Command Palette oder `c` + Ziffer, Inbox-Ansicht nach Kategorie
   (`/inbox?category=all|<id>|none`), Einstellungen → Kategorien, Verwaltung → Kategorien der

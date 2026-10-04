@@ -1942,7 +1942,24 @@
     "showSubjectDescription": "Standardmäßig zeigt die Benachrichtigung nur Absender und Kategorie. Benachrichtigungen können auf dem Sperrbildschirm sichtbar sein.",
     "sound": "Ton",
     "soundDescription": "Standardmäßig lautlos. Eingeschaltet spielt der Browser seinen Benachrichtigungston.",
-    "privacy": "Benachrichtigungen entstehen in diesem Browser; es wird kein externer Dienst genutzt. Der Inhalt bleibt im Benachrichtigungsbereich des Geräts, bis du ihn schließt.",
-    "unknownSender": "Neue Mail"
+    "privacy": "Benachrichtigungen in einem geöffneten Tab entstehen in diesem Browser; es wird kein externer Dienst genutzt. Der Inhalt bleibt im Benachrichtigungsbereich des Geräts, bis du ihn schließt.",
+    "unknownSender": "Neue Mail",
+    "push": {
+      "title": "Ohne geöffneten Tab",
+      "enabled": "Auch ohne geöffneten Tab benachrichtigen",
+      "enabledDescription": "Auf diesem Gerät, auch wenn ollamail geschlossen ist. Gilt je Browser und Gerät.",
+      "service": "Dafür nutzt der Browser den Push-Dienst seines Herstellers (Chrome: Google, Firefox: Mozilla, Safari: Apple, Edge: Microsoft). Der Dienst sieht, wann eine Nachricht an dieses Gerät geht, aber nicht, worum es geht: ollamail schickt nur eine Kennung, den Inhalt lädt das Gerät direkt von ollamail.",
+      "unsupported": "Dieser Browser unterstützt das nicht. Auf iPhone und iPad muss ollamail dafür zum Home-Bildschirm hinzugefügt sein.",
+      "devices": "Geräte",
+      "noDevices": "Noch kein Gerät eingerichtet.",
+      "thisDevice": "Dieses Gerät",
+      "since": "Eingerichtet: {{date}} · über {{service}}",
+      "remove": "Entfernen",
+      "removeLabel": "{{device}} entfernen",
+      "enableFailed": "Die Einstellung konnte auf diesem Gerät nicht geändert werden.",
+      "removeFailed": "Das Gerät konnte nicht entfernt werden.",
+      "fallbackTitle": "ollamail",
+      "fallbackBody": "Neue Mail. Öffne ollamail, um sie zu sehen."
+    }
   }
 }

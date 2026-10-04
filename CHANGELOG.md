@@ -23,7 +23,8 @@ Entwurf.
   Label/Ordner.
 - **Benachrichtigungen:** Browser-Notification bei neuen Mails in gewählten Kategorien (z. B.
   „Wichtig“, „Handlungsbedarf“), nur nach Opt-in, standardmäßig ohne Betreff und lautlos; solange
-  ollamail in einem Tab geöffnet ist.
+  ollamail in einem Tab geöffnet ist. Optional per Web Push auch ohne geöffneten Tab (vom Admin
+  freizuschalten, je Gerät einzuschalten; läuft über den Push-Dienst des Browser-Herstellers).
 - **Aufgaben:** automatisch aus Mails extrahiert, manuell ergänzbar; Export nach CalDAV,
   Microsoft To Do und Google Tasks (vom Admin freizuschalten).
 - **Suche und „Frag deine Inbox“:** Hybrid-Suche (Volltext + Embeddings) über Mails und Anhänge,
