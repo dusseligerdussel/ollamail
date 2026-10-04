@@ -10,6 +10,11 @@
 #   --profile ollama-cpu    bundled Ollama (CPU only)
 #   --profile ollama-gpu    bundled Ollama with NVIDIA GPU (needs nvidia-container-toolkit)
 #
+# Networks (deploy/README.md#netze): `edge` connects the published frontend with the api only;
+# `backend` (internal, no route outside) carries postgres, ollama and the backend services;
+# `egress` gives api, worker and ollama outbound access (mail, identity providers, LLM
+# endpoints, model downloads). postgres and migrate have no outbound access.
+#
 # Details: deploy/README.md
 
 name: ollamail
@@ -29,6 +34,9 @@ x-backend: &backend
     - ALL
   volumes:
     - ollamail-data:/data
+  networks:
+    - backend
+    - egress
   depends_on: &backend-depends-on
     postgres:
       condition: service_healthy
@@ -40,13 +48,26 @@ x-ollama: &ollama
   restart: unless-stopped
   environment:
     OLLAMA_HOST: 0.0.0.0:11434
+  # Ollama has no authentication: only api and worker reach it (network `backend`).
+  # The upstream image runs as root; without capabilities that root can only write files
+  # it owns (the model volume and /tmp). `egress` is needed for model downloads
+  # (`ollama pull`, OLLAMAIL_LLM_PULL_MISSING_MODELS); deploy/README.md#netze shows how
+  # to drop it once all models are present.
+  read_only: true
+  tmpfs:
+    - /tmp
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
   volumes:
     - ollama-models:/root/.ollama
   networks:
-    default:
+    backend:
       # api/worker reach either variant as http://ollama:11434
       aliases:
         - ollama
+    egress: {}
   healthcheck:
     test: ["CMD", "ollama", "list"]
     interval: 10s
@@ -56,7 +77,9 @@ x-ollama: &ollama
 
 services:
   postgres:
-    image: ${POSTGRES_IMAGE:-pgvector/pgvector:pg16}
+    # Pinned (pgvector version, PostgreSQL major, Debian release): a moving tag could switch
+    # the Debian release and with it the glibc collations of an existing database.
+    image: ${POSTGRES_IMAGE:-pgvector/pgvector:0.8.7-pg16-bookworm}
     restart: unless-stopped
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-ollamail}
@@ -80,6 +103,9 @@ services:
     shm_size: ${POSTGRES_SHM_SIZE:-1g}
     volumes:
       - postgres-data:/var/lib/postgresql/data
+    # Internal only: no published port, no outbound access.
+    networks:
+      - backend
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U \"$${POSTGRES_USER}\" -d \"$${POSTGRES_DB}\""]
       interval: 5s
@@ -92,12 +118,18 @@ services:
     <<: *backend
     restart: "no"
     command: ["alembic", "upgrade", "head"]
+    networks:
+      - backend
     depends_on:
       postgres:
         condition: service_healthy
 
   api:
     <<: *backend
+    networks:
+      - edge
+      - backend
+      - egress
     healthcheck:
       test:
         - CMD
@@ -136,6 +168,13 @@ services:
       - ALL
     ports:
       - "${OLLAMAIL_HTTP_BIND:-127.0.0.1}:${OLLAMAIL_HTTP_PORT:-8080}:8080"
+    # Reaches the api only; postgres and ollama are not resolvable from here.
+    networks:
+      - edge
+    environment:
+      # Optional Strict-Transport-Security value, e.g. "max-age=31536000; includeSubDomains".
+      # Usually set by the TLS-terminating outer proxy instead (deploy/README.md#tls--reverse-proxy).
+      OLLAMAIL_HSTS: ${OLLAMAIL_HSTS:-}
     depends_on:
       api:
         condition: service_healthy
@@ -160,6 +199,12 @@ services:
             - driver: nvidia
               count: all
               capabilities: [gpu]
+
+networks:
+  edge: {}
+  backend:
+    internal: true
+  egress: {}
 
 volumes:
   postgres-data:

@@ -44,3 +44,6 @@ persistence:
 
 networkPolicy:
   enabled: true
+  # Only rendered with database.cloudnativepg.cluster (matrix entry cloudnativepg).
+  database:
+    enabled: true
