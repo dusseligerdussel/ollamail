@@ -4,7 +4,7 @@ resources:
     memory: 4096
 
 ollamail:
-  secret_key: dGVzdC1rZXktdGVzdC1rZXktdGVzdC1rZXktdGVzdC0xMjM=
+  secret_key: AAECAwQFBgcICQoLDA0ODxAREhMUFRYXGBkaGxwdHh8=
   db_password: 0123456789abcdef0123456789abcdef
   llm_mode: bundled
   llm_base_url: ""
