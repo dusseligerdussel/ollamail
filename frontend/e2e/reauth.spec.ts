@@ -211,6 +211,32 @@ test("adding an AI provider confirms and then saves", async ({ page }) => {
   ]);
 });
 
+test("testing a stored AI key against a new URL confirms first (#219)", async ({ page }) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const seen = await mockReauth(page, "POST /api/admin/ai/providers/test", (route) =>
+    route.fulfill({ json: { ok: true, models: ["m1"], error: null, duration_ms: 12 } }),
+  );
+  await page.goto("/admin/ai");
+
+  await page.getByRole("button", { name: "Edit: Example Cloud" }).click();
+  const form = page.getByRole("dialog", { name: "Edit provider" });
+  await form.getByLabel("URL", { exact: true }).fill("https://relay.example.org/v1");
+  await expect(form).toContainText("URL or type changed: enter the API key again.");
+  await form.getByRole("button", { name: "Test connection" }).click();
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await sheet.getByLabel("Password").fill("correct horse battery");
+  await sheet.getByRole("button", { name: "Confirm" }).click();
+
+  await expect(sheet).toBeHidden();
+  await expect(form.getByRole("status")).toContainText("Connected");
+  expect(seen).toEqual([
+    "POST /api/admin/ai/providers/test",
+    "POST /api/auth/reauth",
+    "POST /api/admin/ai/providers/test",
+  ]);
+});
+
 test("saving the role mapping confirms and then saves (#206)", async ({ page }) => {
   await mockApi(page);
   await mockAdmin(page);

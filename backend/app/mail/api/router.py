@@ -270,9 +270,10 @@ async def update_mailbox(
 ) -> MailboxRead:
     """Rename, change connection settings or credentials (tested before saving), change
     the import period or excluded folder roles, pause (``sync_enabled: false``) or resume
-    syncing."""
+    syncing. Settings that send the credentials to another server (host, port, transport
+    security, token endpoint) need the credentials again (422 ``credentials_required``)."""
     mailbox = await _mailbox(db, current.user_id, mailbox_id, MailboxPermission.MANAGE)
-    config = service.updated_config(mailbox, body)
+    config = service.updated_config(providers, mailbox, body)
     if config is not None:
         _require_type(providers, mailbox.type)
         await service.throttle_connection_tests(db, settings, current.user_id)

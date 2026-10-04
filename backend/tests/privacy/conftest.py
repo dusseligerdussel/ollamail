@@ -14,7 +14,7 @@ from sqlalchemy import insert, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth.mfa.models import Passkey, PendingLogin, RecoveryCode, TotpFactor
-from app.auth.models import IdentityLinkNotice, Invitation
+from app.auth.models import IdentityLinkBlock, IdentityLinkNotice, Invitation
 from app.core.config import get_settings
 from app.digest.models import Digest, DigestLength, DigestStatus, DigestTrigger, DigestUserSettings
 from app.digest.storage import DigestStorage
@@ -266,6 +266,7 @@ async def seed_user_data(
             ),
             ScimUser(user_id=user_id, user_name=f"scim-{marker}", external_id=marker),
             IdentityLinkNotice(user_id=user_id, provider="oidc:corp"),
+            IdentityLinkBlock(user_id=user_id, provider="github:corp"),
         ]
     )
     # A chunk still waiting for its vector (#224).

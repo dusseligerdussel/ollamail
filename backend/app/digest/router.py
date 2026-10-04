@@ -214,11 +214,11 @@ async def create_digest(
     user: CurrentUserDep, db: DbDep, settings: SettingsDep, enqueue: EnqueuerDep
 ) -> DigestRead:
     """Generate a digest of the mails since the last one, now."""
-    if await service.in_progress(db, user.id):
+    digest = await service.start_manual(db, user, now=_now(), config=settings.digest)
+    if digest is None:
         raise ProblemError(
             409, detail="A digest is already being generated.", error_code="digest_in_progress"
         )
-    digest = await service.create_manual(db, user, now=_now(), config=settings.digest)
     await db.commit()
     await enqueue(digest.id)
     await db.refresh(digest)

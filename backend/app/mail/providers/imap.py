@@ -822,7 +822,17 @@ class ImapProvider:
         return bool(result.of_kind("LIST"))
 
 
-registry.register(MailboxType.IMAP, ImapProvider)
+# Where the password (or token) goes; changing any of these needs the credentials again.
+DESTINATION = (
+    "host",
+    "port",
+    "security",
+    "verify_certificate",
+    "smtp_host",
+    "smtp_port",
+    "smtp_security",
+)
+registry.register(MailboxType.IMAP, ImapProvider, destination=DESTINATION)
 
 
 # --- helpers ----------------------------------------------------------------------------

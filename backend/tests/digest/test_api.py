@@ -1,5 +1,6 @@
 """Integration tests: digest API, private podcast feed and audio with Range requests."""
 
+import asyncio
 import uuid
 from collections.abc import AsyncIterator
 from datetime import UTC, datetime
@@ -11,9 +12,10 @@ import pytest
 from fastapi import FastAPI
 from httpx import AsyncClient
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.ext.asyncio import AsyncSession, create_async_engine
+from sqlalchemy.pool import NullPool
 
-from app.core.config import Settings, StorageSettings
+from app.core.config import DatabaseSettings, Settings, StorageSettings
 from app.core.db import get_db
 from app.digest.models import Digest, DigestLength, DigestStatus, DigestTrigger
 from app.digest.router import get_enqueuer
@@ -265,6 +267,41 @@ async def test_create_digest_now(erika: AsyncClient, queued: list[uuid.UUID]) ->
     conflict = await erika.post("/digests")
     assert conflict.status_code == 409
     assert conflict.json()["error_code"] == "digest_in_progress"
+
+
+async def test_parallel_requests_start_one_digest(
+    settings: Settings, scratch_database: str, data_dir: Path
+) -> None:
+    # Real commits in a separate database: each request runs in its own transaction.
+    settings = settings.model_copy(
+        update={
+            "database": DatabaseSettings.model_validate({"url": scratch_database}),
+            "storage": StorageSettings.model_validate({"data_dir": data_dir}),
+        }
+    )
+    engine = create_async_engine(scratch_database, poolclass=NullPool)
+    async with AsyncSession(engine, expire_on_commit=False) as session:
+        await make_local_user(session, "erika@example.org")
+    app = create_app(settings)
+    queued: list[uuid.UUID] = []
+
+    async def enqueue(digest_id: uuid.UUID) -> None:
+        queued.append(digest_id)
+
+    app.dependency_overrides[get_enqueuer] = lambda: enqueue
+    try:
+        async with api_client(app) as http:
+            assert (await login(http, "erika@example.org")).status_code == 200
+            responses = await asyncio.gather(*(http.post("/digests") for _ in range(5)))
+        async with AsyncSession(engine) as session:
+            digests = (await session.scalars(select(Digest.id))).all()
+    finally:
+        await app.state.database.dispose()
+        await engine.dispose()
+
+    assert sorted(response.status_code for response in responses) == [202, 409, 409, 409, 409]
+    assert len(digests) == 1
+    assert queued == list(digests)
 
 
 async def test_list_get_delete(
