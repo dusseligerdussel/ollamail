@@ -21,7 +21,6 @@ from app.core.errors import ProblemError
 from app.core.jobs import JobQueue
 from app.core.logging import get_logger
 from app.digest.storage import DigestStorage
-from app.mail.storage import AttachmentStorage
 from app.privacy import deletion, exports, tasks
 from app.privacy.models import ExportStatus, RetentionSettingsRecord
 from app.privacy.policy import default_policy, get_record, merge
@@ -41,6 +40,7 @@ log = get_logger(__name__)
 
 DbDep = Annotated[AsyncSession, Depends(get_db)]
 ExportEnqueuer = Callable[[uuid.UUID], Awaitable[None]]
+UserDeletionRequester = Callable[[uuid.UUID], Awaitable[bool]]
 
 router = APIRouter(
     prefix="/privacy", tags=["privacy"], responses={401: {"description": "Not signed in"}}
@@ -64,10 +64,20 @@ def get_export_enqueuer(request: Request) -> ExportEnqueuer:
     return enqueue
 
 
+def get_user_deletion_requester(request: Request) -> UserDeletionRequester:
+    """Queues ``privacy.delete_user`` for a user marked for deletion."""
+    queue: JobQueue = request.app.state.job_queue
+
+    async def request_user_deletion(user_id: uuid.UUID) -> bool:
+        await queue.ensure_open()
+        return await tasks.defer_user_deletion(user_id)
+
+    return request_user_deletion
+
+
 def get_file_stores(settings: SettingsDep) -> deletion.FileStores:
     data_dir = settings.storage.data_dir
     return deletion.FileStores(
-        attachments=AttachmentStorage(data_dir),
         digests=DigestStorage(data_dir),
         exports=ExportStorage(data_dir),
     )
@@ -75,6 +85,24 @@ def get_file_stores(settings: SettingsDep) -> deletion.FileStores:
 
 EnqueuerDep = Annotated[ExportEnqueuer, Depends(get_export_enqueuer)]
 FileStoresDep = Annotated[deletion.FileStores, Depends(get_file_stores)]
+UserDeletionRequesterDep = Annotated[UserDeletionRequester, Depends(get_user_deletion_requester)]
+
+
+async def finish_in_background(
+    requester: UserDeletionRequester, result: deletion.DeletionResult
+) -> None:
+    """Queue the rest of a user deletion after the commit (``app.privacy.deletion``);
+    ``privacy.resume_user_deletions`` catches up if this fails."""
+    if result.completed:
+        return
+    try:
+        await requester(result.user_id)
+    except Exception as exc:
+        log.warning(
+            "privacy_user_deletion_request_failed",
+            user_id=str(result.user_id),
+            error_type=type(exc).__name__,
+        )
 
 
 # -- own data ----------------------------------------------------------------------------
@@ -184,10 +212,12 @@ async def delete_account(
     db: DbDep,
     settings: SettingsDep,
     stores: FileStoresDep,
+    finisher: UserDeletionRequesterDep,
 ) -> Response:
     """Delete the own account with all data (mailboxes, mails, todos, digests, ...) and
     files. Confirmed by entering the account's e-mail address, after a recent confirmation
-    of the account (app/auth/reauth.py, 403 reauth-required). Not reversible."""
+    of the account (app/auth/reauth.py, 403 reauth-required). Not reversible. Mailboxes
+    are removed in the background (#177); the account is gone with this response."""
     if not settings.privacy.self_delete_enabled:
         raise ProblemError(
             403,
@@ -201,9 +231,11 @@ async def delete_account(
             type="urn:ollamail:problem:confirmation-mismatch",
         )
     guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
-    await deletion.delete_user(
+    result = await deletion.delete_user(
         db, user.id, stores, actor=audit.Actor.user(user.id), via="self", access_guard=guard
     )
+    if result is not None:
+        await finish_in_background(finisher, result)
     response = Response(status_code=status.HTTP_204_NO_CONTENT)
     clear_session_cookie(response, settings.auth)
     return response
@@ -282,8 +314,11 @@ async def delete_user(
     admin: AdminSessionDep,
     db: DbDep,
     stores: FileStoresDep,
+    finisher: UserDeletionRequesterDep,
 ) -> UserDeletionResult:
-    """Delete a user with all their data and files (Art. 17). Not reversible."""
+    """Delete a user with all their data and files (Art. 17). Not reversible. From this
+    response on the user is gone everywhere; their mailboxes are removed in the
+    background (#177), then the user row."""
     guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
     result = await deletion.delete_user(
         db,
@@ -295,4 +330,5 @@ async def delete_user(
     )
     if result is None:
         raise ProblemError(404, detail="User not found.")
+    await finish_in_background(finisher, result)
     return UserDeletionResult(user_id=user_id, deleted=True, mailboxes=result.mailboxes)

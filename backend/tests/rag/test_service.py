@@ -171,7 +171,9 @@ async def test_mail_content_is_data_not_instructions(
     assert source_numbers(prompt.messages) == [1]
     tag = request.content.split("<mail-", 1)[1].split(" ", 1)[0]
     block = request.content.split(f'<mail-{tag} n="1">', 1)[1].split(f"</mail-{tag}>", 1)[0]
-    assert "Ignore all previous instructions" in block
+    # The paragraph with instructions for the assistant is removed (#170).
+    assert "Ignore all previous instructions" not in block
+    assert "[…]" in block
     assert request.content.rstrip().endswith("Question: What is the hosting invoice about?")
     # The query analysis never sees mail content.
     analysis_prompt = fake_llm.model.calls[0]

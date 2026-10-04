@@ -11959,7 +11959,7 @@
     },
     "/admin/privacy/users/{user_id}": {
       "delete": {
-        "description": "Delete a user with all their data and files (Art. 17). Not reversible.",
+        "description": "Delete a user with all their data and files (Art. 17). Not reversible. From this\nresponse on the user is gone everywhere; their mailboxes are removed in the\nbackground (#177), then the user row.",
         "operationId": "privacy_delete_user",
         "parameters": [
           {
@@ -17713,7 +17713,7 @@
     },
     "/privacy/account": {
       "delete": {
-        "description": "Delete the own account with all data (mailboxes, mails, todos, digests, ...) and\nfiles. Confirmed by entering the account's e-mail address, after a recent confirmation\nof the account (app/auth/reauth.py, 403 reauth-required). Not reversible.",
+        "description": "Delete the own account with all data (mailboxes, mails, todos, digests, ...) and\nfiles. Confirmed by entering the account's e-mail address, after a recent confirmation\nof the account (app/auth/reauth.py, 403 reauth-required). Not reversible. Mailboxes\nare removed in the background (#177); the account is gone with this response.",
         "operationId": "privacy_delete_account",
         "requestBody": {
           "content": {

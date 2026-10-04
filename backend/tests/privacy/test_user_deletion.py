@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.audit import AuditAction
 from app.core.config import PrivacySettings
 from app.digest.storage import DigestStorage
+from app.mail import deletion as mail_deletion
 from app.mail.storage import AttachmentStorage
 from app.privacy import exports
 from app.privacy.storage import ExportStorage
@@ -27,7 +28,12 @@ from tests.audit.conftest import audit_rows
 from tests.auth.conftest import login, make_local_user
 from tests.conftest import api_client
 from tests.factories import make_user
-from tests.privacy.conftest import FakeServer, current_user_id, seed_user_data
+from tests.privacy.conftest import (
+    FakeServer,
+    current_user_id,
+    finish_user_deletion,
+    seed_user_data,
+)
 from tests.privacy.foreign_keys import (
     blocking_keys,
     cascading_tables,
@@ -94,6 +100,8 @@ async def test_deleting_an_account_leaves_no_rows_and_no_files(
     storage: AttachmentStorage,
     data_dir: Path,
     db_session: AsyncSession,
+    user_deletion_requests: list[uuid.UUID],
+    monkeypatch: pytest.MonkeyPatch,
 ) -> None:
     dependent = dependent_tables(await foreign_keys(db_session), USERS)
     # Another user with data in every module must keep all of it.
@@ -135,6 +143,19 @@ async def test_deleting_an_account_leaves_no_rows_and_no_files(
 
     assert response.status_code == 204
     assert "ollamail_session=" in response.headers.get("set-cookie", "")
+    # Signed out everywhere, gone for everybody; the rest runs in the background (#177).
+    assert (await erika.get("/auth/me")).status_code == 401
+    await erika.aclose()
+    assert user_deletion_requests == [seeded.user_id]
+    db_session.expunge_all()
+    marked = await db_session.get(User, seeded.user_id)
+    assert marked is not None and marked.deletion_requested_at is not None
+    assert not marked.is_active
+    assert "erika" not in f"{marked.email} {marked.display_name}".lower()
+
+    monkeypatch.setattr(mail_deletion, "MESSAGE_BATCH", 2)
+    await finish_user_deletion(db_session, seeded.user_id, storage, data_dir)
+
     db_session.expunge_all()
     assert await row_counts(db_session, dependent | {USERS}) == baseline
     assert await db_session.get(User, seeded.user_id) is None
@@ -148,9 +169,6 @@ async def test_deleting_an_account_leaves_no_rows_and_no_files(
     assert all(storage.exists(path) for path in other.attachment_paths)
     assert all(path.is_file() for path in other.audio_paths)
     assert (await bob.get(f"/mailboxes/{other.mailbox_id}")).status_code == 200
-    # Signed out everywhere.
-    assert (await erika.get("/auth/me")).status_code == 401
-    await erika.aclose()
 
     # Provable, without personal data: IDs and counts only.
     [entry] = await audit_rows(db_session, AuditAction.USER_DELETED)
@@ -223,6 +241,7 @@ async def test_admin_deletes_a_user(
     storage: AttachmentStorage,
     data_dir: Path,
     db_session: AsyncSession,
+    user_deletion_requests: list[uuid.UUID],
 ) -> None:
     seeded = await seed_user_data(
         db_session, bob, server, storage, data_dir, address="bob@example.org", marker="bob"
@@ -241,6 +260,8 @@ async def test_admin_deletes_a_user(
 
     assert response.status_code == 200
     assert response.json() == {"user_id": str(seeded.user_id), "deleted": True, "mailboxes": 1}
+    assert user_deletion_requests == [seeded.user_id]
+    await finish_user_deletion(db_session, seeded.user_id, storage, data_dir)
     db_session.expunge_all()
     assert await db_session.get(User, seeded.user_id) is None
     assert not storage.mailbox_dir(seeded.mailbox_id).exists()

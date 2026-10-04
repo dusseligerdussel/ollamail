@@ -2,7 +2,8 @@
 
 One organisation per instance (docs/ARCHITECTURE.md §5). How a user signs in is stored
 separately in ``app.auth.models.Identity``; a user can have several identities.
-Deleting a user cascades to identities, sessions and owned mailboxes (docs/PRIVACY.md).
+Deleting a user cascades to identities, sessions and owned mailboxes (docs/PRIVACY.md);
+users with mailboxes are deleted in the background (``app.privacy.deletion``).
 """
 
 import enum
@@ -43,3 +44,6 @@ class User(Base):
     # Inactive users cannot sign in; their sessions stop working immediately.
     is_active: Mapped[bool] = mapped_column(server_default=true(), default=True)
     last_login_at: Mapped[datetime | None]
+    # Set while the user is being deleted in the background (``app.privacy.deletion``,
+    # #177): the user is deactivated, anonymised and hidden everywhere until the row goes.
+    deletion_requested_at: Mapped[datetime | None]

@@ -5,7 +5,7 @@ each user (off without a row), ``mail_notifications`` the messages already annou
 message is announced at most once. IDs and switches only, no mail content.
 
 Revision ID: 30e4d71e676e
-Revises: 5dab8560b40a
+Revises: d84e1e94a236
 Create Date: 2026-10-04 03:10:41.678598+00:00
 """
 
@@ -16,7 +16,7 @@ from alembic import op
 from sqlalchemy.dialects import postgresql
 
 revision: str = "30e4d71e676e"
-down_revision: str | Sequence[str] | None = "5dab8560b40a"
+down_revision: str | Sequence[str] | None = "d84e1e94a236"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

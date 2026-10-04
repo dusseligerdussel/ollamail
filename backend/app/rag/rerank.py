@@ -61,7 +61,10 @@ class LLMReranker:
             for number, hit in enumerate(hits, start=1)
         ]
         messages = RAG_RERANK.render(
-            language, tag=tag, question=question, sources=render_blocks(tag, blocks)
+            language,
+            tag=tag,
+            question=question,
+            sources=render_blocks(tag, blocks, feature="rag_rerank"),
         )
         try:
             result = await self._llm.complete_structured(

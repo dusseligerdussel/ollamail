@@ -11,6 +11,8 @@ import secrets
 from collections.abc import Sequence
 from dataclasses import dataclass
 
+from app.ai import injection
+
 # A complete marker: ``[1]``, ``[1, 3]``, ``[1,3]``.
 _MARKER = re.compile(r"\[\s*(\d{1,3}(?:\s*[,;]\s*\d{1,3})*)\s*\]")
 # The start of a marker whose end has not been streamed yet.
@@ -91,11 +93,16 @@ def data_tag() -> str:
     return f"mail-{secrets.token_hex(6)}"
 
 
-def render_blocks(tag: str, blocks: Sequence[DataBlock]) -> str:
+def render_blocks(tag: str, blocks: Sequence[DataBlock], *, feature: str = "rag") -> str:
     """Sources as ``<tag n="1">...</tag>`` blocks. ``tag`` is random per request, so text
-    in a mail cannot end its block; the tag is still removed from the content."""
+    in a mail cannot end its block; the tag is still removed from the content. Passages
+    addressed to an AI assistant are removed (#170) and counted for ``feature``."""
     parts = []
+    removed = 0
     for block in blocks:
-        body = f"{block.heading}\n\n{block.content}".strip().replace(tag, "mail")
+        content = injection.neutralize(block.content)
+        removed += content.passages
+        body = f"{block.heading}\n\n{content.text}".strip().replace(tag, "mail")
         parts.append(f'<{tag} n="{block.number}">\n{body}\n</{tag}>')
+    injection.count(feature, removed)
     return "\n".join(parts)

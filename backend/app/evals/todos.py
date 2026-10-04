@@ -22,6 +22,7 @@ from app.mail.models import Mailbox, MailboxType, Message
 from app.todos.extraction import (
     TodoExtraction,
     build_prompt,
+    injected_passages,
     is_outgoing,
     plan_extraction,
     reference_date,
@@ -135,6 +136,18 @@ async def run_todos(
         message, mailbox, user = transient_mail(mail)
         reference = reference_date(message, OWNER_TIMEZONE)
         started = time.perf_counter()
+        if injected_passages(message):
+            # As in ``extract_todos``: no todos from mails with instructions for an AI.
+            report.outcomes.append(
+                TodoOutcome(
+                    mail.id,
+                    expected,
+                    [],
+                    score_todos(expected, []),
+                    time.perf_counter() - started,
+                )
+            )
+            continue
         try:
             result = await llm.complete_structured(
                 LLMTask.TODOS,
