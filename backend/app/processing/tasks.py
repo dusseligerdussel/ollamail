@@ -35,7 +35,7 @@ from uuid import UUID
 
 from procrastinate import BaseRetryStrategy, JobContext, RetryDecision
 from procrastinate.exceptions import AlreadyEnqueued
-from procrastinate.jobs import Job
+from procrastinate.jobs import Job, JobDeferrer
 
 from app.ai.llm.errors import (
     LLMCircuitOpenError,
@@ -127,11 +127,13 @@ async def enqueue_processing(message_id: UUID, *, priority: Priority = Priority.
     """
     if not get_settings().processing.enabled:
         return
-    lock = _message_lock(message_id)
     with contextlib.suppress(AlreadyEnqueued):
-        await plan_message.configure(
-            priority=int(priority), lock=lock, queueing_lock=lock
-        ).defer_async(message_id=str(message_id))
+        await _plan_deferrer(message_id, priority).defer_async(message_id=str(message_id))
+
+
+def _plan_deferrer(message_id: UUID, priority: Priority) -> JobDeferrer:
+    lock = _message_lock(message_id)
+    return plan_message.configure(priority=int(priority), lock=lock, queueing_lock=lock)
 
 
 @on_message_stored
@@ -305,9 +307,28 @@ async def _record_failure(
     await _defer_steps(str(message_id), ready, _priority(context))
 
 
+# Jobs inserted per statement by ``requeue_messages``.
+REQUEUE_BATCH = 200
+
+
 async def requeue_messages(message_ids: Sequence[UUID], priority: Priority) -> None:
-    for message_id in message_ids:
-        await enqueue_processing(message_id, priority=priority)
+    """Queue the processing of many messages (reprocessing, retries, "classify older
+    mails too"): one insert per ``REQUEUE_BATCH`` jobs instead of one per message. A
+    batch with a message whose plan job is already queued is queued one by one."""
+    if not get_settings().processing.enabled:
+        return
+    for start in range(0, len(message_ids), REQUEUE_BATCH):
+        batch = message_ids[start : start + REQUEUE_BATCH]
+        deferrers = [_plan_deferrer(message_id, priority) for message_id in batch]
+        jobs = [
+            deferrer.make_new_job(message_id=str(message_id))
+            for deferrer, message_id in zip(deferrers, batch, strict=True)
+        ]
+        try:
+            await deferrers[0].job_manager.batch_defer_jobs_async(jobs)
+        except AlreadyEnqueued:
+            for message_id in batch:
+                await enqueue_processing(message_id, priority=priority)
 
 
 @app.periodic(cron="*/10 * * * *", periodic_id="processing_requeue_outdated")
@@ -318,15 +339,18 @@ async def requeue_messages(message_ids: Sequence[UUID], priority: Priority) -> N
 )
 async def requeue_outdated(timestamp: int) -> None:
     """Every 10 minutes: queue messages that were never processed or whose steps have a
-    newer version, newest first and behind all other work (``Priority.REPROCESS``)."""
+    newer version, newest first and behind all other work (``Priority.REPROCESS``).
+    Reads all messages only after a step changed; otherwise just the newly stored ones
+    (``service.messages_to_requeue``)."""
     settings = get_settings().processing
     steps = registry.ordered()
     if not settings.enabled or not steps:
         return
     async with get_database().sessionmaker() as session:
-        message_ids = await service.outdated_messages(
+        message_ids = await service.messages_to_requeue(
             session, steps, limit=settings.requeue_batch_size
         )
+        await session.commit()
     await requeue_messages(message_ids, Priority.REPROCESS)
     if message_ids:
         log.info("processing_requeued", count=len(message_ids))

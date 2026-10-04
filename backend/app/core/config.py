@@ -907,6 +907,12 @@ class WorkerSettings(BaseSettings):
     # A running job whose worker sent no heartbeat for this long (killed, OOM) is put back
     # into the queue by a periodic job (every 5 minutes). Workers send one every 10 s.
     stalled_after_seconds: float = Field(default=120.0, ge=30)
+    # Hours finished jobs (IDs and arguments, no mail content) are kept before an hourly
+    # cleanup deletes them: succeeded ones, which are the bulk (about seven per mail,
+    # 700k for an import of 100k mails), and failed, cancelled or aborted ones, which
+    # are kept longer for troubleshooting.
+    job_retention_hours: int = Field(default=24, ge=1)
+    failed_job_retention_hours: int = Field(default=7 * 24, ge=1)
     # Liveness: the worker touches this file every ``heartbeat_interval_seconds`` while its
     # event loop and job workers run; ``python -m app.core.heartbeat`` (Compose healthcheck,
     # Kubernetes liveness probe) fails once it is older than four intervals.

@@ -930,7 +930,9 @@ des Dienstes `migrate`; schlägt ein Schritt fehl, bleibt die Datenbank auf dem 
 **Voraussetzung:** pgvector **0.7 oder neuer**. Das mitgelieferte Image `pgvector/pgvector:pg16`
 und die CloudNativePG-Images „standard“ enthalten 0.8. Bei älteren Installationen bricht die
 Migration mit einer Meldung ab; dann das PostgreSQL-Image aktualisieren und in der Datenbank
-`ALTER EXTENSION vector UPDATE;` ausführen. Version prüfen:
+`ALTER EXTENSION vector UPDATE;` ausführen, danach `api` und `worker` neu starten (sie lesen die
+Version einmal beim ersten Suchaufruf, ab 0.8 nutzt die Suche iterative Index-Scans). Version
+prüfen:
 
 ```sh
 docker compose -f deploy/compose.yaml exec postgres \
@@ -1153,7 +1155,7 @@ Mit `OLLAMAIL_METRICS_ENABLED=true` liefern API und Worker Metriken im Prometheu
 | Metrik | Labels | Bedeutung |
 |---|---|---|
 | `ollamail_queue_jobs` | `queue`, `priority`, `status` (`todo`, `doing`) | Queue-Tiefe; Priorität 10 = neue Mail, 0 = Erstimport, −10 = Neuverarbeitung |
-| `ollamail_queue_failed_jobs` | `queue`, `task` | fehlgeschlagene Jobs der letzten 7 Tage |
+| `ollamail_queue_failed_jobs` | `queue`, `task` | fehlgeschlagene Jobs der letzten 7 Tage (`OLLAMAIL_WORKER_FAILED_JOB_RETENTION_HOURS`) |
 | `ollamail_processing_steps` | `step`, `status` (`pending`, `running`, `failed`) | Verarbeitungsschritte je Schritt |
 | `ollamail_mailbox_processing_steps` | `mailbox_id`, `status` (+ `retry_scheduled`) | dasselbe je Postfach (wie Admin → System) |
 | `ollamail_mailbox_sync_phase` | `mailbox_id`, `phase` | 1 für die aktuelle Sync-Phase (`error`, `idle`, `importing`, …) |

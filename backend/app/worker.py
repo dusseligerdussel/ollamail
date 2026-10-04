@@ -85,9 +85,6 @@ TASK_MODULES: list[str] = [
 # Waits 2, 4, 8, ... 128 seconds between attempts (8 attempts, ~4 minutes in total).
 DEFAULT_RETRY = RetryStrategy(max_attempts=8, exponential_wait=2)
 
-# Finished jobs (and their arguments) are deleted after this many hours.
-JOB_RETENTION_HOURS = 7 * 24
-
 
 def resource_lock(kind: str, resource_id: UUID | str) -> str:
     """Lock key that serialises all jobs touching one resource, e.g. one mailbox."""
@@ -110,7 +107,7 @@ app = procrastinate.App(
 )
 
 
-@app.periodic(cron="17 3 * * *", periodic_id="remove_old_jobs")
+@app.periodic(cron="17 * * * *", periodic_id="remove_old_jobs")
 @app.task(
     name="worker.remove_old_jobs",
     queue="default",
@@ -118,9 +115,13 @@ app = procrastinate.App(
     pass_context=True,
 )
 async def remove_old_jobs(context: JobContext, timestamp: int) -> None:
-    """Daily: delete finished jobs and their events (data minimisation)."""
+    """Hourly: delete finished jobs and their events (data minimisation, and a small
+    job table): succeeded ones after ``OLLAMAIL_WORKER_JOB_RETENTION_HOURS``, the
+    others after ``OLLAMAIL_WORKER_FAILED_JOB_RETENTION_HOURS``."""
+    settings = get_settings().worker
+    await context.app.job_manager.delete_old_jobs(nb_hours=settings.job_retention_hours)
     await context.app.job_manager.delete_old_jobs(
-        nb_hours=JOB_RETENTION_HOURS,
+        nb_hours=settings.failed_job_retention_hours,
         include_failed=True,
         include_cancelled=True,
         include_aborted=True,

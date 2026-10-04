@@ -15,7 +15,7 @@ from sqlalchemy import delete, text
 
 from app.core.config import DatabaseSettings, QueueName
 from app.core.db import Database
-from app.core.ids import uuid7
+from app.core.ids import uuid7, uuid7_floor
 from app.mail.models import Mailbox, MailboxType, Message
 from app.processing.steps import ProcessingStep, StepContext, registry
 from app.processing.tasks import use_database
@@ -26,6 +26,8 @@ from tests.factories import make_user
 # Retries without waiting, so tests stay fast.
 FAST_RETRY = RetryStrategy(max_attempts=2)
 QUEUES = ["default", "llm", "sync", "push"]
+# Random bits of a UUIDv7 (everything below the timestamp and version).
+_RANDOM = ((1 << 76) - 1) & ~(0b11 << 62)
 
 # Feature modules register their steps on import. Import them now: the worker imports
 # them lazily, which would register them in a test's isolated registry instead.
@@ -108,8 +110,13 @@ class Pipeline:
     mailbox_id: uuid.UUID
     owner_id: uuid.UUID
 
-    async def add_message(self, received_at: datetime | None = None) -> uuid.UUID:
+    async def add_message(
+        self, received_at: datetime | None = None, *, stored_at: datetime | None = None
+    ) -> uuid.UUID:
+        """A committed message; ``stored_at`` backdates its (time-ordered) ID."""
         message_id = uuid7()
+        if stored_at is not None:
+            message_id = uuid.UUID(int=uuid7_floor(stored_at).int | (message_id.int & _RANDOM))
         async with self.database.sessionmaker() as session:
             session.add(
                 Message(
@@ -150,6 +157,7 @@ async def pipeline(migrated_database: str) -> AsyncIterator[Pipeline]:
     mailbox_id = uuid7()
     async with database.sessionmaker() as session:
         await session.execute(text("DELETE FROM procrastinate_jobs"))
+        await session.execute(text("DELETE FROM processing_scan_state"))
         owner_id = (await make_user(session)).id
         session.add(
             Mailbox(
@@ -169,5 +177,6 @@ async def pipeline(migrated_database: str) -> AsyncIterator[Pipeline]:
             # Cascades to the mailbox; committed users would mark the instance as set up.
             await session.execute(delete(User).where(User.id == owner_id))
             await session.execute(text("DELETE FROM procrastinate_jobs"))
+            await session.execute(text("DELETE FROM processing_scan_state"))
             await session.commit()
         await database.dispose()

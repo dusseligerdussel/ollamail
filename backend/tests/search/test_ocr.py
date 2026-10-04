@@ -362,6 +362,8 @@ async def test_ocr_replaces_the_attachment_chunks(
         return Extraction("ok", OCR_TEXT, ocr=True)
 
     monkeypatch.setattr(service, "extract_text", fake_extract)
+    # Everything embedded so far: ``fill_embeddings`` would skip its scan.
+    await service.fill_embeddings(mail.session, embedder, search_settings)
 
     for _ in range(2):  # idempotent
         result = await service.ocr_attachment(
@@ -391,6 +393,9 @@ async def test_ocr_replaces_the_attachment_chunks(
         settings=search_settings,
     )
     assert [(hit.chunk_id, hit.source) for hit in hits] == [(chunks[1].id, "attachment_ocr")]
+    # The OCR announced its chunk, so the next run looks for it.
+    filled = await service.fill_embeddings(mail.session, embedder, search_settings)
+    assert (filled.embedded, filled.remaining) == (1, False)
 
 
 @pytest.mark.db

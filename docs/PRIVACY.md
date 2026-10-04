@@ -43,7 +43,7 @@ Feature, sondern eine Randbedingung für jede Änderung.
 | Microsoft 365 | OAuth-Tokens verschlüsselt (`mail_mailboxes.credentials`), Client-Secret nur in der Umgebung. Zum Senden wird beim Verbinden `Mail.Send` angefordert (abschaltbar mit `OLLAMAIL_MAIL_GRAPH_SEND_ENABLED=false`). App-only-Zugriff nur mit Einschränkung auf freigegebene Postfächer (RBAC for Applications / `ApplicationAccessPolicy`, siehe `docs/providers/microsoft365.md`). Change Notifications optional, ohne Inhalte (nur IDs, `clientState` per HMAC geprüft) |
 | In transit | TLS für IMAP/SMTP/LDAP/OIDC Pflicht (Ausnahme nur explizit per Admin-Setting, IMAP und SMTP: `OLLAMAIL_MAIL_ALLOW_INSECURE_CONNECTIONS`), HTTPS hinter Reverse Proxy |
 | Logs | **Keine** Betreffzeilen, Adressen, Inhalte, Prompts oder LLM-Antworten in Logs. IDs statt Inhalte. Ein Log-Filter erzwingt das. |
-| Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 7 Tagen gelöscht. Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
+| Job-Queue | Job-Argumente enthalten nur IDs, keine Inhalte. Abgeschlossene Jobs werden nach 24 Stunden gelöscht, fehlgeschlagene nach 7 Tagen (`OLLAMAIL_WORKER_JOB_RETENTION_HOURS`, `OLLAMAIL_WORKER_FAILED_JOB_RETENTION_HOURS`). Procrastinate-Logs werden auf statische Event-Namen reduziert (keine Argumente, keine Rückgabewerte) |
 | Echtzeit-Events | Payload nur Typ, IDs und Status (per Pattern erzwungen); Zustellung ausschließlich an den betroffenen Nutzer |
 | Audit-Log | Append-only und hash-verkettet: Login (Erfolg/Fehlschlag), Logout, Setup, Session-Widerruf, zweiter Faktor, Nutzer angelegt/geändert (SCIM), Anmeldung per E-Mail-Adresse verknüpft, Rollenänderung, SCIM-Gruppen und -Mitgliedschaften, IdP- und KI-Einstellungen, Postfach angelegt/entfernt/freigegeben, Mail gesendet, Export, Löschung, Key-Rotation. Nur IDs und Codes, keine Inhalte (siehe unten) |
 | Sessions | Serverseitig, widerrufbar, Lebensdauer und Idle-Timeout konfigurierbar. In der DB nur der SHA-256 des Cookie-Tokens; Cookies `HttpOnly`, `Secure`, `SameSite=Lax`; CSRF-Schutz per signiertem Double-Submit-Token |
@@ -440,7 +440,7 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 | `privacy_retention_settings` | Fristen, Zähler des letzten Laufs (nicht personenbezogen) | – |
 | `audit_events` | Ereignis, Zeitpunkt, Nutzer- bzw. Objekt-ID (pseudonym, ohne Fremdschlüssel), Codes, Zähler | Aufbewahrung Audit-Log (dokumentierte Ausnahme) |
 | `ai_settings`, `ai_providers`, `auth_oidc_providers`, `auth_github_providers`, `auth_saml_providers`, `auth_ldap_directories` | Instanzkonfiguration, Secrets verschlüsselt | Admin |
-| `procrastinate_jobs`, `procrastinate_events` | Job-Argumente (nur IDs) | nach 7 Tagen (`worker.remove_old_jobs`) |
+| `procrastinate_jobs`, `procrastinate_events` | Job-Argumente (nur IDs) | erfolgreiche nach 24 Stunden, übrige nach 7 Tagen (stündlich, `worker.remove_old_jobs`; konfigurierbar) |
 | `<data>/tts/voices/` | Sprachmodelle (nicht personenbezogen) | – |
 | Logs (stdout) | IDs, Codes, Anzahlen, Zeiten; keine Inhalte | Log-Rotation des Hosts |
 
