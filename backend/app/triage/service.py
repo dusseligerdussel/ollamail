@@ -159,7 +159,7 @@ async def triage_message(
     """Classify one message (idempotent). A correction by the user is never replaced.
 
     Ends the read transaction before calling the model (``release_connection``) and writes
-    the result in a new one; call it before the session's first write.
+    the result in a new one (pending changes are committed with the reads).
     """
     row = (
         await session.execute(

@@ -181,11 +181,3 @@ async def test_release_connection_returns_the_connection_to_the_pool(
             assert await session.scalar(select(2)) == 2
     finally:
         await engine.dispose()
-
-
-@pytest.mark.db
-async def test_release_connection_refuses_pending_writes(db_session: AsyncSession) -> None:
-    db_session.add(Probe(name="unsaved"))
-
-    with pytest.raises(RuntimeError, match="pending writes"):
-        await release_connection(db_session)

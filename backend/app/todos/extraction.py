@@ -391,7 +391,7 @@ async def extract_todos(
     """Run the extraction for one stored message; returns the newly created todos.
 
     Ends the read transaction before calling the model (``release_connection``) and writes
-    in a new one; call it before the session's first write.
+    in a new one (pending changes are committed with the reads).
     """
     message = await session.get(Message, message_id)
     if message is None:

@@ -118,11 +118,10 @@ async def release_connection(session: AsyncSession) -> None:
     """End the read transaction of ``session`` before a slow call (LLM, embeddings,
     network), so its pool connection is free meanwhile; the next statement takes one again.
 
-    It commits, so call it only before the session's first write. Loaded objects stay
-    usable (``expire_on_commit=False``), but rows may change until the next statement.
+    It commits, including changes still pending, so call it before writes that must be
+    atomic with what follows the call. Loaded objects stay usable
+    (``expire_on_commit=False``), but rows may change until the next statement.
     """
-    if session.new or session.dirty or session.deleted:
-        raise RuntimeError("release_connection() needs a session without pending writes")
     await session.commit()
 
 

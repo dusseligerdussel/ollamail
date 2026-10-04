@@ -233,8 +233,8 @@ async def index_message(
     If embedding fails (LLM unavailable, wrong dimension), the chunks are stored without
     vectors: full-text search finds them right away and ``fill_embeddings`` adds the
     vectors later. Does not commit its writes; it ends the read transaction before the
-    text extraction and the embedding call (``release_connection``), so call it before the
-    session's first write.
+    text extraction and the embedding call (``release_connection``, which commits pending
+    changes).
     """
     result = IndexResult()
     message = await session.scalar(

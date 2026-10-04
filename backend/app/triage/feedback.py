@@ -135,7 +135,7 @@ async def select_examples(
     """Up to ``few_shot_examples`` corrections of ``user_id`` (or, with
     ``shared_mailbox_id``, of the shared mailbox) for the prompt: the most similar ones if
     embeddings are available, otherwise the most recent ones. Ends the read transaction
-    before the embedding call (``release_connection``): call it before any write."""
+    before the embedding call (``release_connection``, commits pending changes)."""
     limit = settings.few_shot_examples
     if limit == 0:
         return []

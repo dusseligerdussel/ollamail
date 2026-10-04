@@ -673,8 +673,8 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   Verbindung. Umgesetzt in Triage (`_decide`, Few-Shot-Ranking), Todo-Extraktion (alte Todos
   werden erst nach der Antwort ersetzt), Index (`index_message`, auch vor dem Textextrahieren der
   Anhänge) und Suche (Embedding der Anfrage vor den Kandidaten-Abfragen; gilt auch für RAG).
-  `release_connection` committet und verweigert ungespeicherte Änderungen, also nur vor dem ersten
-  Schreiben aufrufen.
+  `release_connection` committet (auch noch offene Änderungen), also vor Schreibzugriffen aufrufen,
+  die mit dem Ergebnis des Aufrufs atomar sein müssen.
 - **Aktueller Nutzer:** Dependency `app.core.current_user.get_current_user_id` (Session-Cookie,
   siehe §5); ohne gültige Session 401. Tests überschreiben sie.
 
