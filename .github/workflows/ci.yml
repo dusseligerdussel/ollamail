@@ -506,6 +506,19 @@ jobs:
           grep -q '^# TYPE ollamail_queue_jobs gauge$' <<< "$api"
           [ "$(scrape worker http://127.0.0.1:9464/metrics none)" = 401 ] || { echo "::error::worker metrics without token"; exit 1; }
           grep -q '^python_info' <<< "$(scrape worker http://127.0.0.1:9464/metrics token)"
+      # #192: the published frontend reaches only the api (network `edge`); postgres sits on
+      # the internal network `backend` without a route outside, the api has outbound access.
+      - name: Networks are separated
+        run: |
+          reach() { docker compose exec -T "$1" sh -c "nc -z -w 3 $2 $3" > /dev/null 2>&1; }
+          outbound() { docker compose exec -T "$1" bash -c 'timeout 5 bash -c "exec 3<>/dev/tcp/1.1.1.1/443"' > /dev/null 2>&1; }
+          reach frontend api 8000 || { echo "::error::frontend cannot reach api"; exit 1; }
+          for target in "postgres 5432" "worker 9464"; do
+            # shellcheck disable=SC2086
+            if reach frontend $target; then echo "::error::frontend reaches $target"; exit 1; fi
+          done
+          if outbound postgres; then echo "::error::postgres has outbound access"; exit 1; fi
+          outbound api || { echo "::error::api has no outbound access"; exit 1; }
       # #147: JSON under /api is compressed; Server-Sent Events are neither compressed nor
       # buffered by the internal Caddy.
       - name: API compression spares Server-Sent Events

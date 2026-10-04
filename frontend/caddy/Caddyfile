@@ -25,6 +25,10 @@
 		Cross-Origin-Resource-Policy "same-origin"
 		-Server
 	}
+	# HSTS belongs to the TLS-terminating outer proxy. Optionally sent from here when
+	# OLLAMAIL_HSTS holds the header value, e.g. "max-age=31536000; includeSubDomains".
+	@hsts expression `{env.OLLAMAIL_HSTS} != ""`
+	header @hsts Strict-Transport-Security {env.OLLAMAIL_HSTS}
 }
 
 :8080 {

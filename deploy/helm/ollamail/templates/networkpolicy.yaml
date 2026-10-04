@@ -94,6 +94,50 @@ spec:
         - port: http
           protocol: TCP
 {{- end }}
+{{- with .Values.database.cloudnativepg.cluster }}
+{{- if $root.Values.networkPolicy.database.enabled }}
+---
+# database (CloudNativePG cluster): only api, worker and migration job, the cluster's own
+# instances (replication) and the operator.
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: {{ include "ollamail.fullname" $root }}-database
+  labels:
+    {{- include "ollamail.componentLabels" (dict "root" $root "component" "database") | nindent 4 }}
+spec:
+  podSelector:
+    matchLabels:
+      cnpg.io/cluster: {{ . | quote }}
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        {{- range $component := list "api" "worker" "migrate" }}
+        - podSelector:
+            matchLabels:
+              {{- include "ollamail.componentSelectorLabels" (dict "root" $root "component" $component) | nindent 14 }}
+        {{- end }}
+        - podSelector:
+            matchLabels:
+              cnpg.io/cluster: {{ . | quote }}
+      ports:
+        - port: 5432
+          protocol: TCP
+    {{- with $root.Values.networkPolicy.database.operatorFrom }}
+    # Operator: instance manager (status, 8000) and PostgreSQL.
+    - from:
+        {{- toYaml . | nindent 8 }}
+      ports:
+        - port: 8000
+          protocol: TCP
+        - port: 5432
+          protocol: TCP
+    {{- end }}
+    {{- with $root.Values.networkPolicy.database.extraIngress }}
+    {{- toYaml . | nindent 4 }}
+    {{- end }}
+{{- end }}
+{{- end }}
 {{- if .Values.networkPolicy.egress.enabled }}
 {{- range $component := list "api" "worker" "migrate" }}
 ---

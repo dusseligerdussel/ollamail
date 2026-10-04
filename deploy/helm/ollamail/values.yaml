@@ -258,6 +258,10 @@ metrics:
 # -----------------------------------------------------------------------------
 frontend:
   replicaCount: 1
+  # Strict-Transport-Security sent by the frontend (OLLAMAIL_HSTS), e.g.
+  # "max-age=31536000; includeSubDomains". Empty: not sent. Usually the Ingress controller
+  # terminating TLS sets HSTS (docs/operations/kubernetes.md, section 10).
+  hsts: ""
   service:
     type: ClusterIP
     port: 8080
@@ -386,14 +390,33 @@ ollama:
     size: 50Gi
 
 # -----------------------------------------------------------------------------
-# NetworkPolicies (needs a CNI that enforces them)
+# NetworkPolicies (need a CNI that enforces them; without one they have no effect)
 # -----------------------------------------------------------------------------
+# On by default: api only from the frontend, worker without inbound traffic, Ollama only from
+# api and worker. Prometheus needs metrics.from (docs/operations/kubernetes.md, section 11).
 networkPolicy:
-  enabled: false
+  enabled: true
   frontend:
     # Peers (NetworkPolicyPeer) allowed to reach the frontend, e.g. the ingress
     # controller's namespace. Empty: from everywhere.
     from: []
+  database:
+    # Restricts inbound traffic of the CloudNativePG cluster (database.cloudnativepg.cluster)
+    # to api, worker, migration job, the cluster's own instances and the operator. Off by
+    # default: other clients of the cluster (e.g. Prometheus on 9187) need extraIngress.
+    enabled: false
+    # The CloudNativePG operator (default installation in namespace cnpg-system).
+    operatorFrom:
+      - namespaceSelector:
+          matchLabels:
+            kubernetes.io/metadata.name: cnpg-system
+        podSelector:
+          matchLabels:
+            app.kubernetes.io/name: cloudnative-pg
+    # Additional NetworkPolicyIngressRule entries.
+    extraIngress: []
+    # - from: [{namespaceSelector: {matchLabels: {kubernetes.io/metadata.name: monitoring}}}]
+    #   ports: [{port: 9187, protocol: TCP}]
   egress:
     # Restrict outgoing traffic of api, worker and migration job to DNS, the release's
     # own pods and the rules below. Mail servers, identity providers, LLM endpoints,
