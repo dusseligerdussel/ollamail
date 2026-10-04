@@ -14,8 +14,10 @@ import os
 
 # Test setting: the scripted servers and the CI services (Dovecot, Mailpit) listen on
 # localhost, which mail connections refuse without an allowlist entry
-# (app/mail/providers/network.py). Tests of the check pass their own ``MailSettings``.
+# (app/core/network.py); the same holds for CalDAV export targets. Tests of the check pass
+# their own settings.
 os.environ.setdefault("OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS", "localhost,127.0.0.0/8,::1")
+os.environ.setdefault("OLLAMAIL_TODOS_EXPORT_ALLOWED_INTERNAL_HOSTS", "localhost,127.0.0.0/8,::1")
 from collections.abc import AsyncIterator, Callable, Iterator
 from http.cookies import SimpleCookie
 from pathlib import Path
