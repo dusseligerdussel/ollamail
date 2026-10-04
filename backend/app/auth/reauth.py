@@ -19,9 +19,11 @@ Ways to confirm (``GET /auth/reauth`` lists those of the account):
 
 Recovery codes are not offered: they are a last resort for a lost factor.
 
-Critical admin actions (#190, #206) depend on ``RecentAdminDep``: deleting a user, changing
-a role or deactivating, SCIM tokens and settings, sign-in providers and settings, the role
-mapping, AI providers, shared mailbox assignments. Some only need it for part of their
+Critical admin actions (#190, #206, #218) depend on ``RecentAdminDep``: creating, inviting
+and deleting a user (a new admin would sign in with a fresh confirmation of its own),
+changing a role or deactivating, SCIM tokens and settings, sign-in providers (also removing
+them) and settings, the role mapping, AI providers, shared mailbox assignments and removal,
+retention periods. Some only need it for part of their
 changes and call ``check_recent`` themselves: AI settings when they turn on cloud providers
 or assign tasks, creating a shared mailbox together with its first assignments. A stolen
 admin cookie alone must not be enough to add an identity provider that links to other

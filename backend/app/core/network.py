@@ -5,7 +5,8 @@ services (the database, Ollama, a cloud metadata endpoint) and tell open from cl
 by the error code. ``resolve`` therefore resolves the host once and returns the address to
 connect to. Addresses that are not globally reachable (loopback, RFC 1918, link-local
 (including ``169.254.169.254``), unique local (``fc00::/7``), shared (``100.64.0.0/10``),
-multicast, reserved) are refused unless the feature's allowlist (e.g.
+multicast, reserved; IPv6 addresses embedding one of these, such as NAT64
+``64:ff9b::7f00:1``) are refused unless the feature's allowlist (e.g.
 ``OLLAMAIL_MAIL_ALLOWED_INTERNAL_HOSTS``) lists the host name or a range containing the
 address (e.g. a server in the own LAN).
 
@@ -72,10 +73,23 @@ def parse_allowed_hosts(value: list[str]) -> list[str]:
     return entries
 
 
+# IPv6 ranges whose last 32 bits are an IPv4 address the packet ends up at: NAT64 (well-known
+# prefix, RFC 6052) and the deprecated IPv4-compatible addresses (RFC 4291). Python counts
+# both as global, so ``64:ff9b::7f00:1`` would otherwise pass as a way to reach 127.0.0.1.
+_EMBEDDED_IPV4 = (
+    ipaddress.IPv6Network("64:ff9b::/96"),
+    ipaddress.IPv6Network("::/96"),
+)
+
+
 def is_public(address: IPAddress) -> bool:
-    """Whether ``address`` is globally reachable (IPv4-mapped IPv6 judged as IPv4)."""
-    if isinstance(address, ipaddress.IPv6Address) and address.ipv4_mapped is not None:
-        address = address.ipv4_mapped
+    """Whether ``address`` is globally reachable. IPv6 addresses that embed an IPv4
+    destination (IPv4-mapped, NAT64, IPv4-compatible) are judged by that IPv4 address."""
+    if isinstance(address, ipaddress.IPv6Address):
+        if address.ipv4_mapped is not None:
+            address = address.ipv4_mapped
+        elif any(address in network for network in _EMBEDDED_IPV4):
+            address = ipaddress.IPv4Address(int(address) & 0xFFFFFFFF)
     return address.is_global and not address.is_multicast
 
 

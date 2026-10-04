@@ -662,4 +662,5 @@ def _notification_address(item: dict[str, Any]) -> str | None:
         return None
 
 
-registry.register(MailboxType.GMAIL, GmailProvider)
+# Google's endpoints are fixed; no setting sends the tokens elsewhere.
+registry.register(MailboxType.GMAIL, GmailProvider, destination=())

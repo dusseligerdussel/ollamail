@@ -98,6 +98,7 @@ async def test_export_contains_own_data_and_nothing_of_other_users(
     assert profile["user"]["email"] == "erika@example.org"
     assert [i["provider"] for i in profile["identities"]] == ["local"]
     assert [n["provider"] for n in profile["identity_link_notices"]] == ["oidc:corp"]
+    assert [b["provider"] for b in profile["identity_link_blocks"]] == ["github:corp"]
     factors = profile["second_factors"]
     assert [p["name"] for p in factors["passkeys"]] == ["Passkey erika"]
     assert factors["recovery_codes_remaining"] == 1

@@ -216,7 +216,7 @@
       },
       "AIProviderTest": {
         "additionalProperties": false,
-        "description": "Unsaved settings to test. Without ``api_key``, the stored key of ``name`` is used\n(so an edit form can be tested without typing the key again).",
+        "description": "Unsaved settings to test. Without ``api_key``, the stored key of ``name`` is used\n(so an edit form can be tested without typing the key again); with another ``kind`` or\n``base_url`` than stored, only after a recent confirmation (403 ``reauth-required``).",
         "properties": {
           "api_key": {
             "anyOf": [
@@ -949,6 +949,8 @@
           "user.deleted",
           "user.updated",
           "user.identity_linked",
+          "user.identity_unlinked",
+          "user.identity_link_unblocked",
           "group.created",
           "group.updated",
           "group.deleted",
@@ -3826,6 +3828,78 @@
         "title": "Hint",
         "type": "string"
       },
+      "IdentityRead": {
+        "description": "One of the own ways to sign in (#216); SCIM is not one.",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "current": {
+            "title": "Current",
+            "type": "boolean"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "last_used_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Last Used At"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          },
+          "unlink_refusal": {
+            "anyOf": [
+              {
+                "enum": [
+                  "local",
+                  "current_session",
+                  "last_sign_in"
+                ],
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Unlink Refusal"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "created_at",
+          "last_used_at",
+          "current",
+          "unlink_refusal"
+        ],
+        "title": "IdentityRead",
+        "type": "object"
+      },
       "InboxGroup": {
         "properties": {
           "category": {
@@ -4522,6 +4596,43 @@
           "login"
         ],
         "title": "LdapUserLookupRequest",
+        "type": "object"
+      },
+      "LinkBlockRead": {
+        "description": "A provider the user unlinked; it may not link to the account by e-mail address until\nthe user lifts the block (#216).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "created_at"
+        ],
+        "title": "LinkBlockRead",
         "type": "object"
       },
       "LinkNoticeRead": {
@@ -10801,7 +10912,7 @@
     },
     "/admin/ai/providers/test": {
       "post": {
-        "description": "Test unsaved settings (e.g. in the form before saving).",
+        "description": "Test unsaved settings (e.g. in the form before saving). The stored key of ``name``\ngoes only to the stored ``kind`` and ``base_url``; sending it elsewhere needs a recent\nconfirmation, like saving the change does (#219).",
         "operationId": "ai_check_ai_provider_settings",
         "requestBody": {
           "content": {
@@ -10828,7 +10939,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "422": {
             "content": {
@@ -11153,7 +11264,7 @@
     },
     "/admin/auth/github/providers/{name}": {
       "delete": {
-        "description": "Remove a GitHub provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "description": "Remove a GitHub provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked. Needs a recent\nconfirmation (#218): removing a provider can lock its users out.",
         "operationId": "admin_delete_github_provider",
         "parameters": [
           {
@@ -11174,7 +11285,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -11412,7 +11523,7 @@
     },
     "/admin/auth/oidc/providers/{name}": {
       "delete": {
-        "description": "Remove an OIDC provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "description": "Remove an OIDC provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked. Needs a recent\nconfirmation (#218): removing a provider can lock its users out.",
         "operationId": "admin_delete_oidc_provider",
         "parameters": [
           {
@@ -11433,7 +11544,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -11806,7 +11917,7 @@
     },
     "/admin/auth/saml/providers/{name}": {
       "delete": {
-        "description": "Remove a SAML provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked.",
+        "description": "Remove a SAML provider. Users and their linked identities are kept; sessions\nstarted with the provider stay valid until they expire or are revoked. Needs a recent\nconfirmation (#218): removing a provider can lock its users out.",
         "operationId": "admin_delete_saml_provider",
         "parameters": [
           {
@@ -11827,7 +11938,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "Unknown provider"
@@ -12110,7 +12221,7 @@
         ]
       },
       "patch": {
-        "description": "Change retention periods; ``null`` resets one to the environment default. Applies\nfrom the next run of the retention jobs.",
+        "description": "Change retention periods; ``null`` resets one to the environment default. Applies\nfrom the next run of the retention jobs. Needs a recent confirmation (#218): a short\nperiod deletes the audit log or the mails of all users.",
         "operationId": "privacy_update_retention",
         "requestBody": {
           "content": {
@@ -12137,7 +12248,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "422": {
             "content": {
@@ -12459,7 +12570,7 @@
     },
     "/admin/shared-mailboxes/{mailbox_id}": {
       "delete": {
-        "description": "Remove the shared mailbox with all its data and its assignments, in the background\n(as ``DELETE /mailboxes/{id}``).",
+        "description": "Remove the shared mailbox with all its data and its assignments, in the background\n(as ``DELETE /mailboxes/{id}``). Needs a recent confirmation (#218): not reversible.",
         "operationId": "admin_delete_shared_mailbox",
         "parameters": [
           {
@@ -12488,7 +12599,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such shared mailbox"
@@ -12560,7 +12671,7 @@
         ]
       },
       "patch": {
-        "description": "Rename, change connection settings or credentials (tested before saving), change\nsync settings, pause or resume syncing.",
+        "description": "Rename, change connection settings or credentials (tested before saving, rate-limited\nlike ``POST /mailboxes/test``), change sync settings, pause or resume syncing. Settings\nthat send the credentials to another server need the credentials again (422\n``credentials_required``).",
         "operationId": "admin_update_shared_mailbox",
         "parameters": [
           {
@@ -12606,6 +12717,9 @@
           },
           "422": {
             "description": "Invalid request, unavailable mailbox type or failed connection test"
+          },
+          "429": {
+            "description": "Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS)"
           }
         },
         "summary": "Update Shared Mailbox",
@@ -13507,6 +13621,84 @@
         ]
       }
     },
+    "/auth/identities": {
+      "get": {
+        "description": "The own ways to sign in (without SCIM), oldest first, with whether each can be\nunlinked (#216).",
+        "operationId": "auth_list_identities",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/IdentityRead"
+                  },
+                  "title": "Response Auth List Identities",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Identities",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/identities/{identity_id}": {
+      "delete": {
+        "description": "Unlink an external sign-in (#216): ends its sessions, drops the notices about it and\nblocks the provider from linking to the account by e-mail address again.",
+        "operationId": "auth_unlink_identity",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "identity_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Identity Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
+          },
+          "404": {
+            "description": "No such sign-in method"
+          },
+          "409": {
+            "description": "Local sign-in, the current session's method or the last one"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Unlink Identity",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/invitations/accept": {
       "post": {
         "description": "Set the password of the invited account and sign in. Like ``POST /auth/login``,\naccounts with a second factor or under enforced 2FA get 202 and no session yet.",
@@ -13695,7 +13887,7 @@
     },
     "/auth/ldap/directories/{name}": {
       "delete": {
-        "description": "Remove the directory and all sign-in links through it (the users stay).",
+        "description": "Remove the directory and all sign-in links through it (the users stay). Needs a\nrecent confirmation (#218): its users can no longer sign in.",
         "operationId": "auth_delete_directory",
         "parameters": [
           {
@@ -13716,7 +13908,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such directory"
@@ -13955,6 +14147,81 @@
           }
         },
         "summary": "Test User",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/link-blocks": {
+      "get": {
+        "description": "Providers blocked from linking to the own account by e-mail address because the user\nunlinked them (#216), newest first.",
+        "operationId": "auth_list_link_blocks",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LinkBlockRead"
+                  },
+                  "title": "Response Auth List Link Blocks",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Link Blocks",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/link-blocks/{block_id}": {
+      "delete": {
+        "description": "Lift a block: the provider links to the account by e-mail address again at its next\nsign-in. Only the user can do this, not from a session of the blocked provider.",
+        "operationId": "auth_lift_link_block",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "block_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Block Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "403": {
+            "description": "Confirm the account first (reauth-required, see /auth/reauth)"
+          },
+          "404": {
+            "description": "No such block"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Lift Link Block",
         "tags": [
           "auth"
         ]
@@ -17134,7 +17401,7 @@
         ]
       },
       "patch": {
-        "description": "Rename, change connection settings or credentials (tested before saving), change\nthe import period or excluded folder roles, pause (``sync_enabled: false``) or resume\nsyncing.",
+        "description": "Rename, change connection settings or credentials (tested before saving), change\nthe import period or excluded folder roles, pause (``sync_enabled: false``) or resume\nsyncing. Settings that send the credentials to another server (host, port, transport\nsecurity, token endpoint) need the credentials again (422 ``credentials_required``).",
         "operationId": "mailboxes_update_mailbox",
         "parameters": [
           {
@@ -20886,7 +21153,7 @@
         ]
       },
       "post": {
-        "description": "Create a local account with an initial password.",
+        "description": "Create a local account with an initial password. Needs a recent confirmation\n(#218): a new admin account would start with a fresh one of its own.",
         "operationId": "users_create_user",
         "requestBody": {
           "content": {
@@ -20913,7 +21180,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "E-mail address taken"
@@ -20937,7 +21204,7 @@
     },
     "/users/invitations": {
       "post": {
-        "description": "Create a local account without password and return a one-time invitation link.",
+        "description": "Create a local account without password and return a one-time invitation link.\nNeeds a recent confirmation (#218): whoever holds the link sets the password.",
         "operationId": "users_invite_user",
         "requestBody": {
           "content": {
@@ -20964,7 +21231,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "E-mail address taken or local login disabled"
@@ -21054,7 +21321,7 @@
     },
     "/users/{user_id}/invitation": {
       "post": {
-        "description": "New invitation link for an invited user who has not set a password yet (the old\nlink stops working).",
+        "description": "New invitation link for an invited user who has not set a password yet (the old\nlink stops working). Needs a recent confirmation (#218), as ``invite_user``.",
         "operationId": "users_reissue_invitation",
         "parameters": [
           {
@@ -21083,7 +21350,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such user"

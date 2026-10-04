@@ -33,7 +33,14 @@ Feature, sondern eine Randbedingung für jede Änderung.
    Anmeldeverfahren, über das sie entstand, und lässt sich dort beenden. Zusätzlich bekommt die
    betroffene Person bei der nächsten Anmeldung über ein bisheriges Verfahren einen Hinweis
    („Neue Anmeldung verknüpft“, #208), den nur sie selbst schließen kann – nicht über eine
-   Sitzung des neu verknüpften Providers. Betreiber vergeben die Admin-Rolle deshalb sparsam, prüfen das
+   Sitzung des neu verknüpften Providers. Sie kann die Verknüpfung dann selbst trennen
+   (Einstellungen → Anmeldeverfahren, #216): Das beendet die Sitzungen des Providers und sperrt
+   ihn für eine erneute automatische Verknüpfung per E-Mail-Adresse. Diese Sperre kann nur die
+   betroffene Person selbst aufheben, **kein Admin** – sonst liefe der Schutz gegen einen
+   böswilligen oder übernommenen Admin-Account ins Leere. Der Admin sieht die Sperre nur im
+   Audit-Log (`user.identity_unlinked`). Verbleibendes Restrisiko: Ein Admin kann das Konto
+   löschen und neu anlegen oder mit Datenbankzugriff alles umgehen; beides steht im Audit-Log
+   bzw. liegt außerhalb dessen, was die Anwendung verhindern kann. Betreiber vergeben die Admin-Rolle deshalb sparsam, prüfen das
    Audit-Log regelmäßig und halten `link_by_email` aus, wo es nicht gebraucht wird.
 5. **Transparenz** – Jede KI-Bewertung (Triage, Todo) ist für den Nutzer erklärbar und korrigierbar.
 
@@ -105,6 +112,14 @@ Umgesetzt in `backend/app/core/crypto.py`, abgesichert durch `backend/tests/test
 - **Startprüfung:** Ohne oder mit zu schwachem Master-Key (kein Base64, < 32 Bytes, offensichtlich
   nicht zufällig) startet die API nicht. Keys und Klartexte erscheinen nie in Logs oder
   Fehlermeldungen; geloggt wird nur eine nicht umkehrbare Key-ID.
+- **Kein neues Ziel für gespeicherte Secrets (#219):** Ein gespeichertes Postfach-Passwort bzw.
+  -Token geht nur an den Server, für den es eingegeben wurde. Wer Host, Port oder
+  Transportsicherheit (IMAP/SMTP) bzw. den Token-Endpunkt (Graph-Tenant) ändert, muss die
+  Zugangsdaten neu angeben (422 `credentials_required`); welche Einstellungen das Ziel bestimmen,
+  meldet jeder Provider bei der Registry an (ohne Angabe: alle). Der gespeicherte API-Key eines
+  KI-Providers geht beim Verbindungstest nur an die gespeicherte URL und den gespeicherten Typ,
+  sonst erst nach erneuter Bestätigung des Admin-Kontos. Eine gestohlene Sitzung reicht so nicht,
+  um Zugangsdaten an einen eigenen Server zu schicken.
 
 ### Cloud-LLMs im Detail
 
@@ -206,6 +221,8 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `auth.reauthenticated`, `auth.reauth_failed` | Bestätigung vor sensiblen Aktionen (#144; Ziel = Session, `method`; Fehlschlag mit `reason`: `invalid_credentials`, `invalid_passkey`). Nie Passwort oder Code | aktiv |
 | `user.created` | Admin legt Nutzer an oder lädt ein (`via: invitation`), Selbstregistrierung, `app.cli create-admin`, JIT-Provisioning beim ersten externen Login | aktiv |
 | `user.identity_linked` | Externe Anmeldung (OIDC, GitHub, SAML, LDAP) mit einem bestehenden Konto über die verifizierte E-Mail-Adresse verknüpft (#190; Akteur `system`, Ziel = Nutzer-ID, `provider`, `via`: `email` bei `link_by_email`, `scim` bei SCIM-Linking) | aktiv |
+| `user.identity_unlinked` | Die Person trennt eine externe Anmeldung selbst (#216, Einstellungen → Anmeldeverfahren; Akteur = Nutzer, Ziel = Nutzer-ID, `provider`, `sessions` = Anzahl beendeter Sitzungen). Sperrt den Provider zugleich gegen erneutes Verknüpfen per E-Mail-Adresse | aktiv |
+| `user.identity_link_unblocked` | Die Person hebt diese Sperre selbst auf (#216; Akteur = Nutzer, Ziel = Nutzer-ID, `provider`). Admins können das nicht | aktiv |
 | `user.role_changed` | Nutzerverwaltung (`via: admin`), Rollen-Zuordnung bzw. LDAP-`admin_groups` beim Login (Akteur `system`, `provider`) | aktiv |
 | `user.deactivated`, `user.reactivated` | Nutzerverwaltung (Deaktivieren beendet alle Sitzungen, `details.sessions`); `app.cli reset-password --activate` | aktiv |
 | `user.invited` | Einladung bzw. neuer Einladungslink (`renewed`) | aktiv |
@@ -231,7 +248,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 - **Auskunft/Export (Art. 15/20):** Unter Einstellungen → Deine Daten fordert der Nutzer einen
   Export an (`POST /api/privacy/exports`). Der Hintergrundjob `privacy.export` (Argument: nur die
   Export-ID) schreibt ein ZIP mit JSON-Dateien: Profil mit Anmeldeidentitäten, offenen
-  Verknüpfungshinweisen (#208) und Sitzungen, eigene Postfächer (ohne Zugangsdaten), eigene Kategorien, Kategorie-Einstellungen,
+  Verknüpfungshinweisen (#208), gesperrten Providern (#216) und Sitzungen, eigene Postfächer (ohne Zugangsdaten), eigene Kategorien, Kategorie-Einstellungen,
   Absenderregeln, Korrekturen und die Triage-Ergebnisse der eigenen Mails, Aufgaben,
   Einstellungen des Aufgaben-Exports (ohne Passwort),
   Digest-Einstellungen (ohne Feed-Token) und Digests mit Audiodateien, Fragen-Verläufe mit
@@ -408,7 +425,8 @@ von Nutzer (U), Postfach (P), Mail (M), Anhang (A) oder Gespräch (G), oder ein 
 |---|---|---|
 | `users` | E-Mail-Adresse, Anzeigename, Rolle, Sprache, Zeitzone, letzter Login | Konto löschen |
 | `auth_identities` | Anbieter, Kennung beim Anbieter (`sub`, GitHub-ID, LDAP-GUID, SAML-NameID), Gruppen, Argon2id-Hash | U |
-| `auth_identity_link_notices` | Offene Hinweise auf per E-Mail-Adresse verknüpfte Anmeldungen (#208): Nutzer-ID, Provider-Key, Zeitpunkt | U; Nutzer (Hinweis schließen) |
+| `auth_identity_link_notices` | Offene Hinweise auf per E-Mail-Adresse verknüpfte Anmeldungen (#208): Nutzer-ID, Provider-Key, Zeitpunkt | U; Nutzer (Hinweis schließen, Verknüpfung trennen) |
+| `auth_identity_link_blocks` | Von der Person getrennte Provider, die nicht mehr automatisch verknüpft werden (#216): Nutzer-ID, Provider-Key, Zeitpunkt | U; Nutzer (Sperre aufheben) |
 | `auth_sessions` | SHA-256 des Session-Tokens, gekürzte Browser-Kennung, Zeiten (inkl. letzter Anmeldung bzw. Bestätigung) | U; abgelaufene stündlich (`auth.cleanup`) |
 | `auth_mfa_totp`, `auth_mfa_passkeys`, `auth_mfa_recovery_codes` | TOTP-Secret (verschlüsselt), Passkey (Credential-ID, öffentlicher Schlüssel, Name, Zähler), HMACs der Wiederherstellungscodes | U |
 | `auth_mfa_pending` | SHA-256 des Zwischenzustands nach dem Passwort bzw. vor einer Passkey-Bestätigung, ggf. WebAuthn-Challenge | U; nach wenigen Minuten ungültig, stündlich gelöscht (`auth.cleanup`) |
