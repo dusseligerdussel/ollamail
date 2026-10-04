@@ -202,14 +202,23 @@ data: {"type":"message.synced","message_id":"…","mailbox_id":"…"}
   Ruhepause wirkt sofort; folgende Events werden gesammelt und gemeinsam angewendet, sobald 2 s lang
   keins kam, spätestens nach 5 s. Jeder Schlüssel wird je Bündel einmal invalidiert. Bei einem Import
   laden die Listen so alle paar Sekunden neu statt einmal pro Mail. `message.processed` invalidiert
-  nur Aufgaben, Labels, die Inbox nach Kategorie und die Suche, nicht Threads und die Liste nach
-  Datum.
+  nur Aufgaben, Labels und die Inbox nach Kategorie, nicht Threads, die Liste nach Datum und die
+  Suche (#223: erneutes Suchen bettet die Anfrage wieder über das LLM ein).
 - Weniger Last bei großen Importen (#188): `mailbox.sync` mit Status `progress` (ein Event je
   Import-Batch) lädt nur den Postfachstatus neu; die Listen folgen bei `done`/`failed`. Lange Listen
   (Infinite Queries) werden bei diesen Events mit `firstPage(...)` invalidiert: Vor dem Neuladen
   bleibt nur die erste Seite im Cache, weitere Seiten lädt die Liste beim Scrollen wieder nach,
   statt alle gescrollten Seiten neu abzurufen. Fordert dasselbe Bündel den Schlüssel auch ohne
-  `firstPage` an (z. B. `message.updated`), bleiben alle Seiten erhalten.
+  `firstPage` an (z. B. `message.updated` nach Archivieren), bleiben alle Seiten erhalten.
+- Gezielte Regeln (#223):
+  - `message.updated` mit `seen`/`unseen`/`flagged`/`unflagged` lädt nichts neu, sondern ändert die
+    Mail in den geladenen Listen und Threads direkt (`cacheUpdates`, wie `useSetSeen`). Nur Listen
+    mit Filter gelesen/ungelesen werden bei `seen`/`unseen` neu geladen. Mit
+    `archive`/`move`/`trash` verschwindet die Mail aus den Listen, die Listen laden neu. Thread und
+    Suche lädt `message.updated` nie neu – sonst würde jedes Öffnen einer Mail die Suche wiederholen.
+  - Die Inbox nach Kategorie (ihre erste Seite zählt die Mails je Kategorie) laden
+    `message.triaged`/`message.processed` höchstens alle 30 s neu (`TRIAGE_REFRESH_MS`, Option
+    `minAgeMs`): Jüngere Daten werden erst neu geladen, wenn sie alt genug sind.
 - Nach einem Verbindungsabbruch verbindet sich der Browser selbst neu; danach werden alle Queries neu
   geladen, weil verpasste Events nicht nachgeliefert werden.
 
