@@ -21,6 +21,9 @@ Entwurf.
 - **Triage:** Kategorien und Priorität je Mail mit Begründung, Vorfilter für Newsletter und
   Benachrichtigungen, Absenderregeln, lernt aus Korrekturen; optionales Zurückschreiben als
   Label/Ordner.
+- **Benachrichtigungen:** Browser-Notification bei neuen Mails in gewählten Kategorien (z. B.
+  „Wichtig“, „Handlungsbedarf“), nur nach Opt-in, standardmäßig ohne Betreff und lautlos; solange
+  ollamail in einem Tab geöffnet ist.
 - **Aufgaben:** automatisch aus Mails extrahiert, manuell ergänzbar; Export nach CalDAV,
   Microsoft To Do und Google Tasks (vom Admin freizuschalten).
 - **Suche und „Frag deine Inbox“:** Hybrid-Suche (Volltext + Embeddings) über Mails und Anhänge,

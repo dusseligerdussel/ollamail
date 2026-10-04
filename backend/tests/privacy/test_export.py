@@ -91,6 +91,7 @@ async def test_export_contains_own_data_and_nothing_of_other_users(
         "digests.json",
         "conversations.json",
         "reply_drafts.json",
+        "notifications.json",
         f"digests/{own.digest_id}.mp3",
     } <= names
     profile = json.loads(archive.read("profile.json"))
@@ -118,6 +119,8 @@ async def test_export_contains_own_data_and_nothing_of_other_users(
     drafts = json.loads(archive.read("reply_drafts.json"))
     assert drafts["settings"]["signature"] == "Signature erika"
     assert [d["body"] for d in drafts["drafts"]] == ["Draft erika"]
+    notifications = json.loads(archive.read("notifications.json"))
+    assert (notifications["enabled"], len(notifications["category_ids"])) == (True, 1)
     mailboxes = json.loads(archive.read("mailboxes.json"))
     assert [m["address"] for m in mailboxes] == ["erika@example.org"]
     assert "credentials" not in json.dumps(mailboxes)

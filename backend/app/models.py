@@ -15,6 +15,7 @@ from app.core.db import Base
 from app.digest import models as digest_models
 from app.drafts import models as drafts_models
 from app.mail import models as mail_models
+from app.notifications import models as notification_models
 from app.privacy import models as privacy_models
 from app.processing import models as processing_models
 from app.rag import models as rag_models
@@ -36,6 +37,7 @@ __all__ = [
     "ldap_models",
     "mail_models",
     "mfa_models",
+    "notification_models",
     "oidc_models",
     "privacy_models",
     "processing_models",

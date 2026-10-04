@@ -1,6 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { createFileRoute, Link } from "@tanstack/react-router";
-import { CalendarCheck, ChevronRight, LogOut, Mail, ShieldCheck, Tags } from "lucide-react";
+import { Bell, CalendarCheck, ChevronRight, LogOut, Mail, ShieldCheck, Tags } from "lucide-react";
 import { type ReactNode, useMemo } from "react";
 import { useTranslation } from "react-i18next";
 
@@ -207,6 +207,25 @@ function SettingsPage() {
                 <span className="block text-ui font-medium">{t("triage.commands.manage")}</span>
                 <span className="block text-ui text-muted-foreground">
                   {t("triage.settings.linkDescription")}
+                </span>
+              </span>
+              <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+            </Link>
+          </SettingsSection>
+          <SettingsSection
+            id="settings-notifications"
+            title={t("notifications.title")}
+            className="mt-8"
+          >
+            <Link
+              to="/settings/notifications"
+              className="flex items-center gap-3 rounded-lg px-4 py-3.5 outline-none hover:bg-accent/50 focus-visible:ring-[3px] focus-visible:ring-ring/80"
+            >
+              <Bell aria-hidden className="size-4 shrink-0 text-muted-foreground" />
+              <span className="min-w-0 flex-1">
+                <span className="block text-ui font-medium">{t("notifications.manage")}</span>
+                <span className="block text-ui text-muted-foreground">
+                  {t("notifications.linkDescription")}
                 </span>
               </span>
               <ChevronRight aria-hidden className="size-4 shrink-0 text-muted-foreground" />

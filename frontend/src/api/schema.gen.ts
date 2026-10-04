@@ -2337,6 +2337,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/notifications/messages/{message_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Mail Notification
+         * @description Content of the notification about a message: sender and category, the subject only
+         *     if the user turned it on.
+         */
+        get: operations["notifications_get_mail_notification"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/notifications/settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get Notification Settings
+         * @description Own notification settings. Off until the user opts in.
+         */
+        get: operations["notifications_get_notification_settings"];
+        /** Update Notification Settings */
+        put: operations["notifications_update_notification_settings"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/privacy/account": {
         parameters: {
             query?: never;
@@ -4828,6 +4870,29 @@ export interface components {
             /** Redirect Url */
             redirect_url: string | null;
         };
+        /**
+         * MailNotificationRead
+         * @description What a notification about a message shows.
+         */
+        MailNotificationRead: {
+            category: components["schemas"]["NotificationCategory"] | null;
+            /**
+             * Mailbox Id
+             * Format: uuid
+             */
+            mailbox_id: string;
+            /**
+             * Message Id
+             * Format: uuid
+             */
+            message_id: string;
+            /** Sender */
+            sender: string | null;
+            /** Sound */
+            sound: boolean;
+            /** Subject */
+            subject: string | null;
+        };
         /** MailboxAssignmentRead */
         MailboxAssignmentRead: {
             /** Group */
@@ -5342,6 +5407,45 @@ export interface components {
             list_id: string;
             /** @default auto */
             mode: components["schemas"]["ExportMode"];
+        };
+        /** NotificationCategory */
+        NotificationCategory: {
+            /** Builtin Key */
+            builtin_key: string | null;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Name */
+            name: string;
+        };
+        /** NotificationSettingsRead */
+        NotificationSettingsRead: {
+            /** Available */
+            available: boolean;
+            /** Category Ids */
+            category_ids: string[];
+            /** Enabled */
+            enabled: boolean;
+            /** Show Subject */
+            show_subject: boolean;
+            /** Sound */
+            sound: boolean;
+        };
+        /**
+         * NotificationSettingsUpdate
+         * @description Fields left out stay unchanged.
+         */
+        NotificationSettingsUpdate: {
+            /** Category Ids */
+            category_ids?: string[] | null;
+            /** Enabled */
+            enabled?: boolean | null;
+            /** Show Subject */
+            show_subject?: boolean | null;
+            /** Sound */
+            sound?: boolean | null;
         };
         /** OIDCConnectionTest */
         OIDCConnectionTest: {
@@ -13527,6 +13631,116 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["HTTPValidationError"];
                 };
+            };
+        };
+    };
+    notifications_get_mail_notification: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                message_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MailNotificationRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such message */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    notifications_get_notification_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    notifications_update_notification_settings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NotificationSettingsUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationSettingsRead"];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Unknown category (`unknown_category`) */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
         };
     };
