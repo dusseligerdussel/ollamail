@@ -266,12 +266,15 @@ async def update_directory(
 
 
 @router.delete(
-    "/{name}", status_code=status.HTTP_204_NO_CONTENT, responses={**_NOT_FOUND, **_LOCKOUT}
+    "/{name}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    responses={**ADMIN_REAUTH_RESPONSES, **_NOT_FOUND, **_LOCKOUT},
 )
 async def delete_directory(
-    name: str, admin: AdminSessionDep, request: Request, db: DbDep
+    name: str, admin: RecentAdminDep, request: Request, db: DbDep
 ) -> Response:
-    """Remove the directory and all sign-in links through it (the users stay)."""
+    """Remove the directory and all sign-in links through it (the users stay). Needs a
+    recent confirmation (#218): its users can no longer sign in."""
     guard = await AdminAccessGuard.start(db, request.app.state.auth_providers)
     directory = await _directory(db, name)
     directory_id = directory.id

@@ -110,12 +110,13 @@ async def list_users(_: AdminSessionDep, db: DbDep) -> list[AdminUserRead]:
 @router.post(
     "",
     status_code=status.HTTP_201_CREATED,
-    responses={409: {"description": "E-mail address taken"}},
+    responses={**ADMIN_REAUTH_RESPONSES, 409: {"description": "E-mail address taken"}},
 )
 async def create_user(
-    body: UserCreate, admin: AdminSessionDep, db: DbDep, settings: SettingsDep
+    body: UserCreate, admin: RecentAdminDep, db: DbDep, settings: SettingsDep
 ) -> UserRead:
-    """Create a local account with an initial password."""
+    """Create a local account with an initial password. Needs a recent confirmation
+    (#218): a new admin account would start with a fresh one of its own."""
     check_password_policy(settings.auth, body.password)
     user = await add_local_user(
         db,
@@ -149,12 +150,16 @@ def _local_login_off() -> ProblemError:
 @router.post(
     "/invitations",
     status_code=status.HTTP_201_CREATED,
-    responses={409: {"description": "E-mail address taken or local login disabled"}},
+    responses={
+        **ADMIN_REAUTH_RESPONSES,
+        409: {"description": "E-mail address taken or local login disabled"},
+    },
 )
 async def invite_user(
-    body: UserInvite, admin: AdminSessionDep, request: Request, db: DbDep, settings: SettingsDep
+    body: UserInvite, admin: RecentAdminDep, request: Request, db: DbDep, settings: SettingsDep
 ) -> InvitationIssued:
-    """Create a local account without password and return a one-time invitation link."""
+    """Create a local account without password and return a one-time invitation link.
+    Needs a recent confirmation (#218): whoever holds the link sets the password."""
     if not await local_login_enabled(db):
         raise _local_login_off()
     user = await add_local_user(
@@ -182,17 +187,21 @@ async def invite_user(
 
 @router.post(
     "/{user_id}/invitation",
-    responses={**_NOT_FOUND, 409: {"description": "The user already has a password"}},
+    responses={
+        **ADMIN_REAUTH_RESPONSES,
+        **_NOT_FOUND,
+        409: {"description": "The user already has a password"},
+    },
 )
 async def reissue_invitation(
     user_id: uuid.UUID,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
     settings: SettingsDep,
 ) -> InvitationIssued:
     """New invitation link for an invited user who has not set a password yet (the old
-    link stops working)."""
+    link stops working). Needs a recent confirmation (#218), as ``invite_user``."""
     if not await local_login_enabled(db):
         raise _local_login_off()
     user = await _user(db, user_id)

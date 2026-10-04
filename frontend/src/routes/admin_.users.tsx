@@ -159,7 +159,8 @@ function useUserActions() {
     mutationFn: async (action: Action) => {
       const { user } = action;
       switch (action.type) {
-        // Role and status need a recent confirmation (components/auth/reauth.tsx).
+        // Role, status and invitation links need a recent confirmation
+        // (components/auth/reauth.tsx).
         case "role":
           return withReauth(() =>
             updateUser(user.id, { role: user.role === "admin" ? "user" : "admin" }),
@@ -169,7 +170,7 @@ function useUserActions() {
         case "sessions":
           return revokeUserSessions(user.id);
         case "invitation":
-          return reissueInvitation(user.id);
+          return withReauth(() => reissueInvitation(user.id));
       }
     },
     meta: { errorToast: false },
