@@ -19,6 +19,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import exists, select
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import load_only
 
 from app.core.config import NotificationsSettings
 from app.core.events import Event, publish
@@ -172,6 +173,8 @@ async def notification_content(
             .outerjoin(TriageResult, TriageResult.message_id == Message.id)
             .outerjoin(TriageCategory, TriageCategory.id == TriageResult.category_id)
             .where(Message.id == message_id, visible_to(user_id))
+            # Not the bodies and headers: a notification shows none of them.
+            .options(load_only(Message.id, Message.mailbox_id, Message.sender, Message.subject))
         )
     ).first()
     if row is None:

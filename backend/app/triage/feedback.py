@@ -19,6 +19,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import LLMError, LLMTask
 from app.core.config import TriageSettings
+from app.core.db import release_connection
 from app.core.logging import get_logger
 from app.mail.models import Mailbox, Message
 from app.triage.categories import EffectiveCategory
@@ -133,7 +134,8 @@ async def select_examples(
 ) -> list[Example]:
     """Up to ``few_shot_examples`` corrections of ``user_id`` (or, with
     ``shared_mailbox_id``, of the shared mailbox) for the prompt: the most similar ones if
-    embeddings are available, otherwise the most recent ones."""
+    embeddings are available, otherwise the most recent ones. Ends the read transaction
+    before the embedding call (``release_connection``): call it before any write."""
     limit = settings.few_shot_examples
     if limit == 0:
         return []
@@ -141,6 +143,8 @@ async def select_examples(
         session, user_id, categories, exclude_message_id, settings, shared_mailbox_id
     )
     if len(candidates) > limit and settings.few_shot_embeddings and llm is not None:
+        # No pool connection held while waiting for the model.
+        await release_connection(session)
         try:
             candidates = await _rank_by_similarity(candidates, query, llm)
         except LLMError as exc:

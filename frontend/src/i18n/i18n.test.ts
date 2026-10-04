@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { resources } from "./index";
+import de from "./locales/de.json";
+import en from "./locales/en.json";
 
 function keysOf(value: unknown, prefix = ""): string[] {
   if (typeof value !== "object" || value === null) return [prefix];
@@ -11,8 +12,6 @@ function keysOf(value: unknown, prefix = ""): string[] {
 
 describe("i18n resources", () => {
   it("defines the same keys for every language", () => {
-    const en = keysOf(resources.en.translation).sort();
-    const de = keysOf(resources.de.translation).sort();
-    expect(de).toEqual(en);
+    expect(keysOf(de).sort()).toEqual(keysOf(en).sort());
   });
 });

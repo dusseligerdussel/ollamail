@@ -39,6 +39,7 @@ from sqlalchemy.orm import selectinload
 
 from app.ai.llm import LLMError
 from app.core.config import SearchSettings
+from app.core.db import release_connection
 from app.core.ids import uuid7
 from app.core.logging import get_logger
 from app.mail.access import accessible_mailbox_ids
@@ -231,7 +232,9 @@ async def index_message(
 
     If embedding fails (LLM unavailable, wrong dimension), the chunks are stored without
     vectors: full-text search finds them right away and ``fill_embeddings`` adds the
-    vectors later. Does not commit.
+    vectors later. Does not commit its writes; it ends the read transaction before the
+    text extraction and the embedding call (``release_connection``), so call it before the
+    session's first write.
     """
     result = IndexResult()
     message = await session.scalar(
@@ -239,12 +242,14 @@ async def index_message(
     )
     if message is None:
         return result
-    pending = await _message_chunks(message, storage, settings, result)
-    texts = [item.chunk.text for item in pending]
-
     current = await embedder.current_model()
     active = await _ensure_active_model(session, current)
     dimensions = await embedding_dimensions(session)
+    # Attachment texts and embeddings take long: no pool connection held meanwhile.
+    await release_connection(session)
+    pending = await _message_chunks(message, storage, settings, result)
+    texts = [item.chunk.text for item in pending]
+
     vectors: dict[str, list[list[float]]] = {}
     # While the index is rebuilt for a new model, the old model's vectors still answer
     # queries; new messages get both so they are found before and after the switch.
@@ -613,8 +618,11 @@ async def _query_vector(
     session: AsyncSession, embedder: Embedder, query: str
 ) -> tuple[list[float], str] | None:
     model = await active_model(session) or await embedder.current_model()
+    dimensions = await embedding_dimensions(session)
+    # The model may take seconds (or wait for a free slot): not with a pool connection held.
+    await release_connection(session)
     try:
-        vectors = await _embed(embedder, [query], await embedding_dimensions(session), model)
+        vectors = await _embed(embedder, [query], dimensions, model)
     except _EMBEDDING_FAILURES as exc:
         # Full-text results are still returned.
         log.warning("search_query_embedding_failed", error_type=type(exc).__name__)
@@ -655,14 +663,14 @@ async def search(
         return []
     conditions = _conditions(user_id, filters or SearchFilters())
     candidates = settings.candidates
+    # Embedded first: the session holds no connection during the call (see _query_vector).
+    query_vector = await _query_vector(session, embedder, query) if embedder else None
     text_ids = await _text_candidates(session, query, conditions, candidates)
     vector_ids: list[uuid.UUID] = []
-    if embedder is not None:
-        query_vector = await _query_vector(session, embedder, query)
-        if query_vector is not None:
-            vector_ids = await _vector_candidates(
-                session, query_vector[0], query_vector[1], conditions, candidates
-            )
+    if query_vector is not None:
+        vector_ids = await _vector_candidates(
+            session, query_vector[0], query_vector[1], conditions, candidates
+        )
     fused = fuse([text_ids, vector_ids], settings.rrf_k)
     if not fused:
         return []

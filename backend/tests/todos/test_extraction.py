@@ -4,11 +4,14 @@ suggestions, relevance filters and idempotency."""
 import re
 import uuid
 from datetime import date
+from typing import Any
 
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.ai.llm.errors import LLMUnavailableError
+from app.ai.llm.types import LLMResult
 from app.core.config import TodosSettings
 from app.todos import extraction
 from app.todos.extraction import extract_todos
@@ -334,3 +337,40 @@ async def test_instructions_for_an_assistant_never_make_todos(
     assert created == []
     assert fake_llm.provider.calls == []
     assert await _todos(mail.session) == []
+
+
+async def test_model_call_holds_no_connection(mail: MailData, fake_llm: FakeLLM) -> None:
+    message = await mail.message()
+    fake_llm.answer([REPORT])
+    complete = fake_llm.provider.complete
+    open_transaction: list[bool] = []
+
+    async def watching(*args: Any, **kwargs: Any) -> LLMResult:
+        open_transaction.append(mail.session.in_transaction())
+        return await complete(*args, **kwargs)
+
+    fake_llm.provider.complete = watching  # type: ignore[method-assign]
+
+    created = await extract_todos(mail.session, message.id, llm=fake_llm.gateway, settings=SETTINGS)
+
+    # The read transaction ended before the call (#188); the todos are written afterwards.
+    assert open_transaction == [False]
+    assert [todo.title for todo in created] == ["Send quarterly report"]
+    assert [todo.id for todo in await _todos(mail.session)] == [created[0].id]
+
+
+async def test_failed_model_call_keeps_the_previous_todos(
+    mail: MailData, fake_llm: FakeLLM
+) -> None:
+    message = await mail.message()
+    fake_llm.answer([REPORT])
+    (first,) = await extract_todos(
+        mail.session, message.id, llm=fake_llm.gateway, settings=SETTINGS
+    )
+
+    fake_llm.provider.answers.append(LLMUnavailableError("down"))
+    with pytest.raises(LLMUnavailableError):
+        await extract_todos(mail.session, message.id, llm=fake_llm.gateway, settings=SETTINGS)
+
+    # They are replaced only once the model has answered.
+    assert [todo.id for todo in await _todos(mail.session)] == [first.id]

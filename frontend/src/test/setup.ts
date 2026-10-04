@@ -1,6 +1,8 @@
 import "@testing-library/jest-dom/vitest";
 import { cleanup } from "@testing-library/react";
-import { afterEach, beforeEach, vi } from "vitest";
+import { afterEach, beforeAll, beforeEach, vi } from "vitest";
+
+import i18n, { i18nReady } from "@/i18n";
 
 import { mockFetch } from "./fetch";
 import { setCoarsePointer, setPrefersDark, setViewportWidth } from "./media";
@@ -26,6 +28,12 @@ window.ResizeObserver ??= class {
 // Radix UI expects pointer capture APIs that jsdom lacks.
 Element.prototype.hasPointerCapture ??= () => false;
 Element.prototype.releasePointerCapture ??= () => {};
+
+// The app loads translations as chunks (#188); tests render right away, so load both first.
+beforeAll(async () => {
+  await i18nReady;
+  await i18n.loadLanguages([...i18n.languages, "de", "en"]);
+});
 
 beforeEach(() => {
   mockFetch();

@@ -96,7 +96,9 @@ public/                        theme-init.js, sw.js, manifest.webmanifest, Icons
   damit der Typecheck ohne vorherigen Build funktioniert.
 - **i18n:** Keine hartkodierten UI-Texte. Neue Keys immer in `de.json` und `en.json` anlegen (ein Test
   prüft, dass beide dieselben Keys haben). Die Sprache kommt aus der Nutzerwahl (`localStorage`) oder
-  dem Browser; Fallback ist Englisch.
+  dem Browser; Fallback für nicht unterstützte Sprachen ist Englisch. Jede Sprache ist ein eigener
+  Chunk (#188): `main.tsx` rendert erst, wenn die aktive geladen ist (`i18nReady`), die andere
+  kommt beim Umschalten nach. Tests laden beide vorab (`src/test/setup.ts`).
 - **Datenschutz:** Keine externen Requests (CDNs, Fonts, Telemetrie). Die Schrift (Inter Variable)
   wird über `@fontsource-variable/inter` mitgebündelt. Der Playwright-Test prüft, dass beim Laden
   keine Anfragen an fremde Origins entstehen.
@@ -200,7 +202,14 @@ data: {"type":"message.synced","message_id":"…","mailbox_id":"…"}
   Ruhepause wirkt sofort; folgende Events werden gesammelt und gemeinsam angewendet, sobald 2 s lang
   keins kam, spätestens nach 5 s. Jeder Schlüssel wird je Bündel einmal invalidiert. Bei einem Import
   laden die Listen so alle paar Sekunden neu statt einmal pro Mail. `message.processed` invalidiert
-  nur Aufgaben, Labels und Suche, nicht Threads und Listen.
+  nur Aufgaben, Labels, die Inbox nach Kategorie und die Suche, nicht Threads und die Liste nach
+  Datum.
+- Weniger Last bei großen Importen (#188): `mailbox.sync` mit Status `progress` (ein Event je
+  Import-Batch) lädt nur den Postfachstatus neu; die Listen folgen bei `done`/`failed`. Lange Listen
+  (Infinite Queries) werden bei diesen Events mit `firstPage(...)` invalidiert: Vor dem Neuladen
+  bleibt nur die erste Seite im Cache, weitere Seiten lädt die Liste beim Scrollen wieder nach,
+  statt alle gescrollten Seiten neu abzurufen. Fordert dasselbe Bündel den Schlüssel auch ohne
+  `firstPage` an (z. B. `message.updated`), bleiben alle Seiten erhalten.
 - Nach einem Verbindungsabbruch verbindet sich der Browser selbst neu; danach werden alle Queries neu
   geladen, weil verpasste Events nicht nachgeliefert werden.
 

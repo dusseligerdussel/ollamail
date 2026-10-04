@@ -22,7 +22,8 @@ from fastapi import APIRouter, Depends, Query, Request
 from fastapi.responses import FileResponse
 from sqlalchemy import ColumnElement, select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.orm import selectinload
+from sqlalchemy.orm import load_only, selectinload
+from sqlalchemy.sql.base import ExecutableOption
 
 from app import audit
 from app.auth.dependencies import CurrentSessionDep, SettingsDep
@@ -133,12 +134,16 @@ def _date_of(message: Message) -> datetime:
     return message.received_at or message.sent_at or message.created_at
 
 
-async def _message(db: AsyncSession, user_id: uuid.UUID, message_id: uuid.UUID) -> Message:
+async def _message(
+    db: AsyncSession, user_id: uuid.UUID, message_id: uuid.UUID, *options: ExecutableOption
+) -> Message:
+    """The message if ``user_id`` may read it, else 404. ``options`` replace the default
+    (all columns and the attachments), e.g. to skip the bodies (#188)."""
     message = await db.scalar(
         select(Message)
         .join(Mailbox, Mailbox.id == Message.mailbox_id)
         .where(Message.id == message_id, access.visible_to(user_id))
-        .options(selectinload(Message.attachments))
+        .options(*(options or (selectinload(Message.attachments),)))
     )
     if message is None:
         raise ProblemError(404, detail="Message not found.")
@@ -294,7 +299,13 @@ async def get_message_body(
 ) -> MessageBody:
     """Sanitised HTML; with ``external_images=true`` remote images are kept (the user
     chose to load them for this message)."""
-    message = await _message(db, current.user_id, message_id)
+    message = await _message(
+        db,
+        current.user_id,
+        message_id,
+        load_only(Message.id, Message.mailbox_id, Message.body_html),
+        selectinload(Message.attachments),
+    )
     return await asyncio.to_thread(_body, message, external_images=external_images)
 
 
@@ -309,7 +320,7 @@ async def update_message(
     """Mark read or unread, flag or unflag. Stored at once, written back to the server by
     a job. Needs ``act`` on the mailbox (403 ``read_only``): in a shared mailbox the
     state is the mailbox's, so only users assigned with ``act`` may change it."""
-    message = await _message(db, current.user_id, message_id)
+    message = await _message(db, current.user_id, message_id, *listing.without_bodies())
     if (
         await access.get_mailbox(db, current.user_id, message.mailbox_id, MailboxPermission.ACT)
         is None
@@ -347,7 +358,7 @@ async def update_message(
                 db, message.mailbox_id, Event(type="message.updated", ids=ids, status=change)
             )
         await db.commit()
-        await db.refresh(message)
+        await db.refresh(message, ["flags"])
         try:
             await write_flags(message.id)
         except Exception as exc:
@@ -375,7 +386,13 @@ async def download_attachment(
 ) -> FileResponse:
     """The attachment file. Downloaded (``Content-Disposition: attachment``) unless
     ``inline=true`` and it is a raster image (for ``cid:`` images in the mail)."""
-    message = await _message(db, current.user_id, message_id)
+    message = await _message(
+        db,
+        current.user_id,
+        message_id,
+        load_only(Message.id, Message.mailbox_id),
+        selectinload(Message.attachments),
+    )
     attachment: Attachment | None = next(
         (a for a in message.attachments if a.id == attachment_id), None
     )

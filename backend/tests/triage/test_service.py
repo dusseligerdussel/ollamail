@@ -1,10 +1,13 @@
 """Triage of one message: pre-filter, LLM, corrections, categories (PostgreSQL)."""
 
+from typing import Any
+
 import pytest
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import CloudLLMDisabledError
+from app.ai.llm.types import LLMResult
 from app.core.config import TriageSettings
 from app.processing.steps import StepError
 from app.triage.categories import DEFAULT_CATEGORIES, effective_categories
@@ -187,6 +190,35 @@ async def test_correction_is_kept_on_reprocessing(
         newsletter,
         3,
     )
+
+
+async def test_model_call_holds_no_connection_and_a_correction_meanwhile_wins(
+    db_session: AsyncSession, account: Account, fake_llm: FakeLLM, triage_settings: TriageSettings
+) -> None:
+    message = await account.message()
+    newsletter = await _category_id(db_session, account, "newsletter")
+    fake_llm.answer(answer("important"))
+    complete = fake_llm.provider.complete
+    open_transaction: list[bool] = []
+
+    async def correcting(*args: Any, **kwargs: Any) -> LLMResult:
+        open_transaction.append(db_session.in_transaction())
+        # The user corrects the category while the model is still answering.
+        await correct(db_session, account.user.id, message.id, newsletter, 3)  # type: ignore[arg-type]
+        await db_session.commit()
+        return await complete(*args, **kwargs)
+
+    fake_llm.provider.complete = correcting  # type: ignore[method-assign]
+
+    result = await triage_message(
+        db_session, message.id, llm=fake_llm.gateway, settings=triage_settings
+    )
+
+    # The read transaction ended before the call (#188), and the model's answer does not
+    # replace the correction.
+    assert open_transaction == [False]
+    assert result is not None
+    assert (result.category_id, result.source) == (newsletter, TriageSource.USER)
 
 
 async def test_correcting_twice_replaces_the_example(
