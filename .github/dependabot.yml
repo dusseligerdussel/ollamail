@@ -58,6 +58,8 @@ updates:
         patterns: ["*"]
 
   # Base images of backend/Dockerfile and frontend/Dockerfile (python, node, caddy).
+  # Node majors are skipped: the frontend follows an active LTS line, and a switch also needs
+  # node-version in .github/workflows/ci.yml, so it is done by hand.
   - package-ecosystem: docker
     directories: [/backend, /frontend]
     schedule:
@@ -68,6 +70,9 @@ updates:
     open-pull-requests-limit: 5
     commit-message:
       prefix: chore(deps)
+    ignore:
+      - dependency-name: node
+        update-types: [version-update:semver-major]
     groups:
       docker:
         patterns: ["*"]
