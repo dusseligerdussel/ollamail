@@ -5,9 +5,9 @@ import { adminUserId, mockAdmin, sharedMailboxIds } from "./mock-admin";
 import { mockApi } from "./mock-api";
 
 /**
- * Confirmation before sensitive actions (#144) and critical admin actions (#190): the
- * server answers 403 `reauth-required`, the re-auth sheet confirms and the action runs
- * again. Runs without a backend (mocked API).
+ * Confirmation before sensitive actions (#144) and critical admin actions (#190, #206,
+ * #218): the server answers 403 `reauth-required`, the re-auth sheet confirms and the
+ * action runs again. Runs without a backend (mocked API).
  */
 
 const REAUTH_REQUIRED = {
@@ -211,6 +211,32 @@ test("adding an AI provider confirms and then saves", async ({ page }) => {
   ]);
 });
 
+test("testing a stored AI key against a new URL confirms first (#219)", async ({ page }) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const seen = await mockReauth(page, "POST /api/admin/ai/providers/test", (route) =>
+    route.fulfill({ json: { ok: true, models: ["m1"], error: null, duration_ms: 12 } }),
+  );
+  await page.goto("/admin/ai");
+
+  await page.getByRole("button", { name: "Edit: Example Cloud" }).click();
+  const form = page.getByRole("dialog", { name: "Edit provider" });
+  await form.getByLabel("URL", { exact: true }).fill("https://relay.example.org/v1");
+  await expect(form).toContainText("URL or type changed: enter the API key again.");
+  await form.getByRole("button", { name: "Test connection" }).click();
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await sheet.getByLabel("Password").fill("correct horse battery");
+  await sheet.getByRole("button", { name: "Confirm" }).click();
+
+  await expect(sheet).toBeHidden();
+  await expect(form.getByRole("status")).toContainText("Connected");
+  expect(seen).toEqual([
+    "POST /api/admin/ai/providers/test",
+    "POST /api/auth/reauth",
+    "POST /api/admin/ai/providers/test",
+  ]);
+});
+
 test("saving the role mapping confirms and then saves (#206)", async ({ page }) => {
   await mockApi(page);
   await mockAdmin(page);
@@ -253,5 +279,141 @@ test("cancelling the confirmation keeps shared mailbox access unsaved, without a
   await expect(page.getByRole("alert")).toHaveCount(0);
   await expect(page.getByText("Unsaved changes")).toBeVisible();
   await expect(page.getByRole("button", { name: "Save access" })).toBeEnabled();
+  expect(seen).toEqual([path]);
+});
+
+/** Confirms with the right password in the open re-auth sheet. */
+async function confirmReauth(page: Page) {
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByLabel("Password").fill("correct horse battery");
+  await sheet.getByRole("button", { name: "Confirm" }).click();
+  await expect(sheet).toBeHidden();
+}
+
+test("inviting an administrator confirms and then shows the link (#218)", async ({ page }) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const seen = await mockReauth(page, "POST /api/users/invitations", (route) =>
+    route.fulfill({
+      status: 201,
+      json: {
+        user: { id: adminUserId(9), role: "admin", invitation_pending: true },
+        invite_url: "https://mail.example.org/invite#token",
+        expires_at: "2026-10-10T10:00:00Z",
+      },
+    }),
+  );
+  await page.goto("/admin/users");
+
+  await page.getByRole("button", { name: "Invite user" }).click();
+  const form = page.getByRole("dialog", { name: "Invite user" });
+  await form.getByLabel("Email address").fill("neu@example.org");
+  await form.getByLabel("Name", { exact: true }).fill("Neue Testperson");
+  await form.getByLabel("Role").selectOption("admin");
+  await form.getByRole("button", { name: "Create invitation" }).click();
+  await confirmReauth(page);
+
+  await expect(form.getByText("Invitation link")).toBeVisible();
+  expect(seen).toEqual([
+    "POST /api/users/invitations",
+    "POST /api/auth/reauth",
+    "POST /api/users/invitations",
+  ]);
+});
+
+test("cancelling the confirmation renews no invitation link and shows no error (#218)", async ({
+  page,
+}) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const path = `POST /api/users/${adminUserId(3)}/invitation`;
+  const seen = await mockReauth(page, path, (route) => route.fulfill({ json: {} }));
+  await page.goto("/admin/users");
+
+  await page.getByRole("button", { name: "Actions for Mira Testfrau" }).click();
+  await page.getByRole("menuitem", { name: "New invitation link" }).click();
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole("dialog")).toHaveCount(0);
+  await expect(page.locator("[data-sonner-toast]")).toHaveCount(0);
+  expect(seen).toEqual([path]);
+});
+
+test("changing retention periods confirms and then saves (#218)", async ({ page }) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const seen = await mockReauth(page, "PATCH /api/admin/privacy/retention", (route) =>
+    route.fulfill({
+      json: {
+        values: { ...route.request().postDataJSON() },
+        defaults: {},
+        overridden: [],
+        initial_sync_days: 90,
+        last_run: null,
+      },
+    }),
+  );
+  await page.goto("/admin/retention");
+
+  await page.getByLabel("Audit log").fill("1");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await confirmReauth(page);
+
+  await expect(page.getByText("Retention periods saved.")).toBeVisible();
+  expect(seen).toEqual([
+    "PATCH /api/admin/privacy/retention",
+    "POST /api/auth/reauth",
+    "PATCH /api/admin/privacy/retention",
+  ]);
+});
+
+test("removing a shared mailbox confirms on top of the dialog (#218)", async ({ page }) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const path = `DELETE /api/admin/shared-mailboxes/${sharedMailboxIds.support}`;
+  const seen = await mockReauth(page, path, (route) =>
+    route.fulfill({
+      status: 202,
+      json: { mailbox_id: sharedMailboxIds.support, messages: 0, attachments: 0 },
+    }),
+  );
+  await page.goto(`/admin/shared-mailboxes/${sharedMailboxIds.support}`);
+
+  await page.getByRole("button", { name: "Remove shared mailbox" }).click();
+  const dialog = page.getByRole("dialog", { name: "Remove shared mailbox?" });
+  await dialog.getByRole("button", { name: "Remove shared mailbox" }).click();
+  await confirmReauth(page);
+
+  await expect(page).toHaveURL(/\/admin\/shared-mailboxes$/);
+  expect(seen).toEqual([path, "POST /api/auth/reauth", path]);
+});
+
+test("cancelling the confirmation keeps the sign-in provider without an error (#218)", async ({
+  page,
+}) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const path = "DELETE /api/auth/ldap/directories/corp";
+  const seen = await mockReauth(page, path, (route) => route.fulfill({ status: 204 }));
+  await page.goto("/admin/sign-in");
+
+  await page.getByRole("button", { name: /Firmenverzeichnis/ }).click();
+  const provider = page.getByRole("dialog", { name: "Firmenverzeichnis" });
+  await provider.getByRole("button", { name: "Remove", exact: true }).click();
+  await provider.getByRole("button", { name: "Remove for good" }).click();
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(sheet).toBeHidden();
+  await expect(provider).toBeVisible();
+  // Only the warning before removing, no error.
+  await expect(provider.getByRole("alert")).toHaveText(
+    "Users stay; they can no longer sign in through this provider.",
+  );
   expect(seen).toEqual([path]);
 });

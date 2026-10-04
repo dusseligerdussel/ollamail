@@ -22,7 +22,9 @@ get ``user`` and existing users keep their role. The last active admin is never 
 login (the change is skipped and logged), so a wrong rule cannot lock the instance out.
 Creating a user, linking a login to an existing account by e-mail address and changing a
 role are recorded in the audit log (actor ``system``); a link also leaves a notice for the
-user (``app.auth.link_notices``, #208).
+user (``app.auth.link_notices``, #208). A provider the user unlinked is never linked again by
+e-mail address (``EMAIL_CONFLICT``) until the user lifts the block (``app.auth.identities``,
+#216).
 
 Users created by SCIM (#95): the groups SCIM keeps for them count for the role mapping
 like the groups of the login, and providers the admin lists in the SCIM settings may link
@@ -43,6 +45,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app import audit
 from app.auth.admin_access import other_active_admins
+from app.auth.identities import link_blocked
 from app.auth.link_notices import add_link_notice
 from app.auth.models import SCIM_PROVIDER, Identity
 from app.auth.policy import resolve_role
@@ -224,6 +227,10 @@ async def provision_user(
     if existing is not None:
         may_link = policy.link_by_email or await _scim_link_allowed(db, existing, identity)
         if not (may_link and identity.email_verified):
+            raise ProvisioningError(ProvisioningErrorCode.EMAIL_CONFLICT)
+        # The user unlinked this provider and has not lifted the block (#216).
+        if await link_blocked(db, existing.id, identity.provider):
+            log.info("identity_link_blocked", user_id=existing.id, provider=identity.provider)
             raise ProvisioningError(ProvisioningErrorCode.EMAIL_CONFLICT)
         if not existing.is_active:
             raise ProvisioningError(ProvisioningErrorCode.INACTIVE)

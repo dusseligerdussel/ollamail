@@ -169,10 +169,42 @@ def recent_since(now: datetime | None = None) -> datetime | None:
 async def plan_message(context: JobContext, message_id: str) -> None:
     """Create or reset the step rows of a message and queue the steps that can run."""
     steps = registry.ordered()
-    async with get_database().sessionmaker() as session:
-        ready = await service.plan(session, UUID(message_id), steps, recent_since=recent_since())
-        await session.commit()
+    try:
+        async with get_database().sessionmaker() as session:
+            ready = await service.plan(
+                session, UUID(message_id), steps, recent_since=recent_since()
+            )
+            await session.commit()
+    except Exception as exc:
+        retry = plan_message.retry_strategy
+        if (
+            context.job is None
+            or retry is None
+            or retry.get_retry_decision(exception=exc, job=context.job) is None
+        ):
+            await _record_plan_failure(message_id, steps, exc)
+        raise
     await _defer_steps(message_id, ready, _priority(context))
+
+
+async def _record_plan_failure(
+    message_id: str, steps: Sequence[ProcessingStep], exc: Exception
+) -> None:
+    """The plan job gave up: mark the message's steps ``failed`` so that
+    ``requeue_outdated`` stops queuing it (``service.fail_plan``)."""
+    code = error_code(exc)
+    try:
+        async with get_database().sessionmaker() as session:
+            await service.fail_plan(session, UUID(message_id), steps, code)
+            await session.commit()
+    except Exception as failure:
+        log.warning(
+            "processing_plan_failure_not_recorded",
+            message_id=message_id,
+            error_type=type(failure).__name__,
+        )
+        return
+    log.warning("processing_plan_failed", message_id=message_id, error_code=code)
 
 
 def _priority(context: JobContext) -> int:

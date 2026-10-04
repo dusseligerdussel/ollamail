@@ -351,6 +351,14 @@ Gruppe), `resources`, `nodeSelector`, `tolerations`, `affinity`, `topologySpread
 - Wie viele LLM-Anfragen gleichzeitig laufen, steuert `OLLAMAIL_LLM_CONCURRENCY`
   (zur Laufzeit im Admin-Bereich unter „KI“ änderbar).
 
+> **Achtung: LLM-Limits gelten pro Prozess.** `OLLAMAIL_LLM_CONCURRENCY` bzw.
+> `llmMaxConcurrency` gilt je Worker-Pod, `OLLAMAIL_LLM_API_CONCURRENCY` und
+> `OLLAMAIL_LLM_API_USER_CONCURRENCY` je API-Pod. Es gibt keinen clusterweiten Zähler: Bei
+> **N Replikaten** erreichen den LLM-Server bis zu **N × Limit** gleichzeitige Anfragen, und ein
+> einzelner Nutzer kann sein Limit einmal je API-Pod ausschöpfen. Die Limits daher durch die
+> Zahl der Replikate teilen (bzw. `worker.groups[].replicaCount × llmMaxConcurrency` plus
+> `api.replicaCount × OLLAMAIL_LLM_API_CONCURRENCY` an der Kapazität des LLM-Servers ausrichten).
+
 ## 8. LLM: Ollama oder externer Endpunkt
 
 **Externer Endpunkt** (empfohlen, wenn es im Cluster schon einen LLM-Server gibt):
@@ -480,6 +488,11 @@ Der Helm-Test (`helm test`) geht über das Frontend und ist davon nicht betroffe
 (mit dem alten Standard `false`) Prometheus ohne `metrics.from` oder eigene Clients direkt auf
 `<release>-api` zugreifen ließ, gibt sie jetzt frei (`metrics.from`) oder setzt
 `networkPolicy.enabled: false` – das wird ausdrücklich **nicht** empfohlen.
+
+> **Achtung: Die Datenbank ist standardmäßig nicht abgeschottet.**
+> `networkPolicy.database.enabled` ist `false`; ohne diese Einstellung (oder eine eigene Regel)
+> erreicht jeder Pod im Cluster PostgreSQL auf Port 5432 – geschützt nur durch das Passwort.
+> Wenn nur ollamail den Cluster nutzt, `networkPolicy.database.enabled: true` setzen.
 
 **Datenbank (CloudNativePG):** Liegt der Cluster aus `database.cloudnativepg.cluster` im selben
 Namespace, beschränkt `networkPolicy.database.enabled: true` den Zugriff auf seine Pods. Der

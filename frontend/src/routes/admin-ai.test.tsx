@@ -108,9 +108,12 @@ function mockAiApi({
   status = { cloud: [] } as AIStatus,
   user = undefined as typeof testUser | undefined,
   providerList = providers,
+  // `POST …/providers/test` answers 403 reauth-required until `POST /api/auth/reauth`.
+  testNeedsReauth = false,
 } = {}) {
   const requests: Captured[] = [];
   const api = backend(user ? { user } : {});
+  let confirmed = false;
   mockFetch(async (request) => {
     const { pathname } = new URL(request.url);
     const route = `${request.method} ${pathname}`;
@@ -132,7 +135,14 @@ function mockAiApi({
       case "POST /api/admin/ai/providers/cloud/test":
         return json(denied);
       case "POST /api/admin/ai/providers/test":
-        return json(ok);
+        return testNeedsReauth && !confirmed
+          ? problem(403, { type: "urn:ollamail:problem:reauth-required", reauth_minutes: 10 })
+          : json(ok);
+      case "GET /api/auth/reauth":
+        return json({ methods: ["password", "signin"], reauth_minutes: 10, valid_until: null });
+      case "POST /api/auth/reauth":
+        confirmed = true;
+        return json({ authenticated_at: "2026-10-04T10:00:00Z", valid_until: null });
       case "POST /api/admin/ai/providers":
         return json(
           { ...providers[1], name: "lab", display_name: "Lab", source: "database" },
@@ -228,6 +238,41 @@ describe("AI settings", () => {
       base_url: "http://vllm:8000/v1",
       api_key: "sk-test",
     });
+  });
+
+  it("asks for the API key or a confirmation when the stored key would go elsewhere", async () => {
+    const user = userEvent.setup();
+    const requests = mockAiApi({ testNeedsReauth: true });
+    await renderApp("/admin/ai");
+
+    const list = await screen.findByRole("list", { name: "Providers" });
+    const cloud = within(list).getAllByRole("listitem")[1] as HTMLElement;
+    await user.click(within(cloud).getByRole("button", { name: /Edit/ }));
+    const form = await screen.findByRole("form", { name: "Edit provider" });
+    expect(form).toHaveTextContent("Set. Leave empty to keep it.");
+
+    const url = within(form).getByLabelText("URL");
+    await user.clear(url);
+    await user.type(url, "https://relay.example.test/v1");
+    expect(form).toHaveTextContent("URL or type changed: enter the API key again.");
+
+    await user.click(within(form).getByRole("button", { name: "Test connection" }));
+    const sheet = await screen.findByRole("dialog", { name: "Confirm it is you" });
+    await user.type(within(sheet).getByLabelText("Password"), "correct horse battery");
+    await user.click(within(sheet).getByRole("button", { name: "Confirm" }));
+
+    expect(await within(form).findByRole("status")).toHaveTextContent("Connected");
+    const tests = requests.filter((r) => r.path === "/api/admin/ai/providers/test");
+    expect(tests).toHaveLength(2);
+    expect(tests[1]?.body).toEqual({
+      kind: "openai_compatible",
+      base_url: "https://relay.example.test/v1",
+      name: "cloud",
+    });
+
+    // A new key needs no confirmation; the hint goes away.
+    await user.type(within(form).getByLabelText("API key"), "sk-new");
+    expect(form).not.toHaveTextContent("URL or type changed");
   });
 
   it("validates the provider form", async () => {

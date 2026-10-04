@@ -3,8 +3,8 @@
 Contents (``manifest.json`` lists them):
 
 * ``profile.json``: account, sign-in identities (provider, subject, groups), open notices
-  about linked sign-ins (#208), sessions and second factors (passkey names and dates,
-  whether TOTP is on; never secrets or codes)
+  about linked sign-ins (#208), providers blocked from linking again (#216), sessions and
+  second factors (passkey names and dates, whether TOTP is on; never secrets or codes)
 * ``mailboxes.json``: own mailboxes (type, address, settings; never credentials)
 * ``triage.json``: own categories, category preferences, sender rules, corrections and
   the triage results of mails in own mailboxes
@@ -41,7 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.mfa.service import factors as mfa_factors
-from app.auth.models import AuthSession, Identity, IdentityLinkNotice
+from app.auth.models import AuthSession, Identity, IdentityLinkBlock, IdentityLinkNotice
 from app.digest.models import Digest, DigestUserSettings
 from app.digest.storage import DigestStorage
 from app.drafts.models import DraftSettings, ReplyDraft
@@ -102,6 +102,11 @@ async def _profile(session: AsyncSession, user: User) -> dict[str, Any]:
         .where(IdentityLinkNotice.user_id == user.id)
         .order_by(IdentityLinkNotice.created_at)
     )
+    link_blocks = await session.scalars(
+        select(IdentityLinkBlock)
+        .where(IdentityLinkBlock.user_id == user.id)
+        .order_by(IdentityLinkBlock.created_at)
+    )
     sessions = await session.scalars(
         select(AuthSession).where(AuthSession.user_id == user.id).order_by(AuthSession.created_at)
     )
@@ -127,6 +132,7 @@ async def _profile(session: AsyncSession, user: User) -> dict[str, Any]:
         "identity_link_notices": [
             _row(notice, ("provider", "created_at")) for notice in link_notices
         ],
+        "identity_link_blocks": [_row(block, ("provider", "created_at")) for block in link_blocks],
         "sessions": [
             _row(item, ("provider", "user_agent", "created_at", "last_seen_at", "expires_at"))
             for item in sessions

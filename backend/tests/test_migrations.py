@@ -193,7 +193,7 @@ async def test_triage_in_inbox_is_backfilled_in_batches(empty_database: str) -> 
     one batch); the triggers set the flag on new results and follow links and roles
     afterwards; downgrade restores the previous index."""
     config = alembic_config(empty_database)
-    await asyncio.to_thread(command.upgrade, config, "ed3357fe44bc")
+    await asyncio.to_thread(command.upgrade, config, "a6e4b681ab6a")
     engine = create_async_engine(empty_database, poolclass=NullPool)
     async with engine.begin() as connection:
         await connection.execute(
@@ -286,7 +286,7 @@ async def test_triage_in_inbox_is_backfilled_in_batches(empty_database: str) -> 
         assert archived == 1  # ref-3, in no folder at all
     await engine.dispose()
 
-    await asyncio.to_thread(command.downgrade, config, "ed3357fe44bc")
+    await asyncio.to_thread(command.downgrade, config, "a6e4b681ab6a")
     engine = create_async_engine(empty_database, poolclass=NullPool)
     async with engine.connect() as connection:
         indexes = await connection.execute(

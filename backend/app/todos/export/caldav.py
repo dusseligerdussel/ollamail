@@ -234,7 +234,7 @@ class CalDAVSink(TodoSink):
     ) -> httpx.Response:
         for _ in range(MAX_REDIRECTS + 1):
             try:
-                response = await self._client.request(
+                response = await self._send(
                     method, url, headers=dict(headers or {}), content=content
                 )
             except httpx.HTTPError:
@@ -255,9 +255,36 @@ class CalDAVSink(TodoSink):
             raise SinkAuthError()
         if status == 429 or status >= 500:
             raise SinkUnavailableError()
-        if len(response.content) > MAX_RESPONSE_BYTES:
-            raise SinkError(NOT_CALDAV)
         return response
+
+    async def _send(
+        self, method: str, url: str, *, headers: dict[str, str], content: bytes | None
+    ) -> httpx.Response:
+        """The response with its body read, up to ``MAX_RESPONSE_BYTES``: the body is
+        streamed and the connection dropped once it grows larger, so a server cannot make
+        the worker buffer an arbitrarily large answer."""
+        request = self._client.build_request(method, url, headers=headers, content=content)
+        response = await self._client.send(request, stream=True)
+        try:
+            body = bytearray()
+            async for chunk in response.aiter_bytes():
+                body.extend(chunk)
+                if len(body) > MAX_RESPONSE_BYTES:
+                    raise SinkError(NOT_CALDAV)
+        finally:
+            await response.aclose()
+        # ``aiter_bytes`` already decoded the body; without the header it is not decoded again.
+        response_headers = [
+            (name, value)
+            for name, value in response.headers.multi_items()
+            if name.lower() != "content-encoding"
+        ]
+        return httpx.Response(
+            response.status_code,
+            headers=response_headers,
+            content=bytes(body),
+            request=response.request,
+        )
 
     async def _propfind_at(
         self, url: str, depth: int, props: Iterable[tuple[str, str]], *, follow: bool

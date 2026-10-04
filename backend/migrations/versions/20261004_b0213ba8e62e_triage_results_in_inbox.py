@@ -23,7 +23,7 @@ Existing rows are filled in batches, each committed on its own, like
 ``denormalise_triage_list_columns``.
 
 Revision ID: b0213ba8e62e
-Revises: ed3357fe44bc
+Revises: a6e4b681ab6a
 Create Date: 2026-10-04 20:03:46.568545+00:00
 """
 
@@ -33,7 +33,7 @@ import sqlalchemy as sa
 from alembic import op
 
 revision: str = "b0213ba8e62e"
-down_revision: str | Sequence[str] | None = "ed3357fe44bc"
+down_revision: str | Sequence[str] | None = "a6e4b681ab6a"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 

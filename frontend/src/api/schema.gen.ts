@@ -39,7 +39,9 @@ export interface paths {
         put?: never;
         /**
          * Check Ai Provider Settings
-         * @description Test unsaved settings (e.g. in the form before saving).
+         * @description Test unsaved settings (e.g. in the form before saving). The stored key of ``name``
+         *     goes only to the stored ``kind`` and ``base_url``; sending it elsewhere needs a recent
+         *     confirmation, like saving the change does (#219).
          */
         post: operations["ai_check_ai_provider_settings"];
         delete?: never;
@@ -156,7 +158,8 @@ export interface paths {
         /**
          * Delete Github Provider
          * @description Remove a GitHub provider. Users and their linked identities are kept; sessions
-         *     started with the provider stay valid until they expire or are revoked.
+         *     started with the provider stay valid until they expire or are revoked. Needs a recent
+         *     confirmation (#218): removing a provider can lock its users out.
          */
         delete: operations["admin_delete_github_provider"];
         options?: never;
@@ -226,7 +229,8 @@ export interface paths {
         /**
          * Delete Oidc Provider
          * @description Remove an OIDC provider. Users and their linked identities are kept; sessions
-         *     started with the provider stay valid until they expire or are revoked.
+         *     started with the provider stay valid until they expire or are revoked. Needs a recent
+         *     confirmation (#218): removing a provider can lock its users out.
          */
         delete: operations["admin_delete_oidc_provider"];
         options?: never;
@@ -342,7 +346,8 @@ export interface paths {
         /**
          * Delete Saml Provider
          * @description Remove a SAML provider. Users and their linked identities are kept; sessions
-         *     started with the provider stay valid until they expire or are revoked.
+         *     started with the provider stay valid until they expire or are revoked. Needs a recent
+         *     confirmation (#218): removing a provider can lock its users out.
          */
         delete: operations["admin_delete_saml_provider"];
         options?: never;
@@ -421,7 +426,8 @@ export interface paths {
         /**
          * Update Retention
          * @description Change retention periods; ``null`` resets one to the environment default. Applies
-         *     from the next run of the retention jobs.
+         *     from the next run of the retention jobs. Needs a recent confirmation (#218): a short
+         *     period deletes the audit log or the mails of all users.
          */
         patch: operations["privacy_update_retention"];
         trace?: never;
@@ -553,15 +559,17 @@ export interface paths {
         /**
          * Delete Shared Mailbox
          * @description Remove the shared mailbox with all its data and its assignments, in the background
-         *     (as ``DELETE /mailboxes/{id}``).
+         *     (as ``DELETE /mailboxes/{id}``). Needs a recent confirmation (#218): not reversible.
          */
         delete: operations["admin_delete_shared_mailbox"];
         options?: never;
         head?: never;
         /**
          * Update Shared Mailbox
-         * @description Rename, change connection settings or credentials (tested before saving), change
-         *     sync settings, pause or resume syncing.
+         * @description Rename, change connection settings or credentials (tested before saving, rate-limited
+         *     like ``POST /mailboxes/test``), change sync settings, pause or resume syncing. Settings
+         *     that send the credentials to another server need the credentials again (422
+         *     ``credentials_required``).
          */
         patch: operations["admin_update_shared_mailbox"];
         trace?: never;
@@ -853,6 +861,48 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/identities": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Identities
+         * @description The own ways to sign in (without SCIM), oldest first, with whether each can be
+         *     unlinked (#216).
+         */
+        get: operations["auth_list_identities"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/identities/{identity_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Unlink Identity
+         * @description Unlink an external sign-in (#216): ends its sessions, drops the notices about it and
+         *     blocks the provider from linking to the account by e-mail address again.
+         */
+        delete: operations["auth_unlink_identity"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/invitations/accept": {
         parameters: {
             query?: never;
@@ -935,7 +985,8 @@ export interface paths {
         post?: never;
         /**
          * Delete Directory
-         * @description Remove the directory and all sign-in links through it (the users stay).
+         * @description Remove the directory and all sign-in links through it (the users stay). Needs a
+         *     recent confirmation (#218): its users can no longer sign in.
          */
         delete: operations["auth_delete_directory"];
         options?: never;
@@ -979,6 +1030,48 @@ export interface paths {
          */
         post: operations["auth_test_user"];
         delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/link-blocks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Link Blocks
+         * @description Providers blocked from linking to the own account by e-mail address because the user
+         *     unlinked them (#216), newest first.
+         */
+        get: operations["auth_list_link_blocks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/link-blocks/{block_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Lift Link Block
+         * @description Lift a block: the provider links to the account by e-mail address again at its next
+         *     sign-in. Only the user can do this, not from a session of the blocked provider.
+         */
+        delete: operations["auth_lift_link_block"];
         options?: never;
         head?: never;
         patch?: never;
@@ -2166,7 +2259,8 @@ export interface paths {
          * Update Mailbox
          * @description Rename, change connection settings or credentials (tested before saving), change
          *     the import period or excluded folder roles, pause (``sync_enabled: false``) or resume
-         *     syncing.
+         *     syncing. Settings that send the credentials to another server (host, port, transport
+         *     security, token endpoint) need the credentials again (422 ``credentials_required``).
          */
         patch: operations["mailboxes_update_mailbox"];
         trace?: never;
@@ -3266,7 +3360,8 @@ export interface paths {
         put?: never;
         /**
          * Create User
-         * @description Create a local account with an initial password.
+         * @description Create a local account with an initial password. Needs a recent confirmation
+         *     (#218): a new admin account would start with a fresh one of its own.
          */
         post: operations["users_create_user"];
         delete?: never;
@@ -3287,6 +3382,7 @@ export interface paths {
         /**
          * Invite User
          * @description Create a local account without password and return a one-time invitation link.
+         *     Needs a recent confirmation (#218): whoever holds the link sets the password.
          */
         post: operations["users_invite_user"];
         delete?: never;
@@ -3327,7 +3423,7 @@ export interface paths {
         /**
          * Reissue Invitation
          * @description New invitation link for an invited user who has not set a password yet (the old
-         *     link stops working).
+         *     link stops working). Needs a recent confirmation (#218), as ``invite_user``.
          */
         post: operations["users_reissue_invitation"];
         delete?: never;
@@ -3437,7 +3533,8 @@ export interface components {
         /**
          * AIProviderTest
          * @description Unsaved settings to test. Without ``api_key``, the stored key of ``name`` is used
-         *     (so an edit form can be tested without typing the key again).
+         *     (so an edit form can be tested without typing the key again); with another ``kind`` or
+         *     ``base_url`` than stored, only after a recent confirmation (403 ``reauth-required``).
          */
         AIProviderTest: {
             /** Api Key */
@@ -3667,7 +3764,7 @@ export interface components {
          * AuditAction
          * @enum {string}
          */
-        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "user.identity_linked" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
+        AuditAction: "auth.setup_completed" | "auth.login_succeeded" | "auth.login_failed" | "auth.logout" | "auth.session_revoked" | "auth.mfa_enabled" | "auth.mfa_disabled" | "auth.mfa_recovery_codes_generated" | "auth.reauthenticated" | "auth.reauth_failed" | "user.created" | "user.role_changed" | "user.deactivated" | "user.reactivated" | "user.invited" | "user.password_set" | "user.deleted" | "user.updated" | "user.identity_linked" | "user.identity_unlinked" | "user.identity_link_unblocked" | "group.created" | "group.updated" | "group.deleted" | "group.member_added" | "group.member_removed" | "idp.config_changed" | "ai.settings_changed" | "mailbox.created" | "mailbox.deleted" | "mailbox.shared" | "mailbox.unshared" | "mail.sent" | "mail.moved" | "mail.flagged" | "data.exported" | "data.deleted" | "data.retention_changed" | "todo_export.changed" | "crypto.keys_rotated" | "audit.exported";
         /** AuditChainStatus */
         AuditChainStatus: {
             /** Checked */
@@ -4702,6 +4799,32 @@ export interface components {
          * @enum {string}
          */
         Hint: "app_password" | "enable_imap" | "oauth_required" | "mail_password" | "guessed";
+        /**
+         * IdentityRead
+         * @description One of the own ways to sign in (#216); SCIM is not one.
+         */
+        IdentityRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Current */
+            current: boolean;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Last Used At */
+            last_used_at: string | null;
+            /** Provider */
+            provider: string;
+            /** Provider Name */
+            provider_name?: string | null;
+            /** Unlink Refusal */
+            unlink_refusal: ("local" | "current_session" | "last_sign_in") | null;
+        };
         /** IncludeOlderRead */
         IncludeOlderRead: {
             /** Queued */
@@ -4919,6 +5042,27 @@ export interface components {
         LdapUserLookupRequest: {
             /** Login */
             login: string;
+        };
+        /**
+         * LinkBlockRead
+         * @description A provider the user unlinked; it may not link to the account by e-mail address until
+         *     the user lifts the block (#216).
+         */
+        LinkBlockRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Provider Name */
+            provider_name?: string | null;
         };
         /**
          * LinkNoticeRead
@@ -7244,7 +7388,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7676,7 +7820,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -7966,7 +8110,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8400,7 +8544,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8701,7 +8845,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9128,7 +9272,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9200,6 +9344,13 @@ export interface operations {
             };
             /** @description Invalid request, unavailable mailbox type or failed connection test */
             422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Too many connection tests (OLLAMAIL_MAIL_CONNECTION_TEST_MAX_ATTEMPTS) */
+            429: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -9866,6 +10017,90 @@ export interface operations {
             };
         };
     };
+    auth_list_identities: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["IdentityRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_unlink_identity: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                identity_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Confirm the account first (reauth-required, see /auth/reauth) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such sign-in method */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Local sign-in, the current session's method or the last one */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
     auth_accept_invitation: {
         parameters: {
             query?: never;
@@ -10207,7 +10442,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -10330,6 +10565,83 @@ export interface operations {
                 content?: never;
             };
             /** @description No such directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_list_link_blocks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkBlockRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_lift_link_block: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                block_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Confirm the account first (reauth-required, see /auth/reauth) */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such block */
             404: {
                 headers: {
                     [name: string]: unknown;
@@ -16404,7 +16716,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16458,7 +16770,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -16573,7 +16885,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
