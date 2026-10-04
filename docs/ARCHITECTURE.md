@@ -371,6 +371,11 @@ und den Lösch-Job (`app/mail/deletion.py`); sie baut nichts davon nach.
   Mails), dann Threads, dann die Postfachzeile mit dem Rest und das Anhangsverzeichnis.
   `mail.resume_deletions` (alle 15 Minuten) reiht verlorene Löschungen erneut ein. Dasselbe
   Postfach kann sofort wieder hinzugefügt werden; die Duplikatprüfung ignoriert markierte.
+  Nach dem Löschen der Postfachzeile ruft der Job die Handler von
+  `app.mail.hooks.on_mailbox_deleted` mit dem früheren Besitzer auf. Darüber wartet das Löschen
+  eines Nutzers (#177, `docs/PRIVACY.md`) auf seine Postfächer: Der Request markiert Nutzer und
+  Postfächer mit demselben Mechanismus, `privacy.delete_user` löscht die Nutzerzeile, sobald
+  kein Postfach mehr übrig ist.
 - **Events:** Neben `mailbox.sync` aus dem Sync sendet die API `mailbox.changed`
   (`created`, `updated`, `deleting`) an den Besitzer bzw. die Leser, der Lösch-Job am Ende
   `deleted`.
@@ -644,7 +649,9 @@ Umgesetzt in `backend/app/worker.py` und `backend/app/core/events.py`.
   auch die Locks seiner Jobs frei.
 - **Housekeeping:** täglicher Job `worker.remove_old_jobs` löscht abgeschlossene Jobs nach 7 Tagen.
   `mail.resume_deletions` (alle 15 Minuten) reiht das Entfernen markierter Postfächer erneut ein,
-  falls dessen Job verloren ging (`mail.delete_mailbox`, siehe Postfach-API).
+  falls dessen Job verloren ging (`mail.delete_mailbox`, siehe Postfach-API);
+  `privacy.resume_user_deletions` (alle 15 Minuten) ebenso das Löschen markierter Nutzer
+  (`privacy.delete_user`, #177).
   Aufbewahrungsfristen setzen `privacy.retention` (täglich), `digest.cleanup` (stündlich) und
   `rag.purge_conversations` (täglich) mit den Werten aus Admin → Aufbewahrung durch
   (`app/privacy/policy.py`, sonst Umgebung); `privacy.cleanup_exports` löscht abgelaufene Exporte.

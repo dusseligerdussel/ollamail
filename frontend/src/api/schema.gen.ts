@@ -436,7 +436,9 @@ export interface paths {
         post?: never;
         /**
          * Delete User
-         * @description Delete a user with all their data and files (Art. 17). Not reversible.
+         * @description Delete a user with all their data and files (Art. 17). Not reversible. From this
+         *     response on the user is gone everywhere; their mailboxes are removed in the
+         *     background (#177), then the user row.
          */
         delete: operations["privacy_delete_user"];
         options?: never;
@@ -2355,7 +2357,8 @@ export interface paths {
          * Delete Account
          * @description Delete the own account with all data (mailboxes, mails, todos, digests, ...) and
          *     files. Confirmed by entering the account's e-mail address, after a recent confirmation
-         *     of the account (app/auth/reauth.py, 403 reauth-required). Not reversible.
+         *     of the account (app/auth/reauth.py, 403 reauth-required). Not reversible. Mailboxes
+         *     are removed in the background (#177); the account is gone with this response.
          */
         delete: operations["privacy_delete_account"];
         options?: never;

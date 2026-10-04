@@ -18,8 +18,11 @@ from app.core.config import get_settings
 from app.digest.models import Digest, DigestLength, DigestStatus, DigestTrigger, DigestUserSettings
 from app.digest.storage import DigestStorage
 from app.drafts.models import DraftSettings, ReplyDraft
+from app.mail.deletion import purge_mailbox
 from app.mail.models import Attachment, Mailbox, MailboxAssignment, MailboxType, Message
 from app.mail.storage import AttachmentStorage
+from app.privacy.deletion import FileStores, purge_user
+from app.privacy.storage import ExportStorage
 from app.processing.models import MailboxProcessingSettings, MessageProcessing, StepStatus
 from app.rag.models import RagCitation, RagConversation, RagMessage, RagRole
 from app.scim.models import ScimGroup, ScimUser, scim_group_members
@@ -49,6 +52,7 @@ from tests.mail.api.conftest import (  # noqa: F401
     server,
     storage,
     sync_requests,
+    user_deletion_requests,
 )
 
 
@@ -272,3 +276,20 @@ async def seed_user_data(
 
 def utcnow() -> datetime:
     return datetime.now(UTC)
+
+
+def file_stores(root: Path) -> FileStores:
+    return FileStores(digests=DigestStorage(root), exports=ExportStorage(root))
+
+
+async def finish_user_deletion(
+    session: AsyncSession, user_id: uuid.UUID, attachments: AttachmentStorage, root: Path
+) -> None:
+    """What the jobs do after the request (#177): ``privacy.delete_user`` finds the
+    mailboxes still to remove, ``mail.delete_mailbox`` removes each, then
+    ``privacy.delete_user`` deletes the user."""
+    stores = file_stores(root)
+    pending = (await purge_user(session, user_id, stores)).pending_mailboxes
+    for mailbox_id in pending:
+        assert (await purge_mailbox(session, mailbox_id, attachments)).deleted
+    assert (await purge_user(session, user_id, stores)).deleted

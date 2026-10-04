@@ -189,7 +189,7 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
 | `user.deactivated`, `user.reactivated` | Nutzerverwaltung (Deaktivieren beendet alle Sitzungen, `details.sessions`); `app.cli reset-password --activate` | aktiv |
 | `user.invited` | Einladung bzw. neuer Einladungslink (`renewed`) | aktiv |
 | `user.password_set` | Einladung angenommen (`via: invitation`), `app.cli reset-password` (`via: cli`) | aktiv |
-| `user.deleted` | Konto löschen (`DELETE /api/privacy/account`, `details.via: self`) und Nutzer löschen durch Admins (`DELETE /api/admin/privacy/users/{id}`, `via: admin`); `details.mailboxes` = Anzahl gelöschter Postfächer | aktiv |
+| `user.deleted` | Konto löschen (`DELETE /api/privacy/account`, `details.via: self`) und Nutzer löschen durch Admins (`DELETE /api/admin/privacy/users/{id}`, `via: admin`) sowie per SCIM (`via: scim`); `details.mailboxes` = Anzahl der Postfächer, die mit dem Nutzer gelöscht werden (im Hintergrund, #177) | aktiv |
 | `idp.config_changed` | LDAP-Verzeichnis bzw. OIDC-Provider angelegt, geändert, gelöscht (`details.change`); lokale Anmeldung an/aus (`kind: local`); Rollen-Zuordnung gespeichert (`kind: role_mapping`, nur Anzahlen); Zwei-Faktor-Pflicht (`kind: mfa`, `change`: `off`, `admins`, `all`) | aktiv |
 | `ai.settings_changed` | KI-Einstellungen im Admin-Bereich: Provider anlegen/ändern/löschen (`details.change`, `provider`, `is_cloud`), Modell-Zuordnung, Profil, Parallelität, Cloud-Freigabe (`details.cloud_enabled`) | aktiv |
 | `mailbox.created` | Postfach-API (`POST /api/mailboxes`, `details.type`) | aktiv |
@@ -306,16 +306,36 @@ Umgesetzt in `backend/app/audit/`, abgesichert durch `backend/tests/audit/`:
   `OLLAMAIL_PRIVACY_SELF_DELETE_ENABLED=false` abschaltbar), ein Admin löscht beliebige Nutzer
   (`DELETE /api/admin/privacy/users/{id}`). Der letzte aktive Admin kann nicht gelöscht werden
   (409), ebenso kein Admin, ohne den kein Admin mit funktionierender Anmeldung bliebe
-  (`admin-lockout`, `app/auth/admin_access.py`). `app/privacy/deletion.py` löscht die Zeile in `users`; alle Tabellen mit Nutzerbezug
-  hängen direkt oder über Postfach, Mail, Gespräch usw. per `ON DELETE CASCADE` daran (Liste
-  unten). Nach dem Commit werden die Dateien entfernt: Anhänge je Postfach, Digest-Audio und
-  Exporte je Nutzer. Sitzungen enden sofort. Nachweis: ein `user.deleted`-Eintrag nur mit IDs und
-  der Anzahl der Postfächer; Name und Adresse verschwinden mit der Nutzerzeile auch aus der
+  (`admin-lockout`, `app/auth/admin_access.py`). `app/privacy/deletion.py` löscht die Zeile in
+  `users`; alle Tabellen mit Nutzerbezug hängen direkt oder über Postfach, Mail, Gespräch usw.
+  per `ON DELETE CASCADE` daran (Liste unten). Besitzt der Nutzer Postfächer, läuft das in zwei
+  Schritten (#177), damit keine Kaskade über Hunderttausende Mails den Request blockiert:
+  1. **Im Request:** Der Nutzer wird markiert (`deletion_requested_at`), deaktiviert und
+     anonymisiert (Adresse `<id>@deleted.invalid`, leerer Name; die echte Adresse ist sofort
+     wieder frei). Gelöscht werden sofort alles, womit man sich als er anmelden oder ihn finden
+     kann: Identitäten, Sitzungen, Einladungen, zweite Faktoren, SCIM-Zuordnung und
+     Gruppenmitgliedschaften, Zuweisungen geteilter Postfächer. Jedes eigene Postfach wird wie
+     beim Entfernen markiert (`request_deletion`, je ein `mailbox.deleted`). Ab dem Commit sind
+     Nutzer und Daten für niemanden mehr sichtbar, auch nicht für Admins: keine Anmeldung, nicht
+     in der Nutzerverwaltung (Liste, Ändern → 404) und nicht über SCIM, die Mails ausgeblendet
+     über `app.mail.access`.
+  2. **Im Hintergrund:** `mail.delete_mailbox` entfernt die Postfächer in Batches (siehe oben).
+     Ist das letzte weg, löscht `privacy.delete_user` (`app/privacy/tasks.py`) die Nutzerzeile
+     mit dem kleinen Rest (Aufgaben, Gespräche, Digests, …) und danach Digest-Audio und Exporte.
+     Bricht ein Job ab, setzen Retry, `mail.resume_deletions` und `privacy.resume_user_deletions`
+     (je alle 15 Minuten) fort; liegen bleibt nichts.
+
+  Ohne Postfächer wird der Nutzer sofort im Request gelöscht, die Dateien nach dem Commit.
+  Sitzungen enden in beiden Fällen sofort. Nachweis: ein `user.deleted`-Eintrag nur mit IDs und
+  der Anzahl der Postfächer (beim Entfernen im Hintergrund zusätzlich je Postfach ein
+  `mailbox.deleted`); Name und Adresse verschwinden mit der Nutzerzeile auch aus der
   Anzeige des Audit-Logs. `tests/privacy/test_user_deletion.py` ermittelt alle Tabellen mit
   Bezug auf `users` aus den Fremdschlüsseln des Schemas, füllt jede davon für den gelöschten
   Nutzer und prüft, dass danach keine Zeile übrig bleibt, dass die Dateien weg sind und dass ein
   zweiter Nutzer unverändert bleibt. Ein weiterer Test schlägt an, wenn eine Spalte `user_id`
   bzw. `*_user_id` ohne Fremdschlüssel angelegt wird (Ausnahme: `audit_events.actor_id`).
+  `tests/privacy/test_user_deletion_background.py` prüft den Ablauf im Hintergrund: Nutzer mit
+  mehreren Postfächern, kleine Batches, Abbruch mittendrin und Wiederaufnahme, keine Reste.
 - **Aufbewahrungsfristen:** Instanzweit unter Admin → Aufbewahrung (`/api/admin/privacy/retention`,
   Tabelle `privacy_retention_settings`; Felder ohne Wert folgen der Umgebung). Fristen in Tagen,
   0 = unbegrenzt:

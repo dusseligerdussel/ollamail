@@ -89,7 +89,8 @@ async def _admin_read(db: AsyncSession, user: User) -> AdminUserRead:
 
 async def _user(db: AsyncSession, user_id: uuid.UUID) -> User:
     user = await db.get(User, user_id)
-    if user is None:
+    # A user being deleted (#177) is gone for admins already.
+    if user is None or user.deletion_requested_at is not None:
         raise ProblemError(404, detail="User not found.")
     return user
 
@@ -97,7 +98,11 @@ async def _user(db: AsyncSession, user_id: uuid.UUID) -> User:
 @router.get("")
 async def list_users(_: AdminSessionDep, db: DbDep) -> list[AdminUserRead]:
     """All users, ordered by e-mail address, with their sign-in methods."""
-    users = list(await db.scalars(select(User).order_by(User.email)))
+    users = list(
+        await db.scalars(
+            select(User).where(User.deletion_requested_at.is_(None)).order_by(User.email)
+        )
+    )
     return await _admin_reads(db, users)
 
 
