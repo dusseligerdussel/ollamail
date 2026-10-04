@@ -1,13 +1,16 @@
 """Admin API for AI settings and the cloud status for users."""
 
+from datetime import UTC, datetime, timedelta
+
 import httpx
 import pytest
 import respx
 from httpx import AsyncClient
-from sqlalchemy import text
+from sqlalchemy import text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import AuditAction
+from app.auth.models import AuthSession
 from app.core.config import LLMSettings, Settings
 from app.users.models import User, UserRole
 from tests.audit.conftest import audit_rows
@@ -154,26 +157,77 @@ async def test_connection_test_lists_models_or_reports_the_error(
     assert models.calls.last.request.headers["authorization"] == "Bearer sk-very-secret"
 
 
+async def _age_sessions(db: AsyncSession) -> None:
+    """Sign-ins older than the confirmation limit (``OLLAMAIL_AUTH_REAUTH_MINUTES``)."""
+    await db.execute(
+        update(AuthSession).values(authenticated_at=datetime.now(UTC) - timedelta(minutes=60))
+    )
+    await db.commit()
+
+
 @respx.mock
 async def test_unsaved_settings_can_be_tested_with_the_stored_key(
     db_client: AsyncClient, db_session: AsyncSession
 ) -> None:
     await _sign_in(db_client, db_session, UserRole.ADMIN)
     await db_client.post("/admin/ai/providers", json=CLOUD)
-    route = respx.get("https://other.test/v1/models").respond(json={"data": [{"id": "m1"}]})
+    route = respx.get("https://api.cloud.test/v1/models").respond(json={"data": [{"id": "m1"}]})
     respx.get("http://down.test:11434/api/tags").mock(side_effect=httpx.ConnectError("down"))
+    await _age_sessions(db_session)
 
     stored_key = await db_client.post(
         "/admin/ai/providers/test",
-        json={"name": "cloud", "kind": "openai_compatible", "base_url": "https://other.test/v1"},
+        json={
+            "name": "cloud",
+            "kind": "openai_compatible",
+            "base_url": "https://api.cloud.test/v1",
+        },
     )
     unreachable = await db_client.post(
         "/admin/ai/providers/test", json={"kind": "ollama", "base_url": "http://down.test:11434"}
     )
 
+    # Same destination as stored: no confirmation needed.
     assert stored_key.json()["models"] == ["m1"]
     assert route.calls.last.request.headers["authorization"] == "Bearer sk-very-secret"
     assert unreachable.json()["error"] == "unreachable"
+
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        {"kind": "openai_compatible", "base_url": "https://attacker.test/v1"},
+        {"kind": "ollama", "base_url": "https://api.cloud.test/v1"},
+    ],
+)
+@respx.mock
+async def test_stored_key_goes_elsewhere_only_after_a_recent_confirmation(
+    db_client: AsyncClient, db_session: AsyncSession, target: dict[str, str]
+) -> None:
+    """#219: a stolen admin cookie must not send the stored key to another server."""
+    await _sign_in(db_client, db_session, UserRole.ADMIN)
+    await db_client.post("/admin/ai/providers", json=CLOUD)
+    route = respx.route(host=httpx.URL(target["base_url"]).host).respond(
+        json={"data": [], "models": []}
+    )
+    await _age_sessions(db_session)
+
+    stale = await db_client.post("/admin/ai/providers/test", json={"name": "cloud", **target})
+
+    assert stale.status_code == 403
+    assert stale.json()["type"] == "urn:ollamail:problem:reauth-required"
+    assert not route.called
+
+    # With a new key, or after confirming, the test runs.
+    own_key = await db_client.post(
+        "/admin/ai/providers/test", json={"name": "cloud", "api_key": "sk-other", **target}
+    )
+    assert own_key.json()["ok"] is True
+    assert "sk-very-secret" not in route.calls.last.request.headers.get("authorization", "")
+    await db_session.execute(update(AuthSession).values(authenticated_at=datetime.now(UTC)))
+    await db_session.commit()
+    confirmed = await db_client.post("/admin/ai/providers/test", json={"name": "cloud", **target})
+    assert confirmed.json()["ok"] is True
 
 
 async def test_assign_model_per_task_and_reset(

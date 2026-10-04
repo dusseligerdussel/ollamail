@@ -22,6 +22,7 @@ from app.mail.api.router import (
     get_sync_requester,
 )
 from app.mail.models import FolderRole, MailboxType
+from app.mail.providers import imap
 from app.mail.providers.base import AuthenticationError, MailboxConfig, RemoteFolder
 from app.mail.providers.fake import FakeMailProvider
 from app.mail.providers.registry import ProviderRegistry
@@ -97,7 +98,7 @@ async def app(
     # What the lifespan does (ASGITransport does not run it): credentials are encrypted.
     configure_keyring(settings.security)
     providers = ProviderRegistry()
-    providers.register(MailboxType.IMAP, server.factory)
+    providers.register(MailboxType.IMAP, server.factory, destination=imap.DESTINATION)
 
     async def override_get_db() -> AsyncIterator[AsyncSession]:
         yield db_session
