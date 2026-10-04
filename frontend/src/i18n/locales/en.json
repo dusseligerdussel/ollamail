@@ -42,6 +42,7 @@
       "text_one": "On {{date}}, a sign-in through {{providers}} was linked to your account. Not you?",
       "text_other": "Since {{date}}, sign-ins through {{providers}} were linked to your account. Not you?",
       "action": "Review sessions",
+      "unlink": "Unlink sign-in",
       "dismiss": "That was me – dismiss notice"
     }
   },
@@ -290,7 +291,9 @@
           "invited": "User invited",
           "password_set": "Password set",
           "updated": "User updated",
-          "identity_linked": "Sign-in linked by e-mail address"
+          "identity_linked": "Sign-in linked by e-mail address",
+          "identity_unlinked": "Sign-in unlinked by the user",
+          "identity_link_unblocked": "Sign-in link block lifted"
         },
         "group": {
           "created": "Group created",
@@ -1176,6 +1179,31 @@
       "localMethod": "Local account",
       "method": "Sign-in: {{method}}",
       "lastActive": "Last active: {{date}}"
+    },
+    "signIn": {
+      "title": "Sign-in methods",
+      "current": "This session",
+      "localDescription": "Password and passkeys",
+      "linked": "Linked: {{date}}",
+      "lastUsed": "Last used: {{date}}",
+      "refusal": {
+        "local": "Local sign-in cannot be unlinked.",
+        "currentSession": "This session signed in with it. To unlink it, sign in another way.",
+        "lastSignIn": "Your only way to sign in, so it cannot be unlinked."
+      },
+      "unlink": "Unlink",
+      "unlinkLabel": "Unlink {{method}}",
+      "blocked": "Blocked",
+      "blockedDescription": "Unlinked on {{date}}. Not linked to your account again automatically.",
+      "unblock": "Lift block",
+      "unblockLabel": "Lift block for {{method}}",
+      "confirmTitle": "Unlink {{method}}?",
+      "confirmDescription": "Whoever signs in through {{method}} with your e-mail address can then no longer use your account.",
+      "consequenceSessions": "All sessions that signed in with {{method}} end immediately.",
+      "consequenceBlock": "{{method}} is no longer linked to your account automatically by e-mail address, even if an administrator allows it.",
+      "consequenceUndo": "Only you can lift this block, here in the settings.",
+      "cancel": "Cancel",
+      "confirm": "Unlink"
     },
     "security": {
       "title": "Security",

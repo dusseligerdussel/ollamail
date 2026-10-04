@@ -42,6 +42,7 @@
       "text_one": "Am {{date}} wurde eine Anmeldung über {{providers}} mit deinem Konto verknüpft. Warst du das nicht?",
       "text_other": "Seit {{date}} wurden Anmeldungen über {{providers}} mit deinem Konto verknüpft. Warst du das nicht?",
       "action": "Sitzungen prüfen",
+      "unlink": "Verknüpfung trennen",
       "dismiss": "Das war ich – Hinweis ausblenden"
     }
   },
@@ -290,7 +291,9 @@
           "invited": "Benutzer eingeladen",
           "password_set": "Passwort gesetzt",
           "updated": "Nutzer geändert",
-          "identity_linked": "Anmeldung per E-Mail-Adresse verknüpft"
+          "identity_linked": "Anmeldung per E-Mail-Adresse verknüpft",
+          "identity_unlinked": "Anmeldung von der Person getrennt",
+          "identity_link_unblocked": "Sperre für Verknüpfung aufgehoben"
         },
         "group": {
           "created": "Gruppe angelegt",
@@ -1176,6 +1179,31 @@
       "localMethod": "Lokales Konto",
       "method": "Anmeldung: {{method}}",
       "lastActive": "Zuletzt aktiv: {{date}}"
+    },
+    "signIn": {
+      "title": "Anmeldeverfahren",
+      "current": "Diese Sitzung",
+      "localDescription": "Passwort und Passkeys",
+      "linked": "Verknüpft: {{date}}",
+      "lastUsed": "Zuletzt genutzt: {{date}}",
+      "refusal": {
+        "local": "Die lokale Anmeldung lässt sich nicht trennen.",
+        "currentSession": "Diese Sitzung hat sich damit angemeldet. Melde dich zum Trennen auf anderem Weg an.",
+        "lastSignIn": "Deine einzige Anmeldemöglichkeit, daher nicht trennbar."
+      },
+      "unlink": "Trennen",
+      "unlinkLabel": "{{method}} trennen",
+      "blocked": "Gesperrt",
+      "blockedDescription": "Am {{date}} getrennt. Wird nicht mehr automatisch mit deinem Konto verknüpft.",
+      "unblock": "Sperre aufheben",
+      "unblockLabel": "Sperre für {{method}} aufheben",
+      "confirmTitle": "{{method}} trennen?",
+      "confirmDescription": "Wer sich über {{method}} mit deiner E-Mail-Adresse anmeldet, kann dein Konto danach nicht mehr nutzen.",
+      "consequenceSessions": "Alle Sitzungen, die sich über {{method}} angemeldet haben, enden sofort.",
+      "consequenceBlock": "{{method}} wird nicht mehr automatisch per E-Mail-Adresse mit deinem Konto verknüpft – auch wenn ein Admin das erlaubt.",
+      "consequenceUndo": "Diese Sperre kannst nur du selbst aufheben, hier in den Einstellungen.",
+      "cancel": "Abbrechen",
+      "confirm": "Trennen"
     },
     "security": {
       "title": "Sicherheit",

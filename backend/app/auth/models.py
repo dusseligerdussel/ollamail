@@ -183,3 +183,17 @@ class IdentityLinkNotice(Base):
     )
     # Provider key of the linked identity (``oidc:corp``, ``ldap:corp``).
     provider: Mapped[str] = mapped_column(String(64))
+
+
+class IdentityLinkBlock(Base):
+    """The user unlinked a sign-in of this provider (#216): it may no longer be linked to the
+    account by e-mail address (link_by_email or SCIM linking). Only the user can lift it, not
+    an admin; deleted with the user."""
+
+    __tablename__ = "auth_identity_link_blocks"
+    __table_args__ = (UniqueConstraint("user_id", "provider"),)
+
+    # The unique constraint (user_id first) also serves lookups by user.
+    user_id: Mapped[uuid.UUID] = mapped_column(ForeignKey("users.id", ondelete="CASCADE"))
+    # Provider key of the unlinked identity (``oidc:corp``, ``ldap:corp``).
+    provider: Mapped[str] = mapped_column(String(64))

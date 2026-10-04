@@ -267,7 +267,7 @@ Nutzerdaten:
 | `invalid_token` | ID-Token ungültig (Signatur, Issuer, Audience, Ablauf, Nonce, Tenant, Domain) |
 | `email_missing` | Der IdP liefert keine E-Mail-Adresse |
 | `domain_not_allowed` | Domain nicht erlaubt oder Adresse nicht verifiziert |
-| `email_conflict` | Adresse gehört einem anderen Konto, Verknüpfung nicht erlaubt |
+| `email_conflict` | Adresse gehört einem anderen Konto, Verknüpfung nicht erlaubt (oder von der Person selbst gesperrt, #216) |
 | `not_provisioned` | Unbekannter Nutzer, Just-in-Time-Provisioning ist aus |
 | `inactive` | Konto deaktiviert |
 
