@@ -18,7 +18,7 @@ from datetime import UTC, datetime, time, timedelta
 from typing import Any
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
-from sqlalchemy import ColumnElement, and_, any_, delete, exists, func, select, update
+from sqlalchemy import ColumnElement, and_, any_, delete, exists, func, select, text, update
 from sqlalchemy.dialects.postgresql import insert
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -49,6 +49,9 @@ log = get_logger(__name__)
 IN_PROGRESS = (DigestStatus.PENDING, DigestStatus.SUMMARIZING, DigestStatus.SYNTHESIZING)
 # Digests stuck in progress for longer are marked failed by the cleanup job.
 STALLED_AFTER = timedelta(hours=6)
+# First key of ``pg_advisory_xact_lock(namespace, hashtext(user_id))`` that serialises manual
+# digest requests of one user (arbitrary, constant; "dig" in ASCII).
+MANUAL_LOCK_NAMESPACE = 0x646967
 
 
 class DigestNotFoundError(Exception):
@@ -202,10 +205,30 @@ async def _new_digest(
     return await session.get(Digest, digest_id)
 
 
+async def start_manual(
+    session: AsyncSession, user: User, *, now: datetime, config: DigestSettings
+) -> Digest | None:
+    """A digest for the mails since the last one, now; ``None`` while one is in progress.
+    Does not commit.
+
+    Parallel requests of one user are serialised by a transaction-level advisory lock held
+    until the caller commits: the next request only checks once the digest of the first is
+    visible, so N parallel requests cannot start N generations.
+    """
+    await session.execute(
+        text("SELECT pg_advisory_xact_lock(:namespace, hashtext(:user_id))"),
+        {"namespace": MANUAL_LOCK_NAMESPACE, "user_id": str(user.id)},
+    )
+    if await in_progress(session, user.id):
+        return None
+    return await create_manual(session, user, now=now, config=config)
+
+
 async def create_manual(
     session: AsyncSession, user: User, *, now: datetime, config: DigestSettings
 ) -> Digest:
-    """A digest for the mails since the last one, now. Does not commit."""
+    """A digest for the mails since the last one, now, without the in-progress check.
+    Does not commit."""
     digest = await _new_digest(
         session, user, DigestTrigger.MANUAL, period_end=now, scheduled_for=None, config=config
     )
