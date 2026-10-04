@@ -116,8 +116,7 @@ function thread(index: number) {
     cc: [],
     reply_to: [],
     sent_at: mail.date,
-    text: mail.text,
-    body: { html: null, blocked_images: 0 },
+    body: { html: null, blocked_images: 0, text: mail.text },
     attachments: mail.attachment
       ? [
           {

@@ -1,7 +1,7 @@
 import { expect, type Page, type Route, test } from "@playwright/test";
 
 import { expectNoA11yViolations } from "./a11y";
-import { adminUserId, mockAdmin } from "./mock-admin";
+import { adminUserId, mockAdmin, sharedMailboxIds } from "./mock-admin";
 import { mockApi } from "./mock-api";
 
 /**
@@ -209,4 +209,49 @@ test("adding an AI provider confirms and then saves", async ({ page }) => {
     "POST /api/auth/reauth",
     "POST /api/admin/ai/providers",
   ]);
+});
+
+test("saving the role mapping confirms and then saves (#206)", async ({ page }) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const seen = await mockReauth(page, "PUT /api/admin/auth/role-mapping", (route) =>
+    route.fulfill({ json: route.request().postDataJSON() }),
+  );
+  await page.goto("/admin/role-mapping");
+
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByLabel("Password").fill("correct horse battery");
+  await sheet.getByRole("button", { name: "Confirm" }).click();
+
+  await expect(sheet).toBeHidden();
+  await expect(page.getByText("Role mapping saved")).toBeVisible();
+  expect(seen).toEqual([
+    "PUT /api/admin/auth/role-mapping",
+    "POST /api/auth/reauth",
+    "PUT /api/admin/auth/role-mapping",
+  ]);
+});
+
+test("cancelling the confirmation keeps shared mailbox access unsaved, without an error (#206)", async ({
+  page,
+}) => {
+  await mockApi(page);
+  await mockAdmin(page);
+  const path = `PUT /api/admin/shared-mailboxes/${sharedMailboxIds.support}/assignments`;
+  const seen = await mockReauth(page, path, (route) => route.fulfill({ json: {} }));
+  await page.goto(`/admin/shared-mailboxes/${sharedMailboxIds.support}`);
+
+  await page.getByRole("checkbox", { name: /Test Admin/ }).click();
+  await page.getByRole("button", { name: "Save access" }).click();
+  const sheet = page.getByRole("dialog", { name: "Confirm it is you" });
+  await expect(sheet).toBeVisible();
+  await sheet.getByRole("button", { name: "Cancel" }).click();
+
+  await expect(sheet).toBeHidden();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.getByText("Unsaved changes")).toBeVisible();
+  await expect(page.getByRole("button", { name: "Save access" })).toBeEnabled();
+  expect(seen).toEqual([path]);
 });

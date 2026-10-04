@@ -843,8 +843,8 @@ holt der Sync beim nächsten Start erneut vom Mailserver.
 
 ### 6.5 Drittanbieter-Images
 
-PostgreSQL (`POSTGRES_IMAGE`, Standard `pgvector/pgvector:0.8.7-pg16-bookworm`) und Ollama
-(`OLLAMA_IMAGE`, Standard `ollama/ollama:0.35.0`) sind auf feste Versionen gepinnt und über
+PostgreSQL (`POSTGRES_IMAGE`, `pgvector/pgvector`) und Ollama (`OLLAMA_IMAGE`, `ollama/ollama`)
+sind auf feste Versionen gepinnt – die Standardwerte stehen in `deploy/compose.yaml` – und über
 Variablen in `deploy/.env` änderbar. Neue Versionen kommen mit einem ollamail-Update (Dependabot
 schlägt sie im Repository vor); wer `POSTGRES_IMAGE` oder `OLLAMA_IMAGE` selbst setzt, pflegt die
 Version selbst. Beim PostgreSQL-Image Hauptversion **und** Debian-Release (`bookworm`) beibehalten:

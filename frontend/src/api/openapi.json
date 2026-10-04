@@ -5360,7 +5360,7 @@
         "type": "object"
       },
       "MessageBody": {
-        "description": "Sanitised HTML of a message. External images are removed unless requested.",
+        "description": "Body of a message: sanitised HTML (external images removed unless requested) and\nthe plain text.",
         "properties": {
           "blocked_images": {
             "title": "Blocked Images",
@@ -5376,11 +5376,16 @@
               }
             ],
             "title": "Html"
+          },
+          "text": {
+            "title": "Text",
+            "type": "string"
           }
         },
         "required": [
           "html",
-          "blocked_images"
+          "blocked_images",
+          "text"
         ],
         "title": "MessageBody",
         "type": "object"
@@ -5395,7 +5400,14 @@
             "type": "array"
           },
           "body": {
-            "$ref": "#/components/schemas/MessageBody"
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/MessageBody"
+              },
+              {
+                "type": "null"
+              }
+            ]
           },
           "cc": {
             "items": {
@@ -5464,10 +5476,6 @@
             "title": "Subject",
             "type": "string"
           },
-          "text": {
-            "title": "Text",
-            "type": "string"
-          },
           "thread_id": {
             "anyOf": [
               {
@@ -5507,7 +5515,6 @@
           "cc",
           "reply_to",
           "sent_at",
-          "text",
           "body",
           "attachments"
         ],
@@ -11031,7 +11038,7 @@
         ]
       },
       "patch": {
-        "description": "Change settings; ``null`` resets a field to the environment's value.",
+        "description": "Change settings; ``null`` resets a field to the environment's value. Turning cloud\nproviders on and assigning tasks need a recent confirmation (#206); turning them off,\nprofile and concurrency do not.",
         "operationId": "ai_update_ai_settings",
         "requestBody": {
           "content": {
@@ -11058,7 +11065,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "422": {
             "description": "Invalid settings"
@@ -11636,7 +11643,7 @@
         ]
       },
       "put": {
-        "description": "Replace the mapping. Takes effect at each user's next login; the last active admin\nis never demoted by it.",
+        "description": "Replace the mapping. Takes effect at each user's next login; the last active admin\nis never demoted by it. Needs a recent confirmation: a rule can make a group admin.",
         "operationId": "admin_update_role_mapping",
         "requestBody": {
           "content": {
@@ -11663,7 +11670,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "422": {
             "description": "Duplicate rules"
@@ -12233,7 +12240,7 @@
         ]
       },
       "patch": {
-        "description": "Switch SCIM on or off; set the providers that may link logins to SCIM users.",
+        "description": "Switch SCIM on or off; set the providers that may link logins to SCIM users. Needs a\nrecent confirmation: a linking provider signs in to SCIM accounts by e-mail address.",
         "operationId": "admin_update_scim_settings",
         "requestBody": {
           "content": {
@@ -12260,7 +12267,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "422": {
             "content": {
@@ -12408,7 +12415,7 @@
         ]
       },
       "post": {
-        "description": "Connect a shared mailbox (connection tested first) and assign it. The initial\nimport starts right away unless ``sync_enabled`` is false.",
+        "description": "Connect a shared mailbox (connection tested first) and assign it. The initial\nimport starts right away unless ``sync_enabled`` is false. First assignments need a\nrecent confirmation, as ``PUT …/assignments``.",
         "operationId": "admin_create_shared_mailbox",
         "requestBody": {
           "content": {
@@ -12435,7 +12442,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "409": {
             "description": "Shared mailbox already added"
@@ -12609,7 +12616,7 @@
     },
     "/admin/shared-mailboxes/{mailbox_id}/assignments": {
       "put": {
-        "description": "Replace who may read the mailbox and who may also act on its mails (``act_users``,\ngroup ``permission``). Removing a user or group revokes access at once: from the next\nrequest on, its mails, triage, todos, search hits, answers and digests are no longer\nvisible to them.",
+        "description": "Replace who may read the mailbox and who may also act on its mails (``act_users``,\ngroup ``permission``). Removing a user or group revokes access at once: from the next\nrequest on, its mails, triage, todos, search hits, answers and digests are no longer\nvisible to them. Needs a recent confirmation (#206): an admin could assign the mailbox\nto themselves and read it.",
         "operationId": "admin_set_shared_mailbox_assignments",
         "parameters": [
           {
@@ -12648,7 +12655,7 @@
             "description": "Not signed in"
           },
           "403": {
-            "description": "Not an admin"
+            "description": "Not an admin, or confirm the account first (reauth-required)"
           },
           "404": {
             "description": "No such shared mailbox"
@@ -17763,7 +17770,7 @@
     },
     "/messages/{message_id}/body": {
       "get": {
-        "description": "Sanitised HTML; with ``external_images=true`` remote images are kept (the user\nchose to load them for this message).",
+        "description": "Sanitised HTML and plain text, e.g. for a message expanded in the thread; with\n``external_images=true`` remote images are kept (the user chose to load them for this\nmessage).",
         "operationId": "messages_get_message_body",
         "parameters": [
           {
@@ -17823,7 +17830,7 @@
     },
     "/messages/{message_id}/thread": {
       "get": {
-        "description": "The conversation of a message, oldest first (at most the newest 100 messages).\nHTML comes sanitised with external images removed.",
+        "description": "The conversation of a message, oldest first (at most the newest 100 messages).\nBodies come only for the opened and the newest message, the ones the UI shows\nexpanded; the others have ``body: null`` and are loaded with ``/body`` (#210). HTML\ncomes sanitised with external images removed.",
         "operationId": "messages_get_thread",
         "parameters": [
           {

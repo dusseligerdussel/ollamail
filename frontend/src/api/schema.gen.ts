@@ -111,7 +111,9 @@ export interface paths {
         head?: never;
         /**
          * Update Ai Settings
-         * @description Change settings; ``null`` resets a field to the environment's value.
+         * @description Change settings; ``null`` resets a field to the environment's value. Turning cloud
+         *     providers on and assigning tasks need a recent confirmation (#206); turning them off,
+         *     profile and concurrency do not.
          */
         patch: operations["ai_update_ai_settings"];
         trace?: never;
@@ -272,7 +274,7 @@ export interface paths {
         /**
          * Update Role Mapping
          * @description Replace the mapping. Takes effect at each user's next login; the last active admin
-         *     is never demoted by it.
+         *     is never demoted by it. Needs a recent confirmation: a rule can make a group admin.
          */
         put: operations["admin_update_role_mapping"];
         post?: never;
@@ -465,7 +467,8 @@ export interface paths {
         head?: never;
         /**
          * Update Scim Settings
-         * @description Switch SCIM on or off; set the providers that may link logins to SCIM users.
+         * @description Switch SCIM on or off; set the providers that may link logins to SCIM users. Needs a
+         *     recent confirmation: a linking provider signs in to SCIM accounts by e-mail address.
          */
         patch: operations["admin_update_scim_settings"];
         trace?: never;
@@ -526,7 +529,8 @@ export interface paths {
         /**
          * Create Shared Mailbox
          * @description Connect a shared mailbox (connection tested first) and assign it. The initial
-         *     import starts right away unless ``sync_enabled`` is false.
+         *     import starts right away unless ``sync_enabled`` is false. First assignments need a
+         *     recent confirmation, as ``PUT …/assignments``.
          */
         post: operations["admin_create_shared_mailbox"];
         delete?: never;
@@ -575,7 +579,8 @@ export interface paths {
          * @description Replace who may read the mailbox and who may also act on its mails (``act_users``,
          *     group ``permission``). Removing a user or group revokes access at once: from the next
          *     request on, its mails, triage, todos, search hits, answers and digests are no longer
-         *     visible to them.
+         *     visible to them. Needs a recent confirmation (#206): an admin could assign the mailbox
+         *     to themselves and read it.
          */
         put: operations["admin_set_shared_mailbox_assignments"];
         post?: never;
@@ -2348,8 +2353,9 @@ export interface paths {
         };
         /**
          * Get Message Body
-         * @description Sanitised HTML; with ``external_images=true`` remote images are kept (the user
-         *     chose to load them for this message).
+         * @description Sanitised HTML and plain text, e.g. for a message expanded in the thread; with
+         *     ``external_images=true`` remote images are kept (the user chose to load them for this
+         *     message).
          */
         get: operations["messages_get_message_body"];
         put?: never;
@@ -2370,7 +2376,9 @@ export interface paths {
         /**
          * Get Thread
          * @description The conversation of a message, oldest first (at most the newest 100 messages).
-         *     HTML comes sanitised with external images removed.
+         *     Bodies come only for the opened and the newest message, the ones the UI shows
+         *     expanded; the others have ``body: null`` and are loaded with ``/body`` (#210). HTML
+         *     comes sanitised with external images removed.
          */
         get: operations["messages_get_thread"];
         put?: never;
@@ -5304,19 +5312,22 @@ export interface components {
         };
         /**
          * MessageBody
-         * @description Sanitised HTML of a message. External images are removed unless requested.
+         * @description Body of a message: sanitised HTML (external images removed unless requested) and
+         *     the plain text.
          */
         MessageBody: {
             /** Blocked Images */
             blocked_images: number;
             /** Html */
             html: string | null;
+            /** Text */
+            text: string;
         };
         /** MessageDetail */
         MessageDetail: {
             /** Attachments */
             attachments: components["schemas"]["AttachmentRead"][];
-            body: components["schemas"]["MessageBody"];
+            body: components["schemas"]["MessageBody"] | null;
             /** Cc */
             cc: components["schemas"]["AddressRead"][];
             /**
@@ -5347,8 +5358,6 @@ export interface components {
             snippet: string;
             /** Subject */
             subject: string;
-            /** Text */
-            text: string;
             /** Thread Id */
             thread_id: string | null;
             /** To */
@@ -7543,7 +7552,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8220,7 +8229,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -8887,7 +8896,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9072,7 +9081,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -9284,7 +9293,7 @@ export interface operations {
                 };
                 content?: never;
             };
-            /** @description Not an admin */
+            /** @description Not an admin, or confirm the account first (reauth-required) */
             403: {
                 headers: {
                     [name: string]: unknown;

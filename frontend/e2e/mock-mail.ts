@@ -103,13 +103,13 @@ function detail(index: number, overrides: Record<string, unknown> = {}) {
     cc: index % 3 === 0 ? [{ name: null, address: "team@example.org" }] : [],
     reply_to: [],
     sent_at: base.date,
-    text: `${base.snippet}\n\nViele Grüße\n${base.sender.name}`,
-    body: html
-      ? {
-          html: `<p>Hallo Erika,</p><p>${base.snippet}</p><p>Viele Grüße<br>${base.sender.name}</p>`,
-          blocked_images: 0,
-        }
-      : { html: null, blocked_images: 0 },
+    body: {
+      html: html
+        ? `<p>Hallo Erika,</p><p>${base.snippet}</p><p>Viele Grüße<br>${base.sender.name}</p>`
+        : null,
+      blocked_images: 0,
+      text: `${base.snippet}\n\nViele Grüße\n${base.sender.name}`,
+    },
     attachments: base.has_attachments
       ? [
           {
@@ -125,8 +125,11 @@ function detail(index: number, overrides: Record<string, unknown> = {}) {
   };
 }
 
-/** The newsletter (index 4) shows blocked images; index 2 is a reply in a thread. */
-function thread(index: number) {
+/**
+ * The thread as stored: every message with its body. The newsletter (index 4) shows blocked
+ * images; replies ("Re: …") have an earlier message (`messageId(90_000 + index)`).
+ */
+function fullThread(index: number) {
   const opened = summary(index);
   if (opened.subject.startsWith("Herbstaktion")) {
     return {
@@ -135,8 +138,7 @@ function thread(index: number) {
       subject: opened.subject,
       messages: [
         detail(index, {
-          body: { html: newsletterHtml, blocked_images: 3 },
-          text: "Herbstaktion im Fahrradladen",
+          body: { html: newsletterHtml, blocked_images: 3, text: "Herbstaktion im Fahrradladen" },
         }),
       ],
     };
@@ -149,8 +151,11 @@ function thread(index: number) {
         sender: { name: "Erika Mustermann", address: "erika@example.org" },
         to: [opened.sender],
         snippet: "Anbei der Entwurf für das Angebot, Rückmeldung gerne bis Mittwoch.",
-        text: "Hallo,\n\nanbei der Entwurf für das Angebot, Rückmeldung gerne bis Mittwoch.\n\nErika",
-        body: { html: null, blocked_images: 0 },
+        body: {
+          html: null,
+          blocked_images: 0,
+          text: "Hallo,\n\nanbei der Entwurf für das Angebot, Rückmeldung gerne bis Mittwoch.\n\nErika",
+        },
         unread: false,
         date: new Date(new Date(opened.date).getTime() - 26 * 3_600_000).toISOString(),
       }),
@@ -167,6 +172,35 @@ function thread(index: number) {
     mailbox_id: opened.mailbox_id,
     subject: opened.subject,
     messages: [detail(index)],
+  };
+}
+
+/** Like the API (#210): bodies only for the opened and the newest message. */
+function thread(index: number) {
+  const data = fullThread(index);
+  const opened = messageId(index);
+  const newest = data.messages.at(-1)?.id;
+  return {
+    ...data,
+    messages: data.messages.map((message) =>
+      message.id === opened || message.id === newest ? message : { ...message, body: null },
+    ),
+  };
+}
+
+/** `GET /messages/{id}/body` of a stored message (replies' earlier message included). */
+function messageBody(id: string, externalImages: boolean) {
+  const index = Number.parseInt(id.split("-").at(-1) ?? "0", 16);
+  const data = fullThread(index >= 90_000 ? index - 90_000 : index);
+  const body = data.messages.find((message) => message.id === id)?.body;
+  if (!body || !externalImages || body.blocked_images === 0) return body;
+  return {
+    ...body,
+    html: newsletterHtml.replace(
+      '<img src="" alt="">',
+      '<span style="display:inline-block;width:120px;height:32px;background:#e4e4e7"></span>',
+    ),
+    blocked_images: 0,
   };
 }
 
@@ -417,13 +451,12 @@ export async function mockMail(
       }
       const bodyMatch = path.match(/^\/messages\/([^/]+)\/body$/);
       if (bodyMatch) {
-        return json(route, {
-          html: newsletterHtml.replace(
-            '<img src="" alt="">',
-            '<span style="display:inline-block;width:120px;height:32px;background:#e4e4e7"></span>',
-          ),
-          blocked_images: 0,
-        });
+        await wait();
+        const body = messageBody(
+          bodyMatch[1] ?? "",
+          url.searchParams.get("external_images") === "true",
+        );
+        return body ? json(route, body) : json(route, { title: "Not Found", status: 404 }, 404);
       }
       const actionMatch = path.match(/^\/messages\/([^/]+)\/actions$/);
       if (actionMatch && method === "POST") {

@@ -418,16 +418,18 @@ auch für ein archivlastiges Postfach mit wenigen Ungelesenen und kleinen Triage
 | Endpunkt | Zweck |
 |---|---|
 | `GET /messages` | Eine Zeile je Mail, neueste zuerst, Keyset-Paging (`cursor`, `limit` ≤ 200), `total` für die virtualisierte Liste (nur auf der ersten Seite, danach `null`). Filter: `mailbox_id`, `folder_id` (ohne: Ordner mit Rolle `inbox`), `unread`. Ohne Bodies; nur ein Snippet aus `body_main` |
-| `GET /messages/{id}/thread` | Konversation der Mail, älteste zuerst (höchstens die neuesten 100), mit Empfängern, Text, sanitisiertem HTML (`body.html`, `body.blocked_images`) und Anhängen |
-| `GET /messages/{id}/body?external_images=true` | HTML mit externen Bildern – erst, wenn der Nutzer sie für diese Mail anfordert |
+| `GET /messages/{id}/thread` | Konversation der Mail, älteste zuerst (höchstens die neuesten 100), mit Empfängern, Snippet und Anhängen. Den Body (`body`: sanitisiertes HTML `html`, `blocked_images`, Text `text`) haben nur die geöffnete und die neueste Mail – die, die das UI aufgeklappt zeigt; alle anderen `body: null` (#210) |
+| `GET /messages/{id}/body` | Body einer Mail (`html`, `blocked_images`, `text`): beim Aufklappen einer eingeklappten Mail im Thread. Mit `?external_images=true` HTML mit externen Bildern – erst, wenn der Nutzer sie für diese Mail anfordert |
 | `PATCH /messages/{id}` | `{"seen": bool, "flagged": bool}` (beide optional): gelesen/ungelesen, markieren. Sofort gespeichert, Event `message.updated` an alle Leser, Job `mail.write_flags` schreibt die Flags auf den Server; Markieren steht im Audit-Log (`mail.flagged`). Braucht `act`, sonst 403 `read_only` (der Status gilt für das ganze Postfach) |
 | `POST /messages/{id}/actions` | `{"action": "archive" \| "trash" \| "move", "folder_id"}` (#148, `app/mail/api/actions.py`): synchron auf dem Server, Antwort mit neuen `folder_ids` und `undo_folder_id`. Braucht `act` (403 `read_only`); 409 `no_archive_folder`/`no_trash_folder`/`message_not_found`, 422 `unknown_folder`, 502/503 bei Serverfehlern. Siehe §3.1, „Mail-Aktionen auf dem Server“ |
 | `GET /messages/{id}/attachments/{attachment_id}` | Download (`Content-Disposition: attachment`, `application/octet-stream`, `nosniff`, CSP `sandbox`). `?inline=true` nur für PNG/JPEG/GIF/WebP (`cid:`-Bilder im HTML) |
 
 - **HTML:** immer serverseitig mit `sanitize_html` bereinigt; das Roh-HTML verlässt den Server nie.
-  Das Bereinigen (bis zu 100 Bodies je Thread) läuft per `asyncio.to_thread` außerhalb des
-  Event-Loops, damit es andere Requests nicht blockiert (#147); ebenso `normalize_message`
-  (MIME-Parsing) beim Speichern im Worker.
+  Das Bereinigen läuft per `asyncio.to_thread` außerhalb des Event-Loops, damit es andere Requests
+  nicht blockiert (#147); ebenso `normalize_message` (MIME-Parsing) beim Speichern im Worker.
+  Der Thread lädt und bereinigt höchstens zwei Bodies (geöffnete und neueste Mail), nicht alle
+  bis zu 100 (#210); das Frontend lädt weitere beim Aufklappen über `/body` nach (TanStack Query,
+  Skeleton während des Ladens).
   `cid:`-Bilder zeigen auf `/api/messages/{id}/attachments/{aid}?inline=true`.
 - **Gelesen/ungelesen:** Quelle ist der gespeicherte Flag-Satz. `mail.write_flags` (Queue `sync`,
   Lock je Mail) schreibt beim Ausführen den aktuellen Stand per `MailProvider.set_flags`; dauerhafte
@@ -1486,7 +1488,7 @@ Anfrage weniger als das Idle-Timeout zurückliegt (`last_seen_at`, höchstens mi
 geschrieben). `authenticated_at` hält fest, wann sich der Nutzer in dieser Session zuletzt
 ausgewiesen hat (Login oder Bestätigung); sensible Endpunkte (Faktor entfernen, neue
 Wiederherstellungscodes, Datenexport, Konto löschen; kritische Admin-Aktionen wie Nutzer
-löschen, Rollen, SCIM-Tokens, Anmelde- und KI-Provider über `RecentAdminDep`, #190) verlangen über `RecentAuthDep`
+löschen, Rollen, SCIM-Tokens und -Einstellungen, Rollen-Zuordnung, Anmelde- und KI-Provider, KI-Cloud-Freigabe und Aufgaben-Zuordnung, Shared-Mailbox-Zuweisungen über `RecentAdminDep` bzw. `check_recent`, #190, #206) verlangen über `RecentAuthDep`
 (`app/auth/reauth.py`) eine Bestätigung innerhalb von `OLLAMAIL_AUTH_REAUTH_MINUTES` per
 Passwort, TOTP, Passkey oder erneuter (SSO-)Anmeldung, sonst 403 `reauth-required`
 (Details: [`auth/mfa.md`](auth/mfa.md#bestätigung-vor-sensiblen-aktionen-144)). Jede Anfrage prüft Rolle und `is_active` neu; deaktivierte Nutzer verlieren sofort

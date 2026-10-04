@@ -16,6 +16,7 @@ import {
   createScimToken,
   revokeScimToken,
   type ScimSettings,
+  type ScimSettingsUpdate,
   type ScimToken,
   type ScimTokenIssued,
   scimQueryKey,
@@ -102,8 +103,10 @@ function ScimContent() {
 function useSaveSettings() {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const withReauth = useReauth();
   return useMutation({
-    mutationFn: updateScimSettings,
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: (body: ScimSettingsUpdate) => withReauth(() => updateScimSettings(body)),
     onSuccess: (data) => {
       queryClient.setQueryData(scimQueryKey, data);
       toast.success(t("pages.scim.saved"));

@@ -1322,6 +1322,7 @@
     "messageFrom": "Message from {{sender}}",
     "to": "To",
     "emptyBody": "This message has no text.",
+    "loadingBody": "Loading message…",
     "bodyFrameTitle": "Content of the message “{{subject}}”",
     "imagesBlocked_one": "1 external image was blocked to protect your privacy.",
     "imagesBlocked_other": "{{count}} external images were blocked to protect your privacy.",

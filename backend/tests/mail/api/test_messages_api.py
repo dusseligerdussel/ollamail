@@ -233,7 +233,7 @@ async def test_thread_contains_sanitised_html_without_external_images(
     [message] = thread["messages"]
     assert message["sender"] == {"name": "Max Mustermann", "address": "max@example.com"}
     assert message["to"] == [{"name": None, "address": "erika@example.org"}]
-    assert message["text"].startswith("Plain version")
+    assert message["body"]["text"].startswith("Plain version")
     html = message["body"]["html"]
     assert "Figures attached." in html
     assert "tracker.example.net" not in html
@@ -252,6 +252,7 @@ async def test_thread_contains_sanitised_html_without_external_images(
     ).json()
     assert "https://tracker.example.net/pixel.gif" in body["html"]
     assert body["blocked_images"] == 0
+    assert body["text"].startswith("Plain version")
 
 
 async def test_thread_groups_replies(
@@ -276,6 +277,59 @@ async def test_thread_groups_replies(
     assert [m["subject"] for m in thread["messages"]] == ["Planning", "Re: Planning"]
     assert thread["subject"] == "Planning"
     assert thread["thread_id"] is not None
+
+
+def message_id_of(mail: bytes) -> str:
+    return next(
+        line.split(":", 1)[1].strip()
+        for line in mail.decode().splitlines()
+        if line.startswith("Message-ID:")
+    )
+
+
+async def test_thread_returns_bodies_only_for_opened_and_newest_message(
+    erika: AsyncClient, db_session: AsyncSession, server: FakeServer, storage: AttachmentStorage
+) -> None:
+    """Collapsed messages come without body; it is loaded on expanding (#210)."""
+    first = html_mail(subject="Planning")
+    second = html_mail(subject="Re: Planning", references=message_id_of(first))
+    third = html_mail(subject="Re: Re: Planning", references=message_id_of(second))
+    for hours, mail in enumerate((first, second, third), start=1):
+        server.provider.add_message("INBOX", mail, received_at=NOW + timedelta(hours=hours))
+    await synced_mailbox(erika, db_session, server, storage)
+    items = (await inbox(erika))["items"]
+    assert isinstance(items, list)
+    by_subject = {item["subject"]: item["id"] for item in items}
+    oldest, middle, newest = (
+        by_subject[subject] for subject in ("Planning", "Re: Planning", "Re: Re: Planning")
+    )
+
+    response = await erika.get(f"/messages/{oldest}/thread")
+    assert response.status_code == 200
+    messages = response.json()["messages"]
+    assert [m["id"] for m in messages] == [oldest, middle, newest]
+    assert [m["body"] is not None for m in messages] == [True, False, True]
+    assert "Figures attached." in messages[0]["body"]["html"]
+    assert messages[2]["body"]["text"].startswith("Plain version")
+    # Collapsed: metadata, snippet and attachments, but no body.
+    collapsed = messages[1]
+    assert collapsed["snippet"].startswith("Plain version")
+    assert collapsed["to"] == [{"name": None, "address": "erika@example.org"}]
+    assert [a["filename"] for a in collapsed["attachments"] if not a["is_inline"]] == [
+        "figures.pdf"
+    ]
+    assert "text" not in collapsed
+
+    # Opening the newest message: only it carries a body.
+    messages = (await erika.get(f"/messages/{newest}/thread")).json()["messages"]
+    assert [m["body"] is not None for m in messages] == [False, False, True]
+
+    # Expanding loads the body of the collapsed message.
+    body = (await erika.get(f"/messages/{middle}/body")).json()
+    assert "Figures attached." in body["html"]
+    assert "tracker.example.net" not in body["html"]
+    assert body["blocked_images"] == 1
+    assert body["text"].startswith("Plain version")
 
 
 # -- attachments --------------------------------------------------------------------------
