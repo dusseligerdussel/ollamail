@@ -109,14 +109,16 @@ class TriageResult(Base):
     __table_args__ = (
         CheckConstraint("priority BETWEEN 1 AND 3", name="priority"),
         Index(None, "category_id"),
-        # Segments of the triaged inbox (``app.triage.service.inbox_page``) in list order.
+        # Segments of the triaged inbox (``app.triage.service.inbox_page``) in list order;
+        # only the results of inbox messages, so it grows with the inbox, not the mailbox.
         Index(
-            "ix_triage_results_segment",
+            "ix_triage_results_inbox_segment",
             "mailbox_id",
             "category_id",
             "priority",
             text("sort_date DESC"),
             text("message_id DESC"),
+            postgresql_where=text("in_inbox"),
         ),
         Index(
             "ix_triage_results_write_back_pending",
@@ -124,20 +126,26 @@ class TriageResult(Base):
             postgresql_where=text("write_back_pending"),
         ),
     )
-    # Read ``mailbox_id`` and ``sort_date`` back on insert (they are set by a trigger).
+    # Read ``mailbox_id``, ``sort_date`` and ``in_inbox`` back on insert (set by a trigger).
     __mapper_args__ = {"eager_defaults": True}  # noqa: RUF012
 
     message_id: Mapped[uuid.UUID] = mapped_column(
         ForeignKey("mail_messages.id", ondelete="CASCADE"), unique=True
     )
-    # Copies of the message's ``mailbox_id`` and ``sort_date`` for ``ix_triage_results_segment``
-    # (#186). Set and kept up to date by the triggers ``triage_results_message_columns`` and
-    # ``mail_messages_triage_sort_date`` (migration ``denormalise_triage_list_columns``),
-    # never written by the application. No foreign key: the row goes with its message.
+    # Copies of the message's ``mailbox_id`` and ``sort_date`` for
+    # ``ix_triage_results_inbox_segment`` (#186). Set and kept up to date by the triggers
+    # ``triage_results_message_columns`` and ``mail_messages_triage_sort_date`` (migration
+    # ``denormalise_triage_list_columns``), never written by the application. No foreign key:
+    # the row goes with its message.
     mailbox_id: Mapped[uuid.UUID] = mapped_column(server_default=FetchedValue())
     sort_date: Mapped[datetime] = mapped_column(
         server_default=FetchedValue(), server_onupdate=FetchedValue()
     )
+    # The message is in a folder with the role ``inbox`` (#225). Set by
+    # ``triage_results_message_columns`` and kept up to date by the triggers
+    # ``mail_message_folders_triage_inbox`` and ``mail_folders_triage_inbox`` (migration
+    # ``triage_results_in_inbox``), never written by the application.
+    in_inbox: Mapped[bool] = mapped_column(server_default=false(), server_onupdate=FetchedValue())
     # ``NULL`` once the category was deleted; the message then counts as uncategorised.
     category_id: Mapped[uuid.UUID | None] = mapped_column(
         ForeignKey("triage_categories.id", ondelete="SET NULL")

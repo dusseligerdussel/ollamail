@@ -188,6 +188,116 @@ async def test_triage_list_columns_are_backfilled_in_batches(empty_database: str
     await asyncio.to_thread(command.downgrade, config, "93abef19553f")
 
 
+async def test_triage_in_inbox_is_backfilled_in_batches(empty_database: str) -> None:
+    """``triage_results_in_inbox`` marks the existing results of inbox messages (more than
+    one batch); the triggers set the flag on new results and follow links and roles
+    afterwards; downgrade restores the previous index."""
+    config = alembic_config(empty_database)
+    await asyncio.to_thread(command.upgrade, config, "ed3357fe44bc")
+    engine = create_async_engine(empty_database, poolclass=NullPool)
+    async with engine.begin() as connection:
+        await connection.execute(
+            text(
+                "INSERT INTO users (id, email, display_name, role, language, timezone)"
+                " VALUES (gen_random_uuid(), 'triage@example.org', 'Test', 'user', 'en', 'UTC')"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO mail_mailboxes (id, type, display_name, address, owner_user_id)"
+                " SELECT gen_random_uuid(), 'imap', 'Test', 'test@example.org', id FROM users"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO mail_folders (id, mailbox_id, remote_id, name, kind, role)"
+                " SELECT gen_random_uuid(), id, f, f, 'folder', r FROM mail_mailboxes,"
+                " (VALUES ('INBOX', 'inbox'), ('Archive', 'archive')) AS v (f, r)"
+            )
+        )
+        # 10,002 messages (two batches), every third in the inbox, all triaged.
+        await connection.execute(
+            text(
+                "INSERT INTO mail_messages (id, mailbox_id, remote_ref, subject, body_text,"
+                " body_main, size, received_at)"
+                " SELECT gen_random_uuid(), (SELECT id FROM mail_mailboxes), 'ref-' || g, '',"
+                " '', '', 0, timestamptz '2026-01-01' + g * interval '1 s'"
+                " FROM generate_series(1, 10002) AS g"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO mail_message_folders (message_id, folder_id)"
+                " SELECT m.id, f.id FROM mail_messages AS m JOIN mail_folders AS f"
+                " ON f.role = CASE WHEN substr(m.remote_ref, 5)::int % 3 = 0"
+                " THEN 'inbox' ELSE 'archive' END"
+            )
+        )
+        await connection.execute(
+            text(
+                "INSERT INTO triage_results (id, message_id, category_id, priority, source)"
+                " SELECT gen_random_uuid(), id, NULL, 2, 'llm' FROM mail_messages"
+            )
+        )
+    await engine.dispose()
+
+    await asyncio.to_thread(command.upgrade, config, "b0213ba8e62e")
+
+    engine = create_async_engine(empty_database, poolclass=NullPool)
+    async with engine.begin() as connection:
+        marked = await connection.execute(
+            text(
+                "SELECT r.in_inbox, count(*) FROM triage_results AS r"
+                " JOIN mail_messages AS m ON m.id = r.message_id"
+                " GROUP BY r.in_inbox, substr(m.remote_ref, 5)::int % 3 = 0"
+                " HAVING r.in_inbox IS DISTINCT FROM (substr(m.remote_ref, 5)::int % 3 = 0)"
+            )
+        )
+        assert marked.all() == []
+        assert await connection.scalar(text("SELECT count(*) FROM triage_results WHERE in_inbox"))
+        # Into the inbox: a new link, then the archive becomes an inbox; and out again.
+        await connection.execute(
+            text(
+                "INSERT INTO mail_message_folders (message_id, folder_id)"
+                " SELECT m.id, f.id FROM mail_messages AS m, mail_folders AS f"
+                " WHERE m.remote_ref = 'ref-1' AND f.role = 'inbox'"
+            )
+        )
+        await connection.execute(
+            text(
+                "DELETE FROM mail_message_folders AS l USING mail_messages AS m"
+                " WHERE m.id = l.message_id AND m.remote_ref = 'ref-3'"
+            )
+        )
+        flags = await connection.execute(
+            text(
+                "SELECT m.remote_ref, r.in_inbox FROM triage_results AS r"
+                " JOIN mail_messages AS m ON m.id = r.message_id"
+                " WHERE m.remote_ref IN ('ref-1', 'ref-2', 'ref-3') ORDER BY 1"
+            )
+        )
+        assert flags.all() == [("ref-1", True), ("ref-2", False), ("ref-3", False)]
+        await connection.execute(
+            text("UPDATE mail_folders SET role = 'inbox' WHERE name = 'Archive'")
+        )
+        archived = await connection.scalar(
+            text("SELECT count(*) FROM triage_results WHERE NOT in_inbox")
+        )
+        assert archived == 1  # ref-3, in no folder at all
+    await engine.dispose()
+
+    await asyncio.to_thread(command.downgrade, config, "ed3357fe44bc")
+    engine = create_async_engine(empty_database, poolclass=NullPool)
+    async with engine.connect() as connection:
+        indexes = await connection.execute(
+            text("SELECT indexname FROM pg_indexes WHERE tablename = 'triage_results'")
+        )
+        names = {row[0] for row in indexes}
+    await engine.dispose()
+    assert "ix_triage_results_segment" in names
+    assert "ix_triage_results_inbox_segment" not in names
+
+
 async def _embedding_column(url: str) -> tuple[str, str, list[float]]:
     """Column type, HNSW operator class and the stored vector (single row)."""
     engine = create_async_engine(url, poolclass=NullPool)

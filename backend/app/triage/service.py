@@ -264,20 +264,6 @@ async def correct(
     return result
 
 
-@dataclass(frozen=True, slots=True)
-class InboxEntry:
-    message_id: uuid.UUID
-    mailbox_id: uuid.UUID
-    subject: str
-    sender_name: str | None
-    sender_address: str | None
-    received_at: datetime | None
-    category_id: uuid.UUID | None
-    priority: int | None
-    source: TriageSource | None
-    reason: str | None
-
-
 def _bucket(visible: Sequence[uuid.UUID]) -> ColumnElement[uuid.UUID | None]:
     """The visible category of a message, NULL for the uncategorised group."""
     if not visible:
@@ -285,32 +271,39 @@ def _bucket(visible: Sequence[uuid.UUID]) -> ColumnElement[uuid.UUID | None]:
     return case((TriageResult.category_id.in_(visible), TriageResult.category_id))
 
 
+def _of_inbox(
+    message_id: ColumnElement[uuid.UUID], mailbox_ids: Sequence[uuid.UUID]
+) -> ColumnElement[bool]:
+    """The result of ``message_id``, a message in an inbox folder of ``mailbox_ids``.
+
+    Such a result has ``in_inbox`` set, so the condition lets the planner read the results
+    from ``ix_triage_results_inbox_segment``: the results of the inbox, not of the whole
+    mailbox (#225). The index holds every column the counts need."""
+    return and_(
+        TriageResult.message_id == message_id,
+        TriageResult.mailbox_id.in_(mailbox_ids),
+        TriageResult.in_inbox,
+    )
+
+
 async def _segment_counts(
     session: AsyncSession,
     visible: Sequence[uuid.UUID],
     mailbox_ids: Sequence[uuid.UUID],
-    folders: Sequence[uuid.UUID],
+    inbox_folders: Sequence[uuid.UUID],
     conditions: Sequence[ColumnElement[bool]],
 ) -> dict[tuple[uuid.UUID | None, int | None], int]:
-    """Messages in ``folders`` (of ``mailbox_ids``) matching ``conditions`` per visible
-    category (``None``: uncategorised) and priority; one query that reads the folders, not
-    the mailboxes."""
-    if not folders:
+    """Messages in ``inbox_folders`` (of ``mailbox_ids``) matching ``conditions`` per
+    visible category (``None``: uncategorised) and priority; one query that reads the inbox,
+    not the mailboxes."""
+    if not inbox_folders:
         return {}
-    members = listing.folder_members(folders, conditions).subquery()
+    members = listing.folder_members(inbox_folders, conditions).subquery()
     bucket = _bucket(visible).label("bucket")
     rows = await session.execute(
         select(bucket, TriageResult.priority, func.count())
         .select_from(members)
-        .outerjoin(
-            TriageResult,
-            # The mailboxes let the planner read the results of these mailboxes only, from
-            # ``ix_triage_results_segment`` (it holds every column needed here).
-            and_(
-                TriageResult.message_id == members.c.message_id,
-                TriageResult.mailbox_id.in_(mailbox_ids),
-            ),
-        )
+        .outerjoin(TriageResult, _of_inbox(members.c.message_id, mailbox_ids))
         .group_by(bucket, TriageResult.priority)
     )
     return {(row[0], row[1]): int(row[2]) for row in rows}
@@ -324,70 +317,6 @@ def _per_category(
     for (category_id, _), count in counts.items():
         totals[category_id] += count
     return totals
-
-
-async def inbox(
-    session: AsyncSession,
-    user_id: uuid.UUID,
-    visible: Sequence[uuid.UUID],
-    *,
-    mailbox_id: uuid.UUID | None,
-    per_group: int,
-) -> tuple[dict[uuid.UUID | None, list[InboxEntry]], dict[uuid.UUID | None, int]]:
-    """Messages in the inbox folders of the mailboxes the user may read, grouped by category in the
-    order of ``visible`` (``None`` = not triaged yet, or in a hidden or deleted category):
-    highest priority first, then newest; plus the total per group. Two queries, whatever the
-    number of categories."""
-    visible = list(visible)
-    mailbox_ids = await listing.readable_mailbox_ids(session, user_id, mailbox_id)
-    inbox_folders = await listing.folder_ids(session, mailbox_ids, FolderRole.INBOX)
-    conditions = [listing.in_folders(inbox_folders)]
-    totals = _per_category(
-        visible, await _segment_counts(session, visible, mailbox_ids, inbox_folders, [])
-    )
-    groups: dict[uuid.UUID | None, list[InboxEntry]] = {category_id: [] for category_id in totals}
-    if not mailbox_ids:
-        return groups, totals
-    bucket = _bucket(visible)
-    ranked = (
-        select(
-            Message.id.label("message_id"),
-            bucket.label("bucket"),
-            func.row_number()
-            .over(
-                partition_by=bucket,
-                order_by=(TriageResult.priority.asc().nulls_last(), *listing.NEWEST_FIRST),
-            )
-            .label("rank"),
-        )
-        .outerjoin(TriageResult, TriageResult.message_id == Message.id)
-        .where(Message.mailbox_id.in_(mailbox_ids), *conditions)
-        .subquery()
-    )
-    rows = await session.execute(
-        select(Message, ranked.c.bucket, TriageResult)
-        .join(ranked, ranked.c.message_id == Message.id)
-        .outerjoin(TriageResult, TriageResult.message_id == Message.id)
-        .where(ranked.c.rank <= per_group)
-        .order_by(ranked.c.rank)
-        .options(*listing.without_bodies())
-    )
-    for message, category_id, result in rows:
-        groups[category_id].append(
-            InboxEntry(
-                message_id=message.id,
-                mailbox_id=message.mailbox_id,
-                subject=message.subject,
-                sender_name=(message.sender or {}).get("name"),
-                sender_address=(message.sender or {}).get("address"),
-                received_at=message.received_at or message.sent_at,
-                category_id=result.category_id if result is not None else None,
-                priority=result.priority if result is not None else None,
-                source=result.source if result is not None else None,
-                reason=result.reason if result is not None else None,
-            )
-        )
-    return groups, totals
 
 
 async def results_of(
@@ -424,14 +353,16 @@ def _segments(visible: Sequence[uuid.UUID]) -> list[tuple[int, int | None]]:
 @dataclass(frozen=True, slots=True)
 class InboxCursor:
     """Position after the last row of a page: its segment (see ``_segments``), its place in
-    the segment (``sort_date``, ``id``) and the segments that are not empty (bit ``i`` for
-    segment ``i``), as counted for the first page."""
+    the segment (``sort_date``, ``id``), the segments that are not empty (bit ``i`` for
+    segment ``i``) and the untriaged messages, as counted for the first page (``None`` in a
+    cursor from before #225)."""
 
     position: int
     priority: int | None
     sort_date: datetime
     message_id: uuid.UUID
     filled: int
+    untriaged: int | None = None
 
     def encode(self) -> str:
         raw = "|".join(
@@ -441,6 +372,7 @@ class InboxCursor:
                 self.sort_date.isoformat(),
                 str(self.message_id),
                 format(self.filled, "x"),
+                *(() if self.untriaged is None else (str(self.untriaged),)),
             )
         )
         return base64.urlsafe_b64encode(raw.encode()).rstrip(b"=").decode()
@@ -450,13 +382,16 @@ class InboxCursor:
         """Raises ``ValueError`` for a malformed cursor."""
         try:
             raw = base64.urlsafe_b64decode(value + "=" * (-len(value) % 4)).decode()
-            position, priority, sort_date, message_id, filled = raw.split("|")
+            position, priority, sort_date, message_id, filled, *rest = raw.split("|")
+            if len(rest) > 1:
+                raise ValueError("invalid cursor")
             return cls(
                 int(position),
                 int(priority) or None,
                 datetime.fromisoformat(sort_date),
                 uuid.UUID(message_id),
                 int(filled, 16),
+                int(rest[0]) if rest else None,
             )
         except (binascii.Error, UnicodeDecodeError, ValueError):
             raise ValueError("invalid cursor") from None
@@ -478,10 +413,12 @@ class InboxPage:
 def _next_category(
     mailbox_id: uuid.UUID, previous: ColumnElement[uuid.UUID | None] | None
 ) -> ColumnElement[uuid.UUID | None]:
-    """The smallest category of a result in ``mailbox_id`` after ``previous`` (one probe of
-    ``ix_triage_results_segment``)."""
+    """The smallest category of an inbox result in ``mailbox_id`` after ``previous`` (one
+    probe of ``ix_triage_results_inbox_segment``)."""
     query = select(TriageResult.category_id).where(
-        TriageResult.mailbox_id == mailbox_id, TriageResult.category_id.is_not(None)
+        TriageResult.mailbox_id == mailbox_id,
+        TriageResult.in_inbox,
+        TriageResult.category_id.is_not(None),
     )
     if previous is not None:
         query = query.where(TriageResult.category_id > previous)
@@ -491,9 +428,9 @@ def _next_category(
 async def _hidden_categories(
     session: AsyncSession, visible: Sequence[uuid.UUID], mailbox_ids: Sequence[uuid.UUID]
 ) -> list[uuid.UUID]:
-    """Categories that results in ``mailbox_ids`` have but the user does not see (hidden, or
-    another user's category in a shared mailbox). Walks the distinct categories of each
-    mailbox, one index probe per category, instead of reading the results."""
+    """Categories that inbox results in ``mailbox_ids`` have but the user does not see
+    (hidden, or another user's category in a shared mailbox). Walks the distinct categories
+    of each mailbox, one index probe per category, instead of reading the results."""
     found: set[uuid.UUID] = set()
     for mailbox_id in mailbox_ids:
         walk = select(_next_category(mailbox_id, None).label("category_id")).cte(
@@ -515,35 +452,39 @@ def _segment(
     mailbox_ids: Sequence[uuid.UUID],
     categories: Sequence[uuid.UUID | None],
     priority: int,
-    conditions: Sequence[ColumnElement[bool]],
+    read_state: Sequence[ColumnElement[bool]],
     *,
     before: tuple[datetime, uuid.UUID] | None,
     limit: int,
 ) -> Select[Message]:
-    """At most ``limit`` triaged messages with ``priority`` in one of ``categories``
-    (``None``: deleted category) matching ``conditions``, newest first, older than
-    ``before``. Each (mailbox, category) is one range of ``ix_triage_results_segment`` read
-    in list order; several ranges are merged like the mailboxes in ``listing.newest_first``.
-    """
+    """At most ``limit`` triaged inbox messages with ``priority`` in one of ``categories``
+    (``None``: deleted category) matching ``read_state``, newest first, older than
+    ``before``. Each (mailbox, category) is one range of ``ix_triage_results_inbox_segment``
+    read in list order; several ranges are merged like the mailboxes in
+    ``listing.newest_first``. The range holds inbox messages only, so the folders need no
+    check (#225)."""
     parts = []
     for mailbox_id in mailbox_ids:
         for category_id in categories:
             query = (
                 select(TriageResult.message_id, TriageResult.sort_date)
-                .join(Message, Message.id == TriageResult.message_id)
                 .where(
                     TriageResult.mailbox_id == mailbox_id,
+                    TriageResult.in_inbox,
                     TriageResult.category_id.is_(None)
                     if category_id is None
                     else TriageResult.category_id == category_id,
                     TriageResult.priority == priority,
-                    # Lets the planner start from ``ix_mail_messages_unread`` instead.
-                    Message.mailbox_id == mailbox_id,
-                    *conditions,
                 )
                 .order_by(TriageResult.sort_date.desc(), TriageResult.message_id.desc())
                 .limit(limit)
             )
+            if read_state:
+                query = query.join(Message, Message.id == TriageResult.message_id).where(
+                    # Lets the planner start from ``ix_mail_messages_unread`` instead.
+                    Message.mailbox_id == mailbox_id,
+                    *read_state,
+                )
             if before is not None:
                 query = query.where(
                     tuple_(TriageResult.sort_date, TriageResult.message_id) < tuple_(*before)
@@ -562,7 +503,47 @@ def _segment(
 
 
 def _untriaged() -> ColumnElement[bool]:
-    return ~select(TriageResult.id).where(TriageResult.message_id == Message.id).exists()
+    return ~select(TriageResult.message_id).where(TriageResult.message_id == Message.id).exists()
+
+
+# Untriaged inbox messages up to which a page of them is sorted from their IDs (#225).
+UNTRIAGED_BY_ID = 1_000
+
+
+async def _untriaged_ids(
+    session: AsyncSession, mailbox_ids: Sequence[uuid.UUID], inbox_folders: Sequence[uuid.UUID]
+) -> list[uuid.UUID] | None:
+    """IDs of the untriaged messages in ``inbox_folders``, ``None`` if there are more than
+    ``UNTRIAGED_BY_ID``. Compares the inbox with its results (both one index range), so it
+    reads the inbox, not the mailbox."""
+    members = listing.folder_members(inbox_folders).subquery()
+    ids: list[uuid.UUID] = list(
+        await session.scalars(
+            select(members.c.message_id)
+            .where(
+                ~select(TriageResult.message_id)
+                .where(_of_inbox(members.c.message_id, mailbox_ids))
+                .exists()
+            )
+            .limit(UNTRIAGED_BY_ID + 1)
+        )
+    )
+    return ids if len(ids) <= UNTRIAGED_BY_ID else None
+
+
+def _by_id(
+    ids: Sequence[uuid.UUID],
+    conditions: Sequence[ColumnElement[bool]],
+    *,
+    before: tuple[datetime, uuid.UUID] | None,
+    limit: int,
+) -> Select[Message]:
+    """At most ``limit`` of the messages ``ids`` matching ``conditions``, newest first,
+    older than ``before``."""
+    query = select(Message).where(Message.id.in_(ids), *conditions)
+    if before is not None:
+        query = query.where(tuple_(Message.sort_date, Message.id) < tuple_(*before))
+    return query.options(*listing.without_bodies()).order_by(*listing.NEWEST_FIRST).limit(limit)
 
 
 async def inbox_page(
@@ -582,19 +563,22 @@ async def inbox_page(
 
     Pages with a keyset: the segments (category x priority) are read one after the other,
     each newest first, until the page is full. A triaged segment is a range of
-    ``ix_triage_results_segment`` per mailbox (the uncategorised: one range per deleted or
-    hidden category), so it costs about its own size at most, not the mailbox's (#186). The
-    untriaged messages are read along ``ix_mail_messages_mailbox_id_sort_date_id``. The
-    first page counts the messages per segment (one query over the inbox folders); empty
-    segments are skipped."""
+    ``ix_triage_results_inbox_segment`` per mailbox (the uncategorised: one range per deleted
+    or hidden category), so it costs about its own size at most, not the inbox's or the
+    mailbox's (#186, #225). The untriaged messages are sorted from their IDs while there are
+    at most ``UNTRIAGED_BY_ID``, otherwise read along
+    ``ix_mail_messages_mailbox_id_sort_date_id``. The first page counts the messages per
+    segment (one query over the inbox folders and their results); empty segments are
+    skipped."""
     visible = list(visible)
     mailbox_ids = await listing.readable_mailbox_ids(session, user_id, mailbox_id)
     inbox_folders = await listing.folder_ids(session, mailbox_ids, FolderRole.INBOX)
     read_state = listing.read_state(unread)
-    conditions = [listing.in_folders(inbox_folders), *read_state]
 
     segments = _segments(visible)
     total = counts = None
+    # Untriaged messages matching the filter, as counted for the first page.
+    untriaged: int | None
     if cursor is None:
         by_segment = await _segment_counts(session, visible, mailbox_ids, inbox_folders, read_state)
         filled = sum(
@@ -603,6 +587,7 @@ async def inbox_page(
             if by_segment.get((visible[position] if position < len(visible) else None, priority))
         )
         counts = _per_category(visible, by_segment)
+        untriaged = by_segment.get((None, None), 0)
         if category is None:
             total = sum(counts.values())
         elif category == "none":
@@ -611,6 +596,7 @@ async def inbox_page(
             total = counts.get(category, 0)
     else:
         filled = cursor.filled
+        untriaged = cursor.untriaged
 
     if category is None:
         positions = range(len(visible) + 1)
@@ -634,9 +620,16 @@ async def inbox_page(
             before = (cursor.sort_date, cursor.message_id)
         wanted = limit + 1 - len(rows)
         if priority is None:
-            query = listing.newest_first(
-                mailbox_ids, [*conditions, _untriaged()], before=before, limit=wanted
-            )
+            # Few untriaged messages, maybe deep in the mailbox: walking the list would read
+            # the mailbox until it finds them (#225).
+            ids: list[uuid.UUID] | None = None
+            if untriaged is not None and untriaged <= UNTRIAGED_BY_ID:
+                ids = await _untriaged_ids(session, mailbox_ids, inbox_folders)
+            if ids is not None:
+                query = _by_id(ids, read_state, before=before, limit=wanted)
+            else:
+                conditions = [listing.in_folders(inbox_folders), *read_state, _untriaged()]
+                query = listing.newest_first(mailbox_ids, conditions, before=before, limit=wanted)
         else:
             if position < len(visible):
                 categories: list[uuid.UUID | None] = [visible[position]]
@@ -645,7 +638,7 @@ async def inbox_page(
                     hidden = await _hidden_categories(session, visible, mailbox_ids)
                 categories = [None, *hidden]
             query = _segment(
-                mailbox_ids, categories, priority, conditions, before=before, limit=wanted
+                mailbox_ids, categories, priority, read_state, before=before, limit=wanted
             )
         category_id = visible[position] if position < len(visible) else None
         rows.extend((message, category_id, priority) for message in await session.scalars(query))
@@ -657,5 +650,5 @@ async def inbox_page(
         rows = rows[:limit]
         last, category_id, priority = rows[-1]
         position = visible.index(category_id) if category_id is not None else len(visible)
-        next_cursor = InboxCursor(position, priority, last.sort_date, last.id, filled)
+        next_cursor = InboxCursor(position, priority, last.sort_date, last.id, filled, untriaged)
     return InboxPage(rows=rows, next_cursor=next_cursor, total=total, counts=counts)

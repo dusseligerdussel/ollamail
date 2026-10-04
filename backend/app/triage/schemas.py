@@ -90,26 +90,6 @@ class TriageCorrection(BaseModel):
     priority: int = Field(ge=1, le=3, description="1 = high, 2 = normal, 3 = low")
 
 
-class InboxMessage(BaseModel):
-    message_id: uuid.UUID
-    mailbox_id: uuid.UUID
-    subject: str
-    sender_name: str | None
-    sender_address: str | None
-    received_at: datetime | None
-    # ``None`` while the message is not triaged yet.
-    priority: int | None
-    source: TriageSource | None
-    reason: str | None
-
-
-class InboxGroup(BaseModel):
-    # ``None``: not triaged yet, or in a hidden or deleted category.
-    category: CategoryRead | None
-    total: int
-    messages: list[InboxMessage]
-
-
 class TriagedMessage(MessageSummary):
     """A row of the inbox list ordered by category."""
 

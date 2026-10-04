@@ -38,7 +38,7 @@ MESSAGES = 100_000
 PAGE_INDEXES = {
     "ix_mail_messages_mailbox_id_sort_date_id",
     "ix_mail_messages_unread",
-    "ix_triage_results_segment",
+    "ix_triage_results_inbox_segment",
     "pk_mail_messages",
     "uq_triage_results_message_id",
 }
