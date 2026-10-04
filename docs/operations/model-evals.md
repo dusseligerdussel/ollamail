@@ -202,8 +202,10 @@ Geschwindigkeit (Mittel je Aufruf; „verarbeitet“ = Prompt- und Antwort-Token
   Ollama-Log rund 2 000 Tokens ohne fertiges JSON). Jeder solche Aufruf belegt den LLM-Slot für
   die volle Frist; im Betrieb hätte er ohne Frist 300 s gedauert und wäre danach wiederholt
   worden. Gemeldet als #132, seit #133 begrenzt das Gateway die Antwort (Todos: 800 Tokens) und
-  die Dauer (Profil `cpu`: 180 s). Ob das die Timeouts beseitigt, misst #134; die Zahlen hier sind
-  der Stand **vor** #133.
+  die Dauer (Profil `cpu`: 180 s). Die Zahlen hier sind der Stand **vor** #133. Die Messung
+  vorher/nachher (#134, [`../evals/2026-10-04-limit-134.md`](../evals/2026-10-04-limit-134.md))
+  ergab auf einer Stichprobe: Timeouts 9 → 3 von 53, Todo-Stufe 52,9 → 28,9 min; auf dem aktuellen
+  `main` erreicht kein Aufruf mehr das Limit.
 - **Triage:** `qwen2.5:3b` trennt Newsletter (86 %), Benachrichtigungen (96 %), Info (75 %) und
   „Aktion nötig“ (75 %) brauchbar, erkennt aber „Warten auf“ fast nie (1 von 24, meist als „Info“)
   und Spam kaum (3 von 20; 7 Spam-Mails, darunter Phishing und Prompt-Injection, als „wichtig“).
@@ -243,7 +245,6 @@ Geschwindigkeit (Mittel je Aufruf; „verarbeitet“ = Prompt- und Antwort-Token
 - `bge-m3` als Embedding-Modell (nicht verfügbar), stattdessen `granite-embedding-multilingual`.
 - Der LLM-Judge und das Reranking (im Profil `cpu` aus).
 - RAG mit allen 60 Fragen und `llama3.2:1b` auf dem vollen Datensatz.
-- Vorher/Nachher von #133: #134.
 
 ### 4.5 Prompt-Verbesserungen aus #158 (3. Oktober 2026, nur CPU)
 

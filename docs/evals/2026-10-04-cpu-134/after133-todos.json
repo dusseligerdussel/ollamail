@@ -1,0 +1,342 @@
+{
+  "run": {
+    "started_at": "2026-10-04T07:49:22+00:00",
+    "host": {
+      "system": "Linux",
+      "machine": "x86_64",
+      "cpu": "Intel(R) Xeon(R) Processor @ 2.10GHz",
+      "cpu_count": 4,
+      "description": "Intel(R) Xeon(R) Processor @ 2.10GHz, 4 logical CPUs, Linux x86_64"
+    },
+    "endpoint": {
+      "provider": "ollama",
+      "base_url": "http://localhost:11434"
+    },
+    "profile": "cpu",
+    "stages": [
+      "todos"
+    ],
+    "dataset": {
+      "mails": 100,
+      "questions": 39,
+      "languages": [
+        "de",
+        "en"
+      ]
+    },
+    "prefilter": true,
+    "call_timeouts": {
+      "triage": 180.0,
+      "todos": 180.0,
+      "digest": 360.0,
+      "rag_chat": 360.0
+    },
+    "judge_model": null,
+    "prompt_versions": {
+      "triage": "triage@1",
+      "todos_extract": "todos_extract@1",
+      "digest_map": "digest_map@1",
+      "digest_condense": "digest_condense@1",
+      "digest_reduce": "digest_reduce@1",
+      "rag_query": "rag_query@1",
+      "rag_rerank": "rag_rerank@1",
+      "rag_answer": "rag_answer@1",
+      "eval_judge": "eval_judge@1"
+    },
+    "finished_at": "2026-10-04T08:18:17+00:00",
+    "note": "Code ea3a54c (#125 branch after merging #133): todos 800 tokens, profile cpu deadlines. Issue #134."
+  },
+  "models": [
+    {
+      "model": "qwen2.5:3b",
+      "seconds": 1735.8,
+      "error": null,
+      "timeouts": {
+        "calls": 53,
+        "timed_out": 3,
+        "rate": 0.0566
+      },
+      "stages": {
+        "todos": {
+          "mails": 53,
+          "expected_todos": 26,
+          "predicted_todos": 78,
+          "precision": 0.2692,
+          "recall": 0.8077,
+          "f1": 0.4038,
+          "due_date_accuracy": 0.6667,
+          "due_dates_checked": 21,
+          "errors": 3,
+          "skipped_mails": 47,
+          "skipped_expected_todos": 0,
+          "mistakes": [
+            {
+              "mail": "de-a-003",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 0,
+              "error": "LLMTimeoutError"
+            },
+            {
+              "mail": "de-a-005",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 0,
+              "error": "LLMTimeoutError"
+            },
+            {
+              "mail": "de-a-013",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 0,
+              "error": "LLMTimeoutError"
+            },
+            {
+              "mail": "de-a-017",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-a-023",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-a-025",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 1
+            },
+            {
+              "mail": "de-a-033",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-a-035",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-a-037",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-a-041",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 2
+            },
+            {
+              "mail": "de-a-045",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-a-047",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-005",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-007",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-013",
+              "missed": 0,
+              "extra": 3,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-021",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-025",
+              "missed": 0,
+              "extra": 3,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-033",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-035",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-037",
+              "missed": 1,
+              "extra": 1,
+              "wrong_due": 1
+            },
+            {
+              "mail": "de-b-041",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-043",
+              "missed": 0,
+              "extra": 4,
+              "wrong_due": 0
+            },
+            {
+              "mail": "de-b-049",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-003",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-005",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-013",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-023",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-033",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-037",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-045",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-a-049",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-007",
+              "missed": 0,
+              "extra": 3,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-013",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-021",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-025",
+              "missed": 0,
+              "extra": 3,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-027",
+              "missed": 1,
+              "extra": 0,
+              "wrong_due": 1
+            },
+            {
+              "mail": "en-b-033",
+              "missed": 0,
+              "extra": 4,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-037",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-043",
+              "missed": 0,
+              "extra": 2,
+              "wrong_due": 0
+            },
+            {
+              "mail": "en-b-045",
+              "missed": 0,
+              "extra": 0,
+              "wrong_due": 2
+            },
+            {
+              "mail": "en-b-049",
+              "missed": 0,
+              "extra": 1,
+              "wrong_due": 0
+            }
+          ]
+        }
+      },
+      "calls": {
+        "todos": {
+          "calls": 53,
+          "failed": 3,
+          "timeouts": 3,
+          "seconds_mean": 32.75,
+          "seconds_p50": 10.89,
+          "seconds_p95": 180.07,
+          "prompt_tokens": 57189,
+          "completion_tokens": 10607,
+          "tokens_per_second": 8.87,
+          "processed_tokens_per_second": 56.71,
+          "tokens_estimated": false
+        }
+      }
+    }
+  ]
+}
