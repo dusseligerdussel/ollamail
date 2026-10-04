@@ -448,7 +448,7 @@
       "addProvider": "Add provider",
       "methods": "Sign-in methods",
       "local": "Local accounts",
-      "localDescription": "E-mail address and password stored in ollamail.",
+      "localDescription": "Email address and password stored in ollamail.",
       "enabled": "Active",
       "disabled": "Disabled",
       "fromEnvironment": "Environment",
@@ -702,7 +702,7 @@
       "revoked": "Token revoked",
       "cancel": "Cancel",
       "linking": "Sign-in of provisioned users",
-      "linkingDescription": "Provisioned users sign in through a provider. Selected providers may link the first sign-in to the provisioned account by its verified e-mail address.",
+      "linkingDescription": "Provisioned users sign in through a provider. Selected providers may link the first sign-in to the provisioned account by its verified email address.",
       "noProviders": "No sign-in provider is set up yet.",
       "saveLinking": "Save",
       "groupsHint": "Groups appear as provider “SCIM” in the role mapping and in shared mailboxes. Deactivating a user ends all sessions at once; deleting removes the user with all their data, shared mailboxes stay."
@@ -775,7 +775,7 @@
         },
         "kept": "Team mailboxes are kept; only this user's assignment is removed. The mails stay in the mail accounts at the provider. The audit log keeps an entry without name and address.",
         "selfWarning": "This is your own account. You will be signed out immediately and cannot sign in again. To export your data first, use Settings → Your data.",
-        "confirmLabel": "To confirm, enter the e-mail address {{email}}",
+        "confirmLabel": "To confirm, enter the email address {{email}}",
         "cancel": "Cancel",
         "confirm": "Delete permanently",
         "done_one": "User deleted ({{count}} mailbox removed)",
@@ -1009,7 +1009,7 @@
   "auth": {
     "logout": "Sign out",
     "fields": {
-      "email": "E-mail address",
+      "email": "Email address",
       "password": "Password",
       "displayName": "Name",
       "setupToken": "Setup code"
@@ -1021,7 +1021,7 @@
       "description": "Use your ollamail account.",
       "submit": "Sign in",
       "submitting": "Signing in…",
-      "invalidCredentials": "E-mail address or password is incorrect.",
+      "invalidCredentials": "Email address or password is incorrect.",
       "throttled": "Too many sign-in attempts. Please wait a few minutes and try again.",
       "or": "or",
       "providers": "Other sign-in methods",
@@ -1540,7 +1540,7 @@
       "open": "Delete account…",
       "confirmTitle": "Delete your account permanently?",
       "confirmDescription": "All mailboxes, mails, attachments, tasks, digests, question history and exports are deleted immediately. The mails remain in your mail accounts. Export your data first if you want to keep it.",
-      "confirmLabel": "To confirm, enter your e-mail address {{email}}",
+      "confirmLabel": "To confirm, enter your email address {{email}}",
       "cancel": "Cancel",
       "confirm": "Delete account",
       "lastAdmin": "You are the last administrator. Make another user an administrator first."

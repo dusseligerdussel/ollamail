@@ -5,6 +5,7 @@ import { type MockApi, mockApi } from "./mock-api";
 import { mockDigest } from "./mock-digest";
 import { mockDrafts, overviewDrafts } from "./mock-drafts";
 import { mockMail, NOW } from "./mock-mail";
+import { mockNotifications, notificationCategories } from "./mock-notifications";
 import { mockSearch } from "./mock-search";
 import { mockTodos } from "./mock-todos";
 
@@ -24,6 +25,7 @@ export const routes = [
   "/settings/categories",
   "/settings/mailboxes",
   "/settings/mailboxes/new",
+  "/settings/notifications",
   "/settings/task-export",
   "/admin",
   "/admin/ai",
@@ -56,6 +58,11 @@ export async function mockState(page: Page, state: State) {
   await mockApi(page);
   if (state === "data" || state === "empty") {
     const empty = state === "empty";
+    // First: its categories route is the fallback for the triage mocks registered below.
+    await mockNotifications(page, {
+      enabled: !empty,
+      categoryIds: empty ? [] : notificationCategories.slice(0, 2).map((category) => category.id),
+    });
     await mockMail(page, { mailboxes: !empty, triage: !empty });
     await mockDigest(page, { digests: empty ? 0 : 8 });
     await mockTodos(page, { todos: !empty });
