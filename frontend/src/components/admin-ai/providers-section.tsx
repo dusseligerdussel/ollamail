@@ -1,5 +1,5 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { Pencil, Plus, Trash2 } from "lucide-react";
+import { Pencil, Trash2 } from "lucide-react";
 import { useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { toast } from "sonner";
@@ -165,44 +165,44 @@ function DeleteDialog({
   );
 }
 
-export function ProvidersSection({ providers }: { providers: AIProvider[] }) {
+/** `adding` is driven by the page header's "Add provider" button. */
+export function ProvidersSection({
+  providers,
+  adding,
+  onAddingChange,
+}: {
+  providers: AIProvider[];
+  adding: boolean;
+  onAddingChange: (open: boolean) => void;
+}) {
   const { t } = useTranslation();
   const id = useId();
-  const [sheet, setSheet] = useState<{ open: boolean; provider: AIProvider | null }>({
+  const [editing, setEditing] = useState<{ open: boolean; provider: AIProvider | null }>({
     open: false,
     provider: null,
   });
   const [deleting, setDeleting] = useState<AIProvider | null>(null);
 
   return (
-    <AdminSection
-      id={`${id}-title`}
-      title={t("pages.ai.providers.section")}
-      actions={
-        <Button
-          size="sm"
-          variant="outline"
-          onClick={() => setSheet({ open: true, provider: null })}
-        >
-          <Plus />
-          {t("pages.ai.providers.add")}
-        </Button>
-      }
-    >
+    <AdminSection id={`${id}-title`} title={t("pages.ai.providers.section")}>
       <ul aria-labelledby={`${id}-title`} className="divide-y">
         {providers.map((provider) => (
           <ProviderRow
             key={provider.name}
             provider={provider}
-            onEdit={() => setSheet({ open: true, provider })}
+            onEdit={() => setEditing({ open: true, provider })}
             onDelete={() => setDeleting(provider)}
           />
         ))}
       </ul>
       <ProviderSheet
-        open={sheet.open}
-        provider={sheet.provider}
-        onOpenChange={(open) => setSheet((previous) => ({ ...previous, open }))}
+        open={adding || editing.open}
+        provider={adding ? null : editing.provider}
+        onOpenChange={(open) => {
+          if (open) return;
+          onAddingChange(false);
+          setEditing((previous) => ({ ...previous, open: false }));
+        }}
       />
       <DeleteDialog provider={deleting} onOpenChange={(open) => !open && setDeleting(null)} />
     </AdminSection>

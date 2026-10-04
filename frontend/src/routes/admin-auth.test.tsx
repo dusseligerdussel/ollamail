@@ -517,7 +517,7 @@ describe("admin: users", () => {
 
     await user.click(await screen.findByRole("button", { name: "Invite user" }));
     const sheet = await screen.findByRole("dialog", { name: "Invite user" });
-    await user.type(within(sheet).getByLabelText("E-mail address"), "max@example.org");
+    await user.type(within(sheet).getByLabelText("Email address"), "max@example.org");
     await user.type(within(sheet).getByLabelText("Name"), "Max Muster");
     await user.click(within(sheet).getByRole("button", { name: "Create invitation" }));
 
@@ -558,7 +558,7 @@ describe("admin: delete user", () => {
 
     const confirm = within(dialog).getByRole("button", { name: "Delete permanently" });
     expect(confirm).toBeDisabled();
-    const input = within(dialog).getByLabelText(/enter the e-mail address user@example.org/);
+    const input = within(dialog).getByLabelText(/enter the email address user@example.org/);
     await user.type(input, "admin@example.org");
     expect(confirm).toBeDisabled();
     await user.clear(input);

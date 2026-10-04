@@ -42,7 +42,7 @@ function loginBackend(routes: Routes) {
 
 async function enterPassword() {
   const user = userEvent.setup();
-  await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+  await user.type(screen.getByLabelText("Email address"), "admin@example.org");
   await user.type(screen.getByLabelText("Password"), "correct horse battery");
   await user.click(screen.getByRole("button", { name: "Sign in" }));
   return user;

@@ -33,7 +33,8 @@ und – bei UI-Arbeit – `docs/DESIGN.md`.
 ### Dependabot-PRs und Security-Scans
 
 - Dependabot (`.github/dependabot.yml`) öffnet montags gruppierte Update-PRs für Backend (uv),
-  Frontend (pnpm), GitHub Actions und die Basis-Images der Dockerfiles; Sicherheitsupdates sofort.
+  Frontend (pnpm), GitHub Actions, die Basis-Images der Dockerfiles und die Drittanbieter-Images
+  in `deploy/compose.yaml`; Sicherheitsupdates sofort.
 - Auch Dependabot-PRs mergt **nur der Repository-Owner**. Agenten dürfen sie prüfen, bei roter CI
   einen Fix auf einem eigenen Branch vorschlagen und Major-Updates kommentieren – nicht mergen.
 - `.github/workflows/security.yml` (pip-audit, `pnpm audit --prod`, CodeQL) läuft wöchentlich und

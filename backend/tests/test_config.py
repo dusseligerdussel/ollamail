@@ -132,13 +132,15 @@ def test_every_setting_is_documented_in_env_example() -> None:
 
 
 def test_env_example_has_no_unknown_settings() -> None:
-    # Compose-only variables (images, ports) are read by deploy/compose.yaml, not the app.
+    # Compose-only variables (images, ports, frontend headers) are read by deploy/compose.yaml,
+    # not the app.
     compose_only = {
         "OLLAMAIL_VERSION",
         "OLLAMAIL_API_IMAGE",
         "OLLAMAIL_FRONTEND_IMAGE",
         "OLLAMAIL_HTTP_BIND",
         "OLLAMAIL_HTTP_PORT",
+        "OLLAMAIL_HSTS",
     }
     documented = {n for n in _documented_env_names() if n.startswith("OLLAMAIL_")}
     unknown = documented - _settings_env_names() - compose_only

@@ -34,6 +34,10 @@ spec:
             # Caddy proxies /api/* (prefix stripped) to this upstream (frontend/caddy/Caddyfile).
             - name: OLLAMAIL_API_UPSTREAM
               value: "{{ include "ollamail.fullname" . }}-api:{{ .Values.api.service.port }}"
+            {{- with .Values.frontend.hsts }}
+            - name: OLLAMAIL_HSTS
+              value: {{ . | quote }}
+            {{- end }}
           ports:
             - name: http
               containerPort: 8080

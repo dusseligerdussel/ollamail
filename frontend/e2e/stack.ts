@@ -73,14 +73,14 @@ export async function signIn(page: Page) {
   if (!status.initialized) {
     await page.goto("/setup");
     await page.getByLabel("Name").fill(admin.name);
-    await page.getByLabel("E-mail address").fill(admin.email);
+    await page.getByLabel("Email address").fill(admin.email);
     await page.getByLabel("Password").fill(admin.password);
     await page.getByLabel("Setup code").fill(process.env.E2E_SETUP_TOKEN ?? "");
     await page.getByRole("button", { name: "Create administrator" }).click();
     await page.getByRole("link", { name: "Continue to inbox" }).click();
   } else {
     await page.goto("/login");
-    await page.getByLabel("E-mail address").fill(admin.email);
+    await page.getByLabel("Email address").fill(admin.email);
     await page.getByLabel("Password").fill(admin.password);
     await page.getByRole("button", { name: "Sign in" }).click();
   }
