@@ -23,6 +23,7 @@ def _caldav(config: Mapping[str, Any], settings: TodosSettings) -> TodoSink:
         str(config.get("password", "")),
         timeout=settings.export_timeout_seconds,
         allow_http=settings.export_allow_http,
+        allowed_internal_hosts=settings.export_allowed_internal_hosts,
     )
 
 

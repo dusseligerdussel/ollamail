@@ -47,7 +47,7 @@ function RetentionContent() {
     return <InlineError error={settings.error} className="px-4 py-4 md:px-5" />;
   }
   return (
-    <div className="mx-auto w-full max-w-3xl px-4 py-6 md:px-6 md:py-8">
+    <div className="mx-auto w-full max-w-2xl px-4 py-6 md:px-6 md:py-8">
       <RetentionForm settings={settings.data} />
     </div>
   );

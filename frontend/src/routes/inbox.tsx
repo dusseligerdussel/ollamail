@@ -416,7 +416,7 @@ function InboxPage() {
       />
     );
   } else if (messages.isPending) {
-    listContent = <ListSkeleton rows={12} />;
+    listContent = <ListSkeleton rows={12} mail />;
   } else if (messages.isError) {
     listContent = <InlineError error={messages.error} className="m-4" />;
   } else if (items.length === 0) {
@@ -458,7 +458,10 @@ function InboxPage() {
   }
 
   let detail: ReactNode;
-  if (!selectedId) {
+  if (!selectedId && (noMailboxes || (messages.isSuccess && items.length === 0))) {
+    // Nothing to select: the list's empty state already names the next step.
+    detail = <div aria-hidden="true" className="h-header shrink-0 border-b" />;
+  } else if (!selectedId) {
     detail = (
       <>
         <div aria-hidden="true" className="h-header shrink-0 border-b" />
