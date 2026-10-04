@@ -284,14 +284,14 @@ async def test_changed_credentials_are_tested_before_saving(
     assert mailbox.credentials == {"password": PASSWORD}
     assert mailbox.display_name == "erika@example.org"
 
-    # New settings are tested with the stored credentials.
+    # New settings for the same server are tested with the stored credentials.
     accepted = await erika.patch(
         f"/mailboxes/{mailbox_id}",
-        json={"provider_settings": {**IMAP_SETTINGS, "host": "mail.example.org"}},
+        json={"provider_settings": {**IMAP_SETTINGS, "username": "erika"}},
     )
     assert accepted.status_code == 200
     assert server.connections[-1].credentials == {"password": PASSWORD}
-    assert accepted.json()["provider_settings"]["host"] == "mail.example.org"
+    assert accepted.json()["provider_settings"]["username"] == "erika"
 
 
 async def test_sync_settings_are_merged(erika: AsyncClient) -> None:
