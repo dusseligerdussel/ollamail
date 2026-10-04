@@ -36,6 +36,7 @@ from app.ai.settings.schemas import (
     display_url,
 )
 from app.auth.dependencies import AdminSessionDep, CurrentSessionDep, SettingsDep
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep
 from app.core.config import LLMSettings
 from app.core.db import get_db
 from app.core.errors import ProblemError
@@ -246,12 +247,16 @@ async def list_ai_providers(
 @router.post(
     "/providers",
     status_code=status.HTTP_201_CREATED,
-    responses={409: {"description": "Name taken"}, 422: {"description": "Invalid settings"}},
+    responses={
+        **ADMIN_REAUTH_RESPONSES,
+        409: {"description": "Name taken"},
+        422: {"description": "Invalid settings"},
+    },
 )
 async def create_ai_provider(
     body: AIProviderCreate,
     request: Request,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     db: DbDep,
     settings: SettingsDep,
 ) -> AIProviderRead:
@@ -288,13 +293,17 @@ async def create_ai_provider(
 
 @router.patch(
     "/providers/{name}",
-    responses={**_NOT_FOUND, 409: {"description": "Provider from the environment"}},
+    responses={
+        **ADMIN_REAUTH_RESPONSES,
+        **_NOT_FOUND,
+        409: {"description": "Provider from the environment"},
+    },
 )
 async def update_ai_provider(
     name: str,
     body: AIProviderUpdate,
     request: Request,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     db: DbDep,
     settings: SettingsDep,
 ) -> AIProviderRead:

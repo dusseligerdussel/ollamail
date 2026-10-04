@@ -1,5 +1,6 @@
 import { queryOptions, useMutation, useQueryClient } from "@tanstack/react-query";
 
+import { useReauth } from "@/components/auth/reauth";
 import { api, unwrap } from "./client";
 import type { components } from "./schema.gen";
 
@@ -83,17 +84,24 @@ export function useUpdateAISettings() {
 
 export function useCreateProvider() {
   const invalidate = useInvalidateAI();
+  const withReauth = useReauth();
   return useMutation({
-    mutationFn: (body: AIProviderCreate) => unwrap(api.POST("/admin/ai/providers", { body })),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: (body: AIProviderCreate) =>
+      withReauth(() => unwrap(api.POST("/admin/ai/providers", { body }))),
     onSuccess: invalidate,
   });
 }
 
 export function useUpdateProvider() {
   const invalidate = useInvalidateAI();
+  const withReauth = useReauth();
   return useMutation({
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
     mutationFn: ({ name, body }: { name: string; body: AIProviderUpdate }) =>
-      unwrap(api.PATCH("/admin/ai/providers/{name}", { params: { path: { name } }, body })),
+      withReauth(() =>
+        unwrap(api.PATCH("/admin/ai/providers/{name}", { params: { path: { name } }, body })),
+      ),
     onSuccess: invalidate,
   });
 }

@@ -37,29 +37,47 @@ class TTSService:
     def default_voice(self, lang: Language) -> str:
         return self.settings.voice_de if lang == "de" else self.settings.voice_en
 
+    def offered_voices(self) -> list[str]:
+        """Voices the admin offers besides the installed ones: the default voice per
+        language plus ``OLLAMAIL_TTS_VOICE_ALLOWLIST``. Only these are ever downloaded."""
+        voices = [self.default_voice(lang) for lang in LANGUAGES]
+        voices += [v for v in self.settings.voice_allowlist if v not in voices]
+        return [v for v in voices if self.engine.voice_language(v) in LANGUAGES]
+
+    def is_available(self, voice: str) -> bool:
+        """Whether users may pick ``voice``: offered by the admin or already installed.
+        Any other voice ID, however valid, is never downloaded on a user's behalf (#191)."""
+        if not self.engine.is_valid_voice(voice):
+            return False
+        if voice in self.offered_voices():
+            return True
+        return any(installed.id == voice for installed in self.engine.installed_voices())
+
     def resolve_voice(self, lang: Language, preferred: str | None = None) -> str:
-        """The user's voice if it is valid for ``lang``, otherwise the default voice."""
+        """The user's voice if it is available and speaks ``lang``, otherwise the default."""
         if (
             preferred
-            and self.engine.is_valid_voice(preferred)
             and self.engine.voice_language(preferred) == lang
+            and self.is_available(preferred)
         ):
             return preferred
         return self.default_voice(lang)
 
     def voices(self, lang: Language | None = None) -> list[VoiceInfo]:
-        """Voices to offer for selection: installed ones plus the (downloadable) defaults."""
+        """Voices to offer for selection: installed ones plus the offered (downloadable)
+        defaults and allowlisted voices."""
         found = {voice.id: voice for voice in self.engine.installed_voices()}
-        for default_lang in LANGUAGES:
-            voice = self.default_voice(default_lang)
-            if voice not in found and self.engine.voice_language(voice) == default_lang:
-                found[voice] = VoiceInfo(voice, self.engine.name, default_lang, installed=False)
+        for voice in self.offered_voices():
+            voice_lang = self.engine.voice_language(voice)
+            if voice not in found and voice_lang is not None:
+                found[voice] = VoiceInfo(voice, self.engine.name, voice_lang, installed=False)
         voices = sorted(found.values(), key=lambda v: (v.lang, v.id))
         return [voice for voice in voices if lang is None or voice.lang == lang]
 
-    async def ensure_default_voices(self) -> None:
-        for lang in LANGUAGES:
-            await self.engine.ensure_voice(self.default_voice(lang))
+    async def ensure_offered_voices(self) -> None:
+        """Download missing default and allowlisted voices (worker, ``tts`` queue)."""
+        for voice in self.offered_voices():
+            await self.engine.ensure_voice(voice)
 
     def segments(self, text: str, lang: Language) -> list[Segment]:
         return segment(

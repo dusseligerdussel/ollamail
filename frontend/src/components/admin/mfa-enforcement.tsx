@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { adminAuthQueryKey, updateAuthSettings } from "@/api/admin-auth";
 import type { components } from "@/api/schema.gen";
 import { AdminSection } from "@/components/admin/admin-page";
+import { useReauth } from "@/components/auth/reauth";
 import { NativeSelect, NativeSelectOption } from "@/components/ui/native-select";
 
 type MfaEnforcement = components["schemas"]["MfaEnforcement"];
@@ -15,8 +16,11 @@ const OPTIONS: MfaEnforcement[] = ["off", "admins", "all"];
 export function MfaEnforcementSection({ value }: { value: MfaEnforcement }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const withReauth = useReauth();
   const change = useMutation({
-    mutationFn: (next: MfaEnforcement) => updateAuthSettings({ mfa_enforcement: next }),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: (next: MfaEnforcement) =>
+      withReauth(() => updateAuthSettings({ mfa_enforcement: next })),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
       toast.success(t("pages.signIn.mfa.changed"));

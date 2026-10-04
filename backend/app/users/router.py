@@ -20,6 +20,7 @@ from app.auth.models import LOCAL_PROVIDER, AuthSession, Identity
 from app.auth.passwords import hash_password
 from app.auth.policy import local_login_enabled
 from app.auth.providers import AuthProviderRegistry
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep
 from app.auth.sessions import revoke_user_sessions
 from app.core.db import get_db
 from app.core.errors import ProblemError
@@ -222,6 +223,7 @@ async def reissue_invitation(
 @router.patch(
     "/{user_id}",
     responses={
+        **ADMIN_REAUTH_RESPONSES,
         **_NOT_FOUND,
         409: {"description": "No administrator could sign in afterwards (admin-lockout)"},
     },
@@ -229,7 +231,7 @@ async def reissue_invitation(
 async def update_user(
     user_id: uuid.UUID,
     body: AdminUserUpdate,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
 ) -> AdminUserRead:
