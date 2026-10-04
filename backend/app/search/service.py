@@ -56,6 +56,7 @@ from app.search.models import (
     SearchChunk,
     SearchEmbedding,
     SearchIndexState,
+    embedding_backlog,
 )
 from app.triage.models import TriageResult
 
@@ -99,9 +100,14 @@ async def _ensure_active_model(session: AsyncSession, current: str) -> str:
     return model
 
 
-async def _request_fill(session: AsyncSession) -> None:
-    """Chunks were stored without a vector of the current model: the next
-    ``fill_embeddings`` scans for them (it skips the scan otherwise)."""
+async def _request_fill(session: AsyncSession, chunk_ids: Sequence[uuid.UUID]) -> None:
+    """``chunk_ids`` were stored without a vector of the current model: they go into the
+    backlog, and the next ``fill_embeddings`` embeds them (it skips its work otherwise)."""
+    await session.execute(
+        insert(embedding_backlog)
+        .values([{"chunk_id": chunk_id} for chunk_id in chunk_ids])
+        .on_conflict_do_nothing()
+    )
     await session.execute(
         update(SearchIndexState)
         .where(SearchIndexState.key == STATE_KEY)
@@ -297,7 +303,7 @@ async def index_message(
     result.chunks = len(rows)
     result.embedded = current in vectors
     if rows and not result.embedded:
-        await _request_fill(session)
+        await _request_fill(session, [row.id for row in rows])
     return result
 
 
@@ -360,7 +366,7 @@ async def ocr_attachment(
     source = ChunkSource.ATTACHMENT_OCR if extraction.ocr else ChunkSource.ATTACHMENT
     first = (others[1] if others[1] is not None else -1) + 1
     await session.execute(delete(SearchChunk).where(SearchChunk.attachment_id == attachment.id))
-    session.add_all(
+    rows = [
         SearchChunk(
             id=uuid7(),
             message_id=message.id,
@@ -373,11 +379,12 @@ async def ocr_attachment(
             ts_config=config,
         )
         for offset, chunk in enumerate(chunks)
-    )
+    ]
+    session.add_all(rows)
     await session.flush()
-    if chunks:
-        await _request_fill(session)
-    return OcrResult(extraction.status, len(chunks))
+    if rows:
+        await _request_fill(session, [row.id for row in rows])
+    return OcrResult(extraction.status, len(rows))
 
 
 # --- embedding maintenance -----------------------------------------------------------
@@ -392,39 +399,63 @@ class FillResult:
     switched: bool
 
 
+async def _queue_missing(session: AsyncSession, model: str) -> int:
+    """Add every chunk lacking a vector of ``model`` to the backlog (one scan over all
+    chunks and vectors); returns the number of chunks added."""
+    has_vector = exists().where(
+        SearchEmbedding.chunk_id == SearchChunk.id, SearchEmbedding.model == model
+    )
+    result = await session.execute(
+        insert(embedding_backlog)
+        .from_select(["chunk_id"], select(SearchChunk.id).where(~has_vector))
+        .on_conflict_do_nothing()
+    )
+    return int(result.rowcount)  # type: ignore[attr-defined]
+
+
 async def fill_embeddings(
     session: AsyncSession, embedder: Embedder, settings: SearchSettings
 ) -> FillResult:
     """Embed up to ``reembed_batch_size`` chunks lacking a vector of the current model,
     newest first; switch the active model once none is left. Does not commit.
 
-    Without a model switch, the chunks are only scanned if some were stored without a
-    vector since the last scan found none (``SearchIndexState.fill_requested``):
-    indexing normally embeds right away, and the scan reads every chunk.
+    The chunks come from ``search_embedding_backlog``, filled by indexing and OCR when they
+    store chunks without a vector. Only when the current model changes (and once after the
+    upgrade) is the backlog rebuilt from all chunks. Without a model switch, nothing is
+    read unless chunks were stored without a vector since the last run found none
+    (``SearchIndexState.fill_requested``).
 
     Raises ``LLMError`` / ``EmbeddingDimensionError`` when embedding fails.
     """
     current = await embedder.current_model()
     active = await _ensure_active_model(session, current)
-    # Read before the scan: chunks committed later raise it again, so a scan that
-    # misses them does not mark them as checked.
-    requested, checked = (
+    # Read before the backlog: chunks committed later raise it again, so they are not
+    # marked as checked.
+    requested, checked, backlog_model = (
         await session.execute(
-            select(SearchIndexState.fill_requested, SearchIndexState.fill_checked).where(
-                SearchIndexState.key == STATE_KEY
-            )
+            select(
+                SearchIndexState.fill_requested,
+                SearchIndexState.fill_checked,
+                SearchIndexState.backlog_model,
+            ).where(SearchIndexState.key == STATE_KEY)
         )
     ).one()
-    if active == current and requested == checked:
+    if active == current and backlog_model == current and requested == checked:
         return FillResult(embedded=0, remaining=False, switched=False)
-    has_current = exists().where(
-        SearchEmbedding.chunk_id == SearchChunk.id, SearchEmbedding.model == current
-    )
+    if backlog_model != current:
+        # Model switch (or one abandoned for another), or the first run after the upgrade.
+        await session.execute(delete(embedding_backlog))
+        await _queue_missing(session, current)
+        await session.execute(
+            update(SearchIndexState)
+            .where(SearchIndexState.key == STATE_KEY)
+            .values(backlog_model=current)
+        )
     missing = (
         await session.execute(
             select(SearchChunk.id, SearchChunk.heading, SearchChunk.content)
-            .where(~has_current)
-            .order_by(SearchChunk.created_at.desc(), SearchChunk.id)
+            .join(embedding_backlog, embedding_backlog.c.chunk_id == SearchChunk.id)
+            .order_by(embedding_backlog.c.chunk_id.desc())
             .limit(settings.reembed_batch_size + 1)
         )
     ).all()
@@ -432,8 +463,16 @@ async def fill_embeddings(
     if batch:
         texts = [Chunk(row.heading, row.content).text for row in batch]
         vectors = await _embed(embedder, texts, await embedding_dimensions(session))
-        await _store_embeddings(session, [row.id for row in batch], vectors, current)
+        batch_ids = [row.id for row in batch]
+        await _store_embeddings(session, batch_ids, vectors, current)
+        await session.execute(
+            delete(embedding_backlog).where(embedding_backlog.c.chunk_id.in_(batch_ids))
+        )
     remaining = len(missing) > len(batch)
+    if active != current and not remaining:
+        # Before the switch: chunks stored meanwhile by a job that still saw an earlier
+        # model as the current one are not in the backlog (one more scan per switch).
+        remaining = await _queue_missing(session, current) > 0
 
     switched = False
     if active != current and not remaining:
@@ -444,8 +483,13 @@ async def fill_embeddings(
         )
         switched = True
     if not remaining and (switched or active == current):
-        # Vectors of earlier models (finished or abandoned switches).
-        await session.execute(delete(SearchEmbedding).where(SearchEmbedding.model != current))
+        # Vectors of earlier models (finished or abandoned switches). ``<`` and ``>``
+        # instead of ``!=``: PostgreSQL can answer them from the index on ``model``.
+        await session.execute(
+            delete(SearchEmbedding).where(
+                (SearchEmbedding.model < current) | (SearchEmbedding.model > current)
+            )
+        )
         await session.execute(
             update(SearchIndexState)
             .where(SearchIndexState.key == STATE_KEY)
@@ -597,17 +641,24 @@ def _ranked(inner: Select[Any]) -> Select[Any]:
 
 
 async def _text_candidates(
-    session: AsyncSession, query: str, conditions: list[ColumnElement[bool]], limit: int
+    session: AsyncSession,
+    query: str,
+    conditions: list[ColumnElement[bool]],
+    limit: int,
+    window: int,
 ) -> list[uuid.UUID]:
     tsquery = _tsquery(query)
-    score = (-func.ts_rank_cd(SearchChunk.tsv, tsquery)).label("order_key")
-    inner = (
-        select(SearchChunk.id.label("chunk_id"), score)
+    # Only the ``window`` most recent matches are ranked (``text_rank_window``).
+    matches = (
+        select(SearchChunk.id, SearchChunk.tsv)
         .join(Message, Message.id == SearchChunk.message_id)
         .where(SearchChunk.tsv.op("@@")(tsquery), *conditions)
-        .order_by(score, SearchChunk.id)
-        .limit(limit)
+        .order_by(Message.sort_date.desc(), SearchChunk.id)
+        .limit(window)
+        .subquery()
     )
+    score = (-func.ts_rank_cd(matches.c.tsv, tsquery)).label("order_key")
+    inner = select(matches.c.id.label("chunk_id"), score).order_by(score, matches.c.id).limit(limit)
     return list((await session.scalars(_ranked(inner))).all())
 
 
@@ -712,7 +763,9 @@ async def search(
     candidates = settings.candidates
     # Embedded first: the session holds no connection during the call (see _query_vector).
     query_vector = await _query_vector(session, embedder, query) if embedder else None
-    text_ids = await _text_candidates(session, query, conditions, candidates)
+    text_ids = await _text_candidates(
+        session, query, conditions, candidates, settings.text_rank_window
+    )
     vector_ids: list[uuid.UUID] = []
     if query_vector is not None:
         vector_ids = await _vector_candidates(
