@@ -1,12 +1,14 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "@tanstack/react-router";
-import { ChevronDown, Cloud, type LucideIcon, TriangleAlert, X } from "lucide-react";
+import { ChevronDown, Cloud, KeyRound, type LucideIcon, TriangleAlert, X } from "lucide-react";
 import { type ReactNode, useId, useState } from "react";
 import { useTranslation } from "react-i18next";
 
 import { aiStatusQueryOptions } from "@/api/ai";
+import { dismissLinkNotice, linkNoticesQueryOptions } from "@/api/auth";
 import { mailboxesQueryOptions } from "@/api/mail";
 import { modelStatusQueryOptions } from "@/api/system";
+import { useDateFormat } from "@/components/account/sessions-list";
 import { useMailErrorText } from "@/components/mail/sync-status";
 import { Button } from "@/components/ui/button";
 import { useCurrentUser } from "@/hooks/use-current-user";
@@ -25,9 +27,10 @@ interface Notice {
 }
 
 /**
- * Unobtrusive notices above the content: a cloud provider receives mail content (everyone,
- * docs/PRIVACY.md), one of the user's own mailboxes cannot sync (everyone), or a model is missing
- * or the LLM endpoint is unreachable (admins). On narrow screens they are folded into one line
+ * Unobtrusive notices above the content: a sign-in was linked to the account by e-mail address
+ * (everyone, #208), a cloud provider receives mail content (everyone, docs/PRIVACY.md), one of the
+ * user's own mailboxes cannot sync (everyone), or a model is missing or the LLM endpoint is
+ * unreachable (admins). On narrow screens they are folded into one line
  * that expands. Renders nothing without notices.
  */
 export function SystemNotices() {
@@ -35,9 +38,12 @@ export function SystemNotices() {
   const wide = useMediaQuery(mediaQueries.sidebar);
   const [expanded, setExpanded] = useState(false);
   const listId = useId();
-  const notices = [useCloudNotice(), useMailboxErrorNotice(), useModelNotice()].filter(
-    (notice): notice is Notice => notice !== null,
-  );
+  const notices = [
+    useLinkNotice(),
+    useCloudNotice(),
+    useMailboxErrorNotice(),
+    useModelNotice(),
+  ].filter((notice): notice is Notice => notice !== null);
 
   if (notices.length === 0) return null;
   if (wide) {
@@ -123,6 +129,46 @@ function NoticeContent({ notice }: { notice: Notice }) {
 
 const linkClass =
   "rounded-sm font-medium text-foreground underline underline-offset-2 outline-none focus-visible:ring-[3px] focus-visible:ring-ring/80";
+
+/**
+ * A sign-in was linked to the account by e-mail address (#208). The server only shows it to
+ * sessions of other sign-in methods, so whoever uses the new link cannot hide it. Dismissing
+ * confirms the link; otherwise the sessions list shows and ends the session it created.
+ */
+function useLinkNotice(): Notice | null {
+  const { t } = useTranslation();
+  const queryClient = useQueryClient();
+  const formatDate = useDateFormat();
+  const { data } = useQuery(linkNoticesQueryOptions);
+  const dismiss = useMutation({
+    mutationFn: (ids: string[]) => Promise.all(ids.map(dismissLinkNotice)),
+    onSettled: () => queryClient.invalidateQueries({ queryKey: linkNoticesQueryOptions.queryKey }),
+  });
+  const oldest = data?.at(-1);
+  if (!data || !oldest || dismiss.isPending) return null;
+
+  const providers = [...new Set(data.map((notice) => notice.provider_name ?? notice.provider))];
+  return {
+    id: "link",
+    label: t("shell.linkNotice.label"),
+    icon: KeyRound,
+    warning: true,
+    content: (
+      <>
+        {t("shell.linkNotice.text", {
+          count: data.length,
+          providers: providers.join(", "),
+          date: formatDate(oldest.created_at),
+        })}{" "}
+        <Link to="/settings" hash="settings-sessions" className={linkClass}>
+          {t("shell.linkNotice.action")}
+        </Link>
+      </>
+    ),
+    dismissLabel: t("shell.linkNotice.dismiss"),
+    onDismiss: () => dismiss.mutate(data.map((notice) => notice.id)),
+  };
+}
 
 const cloudDismissedKey = "ollamail.cloudNotice.dismissed";
 

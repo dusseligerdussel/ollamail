@@ -7,6 +7,7 @@ import type { components } from "./schema.gen";
 
 export type User = components["schemas"]["UserRead"];
 export type AuthSession = components["schemas"]["SessionRead"];
+export type LinkNotice = components["schemas"]["LinkNoticeRead"];
 export type AuthProviders = components["schemas"]["AuthProviders"];
 export type AuthProviderInfo = components["schemas"]["AuthProviderInfo"];
 
@@ -53,6 +54,13 @@ export const sessionsQueryOptions = queryOptions({
   meta: { errorToast: false },
 });
 
+/** Sign-ins linked to the own account by e-mail address, not acknowledged yet (#208). */
+export const linkNoticesQueryOptions = queryOptions({
+  queryKey: ["auth", "link-notices"],
+  queryFn: ({ signal }) => unwrap(api.GET("/auth/link-notices", { signal })),
+  meta: { errorToast: false },
+});
+
 export type SetupInput = components["schemas"]["SetupRequest"];
 export type LoginInput = components["schemas"]["LoginRequest"];
 export type ProfileUpdate = components["schemas"]["ProfileUpdate"];
@@ -72,6 +80,12 @@ export function updateProfile(body: ProfileUpdate) {
 export function revokeSession(sessionId: string) {
   return unwrap(
     api.DELETE("/auth/sessions/{session_id}", { params: { path: { session_id: sessionId } } }),
+  );
+}
+
+export function dismissLinkNotice(noticeId: string) {
+  return unwrap(
+    api.DELETE("/auth/link-notices/{notice_id}", { params: { path: { notice_id: noticeId } } }),
   );
 }
 

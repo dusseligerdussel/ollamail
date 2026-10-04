@@ -979,6 +979,47 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/link-notices": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List Link Notices
+         * @description Sign-ins linked to the own account by e-mail address that are not acknowledged yet
+         *     (#208), newest first. Sessions of the linked provider itself do not see them.
+         */
+        get: operations["auth_list_link_notices"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/link-notices/{notice_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Dismiss Link Notice
+         * @description Acknowledge a link notice. Not possible from a session of the linked provider.
+         */
+        delete: operations["auth_dismiss_link_notice"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -1588,7 +1629,7 @@ export interface paths {
         };
         /**
          * List Sessions
-         * @description The own active sessions, most recently used first.
+         * @description The own active sessions, most recently used first, with the sign-in method of each.
          */
         get: operations["auth_list_sessions"];
         put?: never;
@@ -4926,6 +4967,27 @@ export interface components {
             /** Login */
             login: string;
         };
+        /**
+         * LinkNoticeRead
+         * @description A sign-in linked to the own account by e-mail address that is not acknowledged yet
+         *     (#208).
+         */
+        LinkNoticeRead: {
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Id
+             * Format: uuid
+             */
+            id: string;
+            /** Provider */
+            provider: string;
+            /** Provider Name */
+            provider_name?: string | null;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Email */
@@ -6545,6 +6607,8 @@ export interface components {
             last_seen_at: string;
             /** Provider */
             provider: string;
+            /** Provider Name */
+            provider_name?: string | null;
             /** User Agent */
             user_agent: string | null;
         };
@@ -10312,6 +10376,76 @@ export interface operations {
                 content?: never;
             };
             /** @description No such directory */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Validation Error */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HTTPValidationError"];
+                };
+            };
+        };
+    };
+    auth_list_link_notices: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LinkNoticeRead"][];
+                };
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    auth_dismiss_link_notice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                notice_id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description Not signed in */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description No such notice */
             404: {
                 headers: {
                     [name: string]: unknown;

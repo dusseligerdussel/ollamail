@@ -2,8 +2,9 @@
 
 Contents (``manifest.json`` lists them):
 
-* ``profile.json``: account, sign-in identities (provider, subject, groups), sessions and
-  second factors (passkey names and dates, whether TOTP is on; never secrets or codes)
+* ``profile.json``: account, sign-in identities (provider, subject, groups), open notices
+  about linked sign-ins (#208), sessions and second factors (passkey names and dates,
+  whether TOTP is on; never secrets or codes)
 * ``mailboxes.json``: own mailboxes (type, address, settings; never credentials)
 * ``triage.json``: own categories, category preferences, sender rules, corrections and
   the triage results of mails in own mailboxes
@@ -40,7 +41,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.auth.mfa.service import factors as mfa_factors
-from app.auth.models import AuthSession, Identity
+from app.auth.models import AuthSession, Identity, IdentityLinkNotice
 from app.digest.models import Digest, DigestUserSettings
 from app.digest.storage import DigestStorage
 from app.drafts.models import DraftSettings, ReplyDraft
@@ -96,6 +97,11 @@ async def _profile(session: AsyncSession, user: User) -> dict[str, Any]:
     identities = await session.scalars(
         select(Identity).where(Identity.user_id == user.id).order_by(Identity.created_at)
     )
+    link_notices = await session.scalars(
+        select(IdentityLinkNotice)
+        .where(IdentityLinkNotice.user_id == user.id)
+        .order_by(IdentityLinkNotice.created_at)
+    )
     sessions = await session.scalars(
         select(AuthSession).where(AuthSession.user_id == user.id).order_by(AuthSession.created_at)
     )
@@ -117,6 +123,9 @@ async def _profile(session: AsyncSession, user: User) -> dict[str, Any]:
         "identities": [
             _row(identity, ("provider", "subject", "groups", "created_at", "last_used_at"))
             for identity in identities
+        ],
+        "identity_link_notices": [
+            _row(notice, ("provider", "created_at")) for notice in link_notices
         ],
         "sessions": [
             _row(item, ("provider", "user_agent", "created_at", "last_seen_at", "expires_at"))

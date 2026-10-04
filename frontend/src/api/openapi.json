@@ -4524,6 +4524,43 @@
         "title": "LdapUserLookupRequest",
         "type": "object"
       },
+      "LinkNoticeRead": {
+        "description": "A sign-in linked to the own account by e-mail address that is not acknowledged yet\n(#208).",
+        "properties": {
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "id": {
+            "format": "uuid",
+            "title": "Id",
+            "type": "string"
+          },
+          "provider": {
+            "title": "Provider",
+            "type": "string"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
+          }
+        },
+        "required": [
+          "id",
+          "provider",
+          "created_at"
+        ],
+        "title": "LinkNoticeRead",
+        "type": "object"
+      },
       "LoginRequest": {
         "properties": {
           "email": {
@@ -9117,6 +9154,17 @@
           "provider": {
             "title": "Provider",
             "type": "string"
+          },
+          "provider_name": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Provider Name"
           },
           "user_agent": {
             "anyOf": [
@@ -13905,6 +13953,78 @@
         ]
       }
     },
+    "/auth/link-notices": {
+      "get": {
+        "description": "Sign-ins linked to the own account by e-mail address that are not acknowledged yet\n(#208), newest first. Sessions of the linked provider itself do not see them.",
+        "operationId": "auth_list_link_notices",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/LinkNoticeRead"
+                  },
+                  "title": "Response Auth List Link Notices",
+                  "type": "array"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          }
+        },
+        "summary": "List Link Notices",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
+    "/auth/link-notices/{notice_id}": {
+      "delete": {
+        "description": "Acknowledge a link notice. Not possible from a session of the linked provider.",
+        "operationId": "auth_dismiss_link_notice",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "notice_id",
+            "required": true,
+            "schema": {
+              "format": "uuid",
+              "title": "Notice Id",
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "Successful Response"
+          },
+          "401": {
+            "description": "Not signed in"
+          },
+          "404": {
+            "description": "No such notice"
+          },
+          "422": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            },
+            "description": "Validation Error"
+          }
+        },
+        "summary": "Dismiss Link Notice",
+        "tags": [
+          "auth"
+        ]
+      }
+    },
     "/auth/login": {
       "post": {
         "description": "Sign in with a local account (unless an admin switched local login off).\n\nAccounts with a second factor (or that must set one up) get 202 and no session yet;\nthe login continues under ``/auth/mfa`` (app/auth/mfa/router.py).",
@@ -15182,7 +15302,7 @@
         ]
       },
       "get": {
-        "description": "The own active sessions, most recently used first.",
+        "description": "The own active sessions, most recently used first, with the sign-in method of each.",
         "operationId": "auth_list_sessions",
         "responses": {
           "200": {

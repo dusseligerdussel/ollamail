@@ -78,6 +78,8 @@ export function backend({
         return json(providers);
       case "GET /api/auth/sessions":
         return user ? json([testSession]) : problem(401);
+      case "GET /api/auth/link-notices":
+        return user ? json([]) : problem(401);
       case "GET /api/privacy/account":
         return user ? json({ self_delete_enabled: true, export_expiry_hours: 24 }) : problem(401);
       case "GET /api/privacy/exports":

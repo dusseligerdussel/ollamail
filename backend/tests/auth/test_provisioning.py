@@ -5,7 +5,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import AuditAction
-from app.auth.models import Identity
+from app.auth.models import Identity, IdentityLinkNotice
 from app.auth.providers.base import VerifiedIdentity
 from app.auth.provisioning import (
     MAX_GROUPS,
@@ -131,6 +131,19 @@ async def test_verified_email_links_when_allowed(db_session: AsyncSession) -> No
     assert event.target_id == str(user.id)
     assert event.actor_kind == "system"
     assert event.details == {"provider": "oidc:corp", "via": "email"}
+    # ... and the user gets a notice (#208).
+    (notice,) = await db_session.scalars(select(IdentityLinkNotice))
+    assert (notice.user_id, notice.provider) == (user.id, "oidc:corp")
+
+
+async def test_known_identities_leave_no_new_notice(db_session: AsyncSession) -> None:
+    await make_local_user(db_session)
+    policy = ProvisioningPolicy(link_by_email=True)
+    await provision_user(db_session, _identity(), policy)
+
+    await provision_user(db_session, _identity(), policy)
+
+    assert await _count(db_session, IdentityLinkNotice) == 1
 
 
 async def test_inactive_users_are_refused(db_session: AsyncSession) -> None:

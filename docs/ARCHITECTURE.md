@@ -1364,7 +1364,7 @@ gesendet** – Senden ist immer ein eigener Request des Autors.
 **Datenmodell:** `users` (E-Mail normalisiert und eindeutig, Anzeigename, Rolle `admin|user`,
 Sprache, Zeitzone, aktiv), `auth_identities` (`provider`, `subject`, `user_id`; ein Nutzer kann
 mehrere Identitäten haben; lokal: `provider=local`, `subject` = Nutzer-ID, Argon2id-Hash),
-`auth_sessions`, `auth_rate_limits`. Alles hängt per `ON DELETE CASCADE` am Nutzer.
+`auth_sessions`, `auth_rate_limits`, `auth_identity_link_notices` (#208). Alles hängt per `ON DELETE CASCADE` am Nutzer.
 
 **Provider-Interface** (`app/auth/providers/base.py`): Ein Provider beweist nur, wer jemand ist,
 und liefert eine `VerifiedIdentity(provider, subject, email, display_name, groups,
@@ -1494,7 +1494,21 @@ den Zugriff. Login ersetzt eine vorhandene Session (keine Session Fixation). End
 `GET /api/auth/me`, `PATCH /api/auth/me` (Name, Sprache, Zeitzone), `POST /api/auth/logout`,
 `GET /api/auth/sessions`, `DELETE /api/auth/sessions/{id}`, `DELETE /api/auth/sessions`
 (alle anderen; mit `?include_current=true` alle). Der Worker-Job `auth.cleanup` löscht stündlich
-abgelaufene Sessions und Zähler.
+abgelaufene Sessions und Zähler. Die Sitzungsliste nennt je Sitzung das Anmeldeverfahren
+(`provider` plus `provider_name`, der Anzeigename des konfigurierten Providers; `null` für lokal
+und nicht mehr konfigurierte Provider, #208).
+
+**Hinweis auf verknüpfte Anmeldungen (#208, `app/auth/link_notices.py`):** Verknüpft
+`provision_user` eine externe Identität per E-Mail-Adresse mit einem bestehenden Konto
+(`link_by_email` oder SCIM-Linking), entsteht neben `user.identity_linked` im Audit-Log eine Zeile
+in `auth_identity_link_notices` (nur Nutzer-ID, Provider-Key, Zeitpunkt; `ON DELETE CASCADE`).
+`GET /api/auth/link-notices` liefert die offenen Hinweise, `DELETE /api/auth/link-notices/{id}`
+bestätigt einen. Beides gilt nur für Sitzungen eines *anderen* Anmeldeverfahrens als des
+verknüpften Providers (fremde oder unsichtbare Hinweise: 404) – wer sich über die neue Verknüpfung
+anmeldet, kann den Hinweis also weder sehen noch wegklicken. Die UI zeigt ihn als Hinweisleiste
+(`SystemNotices`) mit Link zu Einstellungen → Sitzungen, wo sich die neue Sitzung beenden lässt.
+Eine Verknüpfung selbst zu trennen ist bewusst nicht vorgesehen: Mit `link_by_email` würde der
+Provider beim nächsten Login einfach neu verknüpfen; dafür ist der Admin zuständig.
 
 **CSRF:** Signiertes Double-Submit-Cookie (`CSRFMiddleware`, gilt für die ganze App). Jede
 Anfrage außer `GET`/`HEAD`/`OPTIONS`/`TRACE` muss den Wert des Cookies `ollamail_csrf` im Header

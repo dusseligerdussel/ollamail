@@ -36,6 +36,13 @@
       "unreachableText_one": "Endpunkt {{endpoints}} antwortet nicht.",
       "unreachableText_other": "Endpunkte {{endpoints}} antworten nicht.",
       "action": "Details anzeigen"
+    },
+    "linkNotice": {
+      "label": "Neue Anmeldung verknüpft",
+      "text_one": "Am {{date}} wurde eine Anmeldung über {{providers}} mit deinem Konto verknüpft. Warst du das nicht?",
+      "text_other": "Seit {{date}} wurden Anmeldungen über {{providers}} mit deinem Konto verknüpft. Warst du das nicht?",
+      "action": "Sitzungen prüfen",
+      "dismiss": "Das war ich – Hinweis ausblenden"
     }
   },
   "nav": {
@@ -1163,10 +1170,11 @@
       "unknownDevice": "Unbekanntes Gerät",
       "device": "{{browser}} unter {{os}}",
       "current": "Dieses Gerät",
-      "lastActive": "Zuletzt aktiv: {{date}}",
       "revoke": "Abmelden",
       "revokeLabel": "{{device}} abmelden",
-      "revokeOthers": "Alle anderen Sitzungen abmelden"
+      "revokeOthers": "Alle anderen Sitzungen abmelden",
+      "localMethod": "Lokales Konto",
+      "details": "{{method}} · Zuletzt aktiv: {{date}}"
     },
     "security": {
       "title": "Sicherheit",
