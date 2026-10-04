@@ -12,7 +12,7 @@ from app.triage.models import TriageCategory, TriageSource
 from app.triage.service import Decision, save_result
 from tests.auth.conftest import _cheap_hashing, login, make_local_user  # noqa: F401
 from tests.notifications.conftest import builtin_category
-from tests.notifications.webpush import FCM, Browser, push_settings
+from tests.notifications.webpush import FCM, Browser, make_auth_session, push_settings
 from tests.triage.conftest import Account, account_for, make_account
 
 pytestmark = pytest.mark.db
@@ -186,6 +186,20 @@ async def test_register_list_and_remove_devices(
     assert gone.status_code == 404
 
 
+async def test_signing_out_removes_the_device(
+    db_client: AsyncClient, db_session: AsyncSession, settings: Settings
+) -> None:
+    """Also when the app could not remove it itself (#185)."""
+    settings.notifications = push_settings()
+    account = await _signed_in(db_client, db_session)
+    created = await db_client.post(
+        "/notifications/push/devices", json=Browser(FCM + uuid.uuid4().hex).subscription()
+    )
+    assert created.status_code == 201
+    assert (await db_client.post("/auth/logout")).status_code == 204
+    assert await list_devices(db_session, account.user.id) == []
+
+
 @pytest.mark.parametrize(
     "subscription",
     [
@@ -215,6 +229,7 @@ async def test_devices_of_others_cannot_be_removed(
     device = await register_device(
         db_session,
         other.user.id,
+        await make_auth_session(db_session, other.user.id),
         endpoint=FCM + uuid.uuid4().hex,
         p256dh=Browser(FCM).p256dh,
         auth=Browser(FCM).auth,

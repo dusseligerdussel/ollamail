@@ -17,7 +17,15 @@ from sqlalchemy.pool import NullPool
 from app.core.config import DatabaseSettings, SecuritySettings, Settings
 from app.core.crypto import generate_key
 from app.core.current_user import get_current_user_id
-from app.core.events import Event, EventBroker, EventEnvelope, publish
+from app.core.events import (
+    Event,
+    EventBroker,
+    EventEnvelope,
+    Subscription,
+    _stream,
+    get_session_check,
+    publish,
+)
 from app.main import create_app
 from tests.conftest import TEST_DATABASE_URL
 
@@ -102,13 +110,22 @@ async def _test_user(x_test_user: Annotated[UUID, Header()]) -> UUID:
     return x_test_user
 
 
+async def _always_valid() -> bool:
+    return True
+
+
+def _test_auth(app: FastAPI) -> None:
+    app.dependency_overrides[get_current_user_id] = _test_user
+    app.dependency_overrides[get_session_check] = lambda: _always_valid
+
+
 @pytest.fixture
 async def server(settings: Settings, migrated_database: str) -> AsyncIterator[str]:
     """The app served by a real uvicorn on a free port (ASGITransport cannot stream)."""
     # The real lifespan runs here, and it refuses to start without a master key.
     security = SecuritySettings(secret_key=SecretStr(generate_key()))
     app: FastAPI = create_app(settings.model_copy(update={"security": security}))
-    app.dependency_overrides[get_current_user_id] = _test_user
+    _test_auth(app)
     sock = socket.socket()
     sock.bind(("127.0.0.1", 0))
     port = sock.getsockname()[1]
@@ -192,10 +209,72 @@ async def test_events_unavailable_without_database(settings: Settings) -> None:
         {"url": "postgresql+asyncpg://u:p@127.0.0.1:1/x", "connect_timeout": 0.2}
     )
     app = create_app(settings.model_copy(update={"database": unreachable}))
-    app.dependency_overrides[get_current_user_id] = _test_user
+    _test_auth(app)
     transport = httpx.ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as http:
         response = await http.get("/events", headers={"X-Test-User": str(ALICE)})
     await app.state.events.stop()
 
     assert response.status_code == 503
+    assert app.state.events.stream_count(ALICE) == 0
+
+
+# --- Limits (#191) ------------------------------------------------------------------------
+
+
+async def _lines(stream: AsyncIterator[str], count: int) -> list[str]:
+    return [await anext(stream) for _ in range(count)]
+
+
+async def test_stream_ends_when_the_session_is_no_longer_valid() -> None:
+    subscription = Subscription(ALICE)
+    results = iter([True, False])
+    checks = 0
+
+    async def check() -> bool:
+        nonlocal checks
+        checks += 1
+        return next(results)
+
+    subscription.queue.put_nowait(Event(type="ping"))
+    stream = _stream(subscription, check, 0.05)
+    async with asyncio.timeout(5):
+        first, event = await _lines(stream, 2)
+        assert first.startswith("retry: ")
+        assert event.startswith("event: ping")
+        remaining = [line async for line in stream]
+
+    # Keep-alives while the session is valid, then the stream ends.
+    assert remaining and all(line == ": keep-alive\n\n" for line in remaining)
+    assert checks == 2
+
+
+async def test_stream_ends_when_the_session_check_fails() -> None:
+    async def check() -> bool:
+        raise OSError("database unreachable")
+
+    stream = _stream(Subscription(ALICE), check, 0.05)
+    async with asyncio.timeout(5):
+        lines = [line async for line in stream]
+
+    assert len(lines) == 1 and lines[0].startswith("retry: ")
+
+
+async def test_streams_per_user_are_limited(settings: Settings) -> None:
+    limited = settings.model_copy(
+        update={"events": settings.events.model_copy(update={"max_streams_per_user": 2})}
+    )
+    app = create_app(limited)
+    _test_auth(app)
+    broker: EventBroker = app.state.events
+    transport = httpx.ASGITransport(app=app)
+    with broker.subscribe(ALICE), broker.subscribe(ALICE):
+        async with AsyncClient(transport=transport, base_url="http://test") as http:
+            response = await http.get("/events", headers={"X-Test-User": str(ALICE)})
+    await app.state.database.dispose()
+
+    assert response.status_code == 429
+    assert response.json()["error_code"] == "too_many_streams"
+    assert response.headers["retry-after"].isdigit()
+    # The refused request left no subscription behind.
+    assert broker.stream_count(ALICE) == 0

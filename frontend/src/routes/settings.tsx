@@ -71,7 +71,9 @@ function ServerStatus() {
     );
   }
   if (health.isError) {
-    return <InlineError error={health.error} />;
+    return (
+      <InlineError error={health.error} onRetry={health.refetch} retrying={health.isFetching} />
+    );
   }
   return <span className="text-ui text-muted-foreground">{t("pages.settings.serverOk")}</span>;
 }

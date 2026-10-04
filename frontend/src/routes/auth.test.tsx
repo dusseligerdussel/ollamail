@@ -46,7 +46,7 @@ describe("setup wizard", () => {
     expect(screen.queryByRole("navigation", { name: "Main navigation" })).not.toBeInTheDocument();
 
     await user.type(screen.getByLabelText("Name"), "Test Admin");
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "correct horse battery");
     await user.type(screen.getByLabelText("Setup code"), "SETUPCODE");
     await user.click(screen.getByRole("button", { name: "Create administrator" }));
@@ -81,7 +81,7 @@ describe("setup wizard", () => {
     await renderApp("/setup");
 
     await user.type(screen.getByLabelText("Name"), "Test Admin");
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "correct horse battery");
     await user.type(screen.getByLabelText("Setup code"), "WRONG");
     await user.click(screen.getByRole("button", { name: "Create administrator" }));
@@ -101,7 +101,7 @@ describe("setup wizard", () => {
     await renderApp("/setup");
 
     await user.type(screen.getByLabelText("Name"), "Test Admin");
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "correct horse battery");
     await user.type(screen.getByLabelText("Setup code"), "SETUPCODE");
     await user.click(screen.getByRole("button", { name: "Create administrator" }));
@@ -143,7 +143,7 @@ describe("setup wizard", () => {
     await renderApp("/setup");
 
     await user.type(screen.getByLabelText("Name"), "Test Admin");
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "too short");
     await user.type(screen.getByLabelText("Setup code"), "SETUPCODE");
     await user.click(screen.getByRole("button", { name: "Create administrator" }));
@@ -182,7 +182,7 @@ describe("login", () => {
     expect(router.state.location.search).toEqual({ redirect: "/tasks?filter=open" });
     expect(screen.queryByRole("navigation", { name: "Main navigation" })).not.toBeInTheDocument();
 
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "correct horse battery");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
@@ -201,7 +201,7 @@ describe("login", () => {
     const user = userEvent.setup();
     await renderApp("/login");
 
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "correct horse battery");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
@@ -214,12 +214,12 @@ describe("login", () => {
     const user = userEvent.setup();
     const { router } = await renderApp("/login");
 
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "wrong password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
     expect(await screen.findByRole("alert")).toHaveTextContent(
-      "E-mail address or password is incorrect.",
+      "Email address or password is incorrect.",
     );
     expect(router.state.location.pathname).toBe("/login");
   });
@@ -230,7 +230,7 @@ describe("login", () => {
     const user = userEvent.setup();
     await renderApp("/login");
 
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "wrong password");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
@@ -245,7 +245,7 @@ describe("login", () => {
     const user = userEvent.setup();
     await renderApp("/login");
 
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "correct horse battery");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 
@@ -260,7 +260,7 @@ describe("login", () => {
     const user = userEvent.setup();
     await renderApp("/login");
 
-    await user.type(screen.getByLabelText("E-mail address"), "admin@example.org");
+    await user.type(screen.getByLabelText("Email address"), "admin@example.org");
     await user.type(screen.getByLabelText("Password"), "correct horse battery");
     await user.click(screen.getByRole("button", { name: "Sign in" }));
 

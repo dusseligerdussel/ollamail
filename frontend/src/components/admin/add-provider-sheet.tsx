@@ -27,9 +27,11 @@ import {
   updateSamlProvider,
 } from "@/api/admin-auth";
 import { describeApiError, isApiError } from "@/api/errors";
+import { isReauthCancelled } from "@/api/reauth";
 import { Notice } from "@/components/admin/notice";
 import { LdapTestPanel, OidcTestPanel } from "@/components/admin/provider-tests";
 import { SamlEndpoints } from "@/components/admin/saml-endpoints";
+import { useReauth } from "@/components/auth/reauth";
 import { CopyField } from "@/components/copy-field";
 import { FormField } from "@/components/form-field";
 import { Button } from "@/components/ui/button";
@@ -206,7 +208,9 @@ function FormBody({
     <form onSubmit={onSubmit} className="flex min-h-0 flex-1 flex-col">
       <div className="flex flex-col gap-4 overflow-y-auto p-4">
         {children}
-        {error ? <Notice tone="error">{describeError(error, t)}</Notice> : null}
+        {error && !isReauthCancelled(error) ? (
+          <Notice tone="error">{describeError(error, t)}</Notice>
+        ) : null}
       </div>
       <SheetFooter className="flex-row justify-between border-t">
         <Button type="button" variant="ghost" onClick={onBack}>
@@ -287,8 +291,10 @@ function OidcForm({
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
 
+  const withReauth = useReauth();
   const create = useMutation({
-    mutationFn: (body: OidcProviderCreate) => createOidcProvider(body),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: (body: OidcProviderCreate) => withReauth(() => createOidcProvider(body)),
     meta: { errorToast: false },
     onSuccess: async (provider) => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
@@ -435,8 +441,10 @@ function GitHubForm({
   const [clientId, setClientId] = useState("");
   const [clientSecret, setClientSecret] = useState("");
 
+  const withReauth = useReauth();
   const create = useMutation({
-    mutationFn: (body: GitHubProviderCreate) => createGitHubProvider(body),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: (body: GitHubProviderCreate) => withReauth(() => createGitHubProvider(body)),
     meta: { errorToast: false },
     onSuccess: async (provider) => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
@@ -547,8 +555,10 @@ function SamlForm({
   const [metadataXml, setMetadataXml] = useState<string>();
   const [fileMissing, setFileMissing] = useState(false);
 
+  const withReauth = useReauth();
   const create = useMutation({
-    mutationFn: (body: SamlProviderCreate) => createSamlProvider(body),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: (body: SamlProviderCreate) => withReauth(() => createSamlProvider(body)),
     meta: { errorToast: false },
     onSuccess: async (provider) => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
@@ -687,8 +697,10 @@ function LdapForm({
   const [bindPassword, setBindPassword] = useState("");
   const [baseDn, setBaseDn] = useState("");
 
+  const withReauth = useReauth();
   const create = useMutation({
-    mutationFn: (body: LdapDirectoryCreate) => createLdapDirectory(body),
+    // Needs a recent confirmation of the account (components/auth/reauth.tsx).
+    mutationFn: (body: LdapDirectoryCreate) => withReauth(() => createLdapDirectory(body)),
     meta: { errorToast: false },
     onSuccess: async (directory) => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
@@ -793,18 +805,20 @@ function LdapForm({
 function Verify({ created, onDone }: { created: Created; onDone: () => void }) {
   const { t } = useTranslation();
   const queryClient = useQueryClient();
+  const withReauth = useReauth();
   const activate = useMutation({
-    mutationFn: async () => {
-      if (created.kind === "oidc") {
-        await updateOidcProvider(created.provider.name, { enabled: true });
-      } else if (created.kind === "github") {
-        await updateGitHubProvider(created.provider.name, { enabled: true });
-      } else if (created.kind === "saml") {
-        await updateSamlProvider(created.provider.name, { enabled: true });
-      } else {
-        await updateLdapDirectory(created.directory, { enabled: true });
-      }
-    },
+    mutationFn: () =>
+      withReauth(async () => {
+        if (created.kind === "oidc") {
+          await updateOidcProvider(created.provider.name, { enabled: true });
+        } else if (created.kind === "github") {
+          await updateGitHubProvider(created.provider.name, { enabled: true });
+        } else if (created.kind === "saml") {
+          await updateSamlProvider(created.provider.name, { enabled: true });
+        } else {
+          await updateLdapDirectory(created.directory, { enabled: true });
+        }
+      }),
     onSuccess: async () => {
       await queryClient.invalidateQueries({ queryKey: adminAuthQueryKey });
       toast.success(t("pages.signIn.wizard.done"));

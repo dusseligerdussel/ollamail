@@ -17,6 +17,8 @@ from urllib.parse import unquote, urlsplit
 from pydantic import BaseModel, Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 
+from app.core.network import parse_allowed_hosts
+
 ENV_PREFIX = "OLLAMAIL_"
 
 LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"]
@@ -30,7 +32,7 @@ PRIVATE_NETWORKS = (
     "fc00::/7",
 )
 # Job queues, see app/worker.py.
-QueueName = Literal["sync", "llm", "tts", "ocr", "default"]
+QueueName = Literal["sync", "llm", "tts", "ocr", "default", "push"]
 # Placeholder password of earlier versions of deploy/.env.example; refused at start-up.
 PLACEHOLDER_DATABASE_PASSWORD = "change-me"
 # Minimum length of a configured OLLAMAIL_SETUP_TOKEN (`openssl rand -hex 16` gives 32).
@@ -204,6 +206,12 @@ class LLMSettings(BaseSettings):
     concurrency: int = Field(default=1, ge=1)
     # Job slots of the ``llm`` queue per worker process: upper bound for ``concurrency``.
     max_concurrency: int = Field(default=4, ge=1)
+    # Parallel LLM requests per API process ("ask your inbox", reply drafts, search
+    # embeddings). Further requests wait for a free slot, like jobs in the worker.
+    api_concurrency: int = Field(default=4, ge=1)
+    # Parallel LLM requests per user and API process; more are refused with 429 and
+    # ``Retry-After`` (search then falls back to full text only).
+    api_user_concurrency: int = Field(default=2, ge=1)
 
     provider: LLMProviderKind = "ollama"
     base_url: str = "http://ollama:11434"
@@ -314,18 +322,7 @@ class MailSettings(BaseSettings):
     @field_validator("allowed_internal_hosts")
     @classmethod
     def _check_hosts(cls, value: list[str]) -> list[str]:
-        entries = []
-        for entry in value:
-            entry = entry.strip().rstrip(".").lower()
-            try:
-                ipaddress.ip_network(entry, strict=False)
-            except ValueError:
-                if not entry or "/" in entry or any(c.isspace() for c in entry):
-                    raise ValueError(
-                        f"not a host name, IP address or CIDR range: {entry!r}"
-                    ) from None
-            entries.append(entry)
-        return entries
+        return parse_allowed_hosts(value)
 
 
 class GraphSettings(BaseSettings):
@@ -409,6 +406,10 @@ class TTSSettings(BaseSettings):
     # voice of the same language; see app/ai/tts/voices.py.
     voice_de: str = "de_DE-thorsten-medium"
     voice_en: str = "en_US-ljspeech-medium"
+    # Further voices users may pick besides the defaults and the installed voices
+    # (engine-specific IDs, comma-separated). Only defaults and these are downloaded, by
+    # the worker; a voice chosen by a user never triggers a download.
+    voice_allowlist: Annotated[list[str], NoDecode] = Field(default_factory=list)
     # Download missing voices into <data_dir>/tts/voices/<engine>/. Disable on hosts
     # without internet access and copy the voice files there manually.
     download_voices: bool = True
@@ -428,6 +429,13 @@ class TTSSettings(BaseSettings):
     paragraph_pause: float = Field(default=0.8, ge=0, le=5)
     # Speaking rate: values above 1 speak slower (Piper ``length_scale``); unset = voice default.
     length_scale: float | None = Field(default=None, gt=0.25, le=4)
+
+    @field_validator("voice_allowlist", mode="before")
+    @classmethod
+    def _split_voices(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [part.strip() for part in value.split(",") if part.strip()]
+        return value
 
 
 OIDCPresetName = Literal["generic", "entra", "google", "keycloak", "authentik"]
@@ -642,6 +650,10 @@ class NotificationsSettings(BaseSettings):
     web_push_allowed_hosts: Annotated[list[str], NoDecode] = Field(
         default_factory=lambda: list(DEFAULT_WEB_PUSH_HOSTS)
     )
+    # Job slots of the ``push`` queue per worker process (one job sends one mail to all
+    # devices of its readers). Separate from ``OLLAMAIL_WORKER_CONCURRENCY``, so a slow or
+    # unreachable push service never holds up mail sync.
+    web_push_concurrency: int = Field(default=2, ge=1, le=32)
 
     @field_validator("web_push_allowed_hosts", mode="before")
     @classmethod
@@ -812,6 +824,10 @@ class TodosSettings(BaseSettings):
     # Allow http:// CalDAV servers. Credentials then travel in clear text; only for test
     # setups or networks that are encrypted otherwise.
     export_allow_http: bool = False
+    # CalDAV servers users may reach on internal addresses (loopback, RFC 1918, link-local,
+    # ULA, ...), comma-separated: host names (any address they resolve to) or IP
+    # addresses/CIDR ranges. Empty: only public addresses (app/core/network.py).
+    export_allowed_internal_hosts: Annotated[list[str], NoDecode] = Field(default_factory=list)
     # Minutes between two status checks of exported todos ("done" set in the target system).
     export_poll_minutes: int = Field(default=15, ge=1, le=24 * 60)
     # Seconds per request to an export target.
@@ -821,12 +837,19 @@ class TodosSettings(BaseSettings):
     # from ``OLLAMAIL_GMAIL_REDIRECT_URI`` (same origin).
     export_gtasks_redirect_uri: str | None = None
 
-    @field_validator("skip_categories", "export_sinks", mode="before")
+    @field_validator(
+        "skip_categories", "export_sinks", "export_allowed_internal_hosts", mode="before"
+    )
     @classmethod
     def _split(cls, value: object) -> object:
         if isinstance(value, str):
             return [part.strip().lower() for part in value.split(",") if part.strip()]
         return value
+
+    @field_validator("export_allowed_internal_hosts")
+    @classmethod
+    def _check_hosts(cls, value: list[str]) -> list[str]:
+        return parse_allowed_hosts(value)
 
 
 class DigestSettings(BaseSettings):
@@ -872,11 +895,12 @@ class WorkerSettings(BaseSettings):
     model_config = _config("WORKER_")
 
     # Queues this worker process consumes, comma-separated in the environment
-    # (e.g. ``OLLAMAIL_WORKER_QUEUES=llm`` for a dedicated LLM worker).
+    # (e.g. ``OLLAMAIL_WORKER_QUEUES=llm`` for a dedicated LLM worker). ``default`` includes
+    # ``push`` (Web Push, own slots), which can also run alone in a separate worker.
     queues: Annotated[list[QueueName], NoDecode] = Field(
         default=["sync", "llm", "tts", "ocr", "default"], min_length=1
     )
-    # Parallel jobs for all consumed queues except ``llm`` (see ``LLMSettings.concurrency``).
+    # Parallel jobs for all consumed queues except ``llm``, ``ocr`` and ``push`` (own slots).
     concurrency: int = Field(default=4, ge=1)
     # Seconds running jobs get to finish after SIGTERM before they are cancelled.
     shutdown_timeout: float = Field(default=30.0, ge=0)
@@ -948,6 +972,19 @@ class PrivacySettings(BaseSettings):
     self_delete_enabled: bool = True
 
 
+class EventsSettings(BaseSettings):
+    """``OLLAMAIL_EVENTS_*`` (live updates via ``GET /events``, app/core/events.py)"""
+
+    model_config = _config("EVENTS_")
+
+    # Open event streams per user and API process (one per browser tab); further
+    # connection attempts get 429.
+    max_streams_per_user: int = Field(default=10, ge=1, le=1000)
+    # Seconds between checks that the session of an open stream is still valid; the
+    # stream ends after logout, revocation, expiry or deactivation of the user.
+    session_check_interval: float = Field(default=60.0, ge=5, le=3600)
+
+
 class ScimSettings(BaseSettings):
     """``OLLAMAIL_SCIM_*`` (SCIM 2.0 provisioning, app/scim/)"""
 
@@ -988,6 +1025,7 @@ class Settings(BaseModel):
     audit: AuditSettings = Field(default_factory=AuditSettings)
     privacy: PrivacySettings = Field(default_factory=PrivacySettings)
     scim: ScimSettings = Field(default_factory=ScimSettings)
+    events: EventsSettings = Field(default_factory=EventsSettings)
 
 
 @lru_cache

@@ -43,6 +43,15 @@ async def record(item_id: str) -> None:
     executed.append(item_id)
 
 
+# Stands in for a push service that never answers (#185).
+push_hangs = asyncio.Event()
+
+
+@app.task(name="tests.hanging_push", queue="push")
+async def hanging_push() -> None:
+    await push_hangs.wait()
+
+
 def test_worker_groups_give_llm_its_own_concurrency() -> None:
     settings = Settings(
         worker=WorkerSettings(concurrency=6), llm=LLMSettings(concurrency=2, max_concurrency=3)
@@ -53,6 +62,7 @@ def test_worker_groups_give_llm_its_own_concurrency() -> None:
         WorkerGroup("main", ("sync", "tts", "default"), 6),
         WorkerGroup("llm", ("llm",), 3),
         WorkerGroup("ocr", ("ocr",), 1),
+        WorkerGroup("push", ("push",), 2),
     ]
 
 
@@ -68,6 +78,13 @@ def test_llm_slots_cover_a_higher_default_concurrency() -> None:
         ("llm", [WorkerGroup("llm", ("llm",), 4)]),
         ("sync, tts", [WorkerGroup("main", ("sync", "tts"), 4)]),
         ("ocr", [WorkerGroup("ocr", ("ocr",), 1)]),
+        # ``default`` includes ``push`` (where push jobs ran before #185) ...
+        (
+            "sync,default",
+            [WorkerGroup("main", ("sync", "default"), 4), WorkerGroup("push", ("push",), 2)],
+        ),
+        # ... which can also run alone.
+        ("push", [WorkerGroup("push", ("push",), 2)]),
     ],
 )
 def test_worker_queues_from_environment(
@@ -82,10 +99,16 @@ def test_concurrency_from_environment(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("OLLAMAIL_WORKER_CONCURRENCY", "8")
     monkeypatch.setenv("OLLAMAIL_LLM_MAX_CONCURRENCY", "3")
     monkeypatch.setenv("OLLAMAIL_SEARCH_OCR_CONCURRENCY", "2")
+    monkeypatch.setenv("OLLAMAIL_NOTIFICATIONS_WEB_PUSH_CONCURRENCY", "5")
 
     groups = worker_groups(Settings())
 
-    assert [(g.name, g.concurrency) for g in groups] == [("main", 8), ("llm", 3), ("ocr", 2)]
+    assert [(g.name, g.concurrency) for g in groups] == [
+        ("main", 8),
+        ("llm", 3),
+        ("ocr", 2),
+        ("push", 5),
+    ]
 
 
 def test_unknown_queue_is_rejected(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -209,6 +232,34 @@ async def test_worker_runs_deferred_task(queue_database: DatabaseSettings) -> No
 
 
 @pytest.mark.db
+async def test_a_hanging_push_service_does_not_hold_up_sync(
+    queue_database: DatabaseSettings,
+) -> None:
+    executed.clear()
+    push_hangs.clear()
+    async with app.open_async():
+        hanging = [await hanging_push.defer_async() for _ in range(3)]
+        job_id = await record.defer_async(item_id="item-1")
+
+    stop = asyncio.Event()
+    # One slot for sync and default: shared with push, the hanging jobs would take it.
+    settings = Settings(
+        database=queue_database,
+        worker=WorkerSettings(queues=["sync", "default"], concurrency=1, shutdown_timeout=1),
+    )
+    worker = asyncio.create_task(run(settings, stop))
+    try:
+        await _wait_for_status(job_id, "succeeded")
+        assert await _job_status(hanging[0]) == "doing"
+    finally:
+        push_hangs.set()
+        stop.set()
+        await asyncio.wait_for(worker, timeout=10)
+
+    assert executed == ["item-1"]
+
+
+@pytest.mark.db
 async def test_worker_writes_heartbeat_and_closes_the_shared_engine(
     queue_database: DatabaseSettings, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -272,7 +323,8 @@ async def test_worker_process_runs_task_and_stops_on_sigterm(
     )
     try:
         await _wait_for_status(job_id, "succeeded")
-        assert await _execute("SELECT count(*) FROM procrastinate_workers") == [(3,)]
+        # main, llm, ocr and push.
+        assert await _execute("SELECT count(*) FROM procrastinate_workers") == [(4,)]
 
         process.send_signal(signal.SIGTERM)
         output, _ = await asyncio.wait_for(process.communicate(), timeout=20)

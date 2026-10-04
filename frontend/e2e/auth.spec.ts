@@ -23,7 +23,7 @@ const member = {
 };
 
 async function signIn(page: Page, email: string, password: string) {
-  await page.getByLabel("E-mail address").fill(email);
+  await page.getByLabel("Email address").fill(email);
   await page.getByLabel("Password").fill(password);
   await page.getByRole("button", { name: "Sign in", exact: true }).click();
 }
@@ -41,7 +41,7 @@ test("fresh instance → setup → admin signed in → logout → login", async 
   await page.goto("/");
   await expect(page).toHaveURL(/\/setup$/);
   await page.getByLabel("Name").fill(admin.name);
-  await page.getByLabel("E-mail address").fill(admin.email);
+  await page.getByLabel("Email address").fill(admin.email);
   await page.getByLabel("Password").fill(admin.password);
 
   // A wrong setup code is rejected by the server.
@@ -69,7 +69,7 @@ test("fresh instance → setup → admin signed in → logout → login", async 
   await expect(page).toHaveURL(/\/login\?redirect=%2Fsettings$/);
 
   await signIn(page, admin.email, "not the password");
-  await expect(page.getByRole("alert")).toHaveText("E-mail address or password is incorrect.");
+  await expect(page.getByRole("alert")).toHaveText("Email address or password is incorrect.");
 
   await signIn(page, admin.email, admin.password);
   await expect(page.getByRole("heading", { level: 1, name: "Settings" })).toBeVisible();

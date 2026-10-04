@@ -126,6 +126,11 @@ async def test_verified_email_links_when_allowed(db_session: AsyncSession) -> No
     assert result.user.role is UserRole.ADMIN
     providers = set(await db_session.scalars(select(Identity.provider)))
     assert providers == {"local", "oidc:corp"}
+    # The link is in the audit log (#190): the account now opens to that provider.
+    (event,) = await audit_rows(db_session, AuditAction.USER_IDENTITY_LINKED)
+    assert event.target_id == str(user.id)
+    assert event.actor_kind == "system"
+    assert event.details == {"provider": "oidc:corp", "via": "email"}
 
 
 async def test_inactive_users_are_refused(db_session: AsyncSession) -> None:

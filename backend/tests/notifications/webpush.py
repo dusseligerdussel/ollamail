@@ -1,11 +1,17 @@
-"""A fake browser for Web Push tests: its subscription keys and RFC 8291 decryption."""
+"""A fake browser for Web Push tests: its subscription keys and RFC 8291 decryption, and the
+sign-in session a device is registered in."""
 
 import json
+import os
+import uuid
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
 
 from cryptography.hazmat.primitives.asymmetric import ec
 from cryptography.hazmat.primitives.ciphers.aead import AESGCM
+from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth.models import AuthSession
 from app.core.config import NotificationsSettings
 from app.notifications.vapid import (
     _hkdf,
@@ -70,3 +76,25 @@ class Browser:
 
     def payload(self, body: bytes) -> object:
         return json.loads(self.decrypt(body))
+
+
+async def make_auth_session(
+    session: AsyncSession,
+    user_id: uuid.UUID,
+    *,
+    expires_at: datetime | None = None,
+    last_seen_at: datetime | None = None,
+) -> uuid.UUID:
+    """A sign-in session of the user (devices are bound to one, #185)."""
+    now = datetime.now(UTC)
+    auth_session = AuthSession(
+        user_id=user_id,
+        token_hash=os.urandom(32),
+        provider="local",
+        expires_at=expires_at or now + timedelta(days=1),
+        last_seen_at=last_seen_at or now,
+        authenticated_at=now,
+    )
+    session.add(auth_session)
+    await session.flush()
+    return auth_session.id
