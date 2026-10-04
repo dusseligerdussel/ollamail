@@ -20,6 +20,7 @@ from app.auth.providers.github.schemas import (
     GitHubProviderRead,
     GitHubProviderUpdate,
 )
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep
 from app.core.config import Settings
 from app.core.db import get_db
 from app.core.errors import ProblemError
@@ -172,11 +173,15 @@ async def get_github_provider(
 @admin_router.post(
     "/providers",
     status_code=status.HTTP_201_CREATED,
-    responses={409: {"description": "Name taken"}, 422: {"description": "Invalid settings"}},
+    responses={
+        **ADMIN_REAUTH_RESPONSES,
+        409: {"description": "Name taken"},
+        422: {"description": "Invalid settings"},
+    },
 )
 async def create_github_provider(
     body: GitHubProviderCreate,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
     settings: SettingsDep,
@@ -209,6 +214,7 @@ _CLEARABLE = frozenset({"base_url"})
 @admin_router.patch(
     "/providers/{name}",
     responses={
+        **ADMIN_REAUTH_RESPONSES,
         404: {"description": "Unknown provider"},
         409: {"description": "No administrator could sign in afterwards (admin-lockout)"},
         422: {"description": "Invalid settings"},
@@ -217,7 +223,7 @@ _CLEARABLE = frozenset({"base_url"})
 async def update_github_provider(
     name: str,
     body: GitHubProviderUpdate,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
     settings: SettingsDep,

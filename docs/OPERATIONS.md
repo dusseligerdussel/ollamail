@@ -367,6 +367,13 @@ Andere Stimmen aus [rhasspy/piper-voices](https://huggingface.co/rhasspy/piper-v
 sich über die Variablen einstellen. Vorher die Lizenz im `MODEL_CARD` der Stimme prüfen: Einige
 Trainingsdatensätze haben Nutzungsbeschränkungen (z. B. nur nicht-kommerziell).
 
+**Welche Stimmen Nutzer wählen können (#191):** die Standardstimmen, alle bereits installierten
+Stimmen und die in `OLLAMAIL_TTS_VOICE_ALLOWLIST` (kommagetrennte Voice-IDs, nur DE/EN) freigegebenen.
+Heruntergeladen werden ausschließlich Standard- und Allowlist-Stimmen – vom Worker, nie auf
+Wunsch eines Nutzers; eine andere Stimme lehnt die API ab (422), so kann niemand über die
+Stimmenwahl das Daten-Volume füllen. Eine Stimme ohne Internetzugang bereitstellen: Dateien wie
+unten ins Volume kopieren, sie ist dann installiert und wählbar.
+
 **Ohne Internetzugang:** `OLLAMAIL_TTS_DOWNLOAD_VOICES=false` setzen und beide Dateien je Stimme
 manuell ins Volume kopieren:
 
@@ -1190,6 +1197,23 @@ Parameter; bei verwalteten Datenbanken setzt man sie in der Parametergruppe des 
 Die Embeddings sind als `halfvec` gespeichert (16 Bit je Dimension, ab pgvector 0.7), das
 halbiert Tabelle und Index gegenüber `vector`. Messung und Upgrade-Hinweise:
 [6.7](#67-upgrade-hinweis-embeddings-als-halfvec-164).
+
+### 8.5 Ressourcen-Limits pro Nutzer
+
+Damit ein einzelner Nutzer (oder ein gekapertes Konto) die Instanz nicht lahmlegen kann, begrenzt
+die API einige Ressourcen pro Nutzer (#191). Die Zähler gelten **pro API-Prozess**: Mit mehreren
+API-Replicas (Helm) kann ein Nutzer jedes Limit einmal je Pod ausschöpfen.
+
+| Variable | Standard | Wirkung |
+|---|---|---|
+| `OLLAMAIL_LLM_API_USER_CONCURRENCY` | 2 | Gleichzeitige LLM-Anfragen eines Nutzers („Frag dein Postfach“, Antwortentwürfe, Suche). Weitere lehnt die API mit 429 und `Retry-After` ab (`error_code` `llm_busy`); die Oberfläche zeigt eine verständliche Meldung. Die Suche weicht stattdessen auf reine Volltextsuche aus. |
+| `OLLAMAIL_LLM_API_CONCURRENCY` | 4 | Gleichzeitige LLM-Anfragen der API insgesamt; weitere warten auf einen freien Platz (wie die Jobs im Worker mit `OLLAMAIL_LLM_CONCURRENCY`). |
+| `OLLAMAIL_EVENTS_MAX_STREAMS_PER_USER` | 10 | Offene Live-Update-Streams (`GET /api/events`, einer pro Browser-Tab). Weitere Verbindungen bekommen 429; der Tab funktioniert, aktualisiert sich aber nicht live. |
+| `OLLAMAIL_EVENTS_SESSION_CHECK_INTERVAL` | 60 | Sekunden zwischen den Prüfungen, ob die Sitzung eines offenen Streams noch gilt. Nach Abmeldung, Widerruf der Sitzung, Ablauf oder Deaktivierung des Nutzers endet der Stream spätestens nach diesem Intervall (plus Heartbeat von 15 s), statt bis zum Proxy-Timeout weiterzulaufen. Die Prüfung verlängert die Sitzung nicht. |
+
+Auf CPU-only-Hosts mit vielen Nutzern `OLLAMAIL_LLM_API_USER_CONCURRENCY=1` setzen; auf
+GPU-Servern dürfen beide LLM-Werte höher sein. Welche TTS-Stimmen Nutzer wählen dürfen, steht in
+[3.6](#36-sprachausgabe-tts).
 
 ## 9. Datenschutz-Hinweise für Betreiber
 

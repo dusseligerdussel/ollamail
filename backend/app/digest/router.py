@@ -121,9 +121,9 @@ async def get_digest_settings(user: CurrentUserDep, db: DbDep) -> DigestSettings
     return _settings_read(user, await service.settings_row(db, user.id))
 
 
-@router.patch("/settings", responses={422: {"description": "Invalid value or mailbox"}})
+@router.patch("/settings", responses={422: {"description": "Invalid value, mailbox or voice"}})
 async def update_digest_settings(
-    body: DigestSettingsUpdate, user: CurrentUserDep, db: DbDep
+    body: DigestSettingsUpdate, user: CurrentUserDep, db: DbDep, settings: SettingsDep
 ) -> DigestSettingsRead:
     """Change own digest settings. A changed schedule starts with the next slot."""
     changes = body.model_dump(exclude_unset=True)
@@ -136,6 +136,11 @@ async def update_digest_settings(
         if set(own) != set(mailbox_ids):
             raise ProblemError(422, detail="Unknown mailbox.", error_code="unknown_mailbox")
         changes["mailbox_ids"] = sorted(set(mailbox_ids))
+    voice = changes.get("voice")
+    if voice is not None and not create_tts(settings).is_available(voice):
+        # Only installed, default or allowlisted voices: a user's choice never makes the
+        # server download a voice (#191).
+        raise ProblemError(422, detail="Unknown voice.", error_code="unknown_voice")
     row = await service.update_settings(db, user, changes, now=_now())
     await db.commit()
     return _settings_read(user, row)
@@ -143,7 +148,8 @@ async def update_digest_settings(
 
 @router.get("/voices")
 async def list_digest_voices(_: CurrentSessionDep, settings: SettingsDep) -> list[DigestVoice]:
-    """Voices for the digest: installed ones plus the default voice of each language."""
+    """Voices for the digest: installed ones plus the default voice of each language and
+    the voices the admin allows (``OLLAMAIL_TTS_VOICE_ALLOWLIST``)."""
     tts = create_tts(settings)
     return [
         DigestVoice(

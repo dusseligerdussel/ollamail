@@ -41,6 +41,7 @@ class ProblemError(Exception):
         title: str | None = None,
         detail: str | None = None,
         type: str = "about:blank",
+        headers: Mapping[str, str] | None = None,
         **extensions: Any,
     ) -> None:
         super().__init__(title or HTTPStatus(status).phrase)
@@ -48,6 +49,7 @@ class ProblemError(Exception):
         self.title = title or HTTPStatus(status).phrase
         self.detail = detail
         self.type = type
+        self.headers = headers
         self.extensions = extensions
 
 
@@ -79,7 +81,12 @@ def problem_response(
 async def _handle_problem(_: Request, exc: Exception) -> JSONResponse:
     assert isinstance(exc, ProblemError)
     return problem_response(
-        exc.status, title=exc.title, detail=exc.detail, type=exc.type, **exc.extensions
+        exc.status,
+        title=exc.title,
+        detail=exc.detail,
+        type=exc.type,
+        headers=exc.headers,
+        **exc.extensions,
     )
 
 

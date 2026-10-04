@@ -15,7 +15,7 @@ listener reconnects) are lost. Clients refetch their data after (re)connecting.
 """
 
 import asyncio
-from collections.abc import AsyncIterator, Iterator
+from collections.abc import AsyncIterator, Awaitable, Callable, Iterator
 from contextlib import contextmanager
 from typing import Annotated, Any
 from uuid import UUID
@@ -27,9 +27,11 @@ from pydantic import BaseModel, ConfigDict, Field, StringConstraints, Validation
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncConnection, AsyncSession
 
-from app.core.config import DatabaseSettings
+from app.auth.dependencies import CurrentSessionDep
+from app.auth.sessions import session_active
+from app.core.config import DatabaseSettings, Settings
 from app.core.current_user import get_current_user_id
-from app.core.db import libpq_url
+from app.core.db import Database, libpq_url
 from app.core.errors import ProblemError
 from app.core.logging import get_logger
 
@@ -114,6 +116,10 @@ class EventBroker:
         async with asyncio.timeout(self._connect_timeout + 1):
             await self._ready.wait()
 
+    def stream_count(self, user_id: UUID) -> int:
+        """Open subscriptions of ``user_id`` in this process."""
+        return len(self._subscriptions.get(user_id, ()))
+
     @contextmanager
     def subscribe(self, user_id: UUID) -> Iterator[Subscription]:
         """Receive the events of ``user_id`` while the context is open."""
@@ -191,24 +197,74 @@ class EventBroker:
 
 router = APIRouter(tags=["events"])
 
+# Re-checks that the session behind a stream is still valid; ``False`` ends the stream.
+SessionCheck = Callable[[], Awaitable[bool]]
+
 
 def _sse(event: Event) -> str:
     return f"event: {event.type}\ndata: {event.model_dump_json()}\n\n"
 
 
-async def _stream(broker: EventBroker, user_id: UUID) -> AsyncIterator[str]:
-    # Subscribing inside the generator ties the subscription to the response's lifetime.
+async def _session_valid(check: SessionCheck) -> bool:
+    try:
+        return await check()
+    except Exception as exc:
+        # Fail closed: the client reconnects and is authenticated afresh.
+        log.warning("event_session_check_failed", error_type=type(exc).__name__)
+        return False
+
+
+async def _stream(
+    subscription: Subscription, check: SessionCheck, check_interval: float
+) -> AsyncIterator[str]:
+    loop = asyncio.get_running_loop()
+    next_check = loop.time() + check_interval
+    # Sent once the subscription is active: from here on no event is missed.
+    yield f"retry: {RECONNECT_DELAY_MS}\n\n"
+    while True:
+        try:
+            async with asyncio.timeout(min(HEARTBEAT_INTERVAL, check_interval)):
+                event = await subscription.queue.get()
+        except TimeoutError:
+            event = None
+        if loop.time() >= next_check:
+            # Logout, revocation, expiry or deactivation end an open stream (#191).
+            if not await _session_valid(check):
+                log.info("event_stream_session_ended")
+                return
+            next_check = loop.time() + check_interval
+        yield ": keep-alive\n\n" if event is None else _sse(event)
+
+
+def get_session_check(request: Request, current: CurrentSessionDep) -> SessionCheck:
+    """Checks the current session without refreshing it, in a short database session of
+    its own (the stream holds no pooled connection between checks)."""
+    database: Database = request.app.state.database
+    settings: Settings = request.app.state.settings
+
+    async def check() -> bool:
+        async with database.sessionmaker() as db:
+            return await session_active(db, settings.auth, current.session_id)
+
+    return check
+
+
+async def get_subscription(
+    request: Request, user_id: Annotated[UUID, Depends(get_current_user_id)]
+) -> AsyncIterator[Subscription]:
+    """The stream's subscription; held until the response has ended, also when the client
+    disconnects early. 429 if the user already has the allowed number of streams open."""
+    broker: EventBroker = request.app.state.events
+    settings: Settings = request.app.state.settings
+    if broker.stream_count(user_id) >= settings.events.max_streams_per_user:
+        raise ProblemError(
+            429,
+            detail="Too many open live update streams.",
+            error_code="too_many_streams",
+            headers={"Retry-After": str(RECONNECT_DELAY_MS // 1000)},
+        )
     with broker.subscribe(user_id) as subscription:
-        # Sent once the subscription is active: from here on no event is missed.
-        yield f"retry: {RECONNECT_DELAY_MS}\n\n"
-        while True:
-            try:
-                async with asyncio.timeout(HEARTBEAT_INTERVAL):
-                    event = await subscription.queue.get()
-            except TimeoutError:
-                yield ": keep-alive\n\n"
-                continue
-            yield _sse(event)
+        yield subscription
 
 
 @router.get(
@@ -219,21 +275,25 @@ async def _stream(broker: EventBroker, user_id: UUID) -> AsyncIterator[str]:
             "description": "Server-Sent Events stream of `Event` objects for the current user",
             "content": {"text/event-stream": {"schema": Event.model_json_schema()}},
         },
+        429: {"description": "Too many open streams of the user"},
         503: {"description": "The event listener is unavailable"},
     },
 )
 async def stream_events(
-    request: Request, user_id: Annotated[UUID, Depends(get_current_user_id)]
+    request: Request,
+    subscription: Annotated[Subscription, Depends(get_subscription)],
+    check: Annotated[SessionCheck, Depends(get_session_check)],
 ) -> StreamingResponse:
     """Stream the current user's events. Each SSE ``event`` is the event type, ``data``
-    the JSON-encoded event."""
+    the JSON-encoded event. The stream ends when the session is no longer valid."""
     broker: EventBroker = request.app.state.events
+    settings: Settings = request.app.state.settings
     try:
         await broker.wait_ready()
     except TimeoutError:
         raise ProblemError(503, detail="Live updates are temporarily unavailable.") from None
     return StreamingResponse(
-        _stream(broker, user_id),
+        _stream(subscription, check, settings.events.session_check_interval),
         media_type="text/event-stream",
         headers={"Cache-Control": "no-cache", "X-Accel-Buffering": "no"},
     )

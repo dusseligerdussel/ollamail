@@ -10,6 +10,7 @@ from httpx import AsyncClient
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import LLMUnavailableError, get_llm
+from app.ai.llm.user_limits import UserLLMLimiter
 from app.core.config import Settings
 from app.core.db import get_db
 from app.main import create_app
@@ -198,3 +199,25 @@ async def test_question_is_validated(http: AsyncClient, db_session: AsyncSession
     assert (await http.post("/rag/ask", json={"question": "x" * 2001})).status_code == 422
     response = await http.post("/rag/ask", json={"question": "x", "filters": {"owner": "bob"}})
     assert response.status_code == 422
+
+
+async def test_parallel_asks_of_one_user_are_limited(
+    http: AsyncClient, db_session: AsyncSession, inbox: Inbox, fake_llm: FakeLLM
+) -> None:
+    user = await signed_in(http, db_session, "erika@example.org")
+    await inbox.add(await inbox.mail.mailbox(user.id), FLIGHT)
+    limiter: UserLLMLimiter = http._transport.app.state.user_llm_limiter  # type: ignore[attr-defined]
+    held = [limiter.acquire(user.id) for _ in range(limiter.limit)]
+
+    response = await http.post("/rag/ask", json={"question": "Which gate?"})
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"].isdigit()
+    assert response.json()["error_code"] == "llm_busy"
+    assert fake_llm.model.calls == []
+
+    for slot in held:
+        slot.release()
+    await ask(http, question="Which gate?")
+    # The slot of the streamed answer is free again.
+    assert limiter.active(user.id) == 0

@@ -78,7 +78,7 @@ async def test_synthesize_speaks_normalised_pieces_with_pauses(tmp_path: Path) -
 
 async def test_user_voice_is_used_when_it_matches_the_language(tmp_path: Path) -> None:
     engine = FakeEngine()
-    tts = service(engine)
+    tts = service(engine, voice_allowlist="de_DE-kerstin-low")
 
     await tts.synthesize("Hallo.", lang="de", voice="de_DE-kerstin-low", target=tmp_path / "a")
     await tts.synthesize("Hello.", lang="en", voice="de_DE-kerstin-low", target=tmp_path / "b")
@@ -87,12 +87,31 @@ async def test_user_voice_is_used_when_it_matches_the_language(tmp_path: Path) -
     assert [voice for _, voice, _ in engine.calls] == ["de_DE-kerstin-low", EN, EN]
 
 
+async def test_voices_users_pick_are_never_downloaded(tmp_path: Path) -> None:
+    # A formally valid voice that is neither installed, a default nor allowlisted (#191).
+    engine = FakeEngine(installed={"de_DE-eva_k-x_low"})
+    tts = service(engine)
+
+    await tts.synthesize("Hallo.", lang="de", voice="de_DE-pavoque-low", target=tmp_path / "a")
+    await tts.synthesize("Hallo.", lang="de", voice="de_DE-eva_k-x_low", target=tmp_path / "b")
+
+    assert engine.ensured == [DE, "de_DE-eva_k-x_low"]
+    assert [voice for _, voice, _ in engine.calls] == [DE, "de_DE-eva_k-x_low"]
+    assert not tts.is_available("de_DE-pavoque-low")
+    assert tts.is_available("de_DE-eva_k-x_low")
+    assert tts.is_available(DE)
+    assert not tts.is_available("../../etc/passwd")
+
+
 def test_resolve_voice_uses_configured_defaults() -> None:
     tts = service(voice_de="de_DE-kerstin-low", voice_en="en_GB-alan-medium")
 
     assert tts.resolve_voice("de") == "de_DE-kerstin-low"
     assert tts.resolve_voice("en", None) == "en_GB-alan-medium"
-    assert tts.resolve_voice("en", "en_US-amy-medium") == "en_US-amy-medium"
+    # Not installed and not allowlisted: the default instead (#191).
+    assert tts.resolve_voice("en", "en_US-amy-medium") == "en_GB-alan-medium"
+    allowed = service(voice_allowlist="en_US-amy-medium")
+    assert allowed.resolve_voice("en", "en_US-amy-medium") == "en_US-amy-medium"
 
 
 def test_voices_lists_installed_and_default_voices() -> None:
@@ -108,12 +127,25 @@ def test_voices_lists_installed_and_default_voices() -> None:
     assert [v.id for v in service(engine).voices("en")] == [EN]
 
 
-async def test_ensure_default_voices() -> None:
+def test_voices_include_the_allowlist() -> None:
     engine = FakeEngine()
 
-    await service(engine).ensure_default_voices()
+    voices = service(engine, voice_allowlist="en_GB-alan-medium,fr_FR-siwis-medium").voices()
 
-    assert engine.ensured == [DE, EN]
+    # Voices of unsupported languages are left out.
+    assert voices == [
+        VoiceInfo(DE, "fake", "de", installed=False),
+        VoiceInfo("en_GB-alan-medium", "fake", "en", installed=False),
+        VoiceInfo(EN, "fake", "en", installed=False),
+    ]
+
+
+async def test_ensure_offered_voices() -> None:
+    engine = FakeEngine()
+
+    await service(engine, voice_allowlist=f"en_GB-alan-medium,{DE}").ensure_offered_voices()
+
+    assert engine.ensured == [DE, EN, "en_GB-alan-medium"]
 
 
 async def test_missing_voice_fails_before_synthesis(tmp_path: Path) -> None:

@@ -282,7 +282,8 @@
           "reactivated": "Benutzer reaktiviert",
           "invited": "Benutzer eingeladen",
           "password_set": "Passwort gesetzt",
-          "updated": "Nutzer geändert"
+          "updated": "Nutzer geändert",
+          "identity_linked": "Anmeldung per E-Mail-Adresse verknüpft"
         },
         "group": {
           "created": "Gruppe angelegt",
@@ -1008,6 +1009,7 @@
     "tooLarge": "Die Datei ist zu groß.",
     "validation": "Einige Eingaben sind ungültig.",
     "rateLimited": "Zu viele Anfragen. Bitte warte einen Moment.",
+    "llmBusy": "Du hast bereits mehrere Antworten oder Entwürfe in Arbeit. Warte, bis einer fertig ist, und versuche es dann erneut.",
     "server": "Auf dem Server ist ein Fehler aufgetreten. Bitte versuche es später erneut.",
     "unavailable": "Der Dienst ist vorübergehend nicht verfügbar.",
     "unknown": "Etwas ist schiefgelaufen.",

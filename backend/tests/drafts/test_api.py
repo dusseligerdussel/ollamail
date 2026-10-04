@@ -12,6 +12,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.ai.llm import LLMUnavailableError
+from app.ai.llm.user_limits import UserLLMLimiter
 from app.audit import AuditAction
 from app.drafts.models import DraftStatus, ReplyDraft
 from app.mail.models import FolderRole, MailboxType, Message
@@ -173,6 +174,28 @@ async def test_model_timeout_has_its_own_code(
     assert [name for name, _ in events] == ["start", "error"]
     assert events[-1][1]["code"] == "llm_timeout"
     assert await db_session.scalar(select(ReplyDraft.id)) is None
+
+
+async def test_parallel_generations_of_one_user_are_limited(
+    app: FastAPI, signed_in: Client, mails: Mails, fake_llm: FakeLLM, db_session: AsyncSession
+) -> None:
+    client, erika = await signed_in("erika@example.org")
+    message = await mails.message(await mails.mailbox(erika), QUESTION)
+    limiter: UserLLMLimiter = app.state.user_llm_limiter
+    held = [limiter.acquire(erika.id) for _ in range(limiter.limit)]
+
+    response = await client.post("/drafts/generate", json={"message_id": str(message.id)})
+
+    assert response.status_code == 429
+    assert response.headers["retry-after"].isdigit()
+    assert response.json()["error_code"] == "llm_busy"
+    assert await db_session.scalar(select(ReplyDraft.id)) is None
+
+    for slot in held:
+        slot.release()
+    fake_llm.model.answer = ANSWER
+    await generate(client, message_id=str(message.id))
+    assert limiter.active(erika.id) == 0
 
 
 async def test_draft_by_hand_edit_and_send(

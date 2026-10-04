@@ -65,6 +65,10 @@ export function isCsrfError(error: unknown): boolean {
   return isApiError(error) && error.status === 403 && error.problem?.error_code === CSRF_ERROR_CODE;
 }
 
+/** `error_code` of a request refused because the user already runs the allowed number of
+ * AI requests (`app/ai/llm/user_limits.py`). */
+export const LLM_BUSY_ERROR_CODE = "llm_busy";
+
 const messageKeys = {
   0: "errors.network",
   400: "errors.badRequest",
@@ -80,6 +84,9 @@ const messageKeys = {
 
 function messageKey(error: unknown) {
   if (!isApiError(error)) return "errors.unknown" as const;
+  if (error.status === 429 && error.problem?.error_code === LLM_BUSY_ERROR_CODE) {
+    return "errors.llmBusy" as const;
+  }
   const known = messageKeys[error.status as keyof typeof messageKeys];
   if (known) return known;
   return error.status >= 500 ? ("errors.server" as const) : ("errors.unknown" as const);

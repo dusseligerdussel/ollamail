@@ -28,6 +28,7 @@ from app.auth.providers.oidc.schemas import (
     OIDCProviderUpdate,
 )
 from app.auth.providers.oidc.store import OIDCProviderStore
+from app.auth.reauth import ADMIN_REAUTH_RESPONSES, RecentAdminDep
 from app.auth.sessions import SESSION_COOKIE, hash_token
 from app.core.db import get_db
 from app.core.errors import ProblemError
@@ -260,11 +261,15 @@ async def get_oidc_provider(
 @admin_router.post(
     "/providers",
     status_code=status.HTTP_201_CREATED,
-    responses={409: {"description": "Name taken"}, 422: {"description": "Invalid settings"}},
+    responses={
+        **ADMIN_REAUTH_RESPONSES,
+        409: {"description": "Name taken"},
+        422: {"description": "Invalid settings"},
+    },
 )
 async def create_oidc_provider(
     body: OIDCProviderCreate,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
     settings: SettingsDep,
@@ -304,6 +309,7 @@ _CLEARABLE = frozenset({"client_secret", "groups_claim"})
 @admin_router.patch(
     "/providers/{name}",
     responses={
+        **ADMIN_REAUTH_RESPONSES,
         404: {"description": "Unknown provider"},
         409: {"description": "Configured in the environment, or admin lockout"},
         422: {"description": "Invalid settings"},
@@ -312,7 +318,7 @@ _CLEARABLE = frozenset({"client_secret", "groups_claim"})
 async def update_oidc_provider(
     name: str,
     body: OIDCProviderUpdate,
-    admin: AdminSessionDep,
+    admin: RecentAdminDep,
     request: Request,
     db: DbDep,
     settings: SettingsDep,
