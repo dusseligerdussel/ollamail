@@ -592,8 +592,8 @@ jobs:
       - name: TrueNAS custom app
         run: |
           docker compose down --volumes
-          docker tag ollamail-api:local ghcr.io/dusseligerdussel/ollamail-api:edge
-          docker tag ollamail-frontend:local ghcr.io/dusseligerdussel/ollamail-frontend:edge
+          docker tag ollamail-api:local ghcr.io/dusseligerdussel/ollamail-api:0.1.0
+          docker tag ollamail-frontend:local ghcr.io/dusseligerdussel/ollamail-frontend:0.1.0
           dir="$RUNNER_TEMP/truenas"
           pool="$dir/pool"
           # $dir stays the runner's (the rendered YAML goes there); only the datasets are 568's.

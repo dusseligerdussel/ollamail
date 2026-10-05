@@ -5,10 +5,9 @@ Alle nennenswerten Änderungen an ollamail. Die Versionsnummern folgen
 noch ändern. Die vollständige Liste je Version erzeugt `git-cliff` aus den Commits
 (`.github/cliff.toml`); sie steht auch in den Release-Notes auf GitHub.
 
-## [0.1.0] – Entwurf
+## [0.1.0] – 2026-10-05
 
-Erste Version. Der Tag wird vom Repository-Owner gesetzt; bis dahin ist dieser Abschnitt ein
-Entwurf.
+Erste Version.
 
 ### Hauptfunktionen
 
@@ -40,7 +39,8 @@ Entwurf.
 - **Datenschutz:** verschlüsselte Zugangsdaten mit Key-Rotation, PII-Filter im Logging,
   manipulationssicheres Audit-Log, Aufbewahrungsfristen, Datenexport und Kontolöschung.
 - **Betrieb:** Docker Compose (Multi-Arch-Images amd64/arm64 über GHCR oder lokaler Build),
-  Helm-Chart, Backup/Restore- und Upgrade-Anleitung in `docs/OPERATIONS.md`. Worker-Healthcheck
+  Helm-Chart, TrueNAS-SCALE-App (Custom App per YAML, `docs/operations/truenas.md`),
+  Backup/Restore- und Upgrade-Anleitung in `docs/OPERATIONS.md`. Worker-Healthcheck
   per Heartbeat, optionale Prometheus-Metriken (`OLLAMAIL_METRICS_ENABLED`, nur intern bzw. mit
   Token), ein Datenbank-Pool je Prozess und PostgreSQL-Tuning für pgvector (#146).
 - **Oberfläche:** schlichte UI in Deutsch und Englisch, Light/Dark, Desktop und Mobil,
@@ -63,8 +63,6 @@ Entwurf.
   Entra-ID-/Okta-/Google-Mandanten getestet.
 - Die arm64-Images werden nativ auf arm64-Runnern gebaut (seit #131), aber auf keiner echten
   arm64-Hardware getestet.
-- Die GHCR-Images sind derzeit nicht öffentlich; ohne Zugriff lokal bauen
-  (`deploy/compose.build.yaml`, siehe `docs/OPERATIONS.md` §2.3).
 - Kein automatischer Downgrade: Rückkehr zu einer älteren Version nur über das Backup von
   vor dem Update (`docs/OPERATIONS.md` §6.4).
 - Paperless-ngx-Anbindung ist bewusst zurückgestellt (`docs/ROADMAP.md`).
@@ -76,7 +74,7 @@ Entwurf.
 ### Alle Änderungen
 
 <details>
-<summary>Aus den Commits erzeugt (git-cliff, Stand dieses Entwurfs)</summary>
+<summary>Aus den Commits erzeugt (git-cliff)</summary>
 
 #### Features
 
@@ -161,6 +159,18 @@ Entwurf.
 - **search:** Mark hits and citations from OCR text in the UI (dd7ea3e)
 - **todos:** Export todos to Microsoft To Do (#120) (29a1580)
 - **todos:** Export todos to Google Tasks (#121) (fac37a5)
+- **admin:** System status, model downloads and getting-started checklist (#155) (1fa4024)
+- **evals:** Model eval suite for triage, todos, digest and RAG (#125) (be397b5)
+- **ops:** Worker heartbeat, Prometheus metrics, shared DB pool, Postgres tuning (#165) (5ca3918)
+- **mail:** Archivieren, Verschieben, Löschen und Markieren über die Provider + Doku „Analyse-Werkzeug, kein Mail-Client“ (#167) (ab72081)
+- **processing:** Limit LLM backfill to recent mail, slice large imports (#166) (99d8757)
+- **ai:** Bessere Triage- und Todo-Prompts, Schema-Gate für die Aufgaben-Erkennung (#174) (c3430c4)
+- **search:** Store embeddings as halfvec (#178) (d222edc)
+- **notifications:** Opt-in browser notifications for important mails (#180) (5c4a843)
+- **notifications:** Web Push für Benachrichtigungen ohne geöffneten Tab (VAPID) (#183) (097970b)
+- **auth:** Betroffene über per E-Mail-Adresse verknüpfte Anmeldungen informieren (#215) (077de7d)
+- **auth:** Let users unlink sign-ins linked by e-mail address and block relinking (#230) (50825e2)
+- **deploy:** Ollamail als TrueNAS-SCALE-App (Custom App + vorbereitete Katalog-App) (#228) (43dc081)
 
 #### Bug Fixes
 
@@ -185,10 +195,47 @@ Entwurf.
 - **tasks:** Keep task updates off the export settings query (9c25f1d)
 - **mail:** Keep server fields the user is in or edited from late autodiscovery (#119) (930226d)
 - **inbox:** Keep palette commands stable while pages load (#118) (182bc7b)
+- **a11y:** Keyboard operation, focus return and page titles (#127) (4657a44)
+- **a11y:** Token contrast, focus ring, reflow checks and audit report (#129) (53fb10a)
+- **llm:** Bound answer length and call duration of every LLM call (#133) (a34a702)
+- **llm:** Report timeouts as llm_timeout in RAG chat and reply drafts (#136) (ae9a011)
+- **security:** Stop forged X-Forwarded-For from bypassing rate limits (#150) (7377413)
+- **security:** Refuse internal mail hosts, throttle setup, safer deploy defaults (#153) (c9498fa)
+- **auth:** Explain CSRF failures on plain HTTP instead of a wrong setup code (#154) (3440a6c)
+- **worker:** Recover stalled jobs, retry failed LLM steps, circuit breaker for Ollama outages (#151) (bf047dc)
+- **mail:** Keyset lists over sort_date index for 50k–200k mails (#156) (7f722c7)
+- **docker:** Apply Debian security updates in api runtime image (#163) (18270f7)
+- **auth:** 2FA-Pflicht bei Einladung/Registrierung, Re-Auth für sensible Aktionen, Recovery-Codes nach Key-Rotation (#162) (694a097)
+- **mail:** CPU-Arbeit vom Event-Loop, API-Kompression, Postfach-Löschung im Hintergrund, IMAP-Flag-Scan ohne CONDSTORE (#169) (03adb3e)
+- **evals:** Measure LLM call durations in monotonic nanoseconds (#173) (731b152)
+- **digest:** Reliable [n] references in the spoken summary (#176) (ec10fa8)
+- **ai:** Prompt-Injection – Mail-Inhalte steuern Triage, Todos, Digest, RAG und Entwürfe nicht mehr (#175) (8f57ea2)
+- **privacy:** Nutzer-Löschung – Postfächer im Hintergrund statt Kaskade im Request (#179) (93d5008)
+- **todos:** Block internal addresses in the CalDAV export (#196) (0e39344)
+- **ui:** Kleinere Korrekturen (Admin-KI-Label, Benachrichtigungen, Skeletons, Einheitlichkeit, Texte) (#198) (4862969)
+- **auth:** Require a recent confirmation for critical admin actions (#199) (f57615e)
+- **security:** Ressourcen-Limits pro Nutzer (SSE-Streams, LLM-Anfragen, TTS-Stimmen) (#195) (dbc5043)
+- **ui:** Erneut versuchen bei Fehlern, Hinweisleisten auf Mobil, Segmented Controls, Suchantwort-Layout (#203) (bd26221)
+- **notifications:** Decouple Web Push sending and bind devices to sessions (#202) (257b0c3)
+- **triage:** Inbox- und Triage-Abfragen auf großen Postfächern beschleunigen (#201) (2a5a636)
+- **processing:** Avoid periodic full scans and shrink the job table (#200) (c7449a9)
+- Weniger Last durch Live-Updates beim Import, keine Pool-Verbindung über LLM-Aufrufe (#205) (762ac85)
+- **todos:** Use the redirect target as CalDAV list ID (#212) (86fc372)
+- **auth:** Require a recent confirmation for role mapping, SCIM, AI and shared mailbox assignments (#213) (1aea9ec)
+- **mail:** Load thread bodies only when a message is expanded (#214) (f516144)
+- **security:** Keep stored credentials from going to new destinations (#231) (fa83ac8)
+- **security:** Serialise manual digests, check NAT64 addresses, stream CalDAV responses (#227) (60a22cd)
+- **processing:** Requeue mit Keyset-Cursor, Postfach-Zählung im Leerlauf cachen (#229) (175ba10)
+- **auth:** Erneute Anmeldung für Nutzer anlegen/einladen, Aufbewahrung und Entfernen (#235) (125b203)
+- **events:** Patch message.updated in the cache, stop reloading search on live events (#233) (0ae4f4d)
+- **auth:** Keep a second linked provider from hiding link notices (#238) (4aadb06)
+- **ui:** Switch/Segmented nachziehen, Push-Schalter erklären, KI-Busy mit Retry, Reauth mit Kontext (#234) (e3b9a14)
+- **triage:** Triage counts and segments read only the inbox (#236) (e41fa9b)
 
 #### Performance
 
 - **inbox:** Cut main-thread work while scrolling the message list (63d8273)
+- **search:** Fill_embeddings ohne Vollscans, Volltext-Ranking auf Kandidaten begrenzen (#232) (296da84)
 
 #### Documentation
 
@@ -218,6 +265,7 @@ Entwurf.
 - **auth:** Document two-factor authentication for local accounts (edc527d)
 - **search:** Document OCR settings, queue, throughput and image size (9c1a86f)
 - Reflect that the main ruleset is enforced now that the repo is public (#117) (98d6994)
+- **evals:** Measure answer limit and call deadline from #133 on CPU (#184) (857fcf3)
 
 #### Tests
 
@@ -234,6 +282,9 @@ Entwurf.
 - **e2e:** Wait for indexing via the API and for autodiscovery before editing (502dc8a)
 - **e2e:** Make the frame-time budget of the scroll test configurable (fc61260)
 - **auth:** Deactivated accounts cannot finish a second-factor sign-in (8a89e89)
+- **a11y:** Check every route, state and overlay with axe (#128) (19e8aa2)
+- **e2e:** Wait for focus and animations before asserting (#161) (f2fa555)
+- **auth:** Avoid TOTP step boundary race in MFA test helper (#204) (536b1ae)
 
 #### CI / Build
 
@@ -244,6 +295,10 @@ Entwurf.
 - Install slapd for LDAP integration tests (d24cda3)
 - Add E2E job and Compose smoke test (6b2ad80)
 - Cut runner minutes for releases, compose and helm runs (#116) (3cfaa17)
+- **release:** Build arm64 natively on ubuntu-24.04-arm instead of QEMU (#131) (dffe975)
+- **security:** Add Dependabot, pip-audit, pnpm audit, CodeQL and Trivy HIGH (#157) (c89afb0)
+- **deps:** Skip Node major updates for the frontend base image (#182) (9ad92f9)
+- **deps:** Keep copies of the pinned compose images in sync (#211) (4c9e9d9)
 
 #### Chores
 
@@ -253,12 +308,13 @@ Entwurf.
 - **api:** Regenerate API client for /mail/graph/connect (3f896fe)
 - **api:** Regenerate API client for /rag endpoints (0813afd)
 - **api:** Regenerate API client for /digests (500bc1c)
+- **release:** Prepare v0.1.0 – install docs, upgrade path, changelog (#126) (0399d22)
+- **deploy:** Separate compose networks, default NetworkPolicies, HSTS option, pinned images (#197) (5a22c7c)
 
 #### Style
 
 - **auth:** Format LDAP client tests (ea090a6)
 - **admin:** Full-width selects in the provider form (391b328)
-
 
 </details>
 

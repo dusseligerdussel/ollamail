@@ -58,6 +58,17 @@ async def seed_large_mailbox(
     0.4 % important, 0.1 % spam, 1.5 % in a deleted category) and priority 1 for 3 %, so
     several segments of the triage inbox hold only a handful of messages."""
     account = account or await make_account(session)
+    # The rows stay uncommitted (the test rolls back), so autovacuum cannot see them: a
+    # VACUUM of these tables (dead rows of earlier tests) would write ``reltuples = 0`` over
+    # the statistics below, and the triggers and lists would be planned for empty tables
+    # (one scan of a whole folder or index per row: minutes instead of seconds). The lock
+    # keeps autovacuum away until the test ends; it skips locked tables.
+    await session.execute(
+        text(
+            "LOCK TABLE mail_messages, mail_message_folders, triage_results"
+            " IN SHARE UPDATE EXCLUSIVE MODE"
+        )
+    )
     archive = Folder(
         mailbox_id=account.mailbox.id, remote_id="Archive", name="Archive", role=FolderRole.ARCHIVE
     )
@@ -108,6 +119,9 @@ async def seed_large_mailbox(
         ),
         params,
     )
+    # The triggers of the next inserts look up messages and their folders row by row; plan
+    # them for the rows just inserted, not for the statistics of an empty table.
+    await session.execute(text("ANALYZE mail_messages"))
     await session.execute(
         text(
             """
@@ -120,10 +134,10 @@ async def seed_large_mailbox(
         ),
         params,
     )
+    await session.execute(text("ANALYZE mail_message_folders"))
     await session.execute(
         text(_SKEWED_TRIAGE if skewed else _TRIAGE),
         {**params, "categories": categories, "k": len(categories)},
     )
-    for table in ("mail_messages", "mail_message_folders", "triage_results"):
-        await session.execute(text(f"ANALYZE {table}"))
+    await session.execute(text("ANALYZE triage_results"))
     return LargeMailbox(account, archive, messages)

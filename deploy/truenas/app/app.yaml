@@ -1,6 +1,6 @@
 annotations:
   min_scale_version: 24.10.2.2
-app_version: edge
+app_version: 0.1.0
 capabilities: []
 categories:
 - productivity
