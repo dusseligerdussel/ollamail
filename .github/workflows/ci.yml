@@ -66,8 +66,7 @@ jobs:
     needs: changes
     if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
-    # The perf tests (100k messages) alone vary between ~2 and ~7 min with the runner's I/O.
-    timeout-minutes: 25
+    timeout-minutes: 15
     defaults:
       run:
         working-directory: backend
