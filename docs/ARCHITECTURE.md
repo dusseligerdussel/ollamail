@@ -902,6 +902,14 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   die des Archivs: Ein Segment mit zehn Mails kostet zehn Indexeinträge, ohne die Ordner zu prüfen.
   Preis: Eine triagierte Mail, die in den oder aus dem Posteingang wandert, aktualisiert ihre
   Ergebniszeile (gemessen ~80 µs je Mail; Mails ohne Ergebnis und andere Ordner ~25 µs).
+  Die Trigger lesen Mail und Ordner nur über Primärschlüssel bzw. eindeutige Indizes und laufen mit
+  `enable_seqscan = off` und `enable_sort = off`; jede Abfrage hat damit genau einen Plan,
+  unabhängig von Statistiken und Tabellengröße. So führen weder Statistiken, die eine leere Tabelle
+  melden (`reltuples = 0` nach einem `VACUUM` während einer großen Transaktion), noch Pläne aus der
+  Zeit einer fast leeren Tabelle zu einem Index- oder Tabellen-Vollscan je Zeile (#242; Details im
+  Docstring der Migration `triage_trigger_lookups_by_primary_key`). Die Fremdschlüssel-Prüfungen von
+  PostgreSQL selbst (`… WHERE id = $1 FOR KEY SHARE`) deckt das nicht ab; sie können in diesem
+  Zustand weiterhin `ix_mail_messages_mailbox_id_sort_date_id` vollständig lesen.
   Die Unkategorisierten mit Priorität sind ein Bereich je Postfach und je Kategorie, die der Nutzer
   nicht sieht (gelöscht = `NULL`, ausgeblendet, Kategorie eines anderen Nutzers im Shared
   Mailbox), zusammengeführt wie mehrere Postfächer; welche Kategorien vorkommen, ermittelt ein
