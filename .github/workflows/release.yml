@@ -2,6 +2,7 @@ name: Release
 
 # Builds the multi-arch (amd64/arm64) images and pushes them to GHCR:
 #   - tag v*         -> semver tags (+ latest for stable releases) and a GitHub release
+#                       (pushed tag, or a release published in the GitHub UI)
 #   - nightly        -> edge, only if backend/, frontend/ or this workflow changed on main
 #                       in the last 25 hours
 #   - manual run     -> build and scan only; pushes a branch tag if `push` is checked
@@ -320,5 +321,12 @@ jobs:
           if [[ "$TAG" == *-* ]]; then
             flags+=(--prerelease)
           fi
-          gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag \
-            --title "$TAG" --notes-file "$NOTES" "${flags[@]}"
+          # A release published in the GitHub UI creates the tag and starts this run; it
+          # only gets the generated notes.
+          if gh release view "$TAG" --repo "$GITHUB_REPOSITORY" > /dev/null 2>&1; then
+            gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" \
+              --title "$TAG" --notes-file "$NOTES" "${flags[@]}"
+          else
+            gh release create "$TAG" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "$TAG" --notes-file "$NOTES" "${flags[@]}"
+          fi
