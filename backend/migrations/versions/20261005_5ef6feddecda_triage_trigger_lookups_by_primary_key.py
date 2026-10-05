@@ -16,8 +16,10 @@ so that inserting many rows took quadratic time (#242):
   kept while the table grows, until the next ``ANALYZE``.
 
 The lookups are therefore written so that only the primary key (or the unique index) can
-serve them, and the functions plan every statement for the table as it is now
-(``plan_cache_mode = force_custom_plan``; planning a lookup costs a few microseconds):
+serve them, and the functions run with ``enable_seqscan = off``: with no sequential scan to
+choose, a plan is the same for any table size, so the cached plans stay right. (Planning every
+call instead, ``plan_cache_mode = force_custom_plan``, cost three times as much on a normal
+insert.)
 
 - No joins: the folders of a message are read from ``pk_mail_message_folders`` first, then
   ``mail_folders`` by primary key (``id = ANY (ARRAY(...))``).
@@ -41,7 +43,7 @@ down_revision: str | Sequence[str] | None = "b0213ba8e62e"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-PLAN = "SET plan_cache_mode = force_custom_plan"
+PLAN = "SET enable_seqscan = off"
 
 IN_INBOX_FUNCTION = f"""
 CREATE OR REPLACE FUNCTION triage_in_inbox(message uuid) RETURNS boolean

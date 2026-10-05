@@ -3,8 +3,10 @@
 A ``VACUUM`` while a large transaction is open counts none of its rows: ``reltuples = 0``
 for tables with many pages. The planner then expects at most one row from every scan, and
 all indexes that hold a column cost the same; a lookup by key could scan a whole index for
-every inserted row. The triggers are written so that only the primary key (or the unique
-index) can serve each lookup; this test reproduces the statistics and checks the plans.
+every inserted row. A plan made while the tables are empty would scan them sequentially, and
+PL/pgSQL keeps it while they grow. The triggers are written so that only the primary key (or
+the unique index) can serve each lookup, and run with ``enable_seqscan = off``; this test
+reproduces both states and checks the plans.
 
 The statements below are the lookups of the trigger functions, with the PL/pgSQL variable
 in place of ``$1``; the test checks that the functions still contain them verbatim.
@@ -129,75 +131,87 @@ def _explainable(lookup: Lookup) -> str:
     return statement if statement.startswith("UPDATE") else f"SELECT {statement}"
 
 
-@pytest.fixture
-async def empty_statistics(migrated_database: str) -> AsyncIterator[AsyncConnection]:
-    """A transaction with many uncommitted messages, links and results after a ``VACUUM``
-    that saw none of them (as an autovacuum during a large sync or the perf seed)."""
+async def _seed(connection: AsyncConnection) -> None:
+    """Messages (95 % in the inbox), their links and triage results, as a large sync."""
+    mailbox = await connection.scalar(text(_SEED))
+    folders = {}
+    for remote_id, role in (("INBOX", "inbox"), ("Archive", "archive")):
+        folders[role] = await connection.scalar(
+            text(
+                "INSERT INTO mail_folders (id, mailbox_id, remote_id, name, kind, role)"
+                " VALUES (gen_random_uuid(), :mailbox, :remote_id, :remote_id, 'folder', :role)"
+                " RETURNING id"
+            ),
+            {"mailbox": mailbox, "remote_id": remote_id, "role": role},
+        )
+    await connection.execute(
+        text(
+            "INSERT INTO mail_messages (id, mailbox_id, remote_ref, message_id_header,"
+            ' subject, sender, "to", headers, received_at, body_text, body_main,'
+            " size, flags, has_attachments)"
+            " SELECT gen_random_uuid(), :mailbox, 'ref-' || g, '<' || g || '@x.org>',"
+            " 'Subject', '{}'::jsonb, '[]'::jsonb, '[]'::jsonb,"
+            " timestamptz '2026-09-30 12:00+00' - g * interval '1 minute',"
+            " repeat(md5(g::text), 10), 'Body', 1, ARRAY['seen'], false"
+            " FROM generate_series(1, :n) AS g"
+        ),
+        {"mailbox": mailbox, "n": MESSAGES},
+    )
+    await connection.execute(
+        text(
+            "INSERT INTO mail_message_folders (message_id, folder_id)"
+            " SELECT id, CASE WHEN substr(remote_ref, 5)::int % 20 = 0"
+            " THEN CAST(:archive AS uuid) ELSE CAST(:inbox AS uuid) END"
+            " FROM mail_messages WHERE mailbox_id = :mailbox"
+        ),
+        {"mailbox": mailbox, **folders},
+    )
+    await connection.execute(
+        text(
+            "INSERT INTO triage_results (id, message_id, priority, source, reason)"
+            " SELECT gen_random_uuid(), id, 2, 'llm', 'Synthetic reason.'"
+            " FROM mail_messages WHERE mailbox_id = :mailbox"
+        ),
+        {"mailbox": mailbox},
+    )
+
+
+@pytest.fixture(params=["empty", "uncommitted"])
+async def empty_statistics(
+    request: pytest.FixtureRequest, migrated_database: str
+) -> AsyncIterator[tuple[str, AsyncConnection]]:
+    """A transaction after a ``VACUUM`` that saw no rows: on empty tables (``empty``) or
+    while the transaction holds many uncommitted messages, links and results
+    (``uncommitted``, as an autovacuum during a large sync or the perf seed)."""
     engine = create_async_engine(migrated_database, poolclass=NullPool)
     vacuum = create_async_engine(
         migrated_database, poolclass=NullPool, isolation_level="AUTOCOMMIT"
     )
-    tables = ", ".join(TABLES)
+    statement = text(f"VACUUM (ANALYZE) {', '.join(TABLES)}")
     try:
+        if request.param == "empty":
+            async with vacuum.connect() as other:
+                await other.execute(statement)
         async with engine.connect() as connection:
             transaction = await connection.begin()
-            mailbox = await connection.scalar(text(_SEED))
-            folders = {}
-            for remote_id, role in (("INBOX", "inbox"), ("Archive", "archive")):
-                folders[role] = await connection.scalar(
-                    text(
-                        "INSERT INTO mail_folders (id, mailbox_id, remote_id, name, kind, role)"
-                        " VALUES (gen_random_uuid(), :mailbox, :remote_id, :remote_id,"
-                        " 'folder', :role) RETURNING id"
-                    ),
-                    {"mailbox": mailbox, "remote_id": remote_id, "role": role},
-                )
-            await connection.execute(
-                text(
-                    "INSERT INTO mail_messages (id, mailbox_id, remote_ref, message_id_header,"
-                    ' subject, sender, "to", headers, received_at, body_text, body_main,'
-                    " size, flags, has_attachments)"
-                    " SELECT gen_random_uuid(), :mailbox, 'ref-' || g, '<' || g || '@x.org>',"
-                    " 'Subject', '{}'::jsonb, '[]'::jsonb, '[]'::jsonb,"
-                    " timestamptz '2026-09-30 12:00+00' - g * interval '1 minute',"
-                    " repeat(md5(g::text), 10), 'Body', 1, ARRAY['seen'], false"
-                    " FROM generate_series(1, :n) AS g"
-                ),
-                {"mailbox": mailbox, "n": MESSAGES},
-            )
-            await connection.execute(
-                text(
-                    "INSERT INTO mail_message_folders (message_id, folder_id)"
-                    " SELECT id, CASE WHEN substr(remote_ref, 5)::int % 20 = 0"
-                    " THEN CAST(:archive AS uuid) ELSE CAST(:inbox AS uuid) END"
-                    " FROM mail_messages WHERE mailbox_id = :mailbox"
-                ),
-                {"mailbox": mailbox, **folders},
-            )
-            await connection.execute(
-                text(
-                    "INSERT INTO triage_results (id, message_id, priority, source, reason)"
-                    " SELECT gen_random_uuid(), id, 2, 'llm', 'Synthetic reason.'"
-                    " FROM mail_messages WHERE mailbox_id = :mailbox"
-                ),
-                {"mailbox": mailbox},
-            )
-            async with vacuum.connect() as other:
-                await other.execute(text(f"VACUUM (ANALYZE) {tables}"))
-            yield connection
+            if request.param == "uncommitted":
+                await _seed(connection)
+                async with vacuum.connect() as other:
+                    await other.execute(statement)
+            yield request.param, connection
             await transaction.rollback()
     finally:
         # Statistics for the empty tables again, for the tests that follow.
         async with vacuum.connect() as other:
-            await other.execute(text(f"VACUUM (ANALYZE) {tables}"))
+            await other.execute(statement)
         await vacuum.dispose()
         await engine.dispose()
 
 
 async def test_trigger_lookups_use_the_primary_keys_when_statistics_say_empty(
-    empty_statistics: AsyncConnection,
+    empty_statistics: tuple[str, AsyncConnection],
 ) -> None:
-    connection = empty_statistics
+    state, connection = empty_statistics
     stats = await connection.execute(
         text(
             "SELECT relname, reltuples, relpages FROM pg_class"
@@ -205,7 +219,8 @@ async def test_trigger_lookups_use_the_primary_keys_when_statistics_say_empty(
         )
     )
     for relname, reltuples, relpages in stats:
-        assert (reltuples, relpages > 0) == (0, True), relname
+        assert reltuples == 0, relname
+        assert (relpages > 0) == (state == "uncommitted"), relname
 
     sources = dict(
         (
@@ -216,11 +231,21 @@ async def test_trigger_lookups_use_the_primary_keys_when_statistics_say_empty(
         ).all()
     )
     arguments = {
-        "message": await connection.scalar(text("SELECT message_id FROM triage_results LIMIT 1")),
+        "message": await connection.scalar(
+            text(
+                "SELECT coalesce((SELECT message_id FROM triage_results LIMIT 1),"
+                " gen_random_uuid())"
+            )
+        ),
         "folder": await connection.scalar(
-            text("SELECT id FROM mail_folders WHERE role = 'inbox' LIMIT 1")
+            text(
+                "SELECT coalesce((SELECT id FROM mail_folders WHERE role = 'inbox' LIMIT 1),"
+                " gen_random_uuid())"
+            )
         ),
     }
+    # As in the functions (``SET`` option).
+    await connection.execute(text("SET LOCAL enable_seqscan = off"))
     for index, lookup in enumerate(LOOKUPS):
         assert _normalised(lookup.statement) in _normalised(sources[lookup.function]), lookup
         await connection.execute(text(f"PREPARE lookup_{index}(uuid) AS {_explainable(lookup)}"))
@@ -234,15 +259,16 @@ async def test_trigger_lookups_use_the_primary_keys_when_statistics_say_empty(
                     )
                 ).scalars()
             )
+            where = f"{lookup.function} ({state}, {mode})"
             for name in lookup.uses:
-                assert name in plan, f"{lookup.function} ({mode}) does not use {name}:\n{plan}"
+                assert name in plan, f"{where} does not use {name}:\n{plan}"
             for name in lookup.never:
-                assert name not in plan, f"{lookup.function} ({mode}) uses {name}:\n{plan}"
+                assert name not in plan, f"{where} uses {name}:\n{plan}"
 
 
-async def test_trigger_functions_plan_every_call(migrated_database: str) -> None:
+async def test_trigger_functions_never_scan_sequentially(migrated_database: str) -> None:
     """Plans cached while a table was (nearly) empty would scan it sequentially after it
-    has grown; the functions plan each statement for the table as it is."""
+    has grown; without sequential scans the plans fit any table size."""
     engine = create_async_engine(migrated_database, poolclass=NullPool)
     async with engine.connect() as connection:
         configs = dict(
@@ -254,4 +280,4 @@ async def test_trigger_functions_plan_every_call(migrated_database: str) -> None
             ).all()
         )
     await engine.dispose()
-    assert configs == {name: ["plan_cache_mode=force_custom_plan"] for name in FUNCTIONS}
+    assert configs == {name: ["enable_seqscan=off"] for name in FUNCTIONS}
