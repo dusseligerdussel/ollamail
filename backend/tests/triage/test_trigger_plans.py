@@ -189,8 +189,9 @@ async def empty_statistics(
         migrated_database, poolclass=NullPool, isolation_level="AUTOCOMMIT"
     )
     # ``INDEX_CLEANUP``: also removes the last dead rows of earlier tests, so the tables
-    # of the ``empty`` state have no pages.
-    statement = text(f"VACUUM (ANALYZE, INDEX_CLEANUP ON) {', '.join(TABLES)}")
+    # of the ``empty`` state have no pages. ``PARALLEL 0``: a parallel index cleanup keeps
+    # its dead rows in shared memory, more than the 64 MB ``/dev/shm`` of a container.
+    statement = text(f"VACUUM (ANALYZE, INDEX_CLEANUP ON, PARALLEL 0) {', '.join(TABLES)}")
     try:
         if request.param == "empty":
             async with vacuum.connect() as other:
