@@ -5,8 +5,9 @@ for tables with many pages. The planner then expects at most one row from every 
 all indexes that hold a column cost the same; a lookup by key could scan a whole index for
 every inserted row. A plan made while the tables are empty would scan them sequentially, and
 PL/pgSQL keeps it while they grow. The triggers are written so that only the primary key (or
-the unique index) can serve each lookup, and run with ``enable_seqscan = off``; this test
-reproduces both states and checks the plans.
+the unique index) can serve each lookup without a sequential scan or a sort, and run with
+``enable_seqscan = off`` and ``enable_sort = off``; this test reproduces both states and
+checks the plans.
 
 The statements below are the lookups of the trigger functions, with the PL/pgSQL variable
 in place of ``$1``; the test checks that the functions still contain them verbatim.
@@ -187,7 +188,9 @@ async def empty_statistics(
     vacuum = create_async_engine(
         migrated_database, poolclass=NullPool, isolation_level="AUTOCOMMIT"
     )
-    statement = text(f"VACUUM (ANALYZE) {', '.join(TABLES)}")
+    # ``INDEX_CLEANUP``: also removes the last dead rows of earlier tests, so the tables
+    # of the ``empty`` state have no pages.
+    statement = text(f"VACUUM (ANALYZE, INDEX_CLEANUP ON) {', '.join(TABLES)}")
     try:
         if request.param == "empty":
             async with vacuum.connect() as other:
@@ -244,8 +247,9 @@ async def test_trigger_lookups_use_the_primary_keys_when_statistics_say_empty(
             )
         ),
     }
-    # As in the functions (``SET`` option).
+    # As in the functions (``SET`` options).
     await connection.execute(text("SET LOCAL enable_seqscan = off"))
+    await connection.execute(text("SET LOCAL enable_sort = off"))
     for index, lookup in enumerate(LOOKUPS):
         assert _normalised(lookup.statement) in _normalised(sources[lookup.function]), lookup
         await connection.execute(text(f"PREPARE lookup_{index}(uuid) AS {_explainable(lookup)}"))
@@ -268,7 +272,7 @@ async def test_trigger_lookups_use_the_primary_keys_when_statistics_say_empty(
 
 async def test_trigger_functions_never_scan_sequentially(migrated_database: str) -> None:
     """Plans cached while a table was (nearly) empty would scan it sequentially after it
-    has grown; without sequential scans the plans fit any table size."""
+    has grown; without sequential scans and sorts the plans fit any table size."""
     engine = create_async_engine(migrated_database, poolclass=NullPool)
     async with engine.connect() as connection:
         configs = dict(
@@ -280,4 +284,4 @@ async def test_trigger_functions_never_scan_sequentially(migrated_database: str)
             ).all()
         )
     await engine.dispose()
-    assert configs == {name: ["enable_seqscan=off"] for name in FUNCTIONS}
+    assert configs == {name: ["enable_seqscan=off", "enable_sort=off"] for name in FUNCTIONS}

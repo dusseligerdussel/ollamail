@@ -16,16 +16,19 @@ so that inserting many rows took quadratic time (#242):
   kept while the table grows, until the next ``ANALYZE``.
 
 The lookups are therefore written so that only the primary key (or the unique index) can
-serve them, and the functions run with ``enable_seqscan = off``: with no sequential scan to
-choose, a plan is the same for any table size, so the cached plans stay right. (Planning every
-call instead, ``plan_cache_mode = force_custom_plan``, cost three times as much on a normal
+serve them without a sequential scan or a sort, and the functions run with
+``enable_seqscan = off`` and ``enable_sort = off``. Each lookup then has one plan, the same
+for any statistics and any table size, so the cached plans stay right. (Planning every call
+instead, ``plan_cache_mode = force_custom_plan``, cost three times as much on a normal
 insert.)
 
 - No joins: the folders of a message are read from ``pk_mail_message_folders`` first, then
   ``mail_folders`` by primary key (``id = ANY (ARRAY(...))``).
 - A message is looked up as ``id = ANY (ARRAY[...]) ORDER BY id``: only the primary key
-  returns rows in this order, so it wins the tie (the composite index would need a sort).
-  With ``id = ...`` the order would be redundant and the tie would stay.
+  returns rows in this order; the composite index would need a sort. (With ``id = ...`` the
+  order would be redundant, and on a tie the planner may still pick the composite index,
+  e.g. when the primary key has more levels.) The links of a folder likewise use
+  ``ix_mail_message_folders_folder_id``, not ``pk_mail_message_folders``.
 
 Locks, their order and the rows they cover are unchanged.
 
@@ -43,7 +46,7 @@ down_revision: str | Sequence[str] | None = "b0213ba8e62e"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
-PLAN = "SET enable_seqscan = off"
+PLAN = "SET enable_seqscan = off SET enable_sort = off"
 
 IN_INBOX_FUNCTION = f"""
 CREATE OR REPLACE FUNCTION triage_in_inbox(message uuid) RETURNS boolean
@@ -104,8 +107,6 @@ END
 $$
 """
 
-# ``ORDER BY folder_id`` keeps ``pk_mail_message_folders`` (``folder_id`` is its second
-# column) from winning the tie against ``ix_mail_message_folders_folder_id``.
 FOLDERS_FUNCTION = f"""
 CREATE OR REPLACE FUNCTION mail_folders_triage_inbox() RETURNS trigger
 LANGUAGE plpgsql {PLAN} AS $$
