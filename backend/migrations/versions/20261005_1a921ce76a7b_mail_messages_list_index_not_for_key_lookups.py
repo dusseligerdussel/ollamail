@@ -32,7 +32,7 @@ Rejected:
 The index is rebuilt with ``CREATE INDEX CONCURRENTLY`` under a temporary name, then the
 old one is dropped concurrently and the new one renamed, so the lists keep an index and
 writes are not blocked. The build reads the table twice and waits for open transactions
-(about 0.5 s per 100k messages here; plan minutes for tens of millions).
+(0.15 s for 100k messages, 87 MB of table, here; minutes for tens of millions).
 
 Revision ID: 1a921ce76a7b
 Revises: 5ef6feddecda
