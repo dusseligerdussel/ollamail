@@ -35,9 +35,9 @@ nutzen Platzhalter (`tank`, `192.0.2.10`, `mail.example.org`).
   sich TrueNAS bei `ghcr.io` anmelden (*Apps → Configuration → Docker Registries*, in älteren
   Versionen ggf. anders benannt; Benutzer und PAT (classic) mit `read:packages`). Für die
   Katalog-App müssen die Pakete öffentlich sein.
-- **Ein Image-Tag.** `latest` und Versions-Tags gibt es erst ab dem ersten Release (`v0.1.0`).
-  Bis dahin steht in den Dateien `edge` (nächtlicher Build von `main`, ungetestet); für eine
-  reproduzierbare Installation stattdessen einen `sha-<commit>`-Tag eintragen.
+- **Ein Image-Tag.** Die Dateien nutzen das Release `0.1.0`. Neuere Releases stehen unter
+  [Releases](https://github.com/dusseligerdussel/ollamail/releases); `edge` (nächtlicher Build von
+  `main`) ist ungetestet und nicht für den Produktivbetrieb.
 - RAM und CPU wie in [`OPERATIONS.md` §1 und §3](../OPERATIONS.md#3-hardware-profile-und-llm):
   der Basis-Stack ist schlank, das LLM braucht den Großteil.
 - Ein freier Port für die UI, Standard **30580**.
@@ -169,7 +169,7 @@ Vorher ein Backup ([Abschnitt 7](#7-backup-und-restore)) und die Release-Notes l
 - **Custom App:** *Apps → ollamail → Edit*, in beiden Zeilen `ghcr.io/dusseligerdussel/…:<tag>`
   den Tag ändern (`x-app` und `frontend`), *Save*. TrueNAS zieht die Images und startet neu;
   `migrate` bringt das Schema vor `api` und `worker` auf den neuen Stand. Bei einem gleitenden Tag
-  (`edge`, später `latest`) genügt *Update* bzw. das Neuziehen der Images.
+  (`latest`, `edge`) genügt *Update* bzw. das Neuziehen der Images.
 - **Drittanbieter-Images** (`pgvector/pgvector`, `ollama/ollama`) sind wie im Compose-Stack
   gepinnt; Wechsel siehe [`OPERATIONS.md` §6.5](../OPERATIONS.md#65-drittanbieter-images). Den
   PostgreSQL-Major nie durch bloßes Ändern des Tags anheben (Dump und Restore).
@@ -247,7 +247,7 @@ Testwerte-Datei und prüft das Ergebnis mit `docker compose config`. Es veröffe
 
 **Einreichen** (macht der Repository-Owner, kein Agent):
 
-1. Voraussetzungen: Images öffentlich, ein Release-Tag (z. B. `0.1.0`) in `ix_values.yaml` und als
+1. Voraussetzungen: Images öffentlich, der aktuelle Release-Tag in `ix_values.yaml` und als
    `app_version` in `app.yaml`, ein Icon (SVG/PNG) und Screenshots mit Testdaten.
 2. Laut `CONTRIBUTIONS.md` vorher ein Issue in `truenas/apps` öffnen und die Aufnahme abstimmen;
    TrueNAS entscheidet nach eigenem Ermessen.

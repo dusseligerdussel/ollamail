@@ -121,8 +121,7 @@ kubectl -n ollamail exec deploy/ollamail-api -- python -m app.cli setup-token
 ```
 
 Alle Werte mit Kommentaren: [`values.yaml`](../../deploy/helm/ollamail/values.yaml). Ohne
-`image.*.tag` nutzt das Chart seine `appVersion` (derzeit `latest`, bis es ein erstes Release
-gibt); bewegliche Tags (`latest`, `edge`) werden mit `imagePullPolicy: Always` gezogen.
+`image.*.tag` nutzt das Chart seine `appVersion` (das Release, zu dem das Chart gehört); bewegliche Tags (`latest`, `edge`) werden mit `imagePullPolicy: Always` gezogen.
 
 ## 4. Datenbank
 

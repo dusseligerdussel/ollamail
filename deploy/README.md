@@ -119,6 +119,11 @@ QEMU-Emulation) und per Digest gepusht; ein Merge-Job pro Image erzeugt daraus d
 Multi-Arch-Manifest und setzt die Tags. Ein manueller Lauf (*Actions → Release → Run workflow*)
 ohne `push` baut und prüft nur.
 
+Ein Release entsteht durch einen Git-Tag `v<version>` auf `main`: entweder per
+`git push origin v0.1.0` oder im Browser über *Releases → Draft a new release*, neuen Tag
+`v0.1.0` mit Ziel `main` anlegen und *Publish release*. Die Pipeline baut dann die Images und
+ergänzt die Release-Notes (git-cliff).
+
 | Tag | Quelle |
 |---|---|
 | `1.2.3`, `1.2`, `1` | Git-Tag `v1.2.3` (`1` erst ab Version 1.0) |

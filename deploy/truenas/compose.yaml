@@ -13,9 +13,8 @@
 # placeholder is left and gives /data to the app user (UID 10001) before anything else starts.
 #
 # Images: ghcr.io/dusseligerdussel/ollamail-{api,frontend} must be pullable without a login
-# (public GHCR packages). Update: change the tag in both `ghcr.io/…:edge` lines (x-app and
-# frontend; `edge` until the first release, then e.g. 0.1.0) and save. migrate runs before
-# api and worker start again.
+# (public GHCR packages). Update: change the tag in both `ghcr.io/…:0.1.0` lines (x-app and
+# frontend) to the new release and save. migrate runs before api and worker start again.
 #
 # Same services, networks and hardening as deploy/compose.yaml (deploy/README.md):
 # `edge` connects the published frontend with the api only, `backend` (internal) carries
@@ -34,7 +33,7 @@ x-app-environment: &app-environment
   # Further settings from deploy/.env.example go here, e.g. OLLAMAIL_AUTH_PUBLIC_URL.
 
 x-app: &app
-  image: &api-image ghcr.io/dusseligerdussel/ollamail-api:edge
+  image: &api-image ghcr.io/dusseligerdussel/ollamail-api:0.1.0
   restart: unless-stopped
   environment: *app-environment
   read_only: true
@@ -175,7 +174,7 @@ services:
       start_period: 30s
 
   frontend:
-    image: ghcr.io/dusseligerdussel/ollamail-frontend:edge
+    image: ghcr.io/dusseligerdussel/ollamail-frontend:0.1.0
     restart: unless-stopped
     read_only: true
     tmpfs:
