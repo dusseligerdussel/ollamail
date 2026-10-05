@@ -24,7 +24,14 @@ Triage, Aufgaben, Audio-Digest und „Frag deine Inbox“ – ohne dass eine Mai
 
 </div>
 
-<!-- SCREENSHOT:HERO -->
+<div align="center">
+
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/dusseligerdussel/ollamail/blob/2a6671184c3450d154862fdb7b11d891cb091662/claude-stoic-dijkstra-o63erc/inbox-dark.png?raw=true">
+  <img alt="Posteingang mit Triage-Kategorien und geöffneter Mail" src="https://github.com/dusseligerdussel/ollamail/blob/2a6671184c3450d154862fdb7b11d891cb091662/claude-stoic-dijkstra-o63erc/inbox-light.png?raw=true">
+</picture>
+
+</div>
 
 ## Warum ollamail?
 
@@ -50,7 +57,39 @@ Triage, Aufgaben, Audio-Digest und „Frag deine Inbox“ – ohne dass eine Mai
 | **Postfächer** | IMAP (mit IDLE und Autodiscovery), Microsoft 365 (Graph), Gmail / Google Workspace. |
 | **Betrieb** | Docker Compose, Multi-Arch-Images (amd64/arm64), Helm-Chart, TrueNAS-SCALE-App, Prometheus-Metriken, Backup- und Upgrade-Anleitung. |
 
-<!-- SCREENSHOT:GALLERY -->
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Frag deine Inbox</b> – Antwort mit Quellen<br><br>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/dusseligerdussel/ollamail/blob/2a6671184c3450d154862fdb7b11d891cb091662/claude-stoic-dijkstra-o63erc/search-dark.png?raw=true">
+  <img alt="Suche mit Antwort und Quellenangaben" src="https://github.com/dusseligerdussel/ollamail/blob/2a6671184c3450d154862fdb7b11d891cb091662/claude-stoic-dijkstra-o63erc/search-light.png?raw=true">
+</picture>
+    </td>
+    <td width="50%" valign="top">
+      <b>Daily Digest</b> – zum Lesen und Anhören<br><br>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/dusseligerdussel/ollamail/blob/2a6671184c3450d154862fdb7b11d891cb091662/claude-stoic-dijkstra-o63erc/digest-dark.png?raw=true">
+  <img alt="Daily Digest mit Audio-Player und Transkript" src="https://github.com/dusseligerdussel/ollamail/blob/2a6671184c3450d154862fdb7b11d891cb091662/claude-stoic-dijkstra-o63erc/digest-light.png?raw=true">
+</picture>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Aufgaben</b> – aus Mails erkannt, nach Fälligkeit<br><br>
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="https://github.com/dusseligerdussel/ollamail/blob/2a6671184c3450d154862fdb7b11d891cb091662/claude-stoic-dijkstra-o63erc/todos-dark.png?raw=true">
+  <img alt="Aufgabenliste nach Fälligkeit gruppiert" src="https://github.com/dusseligerdussel/ollamail/blob/2a6671184c3450d154862fdb7b11d891cb091662/claude-stoic-dijkstra-o63erc/todos-light.png?raw=true">
+</picture>
+    </td>
+    <td width="50%" valign="top" align="center">
+      <b>Mobil</b> – dieselbe App auf dem Handy<br><br>
+      <img alt="Posteingang auf dem Handy" src="https://github.com/dusseligerdussel/ollamail/blob/2a6671184c3450d154862fdb7b11d891cb091662/claude-stoic-dijkstra-o63erc/inbox-mobile-light.png?raw=true" width="220">
+    </td>
+  </tr>
+</table>
+
+<sub>Alle Screenshots mit Testdaten. Die Bilder folgen dem hellen oder dunklen Modus von GitHub.</sub>
 
 ### Analyse-Werkzeug, kein Mail-Client
 
