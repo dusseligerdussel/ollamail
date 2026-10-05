@@ -60,9 +60,10 @@ async def seed_large_mailbox(
     account = account or await make_account(session)
     # The rows stay uncommitted (the test rolls back), so autovacuum cannot see them: a
     # VACUUM of these tables (dead rows of earlier tests) would write ``reltuples = 0`` over
-    # the statistics below, and the triggers and lists would be planned for empty tables
-    # (one scan of a whole folder or index per row: minutes instead of seconds). The lock
-    # keeps autovacuum away until the test ends; it skips locked tables.
+    # the statistics below, and the lists would be planned for empty tables. The lock keeps
+    # autovacuum away until the test ends; it skips locked tables. (The triggers and the
+    # foreign key checks no longer depend on statistics, #242 and #246; without the lock
+    # the seed stays fast, but a list page then scans ``mail_messages`` sequentially.)
     await session.execute(
         text(
             "LOCK TABLE mail_messages, mail_message_folders, triage_results"
@@ -119,8 +120,7 @@ async def seed_large_mailbox(
         ),
         params,
     )
-    # The triggers of the next inserts look up messages and their folders row by row; plan
-    # them for the rows just inserted, not for the statistics of an empty table.
+    # Statistics for the rows just inserted: the lists are planned with them.
     await session.execute(text("ANALYZE mail_messages"))
     await session.execute(
         text(
