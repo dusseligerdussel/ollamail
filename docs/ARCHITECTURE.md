@@ -403,7 +403,12 @@ Postfächer antworten 404.
 
 **Listen bei großen Postfächern** (#140, `app/mail/listing.py`): Sortierschlüssel ist die Spalte
 `mail_messages.sort_date` (`received_at`, sonst `sent_at`, sonst `created_at`; `NOT NULL`, gepflegt
-vom Trigger `mail_messages_sort_date`) mit dem Index `(mailbox_id, sort_date DESC, id DESC)`. Eine
+vom Trigger `mail_messages_sort_date`) mit dem Index `(mailbox_id, sort_date DESC, id DESC)`. Er ist
+partiell mit dem stets wahren Prädikat `WHERE mailbox_id IS NOT NULL` (#246): Jede Listenabfrage
+(`mailbox_id = …`) impliziert es, eine Abfrage nur nach `id` nicht. So kann nur `pk_mail_messages`
+Abfragen nach `id` bedienen; bei Statistiken, die eine leere Tabelle melden, las der Planer sonst für
+jede Fremdschlüssel-Prüfung den ganzen Listenindex (Details im Docstring der Migration
+`mail_messages_list_index_not_for_key_lookups`; ein Test prüft das für alle Fremdschlüssel). Eine
 Seite liest den Index in Listenreihenfolge und hört nach `limit` Zeilen auf, egal wie tief sie in
 der Liste liegt; bei mehreren Postfächern wird jedes einzeln gelesen und zusammengeführt (ein
 `mailbox_id IN (…)` müsste alle Mails sortieren). Ordnerfilter laufen über Ordner-IDs statt über einen
@@ -908,8 +913,8 @@ registriert sich dort mit `@on_message_stored` und ruft `enqueue_processing` mit
   melden (`reltuples = 0` nach einem `VACUUM` während einer großen Transaktion), noch Pläne aus der
   Zeit einer fast leeren Tabelle zu einem Index- oder Tabellen-Vollscan je Zeile (#242; Details im
   Docstring der Migration `triage_trigger_lookups_by_primary_key`). Die Fremdschlüssel-Prüfungen von
-  PostgreSQL selbst (`… WHERE id = $1 FOR KEY SHARE`) deckt das nicht ab; sie können in diesem
-  Zustand weiterhin `ix_mail_messages_mailbox_id_sort_date_id` vollständig lesen.
+  PostgreSQL selbst (`… WHERE id = $1 FOR KEY SHARE`) nutzen in diesem Zustand den Primärschlüssel,
+  weil kein anderer Index sie bedienen kann (#246, siehe „Listen bei großen Postfächern“).
   Die Unkategorisierten mit Priorität sind ein Bereich je Postfach und je Kategorie, die der Nutzer
   nicht sieht (gelöscht = `NULL`, ausgeblendet, Kategorie eines anderen Nutzers im Shared
   Mailbox), zusammengeführt wie mehrere Postfächer; welche Kategorien vorkommen, ermittelt ein

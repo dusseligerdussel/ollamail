@@ -234,12 +234,17 @@ class Message(Base):
         UniqueConstraint("mailbox_id", "remote_ref"),
         Index("ix_mail_messages_mailbox_id_message_id_header", "mailbox_id", "message_id_header"),
         Index(None, "thread_id"),
-        # Order of the lists (newest first, ``app.mail.listing``).
+        # Order of the lists (newest first, ``app.mail.listing``). The predicate is always
+        # true (``mailbox_id`` is ``NOT NULL``) and implied by every list query (``mailbox_id
+        # = ...``), but not by a lookup by ``id`` alone: so the foreign key checks
+        # (``WHERE id = $1``) cannot pick this index instead of ``pk_mail_messages``, which
+        # they did with statistics that say "empty", reading the whole index per row (#246).
         Index(
             "ix_mail_messages_mailbox_id_sort_date_id",
             "mailbox_id",
             text("sort_date DESC"),
             text("id DESC"),
+            postgresql_where=text("mailbox_id IS NOT NULL"),
         ),
         # The same order for unread messages only (``unread=true`` lists, #186): a page reads
         # the unread messages instead of skipping over the read ones.
