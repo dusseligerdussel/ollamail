@@ -3,9 +3,9 @@ name: ollamail
 description: Self-hosted, local-first e-mail analysis (triage, todos, audio digest, RAG) for Kubernetes.
 type: application
 # Chart version (SemVer); bump on every change to the chart.
-version: 0.2.1
+version: 0.2.2
 # Default image tag of ollamail-api and ollamail-frontend (image.*.tag overrides it).
-appVersion: "0.1.0"
+appVersion: "0.1.1"
 kubeVersion: ">=1.27.0-0"
 home: https://github.com/dusseligerdussel/ollamail
 sources:

@@ -150,7 +150,7 @@ Dann <http://localhost:8080> öffnen, mit dem Setup-Code den ersten Admin anlege
 Profile und Richtwerte: [Betrieb §3](docs/OPERATIONS.md#3-hardware-profile-und-llm).
 
 **Images:** `ghcr.io/dusseligerdussel/ollamail-api` und `ollamail-frontend` für `linux/amd64` und
-`linux/arm64`, mit SBOM und SLSA-Provenance. Tags: `0.1.0`, `0.1`, `latest`, `edge`
+`linux/arm64`, mit SBOM und SLSA-Provenance. Tags: `0.1.1`, `0.1`, `latest`, `edge`
 (nächtlich) – siehe [`deploy/README.md`](deploy/README.md#images).
 
 ## Architektur
@@ -181,7 +181,7 @@ Mehr in [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 ## Status
 
 > [!IMPORTANT]
-> **v0.1.0 ist die erste Version.** Vor 1.0 können sich Konfiguration und API noch ändern.
+> **ollamail ist in der frühen Version 0.1.x.** Vor 1.0 können sich Konfiguration und API noch ändern.
 > Microsoft 365, Gmail, SAML und SCIM sind gegen nachgebaute APIs getestet, nicht gegen echte
 > Mandanten. Alle bekannten Einschränkungen stehen im [Changelog](CHANGELOG.md#bekannte-einschränkungen),
 > die Planung in der [Roadmap](docs/ROADMAP.md).

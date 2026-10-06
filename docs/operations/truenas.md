@@ -35,7 +35,7 @@ nutzen Platzhalter (`tank`, `192.0.2.10`, `mail.example.org`).
   sich TrueNAS bei `ghcr.io` anmelden (*Apps → Configuration → Docker Registries*, in älteren
   Versionen ggf. anders benannt; Benutzer und PAT (classic) mit `read:packages`). Für die
   Katalog-App müssen die Pakete öffentlich sein.
-- **Ein Image-Tag.** Die Dateien nutzen das Release `0.1.0`. Neuere Releases stehen unter
+- **Ein Image-Tag.** Die Dateien nutzen das Release `0.1.1`. Neuere Releases stehen unter
   [Releases](https://github.com/dusseligerdussel/ollamail/releases); `edge` (nächtlicher Build von
   `main`) ist ungetestet und nicht für den Produktivbetrieb.
 - RAM und CPU wie in [`OPERATIONS.md` §1 und §3](../OPERATIONS.md#3-hardware-profile-und-llm):
