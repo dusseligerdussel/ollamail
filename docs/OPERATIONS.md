@@ -39,9 +39,8 @@ Der Basis-Stack (UI, API, PostgreSQL) ist schlank. Den Großteil von CPU, RAM un
 benötigt später das LLM, siehe [Abschnitt 3](#3-hardware-profile-und-llm).
 
 Die Release-Pipeline baut Multi-Arch-Images (amd64/arm64) für die GitHub Container Registry
-(GHCR), siehe [`deploy/README.md`](../deploy/README.md#images). Solange es kein Release gibt und
-die Pakete nicht öffentlich sind, werden die Images beim ersten Start auf dem Host gebaut (für
-dessen Architektur), siehe [2.3](#23-starten).
+(GHCR), siehe [`deploy/README.md`](../deploy/README.md#images). Die Pakete sind öffentlich; wer
+lieber selbst baut, nutzt `compose.build.yaml` (siehe [2.3](#23-starten)).
 
 ## 2. Installation
 
@@ -98,14 +97,13 @@ Tipp: `export COMPOSE_FILE=deploy/compose.yaml:deploy/compose.build.yaml` in der
 **B – Vorgebaute Images** (ab dem ersten Release, Zugriff auf die Pakete vorausgesetzt):
 
 ```sh
-# in deploy/.env eine feste Version eintragen, z. B. OLLAMAIL_VERSION=0.1.0
+# in deploy/.env eine feste Version eintragen, z. B. OLLAMAIL_VERSION=0.1.1
 docker compose -f deploy/compose.yaml pull
 docker compose -f deploy/compose.yaml up -d
 ```
 
 `docker compose -f deploy/compose.yaml up -d --build` allein baut **nicht**: `compose.yaml`
-enthält keine Build-Kontexte. Ohne Zugriff auf die Images bricht der Start mit
-`error from registry: unauthorized` ab, siehe [Abschnitt 10](#10-troubleshooting).
+enthält keine Build-Kontexte; es zieht die fertigen Images aus GHCR.
 
 Beim Start passiert der Reihe nach:
 
@@ -1348,7 +1346,7 @@ curl http://localhost:8080/api/readyz
 | `password authentication failed for user "ollamail"` (in `logs migrate`/`api`) | `POSTGRES_PASSWORD` wurde nach dem ersten Start geändert. Altes Passwort wieder eintragen oder das Passwort in der Datenbank anpassen: `docker compose -f deploy/compose.yaml exec postgres psql -U ollamail -d ollamail -c "ALTER USER ollamail PASSWORD '<neu>'"` (Nutzer/DB-Name ggf. an `POSTGRES_USER`/`POSTGRES_DB` anpassen). |
 | `/api/readyz` liefert `503` mit `"database":"failed"` | Datenbank nicht erreichbar. `logs postgres` und `OLLAMAIL_DATABASE_URL` prüfen (Sonderzeichen im Passwort URL-kodieren). |
 | `migrate` zeigt `Exited (0)` | Normal: einmaliger Migrationslauf. |
-| `error from registry: unauthorized` / `pull access denied` für `ghcr.io/dusseligerdussel/ollamail-*` | Kein Zugriff auf die GHCR-Images oder es gibt noch kein Release für `OLLAMAIL_VERSION` (`latest` erst ab dem ersten Release). Lokal bauen ([2.3](#23-starten), Weg A) oder `docker login ghcr.io` ([`deploy/README.md`](../deploy/README.md#zugriff-auf-die-images)). |
+| `error from registry: unauthorized` / `pull access denied` für `ghcr.io/dusseligerdussel/ollamail-*` | Für `OLLAMAIL_VERSION` gibt es kein Release (Tippfehler, z. B. `v0.1.1` statt `0.1.1`) oder ein veralteter, ungültiger `docker login ghcr.io` (dann `docker logout ghcr.io`). Die Pakete sind öffentlich; alternativ lokal bauen ([2.3](#23-starten), Weg A). |
 | Setup meldet einen falschen Code oder die Anmeldung schlägt über `http://<ip>:8080` fehl, Hinweis „Unverschlüsselte Verbindung“; API antwortet `403` mit `csrf_failed` | Browser verwerfen die `Secure`-Cookies über HTTP. HTTPS einrichten oder nur zum Testen `OLLAMAIL_AUTH_COOKIE_SECURE=false`, siehe [2.6](#26-http-ohne-tls-testbetrieb). |
 | `setup_pending` im Log ohne `setup_code` | `OLLAMAIL_SETUP_TOKEN` ist gesetzt; diesen Wert im Setup-Assistenten eingeben. |
 | Sync eines Postfachs hängt nach einem Worker-Absturz | Löst sich nach spätestens 5 Minuten plus `OLLAMAIL_WORKER_STALLED_AFTER_SECONDS` von selbst (Abschnitt 8.1). Im Log `worker_stalled_job_retried`. |

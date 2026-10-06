@@ -29,12 +29,7 @@ nutzen Platzhalter (`tank`, `192.0.2.10`, `mail.example.org`).
 
 - TrueNAS SCALE 24.10 oder neuer, ein Pool für Apps (*Apps → Configuration → Choose Pool*).
 - **Öffentliche Images in GHCR.** TrueNAS zieht `ghcr.io/dusseligerdussel/ollamail-api` und
-  `ollamail-frontend` ohne Anmeldung. Die Pakete sind derzeit noch privat
-  ([`deploy/README.md`](../../deploy/README.md#zugriff-auf-die-images)); bis der Repository-Owner
-  sie öffentlich schaltet, bricht die Installation mit `unauthorized` ab. Übergangsweise lässt
-  sich TrueNAS bei `ghcr.io` anmelden (*Apps → Configuration → Docker Registries*, in älteren
-  Versionen ggf. anders benannt; Benutzer und PAT (classic) mit `read:packages`). Für die
-  Katalog-App müssen die Pakete öffentlich sein.
+  `ollamail-frontend` ohne Anmeldung; beide Pakete sind öffentlich.
 - **Ein Image-Tag.** Die Dateien nutzen das Release `0.1.1`. Neuere Releases stehen unter
   [Releases](https://github.com/dusseligerdussel/ollamail/releases); `edge` (nächtlicher Build von
   `main`) ist ungetestet und nicht für den Produktivbetrieb.
@@ -248,7 +243,9 @@ Testwerte-Datei und prüft das Ergebnis mit `docker compose config`. Es veröffe
 **Einreichen** (macht der Repository-Owner, kein Agent):
 
 1. Voraussetzungen: Images öffentlich, der aktuelle Release-Tag in `ix_values.yaml` und als
-   `app_version` in `app.yaml`, ein Icon (SVG/PNG) und Screenshots mit Testdaten.
+   `app_version` in `app.yaml`, ein Icon ([`deploy/truenas/icon.svg`](../../deploy/truenas/icon.svg) bzw. `icon.png`)
+   und Screenshots mit Testdaten. Fertige Texte für Issue und PR sowie die Screenshot-Links:
+   [`truenas-submission.md`](truenas-submission.md).
 2. Laut `CONTRIBUTIONS.md` vorher ein Issue in `truenas/apps` öffnen und die Aufnahme abstimmen;
    TrueNAS entscheidet nach eigenem Ermessen.
 3. `truenas/apps` forken, `deploy/truenas/app/` nach `ix-dev/community/ollamail/` kopieren.
@@ -271,7 +268,7 @@ Testwerte-Datei und prüft das Ergebnis mit `docker compose config`. Es veröffe
 | Symptom | Ursache und Lösung |
 |---|---|
 | `permissions` beendet sich mit `replace every CHANGEME value` | Platzhalter stehen noch in der YAML ([Abschnitt 3](#3-installation-als-custom-app)). |
-| Installation bricht mit `unauthorized` / `denied` beim Image-Pull ab | GHCR-Pakete sind privat ([Abschnitt 1](#1-voraussetzungen)). |
+| Installation bricht mit `unauthorized` / `denied` beim Image-Pull ab | Tippfehler im Image-Namen oder ein Tag, den es nicht gibt (Releases: [GitHub](https://github.com/dusseligerdussel/ollamail/releases)); die GHCR-Pakete selbst sind öffentlich. |
 | `postgres` startet nicht, `data directory … has invalid permissions` | Dataset mit SMB-Preset bzw. restriktiver ACL; mit Preset „Apps“ oder „Generic“ neu anlegen. |
 | `api` meldet `Permission denied` unter `/data` | Eigene ACL ohne Schreibrecht für UID 10001; ACL entfernen oder 10001 eintragen, App neu starten. |
 | Anmeldung schlägt mit `csrf_failed` fehl | Zugriff über HTTP; Reverse Proxy mit TLS ([Abschnitt 5](#5-reverse-proxy-und-tls)). |
