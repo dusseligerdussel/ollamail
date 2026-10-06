@@ -26,7 +26,7 @@ docker compose -f deploy/compose.yaml up -d
 ```
 
 `compose.yaml` allein enthält keine Build-Kontexte: `up -d --build` ohne `compose.build.yaml`
-versucht die GHCR-Images zu ziehen und bricht ohne Zugriff mit `unauthorized` ab.
+zieht einfach die fertigen GHCR-Images.
 
 Die UI ist danach unter <http://localhost:8080> erreichbar, die API unter `/api`
 (z. B. `curl http://localhost:8080/api/healthz`). Der Port ist standardmäßig nur an `127.0.0.1`
@@ -149,19 +149,8 @@ Veröffentlichen mit Trivy geprüft; behebbare CVEs der Stufen HIGH und CRITICAL
 
 ### Zugriff auf die Images
 
-Das Repository ist öffentlich, die GHCR-Pakete sind es derzeit noch **nicht**: Pakete behalten
-die Sichtbarkeit, mit der sie angelegt wurden (damals privat), auch wenn das Repository später
-öffentlich wird. Solange das so ist, ist zum Ziehen ein Login mit einem Personal Access Token
-(classic) mit dem Scope `read:packages` und Lesezugriff auf die Pakete nötig:
-
-```sh
-echo "$GHCR_TOKEN" | docker login ghcr.io -u <github-benutzer> --password-stdin
-```
-
-Ohne Zugriff auf die Pakete die Images lokal bauen (`compose.build.yaml`, siehe Schnellstart).
-Ob die Pakete öffentlich werden, entscheidet der Repository-Owner (GitHub → Packages →
-`ollamail-api` bzw. `ollamail-frontend` → Package settings → Change visibility); danach entfällt
-der Login.
+Die GHCR-Pakete `ollamail-api` und `ollamail-frontend` sind öffentlich; zum Ziehen ist kein Login
+nötig. Wer lieber selbst baut, nutzt `compose.build.yaml` (siehe Schnellstart).
 
 ### Lokaler Build
 
