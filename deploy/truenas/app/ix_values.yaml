@@ -2,10 +2,10 @@ images:
   # The release tag (e.g. "0.1.0"); updates see docs/operations/truenas.md section 6.
   image:
     repository: ghcr.io/dusseligerdussel/ollamail-api
-    tag: 0.1.0
+    tag: 0.1.1
   frontend_image:
     repository: ghcr.io/dusseligerdussel/ollamail-frontend
-    tag: 0.1.0
+    tag: 0.1.1
   # Same pins as deploy/compose.yaml (scripts/check-image-pins.sh).
   postgres_image:
     repository: pgvector/pgvector

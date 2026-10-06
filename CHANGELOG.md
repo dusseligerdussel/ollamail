@@ -5,6 +5,34 @@ Alle nennenswerten Änderungen an ollamail. Die Versionsnummern folgen
 noch ändern. Die vollständige Liste je Version erzeugt `git-cliff` aus den Commits
 (`.github/cliff.toml`); sie steht auch in den Release-Notes auf GitHub.
 
+## [0.1.1] – 2026-10-06
+
+Wartungsversion: schnellere große Syncs, keine neuen Funktionen und keine neuen Settings.
+Das Update ist ein normaler Image-Wechsel; `migrate` spielt zwei Migrationen ein (siehe unten).
+
+### Verbessert
+
+- **Große Syncs bleiben schnell, auch während der Datenbank-Wartung.** Läuft ein `VACUUM` bzw.
+  Autovacuum, während ein großer Sync oder Import noch offen ist, hält PostgreSQL die Tabellen
+  kurzzeitig für leer und wählte dann sehr langsame Abfragepläne.
+  - Die Datenbank-Trigger für den Posteingang lesen jetzt immer über Primärschlüssel (#242, #245).
+    20k Mails: 513 s → 17 s.
+  - Die Fremdschlüssel-Prüfungen auf `mail_messages` nutzen jetzt immer den Primärschlüssel (#246, #247).
+    100k Mails: 147 s → 14 s.
+- **README** mit Badges, Screenshots, Schnellstart über die fertigen Images und Installationswegen
+  für Docker Compose, TrueNAS und Kubernetes (#244).
+
+### Migrationen
+
+- `5ef6feddecda`: Trigger-Funktionen neu angelegt (`CREATE OR REPLACE`), ohne Datenänderung.
+- `1a921ce76a7b`: Der Listenindex `ix_mail_messages_mailbox_id_sort_date_id` wird mit
+  `CREATE INDEX CONCURRENTLY` neu gebaut. Schreibzugriffe werden nicht blockiert; bei sehr großen
+  Postfächern dauert das einige Minuten.
+
+### Abhängigkeiten
+
+- mypy 2.4.0 (#240), `@types/node` 26.6.4 (#239) – nur Entwicklung und CI.
+
 ## [0.1.0] – 2026-10-05
 
 Erste Version.
@@ -318,4 +346,5 @@ Erste Version.
 
 </details>
 
+[0.1.1]: https://github.com/dusseligerdussel/ollamail/releases/tag/v0.1.1
 [0.1.0]: https://github.com/dusseligerdussel/ollamail/releases/tag/v0.1.0

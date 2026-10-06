@@ -1,6 +1,6 @@
 [project]
 name = "ollamail-backend"
-version = "0.1.0"
+version = "0.1.1"
 description = "ollamail API and background worker"
 readme = "README.md"
 license = "AGPL-3.0-or-later"

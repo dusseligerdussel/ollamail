@@ -1,6 +1,6 @@
 annotations:
   min_scale_version: 24.10.2.2
-app_version: 0.1.0
+app_version: 0.1.1
 capabilities: []
 categories:
 - productivity
@@ -48,4 +48,4 @@ sources:
 - https://github.com/dusseligerdussel/ollamail/pkgs/container/ollamail-frontend
 title: ollamail
 train: community
-version: 1.0.0
+version: 1.0.1
