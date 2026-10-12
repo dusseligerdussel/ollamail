@@ -44,7 +44,7 @@ x-backend: &backend
       condition: service_completed_successfully
 
 x-ollama: &ollama
-  image: ${OLLAMA_IMAGE:-ollama/ollama:0.35.0}
+  image: ${OLLAMA_IMAGE:-ollama/ollama:0.40.2}
   restart: unless-stopped
   environment:
     OLLAMA_HOST: 0.0.0.0:11434
