@@ -7,7 +7,7 @@
 # base: shared Python settings
 # ---------------------------------------------------------------------------
 # Literal tag, not an ARG: Dependabot only updates literal FROM lines (.github/dependabot.yml).
-FROM python:3.12-slim-trixie AS base
+FROM python:3.14-slim-trixie AS base
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
